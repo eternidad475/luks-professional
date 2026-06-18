@@ -77,7 +77,14 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
 input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit}
 .cam{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:50}
-.cam video{flex:1;width:100%;object-fit:contain}
+.camstage{flex:1;position:relative;min-height:0}
+.camstage video{width:100%;height:100%;object-fit:contain;display:block}
+.guide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.guide line,.guide ellipse,.guide rect,.guide path{fill:none;stroke:#34d399;stroke-width:1.4;
+  opacity:.85;vector-effect:non-scaling-stroke}
+.guide .mid{stroke:#fbbf24;stroke-dasharray:4 3}
+.guidecap{position:absolute;top:10px;left:0;right:0;text-align:center;color:#d1fae5;
+  font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none;padding:0 12px}
 .cam .bar{display:flex;justify-content:center;gap:16px;padding:16px;background:#111}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:60}
 .sheet-box{background:#fff;border-radius:14px;padding:18px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -132,7 +139,26 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 </div>
 
 <div class="cam" id="cam">
-  <video id="camvideo" autoplay playsinline muted></video>
+  <div class="camstage">
+    <video id="camvideo" autoplay playsinline muted></video>
+    <svg class="guide" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <!-- マクロ（顔貌とスマイル）ガイド -->
+      <g id="guide_macro" style="display:none">
+        <ellipse cx="50" cy="52" rx="26" ry="41"></ellipse>
+        <line class="mid" x1="50" y1="6" x2="50" y2="98"></line>
+        <line x1="22" y1="34" x2="78" y2="34"></line>
+        <line x1="30" y1="70" x2="70" y2="70"></line>
+      </g>
+      <!-- ミクロ（歯と歯肉）ガイド -->
+      <g id="guide_micro" style="display:none">
+        <rect x="10" y="28" width="80" height="44" rx="6"></rect>
+        <line class="mid" x1="50" y1="22" x2="50" y2="78"></line>
+        <line x1="12" y1="50" x2="88" y2="50"></line>
+        <path d="M14,44 Q50,66 86,44"></path>
+      </g>
+    </svg>
+    <div class="guidecap" id="guidecap"></div>
+  </div>
   <div class="bar">
     <button id="camcancel">キャンセル</button>
     <button id="camswitch">カメラ切替</button>
@@ -172,6 +198,17 @@ document.getElementById("ch_cam").onclick=()=>{ const s=chooserTarget; closeChoo
 document.getElementById("ch_lib").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("lib_"+s).click(); };
 document.getElementById("ch_file").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("file_"+s).click(); };
 
+// 撮影ガイド（Invisalign 系の撮影アプリのように構図を合わせるための補助線）
+const GUIDE_CAP={
+  macro:"顔貌・スマイル: 顔の正中を黄色線に合わせ、瞳孔線を水平・上下の線に口唇を合わせて笑顔で撮影",
+  micro:"歯・歯肉: 正中を黄色線に、咬合平面を水平線に合わせ、歯列を枠とアーチに収めて撮影"
+};
+function showGuide(kind){
+  document.getElementById("guide_macro").style.display = kind==="macro"?"":"none";
+  document.getElementById("guide_micro").style.display = kind==="micro"?"":"none";
+  document.getElementById("guidecap").textContent = GUIDE_CAP[kind]||"";
+}
+
 // getUserMedia によるライブ撮影
 async function openCam(slot){
   camTarget=slot;
@@ -181,6 +218,7 @@ async function openCam(slot){
     alert("カメラを起動できませんでした: "+err+"\\nアップロードをご利用ください。");
     return;
   }
+  showGuide(slot.indexOf("macro")===0 ? "macro" : "micro");
   document.getElementById("camvideo").srcObject=camStream;
   document.getElementById("cam").style.display="flex";
 }
