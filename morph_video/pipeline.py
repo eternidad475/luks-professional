@@ -7,7 +7,7 @@ from typing import Callable, List, Optional, Tuple
 import numpy as np
 
 from .easing import get_easing
-from .io_utils import VideoWriter, load_and_normalize
+from .io_utils import VideoWriter, compute_aspect_size, fit_frame, load_and_normalize
 from .morphers import Morpher, get_morpher
 
 
@@ -42,6 +42,8 @@ def build_video(
     size: Optional[Tuple[int, int]] = None,
     easing: str = "ease_in_out",
     loop: bool = False,
+    aspect: Optional[str] = None,
+    fill: str = "blur",
     morpher_kwargs: Optional[dict] = None,
     progress: Optional[Callable[[str], None]] = None,
 ) -> str:
@@ -71,6 +73,13 @@ def build_video(
     h, w = images[0].shape[:2]
     out_size = (w, h)
 
+    # 書き出しアスペクト比（SNS / プレゼン用途）。指定時はフレームをレターボックス。
+    transform = None
+    if aspect:
+        ow, oh = compute_aspect_size(w, h, aspect)
+        out_size = (ow, oh)
+        transform = lambda f: fit_frame(f, ow, oh, fill)  # noqa: E731
+
     transition_frames = max(1, int(round(transition_seconds * fps)))
     hold_frames = max(0, int(round(hold_seconds * fps)))
 
@@ -78,7 +87,7 @@ def build_video(
     if loop:
         sequence = sequence + [images[0]]
 
-    with VideoWriter(output, fps, out_size) as writer:
+    with VideoWriter(output, fps, out_size, transform=transform) as writer:
         for idx in range(len(sequence)):
             img = sequence[idx]
             # キーフレームの静止表示

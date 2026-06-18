@@ -66,6 +66,8 @@ def _build_version(
     fps: float,
     transition_seconds: float,
     hold_seconds: float,
+    aspect: Optional[str],
+    fill: str,
     morpher_kwargs: Optional[dict],
     say: Callable[[str], None],
 ) -> Optional[VersionData]:
@@ -97,6 +99,8 @@ def _build_version(
             transition_seconds=transition_seconds,
             hold_seconds=hold_seconds,
             loop=loop,
+            aspect=aspect,
+            fill=fill,
             morpher_kwargs=morpher_kwargs,
             progress=lambda m: say("  " + m),
         )
@@ -130,6 +134,8 @@ def run_case(
     fps: float = 30.0,
     transition_seconds: float = 1.5,
     hold_seconds: float = 1.0,
+    aspect: Optional[str] = None,
+    fill: str = "blur",
     morpher_kwargs: Optional[dict] = None,
     progress: Optional[Callable[[str], None]] = None,
 ) -> CaseResult:
@@ -156,7 +162,7 @@ def run_case(
     ):
         vd = _build_version(
             kind, evals or [], target, output_dir, auto, method, fps,
-            transition_seconds, hold_seconds, morpher_kwargs, say,
+            transition_seconds, hold_seconds, aspect, fill, morpher_kwargs, say,
         )
         if vd is not None:
             result.versions.append(vd)

@@ -77,10 +77,68 @@ def load_and_normalize(
     return normalized
 
 
-class VideoWriter:
-    """cv2.VideoWriter の薄いラッパー (with 構文対応)。"""
+# 書き出しアスペクト比（SNS / プレゼン用途）
+ASPECTS = {
+    "9:16": (9, 16),
+    "4:5": (4, 5),
+    "1:1": (1, 1),
+    "16:9": (16, 9),
+}
 
-    def __init__(self, path: str, fps: float, size: Tuple[int, int], fourcc: str = "mp4v"):
+
+def _even(n: int) -> int:
+    n = int(round(n))
+    return n if n % 2 == 0 else n + 1
+
+
+def compute_aspect_size(src_w: int, src_h: int, aspect: str) -> Tuple[int, int]:
+    """元画像がちょうど収まる、指定アスペクト比のキャンバスサイズを返す。"""
+    aw, ah = ASPECTS[aspect]
+    ratio = aw / ah
+    out_w, out_h = src_w, round(src_w / ratio)
+    if out_h < src_h:  # 高さが足りなければ高さ基準で取り直す
+        out_h, out_w = src_h, round(src_h * ratio)
+    return _even(out_w), _even(out_h)
+
+
+def fit_frame(
+    frame: np.ndarray, out_w: int, out_h: int, fill: str = "blur"
+) -> np.ndarray:
+    """frame を (out_w, out_h) のキャンバスにレターボックス配置する。
+
+    fill: "blur"（背景は frame の拡大ぼかし）/ "white" / "black"。
+    """
+    fh, fw = frame.shape[:2]
+    scale = min(out_w / fw, out_h / fh)
+    nw, nh = max(1, int(round(fw * scale))), max(1, int(round(fh * scale)))
+    resized = cv2.resize(frame, (nw, nh), interpolation=cv2.INTER_AREA)
+
+    if fill == "blur":
+        cov = max(out_w / fw, out_h / fh)
+        cw, ch = max(1, int(round(fw * cov))), max(1, int(round(fh * cov)))
+        bg = cv2.resize(frame, (cw, ch), interpolation=cv2.INTER_LINEAR)
+        x0, y0 = (cw - out_w) // 2, (ch - out_h) // 2
+        bg = bg[y0:y0 + out_h, x0:x0 + out_w]
+        k = max(9, (min(out_w, out_h) // 12) | 1)  # 奇数カーネル
+        canvas = cv2.GaussianBlur(bg, (k, k), 0)
+        canvas = (canvas.astype(np.float32) * 0.7).astype(np.uint8)  # やや暗くして主役を立てる
+    else:
+        color = (255, 255, 255) if fill == "white" else (0, 0, 0)
+        canvas = np.full((out_h, out_w, 3), color, np.uint8)
+
+    ox, oy = (out_w - nw) // 2, (out_h - nh) // 2
+    canvas[oy:oy + nh, ox:ox + nw] = resized
+    return canvas
+
+
+class VideoWriter:
+    """cv2.VideoWriter の薄いラッパー (with 構文対応)。
+
+    transform を渡すと各フレームに適用してから書き込む（アスペクト比変換等）。
+    """
+
+    def __init__(self, path: str, fps: float, size: Tuple[int, int],
+                 fourcc: str = "mp4v", transform=None):
         parent = os.path.dirname(os.path.abspath(path))
         os.makedirs(parent, exist_ok=True)
         code = cv2.VideoWriter_fourcc(*fourcc)
@@ -91,9 +149,13 @@ class VideoWriter:
             )
         self.path = path
         self.size = size
+        self.transform = transform
         self.count = 0
 
+
     def write(self, frame: np.ndarray) -> None:
+        if self.transform is not None:
+            frame = self.transform(frame)
         if (frame.shape[1], frame.shape[0]) != self.size:
             frame = cv2.resize(frame, self.size)
         if frame.dtype != np.uint8:

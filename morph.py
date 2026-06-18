@@ -76,6 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--loop", action="store_true", help="末尾から先頭へ戻る遷移を追加 (ループ向け)"
     )
+    p.add_argument(
+        "--aspect", choices=["9:16", "4:5", "1:1", "16:9"], default=None,
+        help="書き出しアスペクト比 (既定: 元画像のまま)",
+    )
+    p.add_argument(
+        "--fill", choices=["blur", "white", "black"], default="blur",
+        help="アスペクト変換時の余白の埋め方",
+    )
 
     # 特徴点方式のオプション
     feat = p.add_argument_group("特徴点方式 (--method feature)")
