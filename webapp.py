@@ -99,7 +99,7 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 </style></head>
 <body><div class="wrap">
 <h1>審美歯科 記録・シミュレーション</h1>
-<p class="note">各スロットの「＋ 画像を追加」を押すと、カメラ撮影・写真ライブラリから選択・ファイルのアップロードを選べます。最低 1 枚で解析できます。</p>
+<p class="note">各スロットの「＋ 画像を追加」を押すと、白ガイド付きのカメラ撮影、または写真・ファイルからの選択ができます。最低 1 枚で解析できます。</p>
 
 <h2>マクロ（顔貌とスマイル）</h2>
 <div class="grid">
@@ -178,9 +178,11 @@ function handleFile(slot, input){
 }
 slots.forEach(slot=>{
   // ポップアップの開閉はチェックボックス（CSS）が担当。以下は実動作の補助。
-  document.getElementById("lib_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
   document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
+  // カメラ（白ガイド付き）。先に自前ポップアップを閉じる
   document.getElementById("cam_"+slot).addEventListener("click", ()=>{ closeSheet(slot); openCam(slot); });
+  // 写真・ファイルは OS 標準メニューに委譲。重なり防止のため先に閉じてから開く
+  document.getElementById("pick_"+slot).addEventListener("click", ()=>{ closeSheet(slot); document.getElementById("file_"+slot).click(); });
 });
 
 // 撮影ガイド（Invisalign 系の撮影アプリのように構図を合わせるための補助線）
@@ -261,14 +263,12 @@ def _slot_html(slot: str, label: str) -> str:
     <div class="sheet">
       <div class="sheet-box">
         <h3>{label}<br>画像の取得方法を選択</h3>
-        <button type="button" class="btn primary opt" id="cam_{slot}">📷 カメラで撮影</button>
-        <label class="btn opt" for="lib_{slot}">🖼 写真ライブラリから選択</label>
-        <label class="btn opt" for="file_{slot}">⬆ ファイルをアップロード</label>
+        <button type="button" class="btn primary opt" id="cam_{slot}">📷 カメラで撮影（白ガイド付き）</button>
+        <button type="button" class="btn opt" id="pick_{slot}">🖼 写真・ファイルから選択</button>
         <label class="btn opt ghost" for="cb_{slot}">キャンセル</label>
       </div>
     </div>
-    <input type="file" id="lib_{slot}" accept="image/*" style="display:none">
-    <input type="file" id="file_{slot}" accept="image/*,.cr2,.cr3,.nef,.arw,.raf,.orf,.dng,.heic" style="display:none">
+    <input type="file" id="file_{slot}" accept="image/*" style="display:none">
   </div>
 </div>"""
 
