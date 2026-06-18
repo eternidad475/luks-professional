@@ -79,13 +79,18 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 .cam{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:50}
 .cam video{flex:1;width:100%;object-fit:contain}
 .cam .bar{display:flex;justify-content:center;gap:16px;padding:16px;background:#111}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:60}
+.sheet-box{background:#fff;border-radius:14px;padding:18px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.sheet-box h3{margin:0 0 12px;font-size:15px;text-align:center}
+.sheet-box button{display:block;width:100%;margin-top:10px;padding:12px;font-size:15px}
+.sheet-box button.ghost{color:var(--muted);background:#f1f5f9}
 .disclaimer{margin-top:24px;font-size:12px;background:#fffbea;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:12px}
 .note{color:var(--muted);font-size:12px}
 #status{margin-top:14px;font-size:14px}
 </style></head>
 <body><div class="wrap">
 <h1>審美歯科 記録・シミュレーション</h1>
-<p class="note">各スロットで「撮影」（スマホのカメラ）または「アップロード」（一眼レフ等の画像）を選べます。最低 1 枚で解析できます。</p>
+<p class="note">各スロットの「＋ 画像を追加」を押すと、カメラ撮影・写真ライブラリから選択・ファイルのアップロードを選べます。最低 1 枚で解析できます。</p>
 
 <h2>マクロ（顔貌とスマイル）</h2>
 <div class="grid">
@@ -116,6 +121,16 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 <div class="disclaimer">__DISCLAIMER__</div>
 </div>
 
+<div class="sheet" id="chooser">
+  <div class="sheet-box">
+    <h3>画像の取得方法を選択</h3>
+    <button class="primary" id="ch_cam">📷 カメラで撮影</button>
+    <button id="ch_lib">🖼 写真ライブラリから選択</button>
+    <button id="ch_file">⬆ ファイルをアップロード</button>
+    <button class="ghost" id="ch_cancel">キャンセル</button>
+  </div>
+</div>
+
 <div class="cam" id="cam">
   <video id="camvideo" autoplay playsinline muted></video>
   <div class="bar">
@@ -135,16 +150,27 @@ function setPreview(slot, url){
   document.getElementById("img_"+slot).src = url;
 }
 
-// ファイルアップロード（input[type=file]）。スマホでは capture 指定で直接撮影も可
+function handleFile(slot, input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>setPreview(slot, r.result);
+  r.readAsDataURL(f);
+}
 slots.forEach(slot=>{
-  document.getElementById("file_"+slot).addEventListener("change", e=>{
-    const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader();
-    r.onload=()=>setPreview(slot, r.result);
-    r.readAsDataURL(f);
-  });
-  document.getElementById("shot_"+slot).addEventListener("click", ()=>openCam(slot));
+  document.getElementById("lib_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
+  document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
+  // 1 つのボタン → 取得方法の選択シートを表示
+  document.getElementById("add_"+slot).addEventListener("click", ()=>openChooser(slot));
 });
+
+// 取得方法の選択（カメラ撮影 / 写真ライブラリ / ファイル）
+let chooserTarget=null;
+function openChooser(slot){ chooserTarget=slot; document.getElementById("chooser").style.display="flex"; }
+function closeChooser(){ document.getElementById("chooser").style.display="none"; }
+document.getElementById("ch_cancel").onclick=closeChooser;
+document.getElementById("ch_cam").onclick=()=>{ const s=chooserTarget; closeChooser(); openCam(s); };
+document.getElementById("ch_lib").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("lib_"+s).click(); };
+document.getElementById("ch_file").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("file_"+s).click(); };
 
 // getUserMedia によるライブ撮影
 async function openCam(slot){
@@ -204,10 +230,10 @@ def _slot_html(slot: str, label: str) -> str:
   <h3>{label}</h3>
   <img class="preview" id="img_{slot}" alt="{label}">
   <div class="row">
-    <button id="shot_{slot}">📷 撮影</button>
-    <label class="btn">⬆ アップロード
-      <input type="file" id="file_{slot}" accept="image/*" style="display:none">
-    </label>
+    <button class="primary" id="add_{slot}">＋ 画像を追加</button>
+    <!-- 写真ライブラリ向け（画像のみ）とファイル向け（汎用）の 2 系統 -->
+    <input type="file" id="lib_{slot}" accept="image/*" style="display:none">
+    <input type="file" id="file_{slot}" accept="image/*,.cr2,.cr3,.nef,.arw,.raf,.orf,.dng,.heic" style="display:none">
   </div>
 </div>"""
 
