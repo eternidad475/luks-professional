@@ -31,14 +31,6 @@ from morph_video.dental import DISCLAIMER, run_case
 # 生成物の保存先（症例ごとにサブフォルダ）
 OUTPUT_ROOT = os.environ.get("DENTAL_OUTPUT_ROOT", os.path.join(tempfile.gettempdir(), "dental_reports"))
 
-# スロット定義: (フォーム名, run_case 引数名)
-SLOTS = [
-    ("macro_before", "macro_before"),
-    ("macro_after", "macro_after"),
-    ("micro_before", "micro_before"),
-    ("micro_after", "micro_after"),
-]
-
 _DATAURL_RE = re.compile(r"^data:image/(\w+);base64,(.+)$", re.DOTALL)
 
 
@@ -71,6 +63,13 @@ h2.micro{border-color:#0d9488}
 .slot h3{margin:0 0 8px;font-size:14px}
 .preview{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:8px;object-fit:contain;display:block;border:2px solid var(--line)}
 .preview.set{border-color:#16a34a}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;min-height:8px}
+.thumb{position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line);background:#0b1220}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .no{position:absolute;left:2px;top:1px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px}
+.thumb .rm{position:absolute;right:1px;top:1px;width:18px;height:18px;line-height:16px;text-align:center;
+  border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;padding:0;font-size:13px}
+.empty{color:var(--muted);font-size:12px;padding:6px 0}
 .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;display:inline-block}
 .primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -86,18 +85,18 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 <h1>審美歯科 記録・シミュレーション</h1>
 <p class="note">各スロットの「＋ 画像を追加」を押すと、端末標準のメニュー（写真を撮る／写真ライブラリ／ファイルを選択）が表示されます。評価用画像が 1 枚あれば解析できます。</p>
 
-<h2>① 評価用画像（現状）</h2>
-<p class="note">審美評価（マクロ4項目・ミクロ4項目）に使用します。シミュレーションを行う場合は、この画像が「術前」になります。</p>
+<h2>① 評価用画像（シーケンス）</h2>
+<p class="note">審美評価に使用します。複数枚を順番に追加でき、その並び順でモーフィング動画を生成・ダウンロードできます（評価は先頭画像で実施）。</p>
 <div class="grid">
-  __SLOT_macro_before__
-  __SLOT_micro_before__
+  __SEQ_macro_eval__
+  __SEQ_micro_eval__
 </div>
 
 <h2 class="micro">② シミュレーション用画像（術後イメージ・任意）</h2>
-<p class="note">「評価用画像 → この画像」へのモーフィング動画を生成します。シミュレーションが不要なら空のままで構いません。</p>
+<p class="note">「評価用の最後の画像 → この画像」へのモーフィング動画を生成します。不要なら空のままで構いません。</p>
 <div class="grid">
-  __SLOT_macro_after__
-  __SLOT_micro_after__
+  __SLOT_macro_target__
+  __SLOT_micro_target__
 </div>
 
 <div class="fields">
@@ -118,11 +117,13 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 </div>
 
 <script>
-const slots = ["macro_before","macro_after","micro_before","micro_after"];
-const data = {};               // slot -> dataURL
+const SEQS = ["macro_eval","micro_eval"];      // 評価用シーケンス（複数枚）
+const TARGETS = ["macro_target","micro_target"]; // 術後イメージ（単一）
+const seqs = {macro_eval:[], micro_eval:[]};    // slot -> [dataURL...]
+const single = {};                              // target slot -> dataURL
 
 function setPreview(slot, url){
-  data[slot]=url;
+  single[slot]=url;
   const img=document.getElementById("img_"+slot);
   img.src = url;
   img.classList.add("set");
@@ -155,26 +156,58 @@ function fileToDataURL(file, maxDim){
   });
 }
 
-// 「＋ 画像を追加」は単一の file input を開くだけ。
-// 写真を撮る/写真ライブラリ/ファイル選択は端末標準メニューに委譲する。
-async function handleFile(slot, input){
-  const f=input.files[0]; if(!f) return;
+// 単一画像（術後イメージ）のプレビュー
+async function handleSingle(slot, input){
+  const f=input.files[0]; input.value="";
+  if(!f) return;
   const url=await fileToDataURL(f, 1600);
   if(url){ setPreview(slot, url); }
   else { alert("この画像を読み込めませんでした。別の形式（JPEG/PNG）でお試しください。"); }
 }
-slots.forEach(slot=>{
-  document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
+
+// 評価用シーケンス（複数枚）のサムネイル・プレビュー
+function renderThumbs(slot){
+  const box=document.getElementById("thumbs_"+slot);
+  const arr=seqs[slot];
+  if(!arr.length){ box.innerHTML='<div class="empty">画像が未選択です（複数枚を順番に追加できます）</div>'; return; }
+  box.innerHTML=arr.map((u,i)=>
+    '<div class="thumb"><span class="no">'+(i+1)+'</span>'+
+    '<button class="rm" data-slot="'+slot+'" data-i="'+i+'" title="削除">×</button>'+
+    '<img src="'+u+'"></div>').join("");
+}
+async function handleSeq(slot, input){
+  const files=Array.from(input.files||[]);
+  input.value="";   // 同じ画像を再度選べるようにクリア
+  for(const f of files){
+    const url=await fileToDataURL(f, 1600);
+    if(url) seqs[slot].push(url);
+  }
+  renderThumbs(slot);
+}
+// サムネイルの削除ボタン
+document.addEventListener("click", e=>{
+  const b=e.target.closest(".rm"); if(!b) return;
+  seqs[b.dataset.slot].splice(+b.dataset.i, 1);
+  renderThumbs(b.dataset.slot);
+});
+
+SEQS.forEach(slot=>{
+  document.getElementById("file_"+slot).addEventListener("change", e=>handleSeq(slot, e.target));
+  renderThumbs(slot);
+});
+TARGETS.forEach(slot=>{
+  document.getElementById("file_"+slot).addEventListener("change", e=>handleSingle(slot, e.target));
 });
 
 document.getElementById("run").onclick=async()=>{
-  const imgs={};
-  slots.forEach(s=>{ if(data[s]) imgs[s]=data[s]; });
-  if(Object.keys(imgs).length===0){ alert("少なくとも 1 枚の画像が必要です。"); return; }
+  const sequences={}; SEQS.forEach(s=>{ if(seqs[s].length) sequences[s]=seqs[s]; });
+  const targets={};   TARGETS.forEach(s=>{ if(single[s]) targets[s]=single[s]; });
+  const total=Object.values(sequences).reduce((a,v)=>a+v.length,0)+Object.keys(targets).length;
+  if(total===0){ alert("少なくとも 1 枚の画像が必要です。"); return; }
   const status=document.getElementById("status");
   status.textContent="解析中... しばらくお待ちください。";
   const payload={
-    images:imgs,
+    sequences, targets,
     case_id:document.getElementById("case_id").value,
     patient:document.getElementById("patient").value,
     auto:document.getElementById("auto").checked
@@ -191,8 +224,7 @@ document.getElementById("run").onclick=async()=>{
 
 
 def _slot_html(slot: str, label: str) -> str:
-    # 「＋ 画像を追加」ラベルが file input を直接開く。
-    # 端末側が標準メニュー（写真を撮る/写真ライブラリ/ファイルを選択）を表示する。
+    # 単一画像（術後イメージ）。プレビュー 1 枚。
     return f"""<div class="slot">
   <h3>{label}</h3>
   <img class="preview" id="img_{slot}" alt="{label}">
@@ -203,15 +235,31 @@ def _slot_html(slot: str, label: str) -> str:
 </div>"""
 
 
+def _seq_html(slot: str, label: str) -> str:
+    # 評価用シーケンス。複数枚をサムネイルでプレビューし、順序つきで保持。
+    return f"""<div class="slot">
+  <h3>{label}</h3>
+  <div class="thumbs" id="thumbs_{slot}"></div>
+  <div class="row">
+    <label class="btn primary addbtn" for="file_{slot}">＋ 画像を追加（複数可）</label>
+    <input type="file" id="file_{slot}" accept="image/*" multiple style="display:none">
+  </div>
+</div>"""
+
+
 def render_index() -> str:
     html = INDEX_HTML
-    labels = {
-        "macro_before": "マクロ｜顔貌・スマイル（評価用）",
-        "micro_before": "ミクロ｜歯・歯肉（評価用）",
-        "macro_after": "マクロ｜顔貌・スマイル（術後イメージ）",
-        "micro_after": "ミクロ｜歯・歯肉（術後イメージ）",
+    seq_labels = {
+        "macro_eval": "マクロ｜顔貌・スマイル（評価用）",
+        "micro_eval": "ミクロ｜歯・歯肉（評価用）",
     }
-    for slot, label in labels.items():
+    target_labels = {
+        "macro_target": "マクロ｜顔貌・スマイル（術後イメージ）",
+        "micro_target": "ミクロ｜歯・歯肉（術後イメージ）",
+    }
+    for slot, label in seq_labels.items():
+        html = html.replace(f"__SEQ_{slot}__", _seq_html(slot, label))
+    for slot, label in target_labels.items():
         html = html.replace(f"__SLOT_{slot}__", _slot_html(slot, label))
     html = html.replace("__DISCLAIMER__", DISCLAIMER)
     return html
@@ -270,13 +318,25 @@ class Handler(BaseHTTPRequestHandler):
         case_dir = os.path.join(OUTPUT_ROOT, case)
         os.makedirs(case_dir, exist_ok=True)
 
-        images = payload.get("images", {})
-        kwargs = {}
-        for form_name, arg_name in SLOTS:
-            if form_name in images:
-                saved = _save_data_url(images[form_name], case_dir, form_name)
+        # 評価用シーケンス（複数枚）と術後イメージ（単一）を保存
+        sequences = payload.get("sequences", {})   # {macro_eval:[dataURL...], micro_eval:[...]}
+        targets = payload.get("targets", {})       # {macro_target:dataURL, micro_target:dataURL}
+
+        kwargs: Dict = {}
+        for key in ("macro_eval", "micro_eval"):
+            paths = []
+            for i, durl in enumerate(sequences.get(key, []) or []):
+                saved = _save_data_url(durl, case_dir, f"{key}_{i:02d}")
                 if saved:
-                    kwargs[arg_name] = saved
+                    paths.append(saved)
+            if paths:
+                kwargs[key] = paths
+        for key in ("macro_target", "micro_target"):
+            durl = targets.get(key)
+            if durl:
+                saved = _save_data_url(durl, case_dir, key)
+                if saved:
+                    kwargs[key] = saved
 
         if not kwargs:
             raise ValueError("有効な画像がありません。")

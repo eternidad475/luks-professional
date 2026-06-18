@@ -6,12 +6,12 @@
     # 主訴の一覧（コード）を表示
     python dental.py --list-complaints
 
-    # マクロ(顔貌・スマイル)とミクロ(歯・歯肉)の術前/術後からレポート一式を生成
-    python dental.py --macro-before face_pre.jpg --macro-after face_post.jpg \
-        --micro-before teeth_pre.jpg --micro-after teeth_post.jpg --case-id C001 -o report/
+    # 評価用シーケンス（複数枚）をモーフィング動画化 + 審美評価
+    python dental.py --macro-eval f1.jpg f2.jpg f3.jpg --micro-eval t1.jpg t2.jpg \
+        --case-id C001 -o report/
 
-    # マクロ術前のみ + 手動主訴
-    python dental.py --macro-before face_pre.jpg --complaints crowding,discoloration -o report/
+    # 評価用 + 術後イメージ（シミュレーション動画も生成）
+    python dental.py --macro-eval face_now.jpg --macro-target face_goal.jpg -o report/
 
     # ブラウザでスマホ直接撮影 / 一眼レフ画像アップロードする Web UI を起動
     python webapp.py  # → http://localhost:8000
@@ -55,15 +55,21 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--list-complaints", action="store_true", help="主訴コード一覧を表示して終了")
-    # マクロ（顔貌とスマイル）
-    p.add_argument("--macro-before", help="マクロ術前画像（顔貌・スマイル）")
-    p.add_argument("--macro-after", help="マクロ術後 / シミュレーション画像")
-    # ミクロ（歯と歯肉）
-    p.add_argument("--micro-before", help="ミクロ術前画像（歯・歯肉の接写）")
-    p.add_argument("--micro-after", help="ミクロ術後 / シミュレーション画像")
-    # 後方互換: --before/--after はマクロのエイリアス
-    p.add_argument("--before", help="(エイリアス) --macro-before と同じ")
-    p.add_argument("--after", help="(エイリアス) --macro-after と同じ")
+    # 評価用画像シーケンス（複数枚・順序つき）
+    p.add_argument("--macro-eval", nargs="+", default=None,
+                   help="マクロ評価用画像シーケンス（顔貌・スマイル、複数可）")
+    p.add_argument("--micro-eval", nargs="+", default=None,
+                   help="ミクロ評価用画像シーケンス（歯・歯肉の接写、複数可）")
+    # シミュレーション用（術後イメージ・任意）
+    p.add_argument("--macro-target", help="マクロ術後イメージ（シミュレーション用）")
+    p.add_argument("--micro-target", help="ミクロ術後イメージ（シミュレーション用）")
+    # 後方互換エイリアス（単一画像）
+    p.add_argument("--macro-before", help="(エイリアス) --macro-eval の単一画像")
+    p.add_argument("--macro-after", help="(エイリアス) --macro-target")
+    p.add_argument("--micro-before", help="(エイリアス) --micro-eval の単一画像")
+    p.add_argument("--micro-after", help="(エイリアス) --micro-target")
+    p.add_argument("--before", help="(エイリアス) --macro-eval の単一画像")
+    p.add_argument("--after", help="(エイリアス) --macro-target")
     p.add_argument(
         "--complaints",
         default="",
@@ -95,12 +101,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         _print_complaints()
         return 0
 
-    macro_before = args.macro_before or args.before
-    macro_after = args.macro_after or args.after
+    # 評価用シーケンス（--*-eval 優先、無ければ単一エイリアスから構成）
+    macro_eval = args.macro_eval or [p for p in (args.macro_before, args.before) if p][:1] or None
+    micro_eval = args.micro_eval or ([args.micro_before] if args.micro_before else None)
+    macro_target = args.macro_target or args.macro_after or args.after
+    micro_target = args.micro_target or args.micro_after
 
-    if not any([macro_before, macro_after, args.micro_before, args.micro_after]):
-        print("エラー: マクロ/ミクロのいずれかの画像が必要です。", file=sys.stderr)
-        print("       例: --macro-before face.jpg / --micro-before teeth.jpg", file=sys.stderr)
+    if not any([macro_eval, micro_eval, macro_target, micro_target]):
+        print("エラー: 評価用またはシミュレーション用の画像が必要です。", file=sys.stderr)
+        print("       例: --macro-eval f1.jpg f2.jpg / --micro-eval t1.jpg", file=sys.stderr)
         print("       主訴の一覧は `python dental.py --list-complaints`。", file=sys.stderr)
         return 2
 
@@ -108,10 +117,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         run_case(
-            macro_before=macro_before,
-            macro_after=macro_after,
-            micro_before=args.micro_before,
-            micro_after=args.micro_after,
+            macro_eval=macro_eval,
+            micro_eval=micro_eval,
+            macro_target=macro_target,
+            micro_target=micro_target,
             complaints=codes,
             auto=args.auto,
             case_id=args.case_id,

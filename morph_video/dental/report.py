@@ -52,8 +52,10 @@ def case_to_dict(result: "CaseResult") -> Dict:
             {
                 "kind": vd.kind,
                 "title": vd.title,
-                "images": {"before": vd.before_path, "after": vd.after_path},
-                "simulation_video": vd.video_path,
+                "evaluation_images": list(vd.eval_paths),
+                "target_image": vd.target_path,
+                "sequence_video": vd.seq_video_path,
+                "simulation_video": vd.sim_video_path,
                 "evaluation": _eval_to_dict(vd.evaluation),
             }
         )
@@ -124,6 +126,8 @@ h2.macro { border-color:#6366f1; } h2.micro { border-color:#0d9488; }
 .media figure { flex: 1 1 240px; margin: 0; }
 .media img, .media video { width: 100%; border-radius: 8px; border: 1px solid var(--line); background:#000; }
 figcaption { font-size: 13px; color: var(--muted); margin-top: 4px; text-align: center; }
+.dl { display:inline-block; margin-left:6px; color:#2563eb; text-decoration:none; font-weight:600; }
+.dl:hover { text-decoration:underline; }
 table.metrics { width:100%; border-collapse: collapse; margin: 6px 0 4px; font-size: 14px; }
 table.metrics th, table.metrics td { text-align:left; padding: 8px 10px; border-bottom:1px solid var(--line); vertical-align: top; }
 table.metrics th { width: 26%; color:#334; background:#f1f5f9; font-weight:600; }
@@ -150,26 +154,37 @@ table.metrics th { width: 26%; color:#334; background:#f1f5f9; font-weight:600; 
 """
 
 
+def _video_figure(path: str, label: str) -> str:
+    name = html.escape(os.path.basename(path))
+    return (
+        f'<figure><video controls loop muted playsinline><source src="{name}" '
+        f'type="video/mp4"></video><figcaption>{label} '
+        f'<a class="dl" href="{name}" download>⬇ ダウンロード</a></figcaption></figure>'
+    )
+
+
 def _media_block(vd: "VersionData") -> str:
     parts: List[str] = []
-    before_uri = _img_data_uri(vd.before_image)
-    after_uri = _img_data_uri(vd.after_image)
-    if before_uri:
+    # 評価用シーケンス（順序つき）
+    for i, img in enumerate(vd.eval_images):
+        uri = _img_data_uri(img)
+        if uri:
+            parts.append(
+                f'<figure><img src="{uri}" alt="評価用 {i + 1}"/>'
+                f"<figcaption>評価用 {i + 1}</figcaption></figure>"
+            )
+    # 術後イメージ
+    target_uri = _img_data_uri(vd.target_image)
+    if target_uri:
         parts.append(
-            f'<figure><img src="{before_uri}" alt="評価用（現状）"/>'
-            "<figcaption>評価用（現状）</figcaption></figure>"
-        )
-    if after_uri:
-        parts.append(
-            f'<figure><img src="{after_uri}" alt="シミュレーション（術後イメージ）"/>'
+            f'<figure><img src="{target_uri}" alt="術後イメージ"/>'
             "<figcaption>シミュレーション（術後イメージ）</figcaption></figure>"
         )
-    if vd.video_path:
-        vid = html.escape(os.path.basename(vd.video_path))
-        parts.append(
-            f'<figure><video controls loop muted playsinline><source src="{vid}" '
-            'type="video/mp4"></video><figcaption>モーフィング動画（評価用→術後イメージ）</figcaption></figure>'
-        )
+    # 動画（ダウンロード可）
+    if vd.seq_video_path:
+        parts.append(_video_figure(vd.seq_video_path, "シーケンス動画"))
+    if vd.sim_video_path:
+        parts.append(_video_figure(vd.sim_video_path, "シミュレーション動画（評価用→術後イメージ）"))
     if not parts:
         return ""
     return '<div class="media">' + "".join(parts) + "</div>"

@@ -1,8 +1,12 @@
 """症例ワークフロー。
 
-マクロ（顔貌とスマイル）／ミクロ（歯と歯肉）の 2 バージョンの画像を受け取り、
-それぞれを評価し、術前/術後があればモーフィング動画を生成、主訴と推奨治療を
-まとめて HTML/JSON レポートに統合する。
+マクロ（顔貌とスマイル）／ミクロ（歯と歯肉）の 2 バージョンについて、評価用の
+画像シーケンス（複数枚）と任意のシミュレーション用画像（術後イメージ）を受け取る。
+
+- 評価: 各バージョンの評価用シーケンス先頭画像で審美評価を行う
+- シーケンス動画: 評価用が 2 枚以上ならシーケンスをモーフィングして動画化
+- シミュレーション動画: 術後イメージがあれば「評価用末尾 → 術後イメージ」を動画化
+- 主訴・推奨治療・各動画をまとめて HTML/JSON レポートに統合（動画はダウンロード可）
 """
 
 from __future__ import annotations
@@ -28,12 +32,13 @@ class VersionData:
 
     kind: str  # "macro" / "micro"
     title: str
-    before_path: Optional[str] = None
-    after_path: Optional[str] = None
-    video_path: Optional[str] = None
+    eval_paths: List[str] = field(default_factory=list)   # 評価用シーケンス（順序つき）
+    target_path: Optional[str] = None                     # 術後イメージ（任意）
+    seq_video_path: Optional[str] = None                  # 評価用シーケンスの動画
+    sim_video_path: Optional[str] = None                  # 評価用→術後イメージの動画
     evaluation: Optional[Evaluation] = None
-    before_image: Optional[np.ndarray] = field(default=None, repr=False)
-    after_image: Optional[np.ndarray] = field(default=None, repr=False)
+    eval_images: List[np.ndarray] = field(default_factory=list, repr=False)
+    target_image: Optional[np.ndarray] = field(default=None, repr=False)
 
 
 @dataclass
@@ -53,8 +58,8 @@ _TITLES = {"macro": "マクロ評価（顔貌とスマイル）", "micro": "ミ�
 
 def _build_version(
     kind: str,
-    before: Optional[str],
-    after: Optional[str],
+    eval_paths: List[str],
+    target_path: Optional[str],
     output_dir: str,
     do_eval: bool,
     method: str,
@@ -64,46 +69,58 @@ def _build_version(
     morpher_kwargs: Optional[dict],
     say: Callable[[str], None],
 ) -> Optional[VersionData]:
-    if not before and not after:
+    eval_paths = [p for p in (eval_paths or []) if p]
+    if not eval_paths and not target_path:
         return None
 
-    vd = VersionData(kind=kind, title=_TITLES[kind], before_path=before, after_path=after)
-    if before:
-        vd.before_image = load_image(before)
-    if after:
-        vd.after_image = load_image(after)
+    vd = VersionData(
+        kind=kind, title=_TITLES[kind], eval_paths=eval_paths, target_path=target_path
+    )
+    vd.eval_images = [load_image(p) for p in eval_paths]
+    if target_path:
+        vd.target_image = load_image(target_path)
 
-    # 評価（術前を優先、無ければ術後）
+    # 審美評価（評価用シーケンス先頭を優先、無ければ術後イメージ）
     if do_eval:
-        target = vd.before_image if vd.before_image is not None else vd.after_image
+        target = vd.eval_images[0] if vd.eval_images else vd.target_image
         if target is not None:
             say(f"{vd.title}: 画像を解析中...")
             vd.evaluation = evaluate(target, kind)
 
-    # 術前術後シミュレーション動画
-    if before and after:
-        video_path = os.path.join(output_dir, f"simulation_{kind}.mp4")
-        say(f"{vd.title}: シミュレーション動画を生成中 ({method})...")
+    def _morph(inputs: List[str], out_name: str, loop: bool) -> str:
+        out = os.path.join(output_dir, out_name)
         build_video(
-            inputs=[before, after],
-            output=video_path,
+            inputs=inputs,
+            output=out,
             method=method,
             fps=fps,
             transition_seconds=transition_seconds,
             hold_seconds=hold_seconds,
-            loop=True,
+            loop=loop,
             morpher_kwargs=morpher_kwargs,
             progress=lambda m: say("  " + m),
         )
-        vd.video_path = video_path
+        return out
+
+    # 評価用シーケンスのモーフィング動画（2 枚以上）
+    if len(eval_paths) >= 2:
+        say(f"{vd.title}: シーケンス動画を生成中（{len(eval_paths)} 枚, {method}）...")
+        vd.seq_video_path = _morph(eval_paths, f"sequence_{kind}.mp4", loop=False)
+
+    # 術前→術後イメージのシミュレーション動画
+    if target_path and eval_paths:
+        say(f"{vd.title}: シミュレーション動画を生成中 ({method})...")
+        vd.sim_video_path = _morph(
+            [eval_paths[-1], target_path], f"simulation_{kind}.mp4", loop=True
+        )
     return vd
 
 
 def run_case(
-    macro_before: Optional[str] = None,
-    macro_after: Optional[str] = None,
-    micro_before: Optional[str] = None,
-    micro_after: Optional[str] = None,
+    macro_eval: Optional[List[str]] = None,
+    micro_eval: Optional[List[str]] = None,
+    macro_target: Optional[str] = None,
+    micro_target: Optional[str] = None,
     complaints: Optional[List[str]] = None,
     auto: bool = True,
     case_id: str = "",
@@ -116,10 +133,10 @@ def run_case(
     morpher_kwargs: Optional[dict] = None,
     progress: Optional[Callable[[str], None]] = None,
 ) -> CaseResult:
-    """1 症例分の処理（評価・シミュレーション・推奨提示・レポート出力）。
+    """1 症例分の処理（評価・シーケンス/シミュレーション動画・推奨提示・レポート出力）。
 
-    macro_* はマクロ（顔貌とスマイル）、micro_* はミクロ（歯と歯肉）の画像。
-    各バージョンで before/after が揃えばモーフィング動画を生成する。
+    ``macro_eval`` / ``micro_eval`` は評価用画像シーケンス（順序つきの複数枚）。
+    ``macro_target`` / ``micro_target`` は任意の術後イメージ（シミュレーション用）。
     """
     from . import DISCLAIMER, report
 
@@ -133,12 +150,12 @@ def run_case(
         disclaimer=DISCLAIMER,
     )
 
-    for kind, before, after in (
-        ("macro", macro_before, macro_after),
-        ("micro", micro_before, micro_after),
+    for kind, evals, target in (
+        ("macro", macro_eval, macro_target),
+        ("micro", micro_eval, micro_target),
     ):
         vd = _build_version(
-            kind, before, after, output_dir, auto, method, fps,
+            kind, evals or [], target, output_dir, auto, method, fps,
             transition_seconds, hold_seconds, morpher_kwargs, say,
         )
         if vd is not None:
