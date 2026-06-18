@@ -69,7 +69,8 @@ h2.micro{border-color:#0d9488}
 @media(max-width:640px){.grid{grid-template-columns:1fr}}
 .slot{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
 .slot h3{margin:0 0 8px;font-size:14px}
-.preview{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:8px;object-fit:contain;display:block}
+.preview{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:8px;object-fit:contain;display:block;border:2px solid var(--line)}
+.preview.set{border-color:#16a34a}
 .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;display:inline-block}
 .primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -120,16 +121,45 @@ const data = {};               // slot -> dataURL
 
 function setPreview(slot, url){
   data[slot]=url;
-  document.getElementById("img_"+slot).src = url;
+  const img=document.getElementById("img_"+slot);
+  img.src = url;
+  img.classList.add("set");
+}
+
+// 選択画像を canvas で縮小し JPEG dataURL に変換する。
+// iPhone の HEIC を JPEG 化して表示可能にし、向き補正・容量削減も行う。
+function fileToDataURL(file, maxDim){
+  return new Promise((resolve)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+      const scale=Math.min(1, maxDim/Math.max(w,h));
+      const cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
+      const c=document.createElement("canvas"); c.width=cw; c.height=ch;
+      c.getContext("2d").drawImage(img,0,0,cw,ch);
+      URL.revokeObjectURL(url);
+      try{ resolve(c.toDataURL("image/jpeg",0.9)); }
+      catch(e){ resolve(null); }
+    };
+    img.onerror=()=>{   // HEIC 等で img 読み込み不可なら FileReader にフォールバック
+      URL.revokeObjectURL(url);
+      const r=new FileReader();
+      r.onload=()=>resolve(r.result);
+      r.onerror=()=>resolve(null);
+      r.readAsDataURL(file);
+    };
+    img.src=url;
+  });
 }
 
 // 「＋ 画像を追加」は単一の file input を開くだけ。
 // 写真を撮る/写真ライブラリ/ファイル選択は端末標準メニューに委譲する。
-function handleFile(slot, input){
+async function handleFile(slot, input){
   const f=input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=()=>setPreview(slot, r.result);
-  r.readAsDataURL(f);
+  const url=await fileToDataURL(f, 1600);
+  if(url){ setPreview(slot, url); }
+  else { alert("この画像を読み込めませんでした。別の形式（JPEG/PNG）でお試しください。"); }
 }
 slots.forEach(slot=>{
   document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
