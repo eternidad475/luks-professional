@@ -1,0 +1,111 @@
+"""画像の読み込み・リサイズと動画書き出しのユーティリティ。"""
+
+from __future__ import annotations
+
+import glob
+import os
+from typing import List, Optional, Tuple
+
+import cv2
+import numpy as np
+
+# 一般的な画像拡張子
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff")
+
+
+def expand_inputs(paths: List[str]) -> List[str]:
+    """与えられたパス／ディレクトリ／グロブを画像ファイルの一覧に展開する。
+
+    - ディレクトリが渡されたら、その中の画像を名前順で取り込む
+    - グロブ (``*.png`` 等) を展開する
+    - それ以外はファイルとしてそのまま採用する
+    """
+    result: List[str] = []
+    for p in paths:
+        if os.path.isdir(p):
+            entries = sorted(
+                os.path.join(p, f)
+                for f in os.listdir(p)
+                if f.lower().endswith(_IMAGE_EXTS)
+            )
+            result.extend(entries)
+        elif any(ch in p for ch in "*?[") :
+            result.extend(sorted(glob.glob(p)))
+        else:
+            result.append(p)
+    return result
+
+
+def load_image(path: str) -> np.ndarray:
+    """BGR の uint8 画像として読み込む。失敗時は例外。"""
+    # 日本語パス等にも対応するため imdecode 経由で読み込む
+    data = np.fromfile(path, dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if img is None:
+        raise FileNotFoundError(f"画像を読み込めませんでした: {path}")
+    return img
+
+
+def _fit_size(
+    images: List[np.ndarray], size: Optional[Tuple[int, int]]
+) -> Tuple[int, int]:
+    if size is not None:
+        return size
+    # 指定が無ければ先頭画像のサイズに揃える
+    h, w = images[0].shape[:2]
+    return (w, h)
+
+
+def load_and_normalize(
+    paths: List[str], size: Optional[Tuple[int, int]] = None
+) -> List[np.ndarray]:
+    """全画像を同じ解像度・3 チャンネルに揃えて読み込む。
+
+    size が None の場合は先頭画像の解像度に合わせる。
+    """
+    if not paths:
+        raise ValueError("入力画像がありません。")
+
+    images = [load_image(p) for p in paths]
+    target_w, target_h = _fit_size(images, size)
+
+    normalized: List[np.ndarray] = []
+    for img in images:
+        if img.shape[1] != target_w or img.shape[0] != target_h:
+            img = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        normalized.append(np.ascontiguousarray(img))
+    return normalized
+
+
+class VideoWriter:
+    """cv2.VideoWriter の薄いラッパー (with 構文対応)。"""
+
+    def __init__(self, path: str, fps: float, size: Tuple[int, int], fourcc: str = "mp4v"):
+        parent = os.path.dirname(os.path.abspath(path))
+        os.makedirs(parent, exist_ok=True)
+        code = cv2.VideoWriter_fourcc(*fourcc)
+        self._writer = cv2.VideoWriter(path, code, fps, size)
+        if not self._writer.isOpened():
+            raise RuntimeError(
+                f"動画ファイルを開けませんでした: {path} (fourcc={fourcc})"
+            )
+        self.path = path
+        self.size = size
+        self.count = 0
+
+    def write(self, frame: np.ndarray) -> None:
+        if (frame.shape[1], frame.shape[0]) != self.size:
+            frame = cv2.resize(frame, self.size)
+        if frame.dtype != np.uint8:
+            frame = np.clip(frame, 0, 255).astype(np.uint8)
+        self._writer.write(frame)
+        self.count += 1
+
+    def close(self) -> None:
+        self._writer.release()
+
+    def __enter__(self) -> "VideoWriter":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
