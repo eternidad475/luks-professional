@@ -155,17 +155,20 @@ def _media_block(vd: "VersionData") -> str:
     before_uri = _img_data_uri(vd.before_image)
     after_uri = _img_data_uri(vd.after_image)
     if before_uri:
-        parts.append(f'<figure><img src="{before_uri}" alt="術前"/><figcaption>術前</figcaption></figure>')
+        parts.append(
+            f'<figure><img src="{before_uri}" alt="評価用（現状）"/>'
+            "<figcaption>評価用（現状）</figcaption></figure>"
+        )
     if after_uri:
         parts.append(
-            f'<figure><img src="{after_uri}" alt="術後/シミュレーション"/>'
-            "<figcaption>術後 / シミュレーション</figcaption></figure>"
+            f'<figure><img src="{after_uri}" alt="シミュレーション（術後イメージ）"/>'
+            "<figcaption>シミュレーション（術後イメージ）</figcaption></figure>"
         )
     if vd.video_path:
         vid = html.escape(os.path.basename(vd.video_path))
         parts.append(
             f'<figure><video controls loop muted playsinline><source src="{vid}" '
-            'type="video/mp4"></video><figcaption>モーフィング動画</figcaption></figure>'
+            'type="video/mp4"></video><figcaption>モーフィング動画（評価用→術後イメージ）</figcaption></figure>'
         )
     if not parts:
         return ""

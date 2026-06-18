@@ -84,17 +84,19 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 </style></head>
 <body><div class="wrap">
 <h1>審美歯科 記録・シミュレーション</h1>
-<p class="note">各スロットの「＋ 画像を追加」を押すと、端末標準のメニュー（写真を撮る／写真ライブラリ／ファイルを選択）が表示されます。最低 1 枚で解析できます。</p>
+<p class="note">各スロットの「＋ 画像を追加」を押すと、端末標準のメニュー（写真を撮る／写真ライブラリ／ファイルを選択）が表示されます。評価用画像が 1 枚あれば解析できます。</p>
 
-<h2>マクロ（顔貌とスマイル）</h2>
+<h2>① 評価用画像（現状）</h2>
+<p class="note">審美評価（マクロ4項目・ミクロ4項目）に使用します。シミュレーションを行う場合は、この画像が「術前」になります。</p>
 <div class="grid">
   __SLOT_macro_before__
-  __SLOT_macro_after__
+  __SLOT_micro_before__
 </div>
 
-<h2 class="micro">ミクロ（歯と歯肉）</h2>
+<h2 class="micro">② シミュレーション用画像（術後イメージ・任意）</h2>
+<p class="note">「評価用画像 → この画像」へのモーフィング動画を生成します。シミュレーションが不要なら空のままで構いません。</p>
 <div class="grid">
-  __SLOT_micro_before__
+  __SLOT_macro_after__
   __SLOT_micro_after__
 </div>
 
@@ -204,10 +206,10 @@ def _slot_html(slot: str, label: str) -> str:
 def render_index() -> str:
     html = INDEX_HTML
     labels = {
-        "macro_before": "術前（顔貌・スマイル）",
-        "macro_after": "術後 / シミュレーション",
-        "micro_before": "術前（歯・歯肉の接写）",
-        "micro_after": "術後 / シミュレーション",
+        "macro_before": "マクロ｜顔貌・スマイル（評価用）",
+        "micro_before": "ミクロ｜歯・歯肉（評価用）",
+        "macro_after": "マクロ｜顔貌・スマイル（術後イメージ）",
+        "micro_after": "ミクロ｜歯・歯肉（術後イメージ）",
     }
     for slot, label in labels.items():
         html = html.replace(f"__SLOT_{slot}__", _slot_html(slot, label))
