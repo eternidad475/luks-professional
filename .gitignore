@@ -3,5 +3,7 @@ __pycache__/
 *.mp4
 *.avi
 _test_imgs/
+_demo/
+report/
 .venv/
 venv/
