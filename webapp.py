@@ -53,10 +53,40 @@ INDEX_HTML = """<!DOCTYPE html>
 <style>
 :root{--accent:#2563eb;--line:#e3e8ee;--muted:#6b7785;}
 *{box-sizing:border-box}
-body{font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;margin:0;background:#f7f9fb;color:#1f2933;line-height:1.6}
-.wrap{max-width:880px;margin:0 auto;padding:20px}
-h1{font-size:20px} h2{font-size:16px;border-left:4px solid #6366f1;padding-left:8px;margin-top:26px}
-h2.micro{border-color:#0d9488}
+body{font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;margin:0;color:#15403d;line-height:1.6;
+  background:linear-gradient(120deg,#bdeae5,#fff6cf);overflow-x:hidden}
+/* ティファニーブルー×イエローがマーブル状に混ざって動く背景 */
+body::before,body::after{content:"";position:fixed;inset:-30%;z-index:-1;pointer-events:none}
+body::before{
+  background:
+    radial-gradient(40% 40% at 25% 30%, rgba(10,186,181,.78), transparent 60%),
+    radial-gradient(45% 45% at 80% 22%, rgba(255,214,77,.72), transparent 60%),
+    radial-gradient(50% 50% at 65% 80%, rgba(129,216,208,.82), transparent 62%),
+    radial-gradient(45% 45% at 18% 82%, rgba(255,236,158,.78), transparent 62%);
+  filter:blur(60px) saturate(1.15);
+  animation:marbleA 24s ease-in-out infinite alternate}
+body::after{
+  background:
+    radial-gradient(42% 42% at 70% 38%, rgba(10,186,181,.55), transparent 60%),
+    radial-gradient(42% 42% at 30% 62%, rgba(255,209,59,.5), transparent 60%),
+    radial-gradient(38% 38% at 50% 50%, rgba(167,232,227,.5), transparent 60%);
+  filter:blur(80px);mix-blend-mode:screen;
+  animation:marbleB 33s ease-in-out infinite alternate}
+@keyframes marbleA{
+  0%{transform:translate(-4%,-2%) rotate(0deg) scale(1.10)}
+  50%{transform:translate(3%,4%) rotate(8deg) scale(1.26)}
+  100%{transform:translate(-2%,3%) rotate(-6deg) scale(1.16)}}
+@keyframes marbleB{
+  0%{transform:translate(3%,2%) rotate(0deg) scale(1.18)}
+  100%{transform:translate(-4%,-3%) rotate(12deg) scale(1.38)}}
+@media(prefers-reduced-motion:reduce){body::before,body::after{animation:none}}
+.wrap{max-width:880px;margin:18px auto;padding:20px;
+  background:rgba(255,255,255,.5);backdrop-filter:blur(9px) saturate(1.1);
+  -webkit-backdrop-filter:blur(9px) saturate(1.1);border-radius:18px;
+  box-shadow:0 10px 34px rgba(13,80,76,.12)}
+h1{font-size:20px;text-shadow:0 1px 2px rgba(255,255,255,.6)}
+h2{font-size:16px;border-left:4px solid #0d9488;padding-left:8px;margin-top:26px;text-shadow:0 1px 2px rgba(255,255,255,.5)}
+h2.micro{border-color:#caa204}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:640px){.grid{grid-template-columns:1fr}}
 .slot{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
