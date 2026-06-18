@@ -80,10 +80,10 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 .camstage{flex:1;position:relative;min-height:0}
 .camstage video{width:100%;height:100%;object-fit:contain;display:block}
 .guide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.guide line,.guide ellipse,.guide rect,.guide path{fill:none;stroke:#34d399;stroke-width:1.4;
-  opacity:.85;vector-effect:non-scaling-stroke}
-.guide .mid{stroke:#fbbf24;stroke-dasharray:4 3}
-.guidecap{position:absolute;top:10px;left:0;right:0;text-align:center;color:#d1fae5;
+.guide line,.guide ellipse,.guide rect,.guide path{fill:none;stroke:#ffffff;stroke-width:1.4;
+  opacity:.9;vector-effect:non-scaling-stroke}
+.guide .mid{stroke:#ffffff;stroke-dasharray:4 3}
+.guidecap{position:absolute;top:10px;left:0;right:0;text-align:center;color:#ffffff;
   font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none;padding:0 12px}
 .cam .bar{display:flex;justify-content:center;gap:16px;padding:16px;background:#111}
 .cbtoggle{position:absolute;opacity:0;width:0;height:0}
@@ -185,8 +185,8 @@ slots.forEach(slot=>{
 
 // 撮影ガイド（Invisalign 系の撮影アプリのように構図を合わせるための補助線）
 const GUIDE_CAP={
-  macro:"顔貌・スマイル: 顔の正中を黄色線に合わせ、瞳孔線を水平・上下の線に口唇を合わせて笑顔で撮影",
-  micro:"歯・歯肉: 正中を黄色線に、咬合平面を水平線に合わせ、歯列を枠とアーチに収めて撮影"
+  macro:"顔貌・スマイル: 顔の正中を中央の白い破線に合わせ、瞳孔線を水平・口唇を下の線に合わせて笑顔で撮影",
+  micro:"歯・歯肉: 正中を中央の白い破線に、咬合平面を水平線に合わせ、歯列を白い枠とアーチに収めて撮影"
 };
 function showGuide(kind){
   document.getElementById("guide_macro").style.display = kind==="macro"?"":"none";
