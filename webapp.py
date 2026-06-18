@@ -71,8 +71,8 @@ h2.micro{border-color:#0d9488}
 .slot h3{margin:0 0 8px;font-size:14px}
 .preview{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:8px;object-fit:contain;display:block}
 .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
-button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;display:inline-block}
+.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fields{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:18px}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
 input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit}
@@ -86,11 +86,13 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 .guidecap{position:absolute;top:10px;left:0;right:0;text-align:center;color:#d1fae5;
   font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none;padding:0 12px}
 .cam .bar{display:flex;justify-content:center;gap:16px;padding:16px;background:#111}
+.cbtoggle{position:absolute;opacity:0;width:0;height:0}
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:60}
+.cbtoggle:checked ~ .sheet{display:flex}
 .sheet-box{background:#fff;border-radius:14px;padding:18px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.3)}
-.sheet-box h3{margin:0 0 12px;font-size:15px;text-align:center}
-.sheet-box button{display:block;width:100%;margin-top:10px;padding:12px;font-size:15px}
-.sheet-box button.ghost{color:var(--muted);background:#f1f5f9}
+.sheet-box h3{margin:0 0 12px;font-size:15px;text-align:center;color:#1f2933}
+.sheet-box .opt{display:block;width:100%;margin-top:10px;padding:12px;font-size:15px;text-align:center}
+.sheet-box .opt.ghost{color:var(--muted);background:#f1f5f9}
 .disclaimer{margin-top:24px;font-size:12px;background:#fffbea;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:12px}
 .note{color:var(--muted);font-size:12px}
 #status{margin-top:14px;font-size:14px}
@@ -126,16 +128,6 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 </div>
 
 <div class="disclaimer">__DISCLAIMER__</div>
-</div>
-
-<div class="sheet" id="chooser">
-  <div class="sheet-box">
-    <h3>画像の取得方法を選択</h3>
-    <button class="primary" id="ch_cam">📷 カメラで撮影</button>
-    <button id="ch_lib">🖼 写真ライブラリから選択</button>
-    <button id="ch_file">⬆ ファイルをアップロード</button>
-    <button class="ghost" id="ch_cancel">キャンセル</button>
-  </div>
 </div>
 
 <div class="cam" id="cam">
@@ -176,27 +168,20 @@ function setPreview(slot, url){
   document.getElementById("img_"+slot).src = url;
 }
 
+function closeSheet(slot){ const cb=document.getElementById("cb_"+slot); if(cb) cb.checked=false; }
 function handleFile(slot, input){
+  closeSheet(slot);
   const f=input.files[0]; if(!f) return;
   const r=new FileReader();
   r.onload=()=>setPreview(slot, r.result);
   r.readAsDataURL(f);
 }
 slots.forEach(slot=>{
+  // ポップアップの開閉はチェックボックス（CSS）が担当。以下は実動作の補助。
   document.getElementById("lib_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
   document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
-  // 1 つのボタン → 取得方法の選択シートを表示
-  document.getElementById("add_"+slot).addEventListener("click", ()=>openChooser(slot));
+  document.getElementById("cam_"+slot).addEventListener("click", ()=>{ closeSheet(slot); openCam(slot); });
 });
-
-// 取得方法の選択（カメラ撮影 / 写真ライブラリ / ファイル）
-let chooserTarget=null;
-function openChooser(slot){ chooserTarget=slot; document.getElementById("chooser").style.display="flex"; }
-function closeChooser(){ document.getElementById("chooser").style.display="none"; }
-document.getElementById("ch_cancel").onclick=closeChooser;
-document.getElementById("ch_cam").onclick=()=>{ const s=chooserTarget; closeChooser(); openCam(s); };
-document.getElementById("ch_lib").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("lib_"+s).click(); };
-document.getElementById("ch_file").onclick=()=>{ const s=chooserTarget; closeChooser(); document.getElementById("file_"+s).click(); };
 
 // 撮影ガイド（Invisalign 系の撮影アプリのように構図を合わせるための補助線）
 const GUIDE_CAP={
@@ -264,12 +249,24 @@ document.getElementById("run").onclick=async()=>{
 
 
 def _slot_html(slot: str, label: str) -> str:
+    # ポップアップの開閉はチェックボックス（CSS）で行うため、JS 無効環境でも開く。
+    # 写真ライブラリ/ファイルは label→input[type=file] で JS 無しでも選択可。
+    # カメラ撮影のみ getUserMedia（JS 必須）。
     return f"""<div class="slot">
   <h3>{label}</h3>
   <img class="preview" id="img_{slot}" alt="{label}">
   <div class="row">
-    <button class="primary" id="add_{slot}">＋ 画像を追加</button>
-    <!-- 写真ライブラリ向け（画像のみ）とファイル向け（汎用）の 2 系統 -->
+    <input type="checkbox" id="cb_{slot}" class="cbtoggle">
+    <label class="btn primary" for="cb_{slot}">＋ 画像を追加</label>
+    <div class="sheet">
+      <div class="sheet-box">
+        <h3>{label}<br>画像の取得方法を選択</h3>
+        <button type="button" class="btn primary opt" id="cam_{slot}">📷 カメラで撮影</button>
+        <label class="btn opt" for="lib_{slot}">🖼 写真ライブラリから選択</label>
+        <label class="btn opt" for="file_{slot}">⬆ ファイルをアップロード</label>
+        <label class="btn opt ghost" for="cb_{slot}">キャンセル</label>
+      </div>
+    </div>
     <input type="file" id="lib_{slot}" accept="image/*" style="display:none">
     <input type="file" id="file_{slot}" accept="image/*,.cr2,.cr3,.nef,.arw,.raf,.orf,.dng,.heic" style="display:none">
   </div>
