@@ -156,8 +156,14 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
     <div class="row"><span>なめらかさ</span><input type="range" min="900" max="4200" value="2600" id="morphDuration"><b id="durationVal">2.6s</b></div>
     <div class="row"><span>口元の変化</span><input type="range" min="0" max="20" value="10" id="morphWarp"><b id="warpVal">10</b></div>
   </div>
-  <div class="toolbar"><button class="tool" onclick="playPreview()">再生<br>Play</button><button class="tool" onclick="pausePreview()">停止<br>Pause</button><button class="tool" onclick="exportPreview()">書き出し<br>Export</button></div>
-  <div class="note">v3では変化の重心を中央の口元・歯列に置き、外側の顔貌や背景は安定させています。本格的な歯列ランドマーク変形ではなく、プレビュー用の補正です。</div>
+  <div class="toolbar"><button class="tool" onclick="playPreview()">再生<br>Play</button><button class="tool" onclick="pausePreview()">停止<br>Pause</button><button class="tool" onclick="exportPreview()">画像書き出し<br>Image</button></div>
+
+  <div class="smallcaps">Template / テンプレート</div>
+  <div class="pillset" id="templatePills"></div>
+  <div class="smallcaps">Title / タイトル（任意）</div>
+  <input type="text" id="projectTitle" placeholder="例：症例A / セラミック前歯" style="width:100%;border:0;border-radius:18px;background:rgba(255,255,255,.78);padding:13px 15px;font:inherit;color:#201b35">
+  <button class="primary" style="margin-top:14px" onclick="exportMp4()">本物のMP4を書き出し（サーバー）</button>
+  <div class="note">MP4書き出しはサーバー（Pythonエンジン）に接続して、テンプレートとラベルを焼き込んだ動画を生成します。オフラインのPWA単体では「画像書き出し」をご利用ください。本格的な歯列ランドマーク変形ではなく、プレビュー用の補正です。</div>
 </section>
 
 <section class="screen soft" id="simulator">
@@ -192,7 +198,7 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 
 <section class="screen soft" id="export">
   <div class="topbar"><button class="iconbtn" onclick="go('preview')">‹</button><div><h2 class="title">書き出し完了</h2><p class="subtitle">Export Center / 保存先を選択</p></div><span style="font-size:22px">⬇</span></div>
-  <div class="card export"><img id="exportImage"></div>
+  <div class="card export"><img id="exportImage"><video id="exportVideo" controls playsinline loop style="display:none;width:100%;border-radius:18px;background:#000"></video></div>
   <div class="smallcaps">保存先を選択 / Choose destination</div>
   <button class="primary" onclick="savePhotos()">写真に保存 / Save to Photos</button>
   <p class="dest">共有シートが開きます。<b>「画像を保存」</b>を選ぶと iPhone の<b>写真アプリ</b>に保存されます。</p>
@@ -214,7 +220,8 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 
 <script>
 const $=id=>document.getElementById(id);
-const state={photos:[],alignIndex:0,ratio:'9:16',previewIndex:0,imageCache:[],running:false,raf:null,from:0,to:1,start:0,treatment:'矯正',lastBlob:null,lastUrl:null,lastDataUrl:null};
+const state={photos:[],alignIndex:0,ratio:'9:16',previewIndex:0,imageCache:[],running:false,raf:null,from:0,to:1,start:0,treatment:'矯正',template:'minimal',title:'',lastBlob:null,lastUrl:null,lastName:'smile-morph.jpg',lastType:'image/jpeg'};
+const TEMPLATES=[['minimal','Minimal Clinical'],['aesthetic','Aesthetic Case'],['beforeafter','Before / After'],['timeline','Treatment Timeline'],['smile','Smile Design']];
 const complaints=['歯の色が気になる','前歯のすき間が気になる','歯の形が気になる','歯並びが気になる','正中のずれが気になる','ブラックトライアングルが気になる','歯肉ラインが気になる','笑った時の見え方が気になる','古い修復物が気になる','全体的に口元を整えたい'];
 
 function go(id){pausePreview();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));if(id==='upload')renderUpload();if(id==='align')renderAlign();if(id==='preview')renderPreview();if(id==='simulator')renderSimulator();if(id==='result')renderResult()}
@@ -224,7 +231,7 @@ const sc=JSON.parse(localStorage.getItem('sms_v3_colors')||'null');if(sc){$('col
 $('colorA').addEventListener('input',colors);$('colorB').addEventListener('input',colors);
 
 /* ---------- 写真アップロード（並べ替え対応） ---------- */
-function renderUpload(){let html='';for(let i=0;i<12;i++){const p=state.photos[i];if(p){html+=`<div class="tile"><img src="${p.dataUrl}"><span class="badge">${i+1}</span><button class="x" onclick="removePhoto(${i})">×</button><div class="ord"><button onclick="movePhoto(${i},-1)">‹</button><button onclick="movePhoto(${i},1)">›</button></div><select class="sel" onchange="setLabel(${i},this.value)">${['Before','Progress','After','Simulation'].map(v=>`<option ${p.label===v?'selected':''}>${v}</option>`).join('')}</select></div>`}else html+=`<button class="tile empty" onclick="$('fileInput').click()">${i+1}</button>`} $('uploadGrid').innerHTML=html}
+function renderUpload(){let html='';for(let i=0;i<12;i++){const p=state.photos[i];if(p){html+=`<div class="tile"><img src="${p.dataUrl}"><span class="badge">${i+1}</span><button class="x" onclick="removePhoto(${i})">×</button><div class="ord"><button onclick="movePhoto(${i},-1)">‹</button><button onclick="movePhoto(${i},1)">›</button></div><input class="sel" value="${(p.label||'').replace(/"/g,'&quot;')}" onchange="setLabel(${i},this.value)" placeholder="ラベル"></div>`}else html+=`<button class="tile empty" onclick="$('fileInput').click()">${i+1}</button>`} $('uploadGrid').innerHTML=html}
 async function resize(file){const url=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)});const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url});const max=1500,s=Math.min(1,max/Math.max(img.width,img.height)),w=Math.round(img.width*s),h=Math.round(img.height*s);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',.88)}
 $('fileInput').addEventListener('change',async e=>{const files=[...e.target.files].slice(0,10-state.photos.length);if(!files.length)return;toast('写真を読み込み中…');for(const f of files){try{state.photos.push({dataUrl:await resize(f),label:state.photos.length===0?'Before':'Progress'})}catch(_){toast('読み込めない画像をスキップしました')}}if(state.photos.length)state.photos[state.photos.length-1].label='After';renderUpload();toast('写真を追加しました');e.target.value=''});
 function removePhoto(i){state.photos.splice(i,1);renderUpload()}
@@ -278,7 +285,9 @@ function drawMorph(t=0){
   const idx=e<.5?a:b;$('previewTag').textContent=state.photos[idx]?.label||'Preview';
   document.querySelectorAll('.mini').forEach((m,i)=>m.classList.toggle('on',i===idx));
 }
-function renderPreview(){prepareCache();const emp=$('previewEmpty'),tl=$('timeline');tl.innerHTML='';if(!state.photos.length){emp.style.display='block';$('previewTag').style.display='none';drawMorph(0);return}emp.style.display='none';$('previewTag').style.display='block';state.previewIndex=Math.min(state.previewIndex,state.photos.length-1);state.from=state.previewIndex;state.to=state.photos.length>1?(state.previewIndex+1)%state.photos.length:state.previewIndex;state.photos.forEach((p,i)=>{const im=document.createElement('img');im.className='mini'+(i===state.previewIndex?' on':'');im.src=p.dataUrl;im.onclick=()=>{pausePreview();state.previewIndex=i;state.from=i;state.to=state.photos.length>1?(i+1)%state.photos.length:i;drawMorph(0)};tl.appendChild(im)});setRatio(state.ratio);updateSliders();setTimeout(()=>drawMorph(0),80)}
+function renderPreview(){prepareCache();const emp=$('previewEmpty'),tl=$('timeline');tl.innerHTML='';if(!state.photos.length){emp.style.display='block';$('previewTag').style.display='none';drawMorph(0);return}emp.style.display='none';$('previewTag').style.display='block';state.previewIndex=Math.min(state.previewIndex,state.photos.length-1);state.from=state.previewIndex;state.to=state.photos.length>1?(state.previewIndex+1)%state.photos.length:state.previewIndex;state.photos.forEach((p,i)=>{const im=document.createElement('img');im.className='mini'+(i===state.previewIndex?' on':'');im.src=p.dataUrl;im.onclick=()=>{pausePreview();state.previewIndex=i;state.from=i;state.to=state.photos.length>1?(i+1)%state.photos.length:i;drawMorph(0)};tl.appendChild(im)});setRatio(state.ratio);updateSliders();renderTemplates();setTimeout(()=>drawMorph(0),80)}
+function renderTemplates(){const box=$('templatePills');if(!box)return;box.innerHTML=TEMPLATES.map(([id,name])=>`<button class="pill${state.template===id?' on':''}" onclick="selectTemplate('${id}')">${name}</button>`).join('')}
+function selectTemplate(id){state.template=id;renderTemplates()}
 function loop(now){if(!state.running)return;const dur=+$('morphDuration').value;if(!state.start)state.start=now;const t=(now-state.start)/dur;drawMorph(t);if(t>=1){state.previewIndex=state.to;state.from=state.to;state.to=(state.to+1)%state.photos.length;state.start=now}state.raf=requestAnimationFrame(loop)}
 function playPreview(){if(state.photos.length<2){toast('写真を2枚以上追加してください');return}pausePreview();state.running=true;state.start=0;state.from=state.previewIndex;state.to=(state.previewIndex+1)%state.photos.length;state.raf=requestAnimationFrame(loop)}
 function pausePreview(){state.running=false;if(state.raf)cancelAnimationFrame(state.raf);state.raf=null;state.start=0}
@@ -319,12 +328,28 @@ function renderResult(){
 
 /* ---------- 書き出し ＆ 保存先導線 ---------- */
 function dataUrlToBlob(dataUrl){const arr=dataUrl.split(','),mime=arr[0].match(/:(.*?);/)[1],bin=atob(arr[1]);let n=bin.length;const u8=new Uint8Array(n);while(n--)u8[n]=bin.charCodeAt(n);return new Blob([u8],{type:mime})}
-function setExport(dataUrl){state.lastDataUrl=dataUrl;state.lastBlob=dataUrlToBlob(dataUrl);if(state.lastUrl)URL.revokeObjectURL(state.lastUrl);state.lastUrl=URL.createObjectURL(state.lastBlob);$('exportImage').src=dataUrl;go('export')}
+function setExportBlob(blob,name,type){state.lastBlob=blob;state.lastName=name;state.lastType=type;if(state.lastUrl)URL.revokeObjectURL(state.lastUrl);state.lastUrl=URL.createObjectURL(blob);const isVid=type.indexOf('video')===0;const iv=$('exportVideo'),ii=$('exportImage');if(isVid){ii.style.display='none';iv.style.display='block';iv.src=state.lastUrl}else{iv.style.display='none';iv.removeAttribute('src');ii.style.display='block';ii.src=state.lastUrl}go('export')}
+function setExport(dataUrl){setExportBlob(dataUrlToBlob(dataUrl),'smile-morph.jpg','image/jpeg')}
+async function exportMp4(){
+  if(state.photos.length<2){toast('写真を2枚以上追加してください');return}
+  pausePreview();const status=$('toast');toast('サーバーでMP4を生成中…');
+  const payload={images:state.photos.map(p=>p.dataUrl),labels:state.photos.map(p=>p.label||''),
+    aspect:state.ratio,template:state.template,title:($('projectTitle')?.value||state.title||''),
+    colors:[$('colorA').value,$('colorB').value],method:'flow',
+    fps:30,transition:Math.max(.6,(+$('morphDuration').value)/1000),hold:0.7};
+  try{
+    const res=await fetch('/api/morph_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const j=await res.json();
+    if(!j.ok){toast('生成エラー: '+(j.error||'不明'));return}
+    const vres=await fetch(j.video_url);const blob=await vres.blob();
+    setExportBlob(blob,'smile-morph.mp4','video/mp4');toast('MP4を作成しました。保存先を選択してください');
+  }catch(err){toast('サーバーに接続できません（PWA単体では画像書き出しをご利用ください）')}
+}
 function exportPreview(){if(!state.photos.length){toast('写真を追加してください');return}pausePreview();drawMorph(.5);const src=$('morphCanvas'),c=document.createElement('canvas');c.width=1080;c.height=state.ratio==='16:9'?608:state.ratio==='1:1'?1080:state.ratio==='4:5'?1350:1920;const ctx=c.getContext('2d'),grad=ctx.createLinearGradient(0,0,c.width,c.height);grad.addColorStop(0,getComputedStyle(document.documentElement).getPropertyValue('--c1').trim()||'#7c5cff');grad.addColorStop(1,getComputedStyle(document.documentElement).getPropertyValue('--c2').trim()||'#ff9fd6');ctx.fillStyle=grad;ctx.fillRect(0,0,c.width,c.height);const scale=Math.max(c.width/src.width,c.height/src.height),w=src.width*scale,h=src.height*scale;ctx.drawImage(src,(c.width-w)/2,(c.height-h)/2,w,h);ctx.fillStyle='rgba(255,255,255,.78)';roundRect(ctx,44,44,260,58,29);ctx.fill();ctx.fillStyle='#201b35';ctx.font='bold 30px -apple-system,BlinkMacSystemFont,sans-serif';ctx.fillText(state.photos[state.previewIndex]?.label||'Preview',68,83);ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='24px -apple-system,BlinkMacSystemFont,sans-serif';ctx.fillText('Smile Morph Studio',44,c.height-54);setExport(c.toDataURL('image/jpeg',.93));toast('書き出し画像を作成しました')}
 function saveResult(){const img=$('resultAfter').src;if(!img){toast('生成結果がありません');return}setExport(img);toast('保存先を選択してください')}
-function exportFile(){return state.lastBlob?new File([state.lastBlob],'smile-morph.jpg',{type:'image/jpeg'}):null}
-async function savePhotos(){const f=exportFile();if(!f){toast('先に書き出してください');return}if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){try{await navigator.share({files:[f],title:'Smile Morph Studio'});toast('共有シートから「画像を保存」を選んでください');return}catch(e){if(e.name==='AbortError')return}}if(state.lastUrl)window.open(state.lastUrl,'_blank');toast('画像を長押しして「“写真”に追加」を選んでください')}
-function saveFiles(){if(!state.lastUrl){toast('先に書き出してください');return}const a=document.createElement('a');a.href=state.lastUrl;a.download='smile-morph.jpg';document.body.appendChild(a);a.click();a.remove();toast('「ファイル」アプリに保存されます')}
+function exportFile(){return state.lastBlob?new File([state.lastBlob],state.lastName,{type:state.lastType}):null}
+async function savePhotos(){const f=exportFile();if(!f){toast('先に書き出してください');return}const isVid=state.lastType.indexOf('video')===0;if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){try{await navigator.share({files:[f],title:'Smile Morph Studio'});toast(isVid?'共有シートから「ビデオを保存」を選んでください':'共有シートから「画像を保存」を選んでください');return}catch(e){if(e.name==='AbortError')return}}if(state.lastUrl)window.open(state.lastUrl,'_blank');toast(isVid?'動画を長押しして保存してください':'画像を長押しして「“写真”に追加」を選んでください')}
+function saveFiles(){if(!state.lastUrl){toast('先に書き出してください');return}const a=document.createElement('a');a.href=state.lastUrl;a.download=state.lastName;document.body.appendChild(a);a.click();a.remove();toast('「ファイル」アプリに保存されます')}
 async function shareSNS(){const f=exportFile();if(!f){toast('先に書き出してください');return}if(navigator.share){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Smile Morph Studio',text:'Smile Morph Studio'})}else{await navigator.share({title:'Smile Morph Studio',text:'Smile Morph Studio'})}return}catch(e){if(e.name==='AbortError')return}}saveFiles()}
 
 /* ---------- サンプル ---------- */

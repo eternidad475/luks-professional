@@ -101,12 +101,29 @@ def compute_aspect_size(src_w: int, src_h: int, aspect: str) -> Tuple[int, int]:
     return _even(out_w), _even(out_h)
 
 
+def _hex_bgr(h: str) -> Tuple[int, int, int]:
+    h = (h or "#000000").lstrip("#")
+    if len(h) != 6:
+        return (0, 0, 0)
+    return (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))  # BGR
+
+
+def _gradient(out_w: int, out_h: int, colors) -> np.ndarray:
+    """2 色の対角線形グラデーション (BGR)。"""
+    c1 = np.array(_hex_bgr(colors[0]), np.float32)
+    c2 = np.array(_hex_bgr(colors[1] if len(colors) > 1 else colors[0]), np.float32)
+    yy, xx = np.mgrid[0:out_h, 0:out_w].astype(np.float32)
+    t = (xx / max(out_w - 1, 1) + yy / max(out_h - 1, 1)) / 2.0
+    canvas = c1[None, None, :] * (1 - t[..., None]) + c2[None, None, :] * t[..., None]
+    return canvas.astype(np.uint8)
+
+
 def fit_frame(
-    frame: np.ndarray, out_w: int, out_h: int, fill: str = "blur"
+    frame: np.ndarray, out_w: int, out_h: int, fill: str = "blur", colors=None
 ) -> np.ndarray:
     """frame を (out_w, out_h) のキャンバスにレターボックス配置する。
 
-    fill: "blur"（背景は frame の拡大ぼかし）/ "white" / "black"。
+    fill: "blur"（拡大ぼかし）/ "white" / "black" / "gradient"（colors=(hexA,hexB)）。
     """
     fh, fw = frame.shape[:2]
     scale = min(out_w / fw, out_h / fh)
@@ -122,6 +139,8 @@ def fit_frame(
         k = max(9, (min(out_w, out_h) // 12) | 1)  # 奇数カーネル
         canvas = cv2.GaussianBlur(bg, (k, k), 0)
         canvas = (canvas.astype(np.float32) * 0.7).astype(np.uint8)  # やや暗くして主役を立てる
+    elif fill == "gradient":
+        canvas = _gradient(out_w, out_h, colors or ("#7c5cff", "#ff9fd6"))
     else:
         color = (255, 255, 255) if fill == "white" else (0, 0, 0)
         canvas = np.full((out_h, out_w, 3), color, np.uint8)

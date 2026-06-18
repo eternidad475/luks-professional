@@ -27,11 +27,25 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, Optional
 
 from morph_video.dental import DISCLAIMER, run_case
+from morph_video.io_utils import ASPECTS
+from morph_video.pipeline import build_video
 
 # 生成物の保存先（症例ごとにサブフォルダ）
 OUTPUT_ROOT = os.environ.get("DENTAL_OUTPUT_ROOT", os.path.join(tempfile.gettempdir(), "dental_reports"))
+# PWA（Smile Morph Studio v3）の配信元
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app-v3")
 
 _DATAURL_RE = re.compile(r"^data:image/(\w+);base64,(.+)$", re.DOTALL)
+
+_CTYPES = {
+    ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg", ".mp4": "video/mp4", ".webmanifest": "application/manifest+json",
+}
+
+
+def _ctype(path: str) -> str:
+    return _CTYPES.get(os.path.splitext(path)[1].lower(), "application/octet-stream")
 
 
 def _save_data_url(data_url: str, dest_dir: str, name: str) -> Optional[str]:
@@ -310,6 +324,16 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self._send(200, render_index().encode("utf-8"), "text/html; charset=utf-8")
             return
+        # Smile Morph Studio PWA の配信: /studio/ 以下
+        if self.path == "/studio" or self.path.startswith("/studio/"):
+            rel = self.path[len("/studio"):].split("?")[0].lstrip("/") or "index.html"
+            full = os.path.join(APP_DIR, os.path.normpath(rel))
+            if os.path.commonpath([os.path.abspath(full), os.path.abspath(APP_DIR)]) != os.path.abspath(APP_DIR) \
+                    or not os.path.isfile(full):
+                self._send(404, b"not found", "text/plain")
+                return
+            self._send(200, open(full, "rb").read(), _ctype(full))
+            return
         # 生成物の配信: /reports/<case>/<file>
         if self.path.startswith("/reports/"):
             rel = self.path[len("/reports/"):].split("?")[0]
@@ -330,18 +354,67 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, b"not found", "text/plain")
 
     def do_POST(self):
-        if self.path != "/api/analyze":
-            self._send(404, b"not found", "text/plain")
-            return
         try:
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            result_url = self._run_analysis(payload)
-            self._send(200, json.dumps({"ok": True, "report_url": result_url}).encode("utf-8"),
+        except Exception as exc:  # noqa: BLE001
+            self._send(200, json.dumps({"ok": False, "error": f"不正なリクエスト: {exc}"}).encode("utf-8"),
                        "application/json")
+            return
+        try:
+            if self.path == "/api/analyze":
+                url = self._run_analysis(payload)
+                self._send(200, json.dumps({"ok": True, "report_url": url}).encode("utf-8"),
+                           "application/json")
+            elif self.path == "/api/morph_video":
+                url = self._run_morph_video(payload)
+                self._send(200, json.dumps({"ok": True, "video_url": url}).encode("utf-8"),
+                           "application/json")
+            else:
+                self._send(404, b"not found", "text/plain")
         except Exception as exc:  # noqa: BLE001
             self._send(200, json.dumps({"ok": False, "error": str(exc)}).encode("utf-8"),
                        "application/json")
+
+    def _run_morph_video(self, payload: Dict) -> str:
+        """PWA から受け取った画像列・テンプレート・ラベルで本物の MP4 を生成。"""
+        from morph_video.templates import TEMPLATE_DEFAULT_FILL, make_renderer
+
+        case = uuid.uuid4().hex[:10]
+        case_dir = os.path.join(OUTPUT_ROOT, case)
+        os.makedirs(case_dir, exist_ok=True)
+
+        images = payload.get("images", []) or []
+        paths = []
+        for i, durl in enumerate(images[:10]):
+            p = _save_data_url(durl, case_dir, f"f{i:02d}")
+            if p:
+                paths.append(p)
+        if len(paths) < 2:
+            raise ValueError("MP4 書き出しには 2 枚以上の画像が必要です。")
+
+        labels = payload.get("labels") or []
+        aspect = payload.get("aspect")
+        aspect = aspect if aspect in ASPECTS else None
+        template = payload.get("template", "minimal")
+        title = payload.get("title", "") or ""
+        colors = payload.get("colors") or ["#7c5cff", "#ff9fd6"]
+        method = payload.get("method", "flow")
+        fps = float(payload.get("fps", 30))
+        trans = float(payload.get("transition", 1.2))
+        hold = float(payload.get("hold", 0.7))
+
+        renderer = make_renderer(template, title=title, colors=colors)
+        fill = TEMPLATE_DEFAULT_FILL.get(template, "blur")
+        out = os.path.join(case_dir, "studio.mp4")
+        build_video(
+            inputs=paths, output=out, method=method, fps=fps,
+            transition_seconds=trans, hold_seconds=hold,
+            aspect=aspect, fill=fill,
+            fill_colors=(colors[0], colors[1] if len(colors) > 1 else colors[0]),
+            labels=labels, decorator=renderer,
+        )
+        return f"/reports/{case}/studio.mp4"
 
     def _run_analysis(self, payload: Dict) -> str:
         case = uuid.uuid4().hex[:10]

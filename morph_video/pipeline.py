@@ -12,15 +12,17 @@ from .morphers import Morpher, get_morpher
 
 
 def _morph_pair(
-    writer: VideoWriter,
+    emit: Callable[[np.ndarray, int], None],
     morpher: Morpher,
     img1: np.ndarray,
     img2: np.ndarray,
     transition_frames: int,
     easing: Callable[[float], float],
     include_last: bool,
+    idx1: int = 0,
+    idx2: int = 0,
 ) -> None:
-    """img1 -> img2 の遷移フレームを書き出す。
+    """img1 -> img2 の遷移フレームを emit(frame, keyframe_idx) で書き出す。
 
     include_last=False のとき終端 (t=1.0) は書かず、次ペアの先頭に任せる。
     """
@@ -29,7 +31,7 @@ def _morph_pair(
     for i in range(0, last + 1):
         raw_t = i / transition_frames
         t = easing(raw_t)
-        writer.write(morpher.frame(img1, img2, t))
+        emit(morpher.frame(img1, img2, t), idx1 if raw_t < 0.5 else idx2)
 
 
 def build_video(
@@ -44,6 +46,9 @@ def build_video(
     loop: bool = False,
     aspect: Optional[str] = None,
     fill: str = "blur",
+    fill_colors: Optional[Tuple[str, str]] = None,
+    labels: Optional[List[str]] = None,
+    decorator: Optional[Callable[[np.ndarray, str, int, int], np.ndarray]] = None,
     morpher_kwargs: Optional[dict] = None,
     progress: Optional[Callable[[str], None]] = None,
 ) -> str:
@@ -72,33 +77,47 @@ def build_video(
     images = load_and_normalize(inputs, size)
     h, w = images[0].shape[:2]
     out_size = (w, h)
+    n = len(images)
 
     # 書き出しアスペクト比（SNS / プレゼン用途）。指定時はフレームをレターボックス。
-    transform = None
+    ow, oh = w, h
     if aspect:
         ow, oh = compute_aspect_size(w, h, aspect)
         out_size = (ow, oh)
-        transform = lambda f: fit_frame(f, ow, oh, fill)  # noqa: E731
+
+    labels = list(labels) if labels else [""] * n
+    if len(labels) < n:
+        labels += [""] * (n - len(labels))
 
     transition_frames = max(1, int(round(transition_seconds * fps)))
     hold_frames = max(0, int(round(hold_seconds * fps)))
 
     sequence = list(images)
+    seq_idx = list(range(n))
     if loop:
         sequence = sequence + [images[0]]
+        seq_idx = seq_idx + [0]
 
-    with VideoWriter(output, fps, out_size, transform=transform) as writer:
-        for idx in range(len(sequence)):
-            img = sequence[idx]
-            # キーフレームの静止表示
+    with VideoWriter(output, fps, out_size) as writer:
+        # 各フレーム共通の整形：アスペクト変換 → テンプレート/ラベル装飾
+        def emit(frame: np.ndarray, kidx: int) -> None:
+            f = frame
+            if aspect:
+                f = fit_frame(f, ow, oh, fill, fill_colors)
+            if decorator is not None:
+                f = decorator(f, labels[kidx % n], kidx % n, n)
+            writer.write(f)
+
+        for pos in range(len(sequence)):
+            kidx = seq_idx[pos]
             for _ in range(hold_frames):
-                writer.write(img)
-            # 次の画像への遷移 (最後のフレームは次キーフレームの hold が担うので書かない)
-            if idx < len(sequence) - 1:
-                nxt = sequence[idx + 1]
-                say(f"[{idx + 1}/{len(sequence) - 1}] {method} モーフィング中...")
+                emit(sequence[pos], kidx)
+            if pos < len(sequence) - 1:
+                say(f"[{pos + 1}/{len(sequence) - 1}] {method} モーフィング中...")
                 _morph_pair(
-                    writer, morpher, img, nxt, transition_frames, ease, include_last=False
+                    emit, morpher, sequence[pos], sequence[pos + 1],
+                    transition_frames, ease, include_last=False,
+                    idx1=kidx, idx2=seq_idx[pos + 1],
                 )
 
     say(f"完了: {writer.path} ({writer.count} フレーム, {out_size[0]}x{out_size[1]}, {fps}fps)")
