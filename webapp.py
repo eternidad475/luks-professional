@@ -206,7 +206,7 @@ def _slot_html(slot: str, label: str) -> str:
   <div class="row">
     <button id="shot_{slot}">📷 撮影</button>
     <label class="btn">⬆ アップロード
-      <input type="file" id="file_{slot}" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="file_{slot}" accept="image/*" style="display:none">
     </label>
   </div>
 </div>"""
