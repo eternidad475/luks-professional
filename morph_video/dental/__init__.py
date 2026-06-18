@@ -22,7 +22,14 @@ from .treatments import (
     recommend_for_codes,
 )
 from .auto import AutoFinding, detect_complaints
-from .workflow import CaseResult, run_case
+from .evaluation import (
+    Evaluation,
+    Metric,
+    evaluate,
+    evaluate_macro,
+    evaluate_micro,
+)
+from .workflow import CaseResult, VersionData, run_case
 
 DISCLAIMER = (
     "本ツールの出力は歯科臨床における記録・患者説明・シミュレーションの補助を"
@@ -42,7 +49,13 @@ __all__ = [
     "recommend_for_codes",
     "AutoFinding",
     "detect_complaints",
+    "Evaluation",
+    "Metric",
+    "evaluate",
+    "evaluate_macro",
+    "evaluate_micro",
     "CaseResult",
+    "VersionData",
     "run_case",
     "DISCLAIMER",
 ]

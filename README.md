@@ -93,54 +93,87 @@ frame = m.frame(img1, img2, t=0.5)   # 中間フレーム (t は 0..1)
 術前術後の記録撮影・患者説明用に、上記のモーフィング（術前→術後の変化可視化）へ
 次の機能を追加した CLI `dental.py` / モジュール `morph_video.dental` を同梱しています。
 
-1. **審美的主訴の選択（オート判定つき）** — 画像から主訴の候補を信頼度つきで自動提示。手動で確定・追加も可能。
-2. **推奨治療の提示** — 確定した主訴に対し、**歯列矯正・補綴治療に限定**して治療選択肢を提示（美容整形・外科的処置は対象外。該当時は専門医相談を注記）。
-3. **術前術後シミュレーション動画 + レポート** — モーフィング動画と主訴・推奨治療を 1 つの HTML レポート（＋連携用 JSON）に統合。
+1. **マクロ／ミクロの 2 バージョン評価** — 画像を「マクロ（顔貌とスマイル）」「ミクロ（歯と歯肉）」の 2 種類で扱い、それぞれ専用の審美評価項目を算出。
+2. **撮影・アップロードの両対応（Web UI）** — スマホ（iPhone 等）のカメラで直接撮影する方法と、一眼レフ等で撮影した画像をアップロードする方法の両方に対応。
+3. **審美的主訴の選択（自動評価から導出）** — 評価結果から主訴の候補を自動抽出。手動で確定・追加も可能。
+4. **推奨治療の提示** — 確定した主訴に対し、**歯列矯正・補綴治療に限定**して治療選択肢を提示（美容整形・外科的処置は対象外。該当時は専門医相談を注記）。
+5. **術前術後シミュレーション動画 + レポート** — マクロ/ミクロ各々のモーフィング動画と評価・主訴・推奨治療を 1 つの HTML レポート（＋連携用 JSON）に統合。
+
+### マクロ評価（顔貌とスマイル）
+
+| 項目 | 内容 |
+| --- | --- |
+| 正中線の一致 | 顔の中心線（両目から推定）と前歯正中のラインのずれ |
+| スマイルライン | 上顎切縁を結ぶラインの湾曲方向（下唇カーブとの調和）と左右対称性 |
+| スマイル幅 / バッカルコリドー | 口角間に対する歯列の見える幅のバランス |
+| 歯の露出量 | 上顎前歯の見える量・歯肉露出（ガミー傾向） |
+
+### ミクロ評価（歯と歯肉）
+
+| 項目 | 内容 |
+| --- | --- |
+| 歯のバランス（黄金比） | 前歯から遠心への見かけ幅の逓減比（理想 ≈0.618） |
+| 歯の色と透明感 | 明度 L\*・彩度・色相と、切縁の明度ばらつき（透明感の代理指標） |
+| 歯の形態と質感 | 中切歯の縦横比（丸み/角張り）と表面テクスチャ指標 |
+| 歯肉のラインと見え方 | 歯肉ラインの左右対称性・色調・露出量（ガミー/色素沈着） |
+
+各項目は `良好 / 要確認 / 参考 / 判定不可` の判定とスコアつきで表示します（いずれも参考値）。
 
 > ⚠️ **免責**: 本モードの出力は記録・患者説明・シミュレーションの補助を目的とした参考情報であり、確定診断・治療方針の決定を代替しません。オート判定は画像解析に基づく補助的な候補で、必ず歯科医師の診察・検査による確認が必要です。
 
-## 使い方
+## 使い方（Web UI：撮影 / アップロード）
+
+スマホで直接撮影、または一眼レフ画像のアップロードはブラウザ UI が便利です。
 
 ```bash
-# 主訴コードの一覧（カテゴリ・オート対応・提示治療カテゴリつき）
+python webapp.py            # → http://localhost:8000
+python webapp.py --host 0.0.0.0 --port 9000
+```
+
+- マクロ術前/術後・ミクロ術前/術後の各スロットで「📷 撮影」（端末カメラ）／「⬆ アップロード」（一眼レフ等の画像）を選択
+- 「📷 撮影」はブラウザの `getUserMedia` でライブ撮影、アップロードの `<input capture>` はスマホで直接カメラ起動
+- 「解析してレポート生成」で評価・推奨治療・シミュレーション動画を生成し、結果ページへ遷移
+
+> スマホのカメラ利用には `localhost` か HTTPS が必要な場合があります（ブラウザのセキュリティ仕様）。LAN 内のスマホから使う場合はリバースプロキシ等で HTTPS 終端してください。
+
+## 使い方（CLI）
+
+```bash
+# 主訴コードの一覧（カテゴリ・提示治療カテゴリつき）
 python dental.py --list-complaints
 
-# 術前/術後画像 → オート判定 + 推奨治療 + シミュレーション動画 + レポート
-python dental.py --before pre.jpg --after post.jpg --case-id C001 -o report/
+# マクロ(顔貌・スマイル)とミクロ(歯・歯肉)の術前/術後からレポート一式
+python dental.py \
+  --macro-before face_pre.jpg --macro-after face_post.jpg \
+  --micro-before teeth_pre.jpg --micro-after teeth_post.jpg \
+  --case-id C001 -o report/
 
-# 術前のみ。オート判定に+手動で主訴を追加
-python dental.py --before pre.jpg --complaints crowding,discoloration -o report/
-
-# オート判定を切り、主訴を手動指定
-python dental.py --before pre.jpg --no-auto --complaints missing_tooth -o report/
+# マクロ術前のみ + 手動主訴を追加
+python dental.py --macro-before face_pre.jpg --complaints crowding,discoloration -o report/
 ```
 
 出力フォルダには `report.html`（患者説明用・画像埋め込み）、`case.json`（カルテ連携用）、
-両画像があれば `simulation.mp4` が生成されます。
+各バージョンで術前術後が揃えば `simulation_macro.mp4` / `simulation_micro.mp4` が生成されます。
 
 ### 主なオプション
 
 | オプション | 説明 |
 | --- | --- |
-| `--before` / `--after` | 術前 / 術後（またはシミュレーション）画像。両方あると動画を生成 |
+| `--macro-before` / `--macro-after` | マクロ（顔貌・スマイル）術前 / 術後画像 |
+| `--micro-before` / `--micro-after` | ミクロ（歯・歯肉接写）術前 / 術後画像 |
+| `--before` / `--after` | `--macro-*` のエイリアス（後方互換） |
 | `--complaints` | 術者が確定した主訴コード（カンマ区切り） |
-| `--auto` / `--no-auto` | オート判定の有効/無効（既定: 有効） |
-| `--auto-min-confidence` | 採用する最小信頼度（既定 0.35） |
+| `--auto` / `--no-auto` | 自動評価の有効/無効（既定: 有効） |
 | `--case-id` / `--patient` | 症例 ID / 患者ラベル（個人情報の取り扱いに注意） |
 | `-m` / `--fps` / `--transition` / `--hold` | シミュレーション動画のモーフィング設定 |
 
-### オート判定の仕組み（OpenCV ヒューリスティック）
+### 評価の仕組み（OpenCV ヒューリスティック）
 
-学習済みモデル不要。顔を検出できれば下顔面中央を口元 ROI、検出できなければ口腔内
-接写とみなして画像中央を解析します。ROI 内で歯（高明度・低彩度）と歯肉（赤系）を色で
-分離し、次の候補を信頼度つきで算出します。
+学習済みモデル不要。顔を検出できれば両目から顔正中・下顔面中央を口元 ROI とし、検出
+できなければ口腔内接写とみなして画像中央を解析します。ROI 内で歯（高明度・低彩度）と
+歯肉（赤系）を色で分離し、上記マクロ／ミクロ各項目を算出します。
 
-- 歯の黄色味（LAB の b\*）→ **変色**
-- 歯肉と歯の面積比 → **ガミースマイル**
-- 歯列内の暗部 → **金属修復物（銀歯）**
-- 歯列重心の左右ずれ → **正中の不一致**
-
-照明・ホワイトバランス・顔の向き・トリミングの影響を受けるため、結果はあくまで候補です。
+照明・ホワイトバランス・顔の向き・トリミングの影響を受けるため、結果はあくまで参考値です。
 
 ## ライブラリとして使う
 
@@ -148,16 +181,25 @@ python dental.py --before pre.jpg --no-auto --complaints missing_tooth -o report
 from morph_video.dental import run_case
 
 result = run_case(
-    before="pre.jpg",
-    after="post.jpg",
-    complaints=["crowding", "discoloration"],  # 術者が確定した主訴
-    auto=True,                                  # 画像からの主訴オート判定
+    macro_before="face_pre.jpg",   # マクロ（顔貌・スマイル）
+    macro_after="face_post.jpg",
+    micro_before="teeth_pre.jpg",  # ミクロ（歯・歯肉）
+    micro_after="teeth_post.jpg",
+    complaints=["crowding"],       # 術者が確定した主訴（任意）
+    auto=True,                     # マクロ/ミクロの自動評価
     case_id="C001",
     output_dir="report",
     method="flow",
 )
-print([f.code for f in result.auto_findings])   # オート候補
-print(result.selected_codes)                    # 確定主訴
+for v in result.versions:          # マクロ/ミクロ各バージョン
+    print(v.title, [(m.label, m.status) for m in v.evaluation.metrics])
+print(result.selected_codes)       # 確定主訴（手動 + 評価由来）
+
+# 評価だけを単体で使う
+from morph_video.dental import evaluate_macro, evaluate_micro
+import cv2
+ev = evaluate_macro(cv2.imread("face_pre.jpg"))
+print([(m.label, m.value, m.status) for m in ev.metrics])
 ```
 
 主訴カタログ・推奨治療ナレッジベースは個別にも参照できます。
