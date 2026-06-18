@@ -76,30 +76,14 @@ button,.btn{font:inherit;border:1px solid var(--line);background:#fff;border-rad
 .fields{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:18px}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
 input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit}
-.cam{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:50}
-.camstage{flex:1;position:relative;min-height:0}
-.camstage video{width:100%;height:100%;object-fit:contain;display:block}
-.guide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.guide line,.guide ellipse,.guide rect,.guide path{fill:none;stroke:#ffffff;stroke-width:1.4;
-  opacity:.9;vector-effect:non-scaling-stroke}
-.guide .mid{stroke:#ffffff;stroke-dasharray:4 3}
-.guidecap{position:absolute;top:10px;left:0;right:0;text-align:center;color:#ffffff;
-  font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none;padding:0 12px}
-.cam .bar{display:flex;justify-content:center;gap:16px;padding:16px;background:#111}
-.cbtoggle{position:absolute;opacity:0;width:0;height:0}
-.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:60}
-.cbtoggle:checked ~ .sheet{display:flex}
-.sheet-box{background:#fff;border-radius:14px;padding:18px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.3)}
-.sheet-box h3{margin:0 0 12px;font-size:15px;text-align:center;color:#1f2933}
-.sheet-box .opt{display:block;width:100%;margin-top:10px;padding:12px;font-size:15px;text-align:center}
-.sheet-box .opt.ghost{color:var(--muted);background:#f1f5f9}
+.addbtn{display:block;width:100%;text-align:center}
 .disclaimer{margin-top:24px;font-size:12px;background:#fffbea;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:12px}
 .note{color:var(--muted);font-size:12px}
 #status{margin-top:14px;font-size:14px}
 </style></head>
 <body><div class="wrap">
 <h1>審美歯科 記録・シミュレーション</h1>
-<p class="note">各スロットの「＋ 画像を追加」を押すと、白ガイド付きのカメラ撮影、または写真・ファイルからの選択ができます。最低 1 枚で解析できます。</p>
+<p class="note">各スロットの「＋ 画像を追加」を押すと、端末標準のメニュー（写真を撮る／写真ライブラリ／ファイルを選択）が表示されます。最低 1 枚で解析できます。</p>
 
 <h2>マクロ（顔貌とスマイル）</h2>
 <div class="grid">
@@ -130,102 +114,26 @@ input[type=text]{width:100%;padding:8px;border:1px solid var(--line);border-radi
 <div class="disclaimer">__DISCLAIMER__</div>
 </div>
 
-<div class="cam" id="cam">
-  <div class="camstage">
-    <video id="camvideo" autoplay playsinline muted></video>
-    <svg class="guide" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <!-- マクロ（顔貌とスマイル）ガイド -->
-      <g id="guide_macro" style="display:none">
-        <ellipse cx="50" cy="52" rx="26" ry="41"></ellipse>
-        <line class="mid" x1="50" y1="6" x2="50" y2="98"></line>
-        <line x1="22" y1="34" x2="78" y2="34"></line>
-        <line x1="30" y1="70" x2="70" y2="70"></line>
-      </g>
-      <!-- ミクロ（歯と歯肉）ガイド -->
-      <g id="guide_micro" style="display:none">
-        <rect x="10" y="28" width="80" height="44" rx="6"></rect>
-        <line class="mid" x1="50" y1="22" x2="50" y2="78"></line>
-        <line x1="12" y1="50" x2="88" y2="50"></line>
-        <path d="M14,44 Q50,66 86,44"></path>
-      </g>
-    </svg>
-    <div class="guidecap" id="guidecap"></div>
-  </div>
-  <div class="bar">
-    <button id="camcancel">キャンセル</button>
-    <button id="camswitch">カメラ切替</button>
-    <button class="primary" id="camshot">撮影</button>
-  </div>
-</div>
-
 <script>
 const slots = ["macro_before","macro_after","micro_before","micro_after"];
 const data = {};               // slot -> dataURL
-let camStream=null, camTarget=null, facing="environment";
 
 function setPreview(slot, url){
   data[slot]=url;
   document.getElementById("img_"+slot).src = url;
 }
 
-function closeSheet(slot){ const cb=document.getElementById("cb_"+slot); if(cb) cb.checked=false; }
+// 「＋ 画像を追加」は単一の file input を開くだけ。
+// 写真を撮る/写真ライブラリ/ファイル選択は端末標準メニューに委譲する。
 function handleFile(slot, input){
-  closeSheet(slot);
   const f=input.files[0]; if(!f) return;
   const r=new FileReader();
   r.onload=()=>setPreview(slot, r.result);
   r.readAsDataURL(f);
 }
 slots.forEach(slot=>{
-  // ポップアップの開閉はチェックボックス（CSS）が担当。以下は実動作の補助。
   document.getElementById("file_"+slot).addEventListener("change", e=>handleFile(slot, e.target));
-  // カメラ（白ガイド付き）。先に自前ポップアップを閉じる
-  document.getElementById("cam_"+slot).addEventListener("click", ()=>{ closeSheet(slot); openCam(slot); });
-  // 写真・ファイルは OS 標準メニューに委譲。重なり防止のため先に閉じてから開く
-  document.getElementById("pick_"+slot).addEventListener("click", ()=>{ closeSheet(slot); document.getElementById("file_"+slot).click(); });
 });
-
-// 撮影ガイド（Invisalign 系の撮影アプリのように構図を合わせるための補助線）
-const GUIDE_CAP={
-  macro:"顔貌・スマイル: 顔の正中を中央の白い破線に合わせ、瞳孔線を水平・口唇を下の線に合わせて笑顔で撮影",
-  micro:"歯・歯肉: 正中を中央の白い破線に、咬合平面を水平線に合わせ、歯列を白い枠とアーチに収めて撮影"
-};
-function showGuide(kind){
-  document.getElementById("guide_macro").style.display = kind==="macro"?"":"none";
-  document.getElementById("guide_micro").style.display = kind==="micro"?"":"none";
-  document.getElementById("guidecap").textContent = GUIDE_CAP[kind]||"";
-}
-
-// getUserMedia によるライブ撮影
-async function openCam(slot){
-  camTarget=slot;
-  try{
-    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing}, audio:false});
-  }catch(err){
-    alert("カメラを起動できませんでした: "+err+"\\nアップロードをご利用ください。");
-    return;
-  }
-  showGuide(slot.indexOf("macro")===0 ? "macro" : "micro");
-  document.getElementById("camvideo").srcObject=camStream;
-  document.getElementById("cam").style.display="flex";
-}
-function closeCam(){
-  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
-  document.getElementById("cam").style.display="none";
-}
-document.getElementById("camcancel").onclick=closeCam;
-document.getElementById("camswitch").onclick=async()=>{
-  facing = facing==="environment"?"user":"environment";
-  if(camTarget) {closeCam(); openCam(camTarget);}
-};
-document.getElementById("camshot").onclick=()=>{
-  const v=document.getElementById("camvideo");
-  const c=document.createElement("canvas");
-  c.width=v.videoWidth; c.height=v.videoHeight;
-  c.getContext("2d").drawImage(v,0,0);
-  setPreview(camTarget, c.toDataURL("image/jpeg",0.9));
-  closeCam();
-};
 
 document.getElementById("run").onclick=async()=>{
   const imgs={};
@@ -251,23 +159,13 @@ document.getElementById("run").onclick=async()=>{
 
 
 def _slot_html(slot: str, label: str) -> str:
-    # ポップアップの開閉はチェックボックス（CSS）で行うため、JS 無効環境でも開く。
-    # 写真ライブラリ/ファイルは label→input[type=file] で JS 無しでも選択可。
-    # カメラ撮影のみ getUserMedia（JS 必須）。
+    # 「＋ 画像を追加」ラベルが file input を直接開く。
+    # 端末側が標準メニュー（写真を撮る/写真ライブラリ/ファイルを選択）を表示する。
     return f"""<div class="slot">
   <h3>{label}</h3>
   <img class="preview" id="img_{slot}" alt="{label}">
   <div class="row">
-    <input type="checkbox" id="cb_{slot}" class="cbtoggle">
-    <label class="btn primary" for="cb_{slot}">＋ 画像を追加</label>
-    <div class="sheet">
-      <div class="sheet-box">
-        <h3>{label}<br>画像の取得方法を選択</h3>
-        <button type="button" class="btn primary opt" id="cam_{slot}">📷 カメラで撮影（白ガイド付き）</button>
-        <button type="button" class="btn opt" id="pick_{slot}">🖼 写真・ファイルから選択</button>
-        <label class="btn opt ghost" for="cb_{slot}">キャンセル</label>
-      </div>
-    </div>
+    <label class="btn primary addbtn" for="file_{slot}">＋ 画像を追加</label>
     <input type="file" id="file_{slot}" accept="image/*" style="display:none">
   </div>
 </div>"""
