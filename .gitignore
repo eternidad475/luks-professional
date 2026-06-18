@@ -4,6 +4,7 @@ __pycache__/
 *.avi
 _test_imgs/
 _demo/
+_preview/
 report/
 .venv/
 venv/
