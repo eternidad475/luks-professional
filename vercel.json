@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/caseflow_studio_v96.html" },
+    { "source": "/app", "destination": "/caseflow_studio_v96.html" },
+    { "source": "/landing", "destination": "/caseflow_landing.html" }
+  ]
+}
