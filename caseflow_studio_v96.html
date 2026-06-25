@@ -4414,7 +4414,7 @@ button[id="localMLDetectButton"]{
       <div style="font-weight:900;letter-spacing:.06em;font-size:15px;color:#5b3fd6">CASEFLOW STUDIO™</div>
       <div style="font-size:12.5px;color:#7a7290;margin:6px 0 18px">Clinical beauty, visualized.</div>
     </div>
-    <div style="display:none;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:18px">
+    <div style="display:flex;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:18px">
       <button id="cfTabLogin"  type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:#fff;color:#5b3fd6;box-shadow:0 2px 8px rgba(40,20,80,.10)">ログイン</button>
       <button id="cfTabSignup" type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:transparent;color:#7a7290">新規登録</button>
     </div>
@@ -4427,6 +4427,17 @@ button[id="localMLDetectButton"]{
     <div id="cfAuthMsg" style="display:none;font-size:12.5px;margin-bottom:12px;padding:9px 11px;border-radius:9px;line-height:1.6"></div>
     <button id="cfAuthSubmit" type="button" style="width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;
       background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px">ログイン</button>
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:#9a93b0;font-size:11px;font-weight:700">
+      <span style="flex:1;height:1px;background:rgba(124,92,255,.18)"></span>または<span style="flex:1;height:1px;background:rgba(124,92,255,.18)"></span>
+    </div>
+    <button id="cfOAuthGoogle" type="button" style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px;margin-bottom:9px;border:1.5px solid rgba(32,27,53,.14);border-radius:12px;background:#fff;color:#3c4043;font-weight:800;font-size:14px;cursor:pointer">
+      <svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.63z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.73a5.4 5.4 0 0 1 0-3.46V4.94H.96a9 9 0 0 0 0 8.12l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.9 11.42 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Googleで続ける
+    </button>
+    <button id="cfOAuthApple" type="button" style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px;border:1.5px solid rgba(32,27,53,.16);border-radius:12px;background:#000;color:#fff;font-weight:800;font-size:14px;cursor:pointer">
+      <svg width="15" height="17" viewBox="0 0 14 17" fill="#fff" aria-hidden="true"><path d="M11.6 8.9c0-1.9 1.5-2.8 1.6-2.9-.9-1.3-2.2-1.5-2.7-1.5-1.1-.1-2.2.7-2.8.7-.6 0-1.5-.7-2.4-.6-1.2 0-2.4.7-3 1.8-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.2 1.8.9 0 1.2-.6 2.3-.6 1.1 0 1.3.6 2.3.6 1 0 1.6-.9 2.2-1.8.7-1 1-2 1-2-.1 0-1.9-.7-1.9-2.6zM9.8 3.3c.5-.6.8-1.4.7-2.3-.7 0-1.5.5-2 1.1-.4.5-.8 1.3-.7 2.1.8.1 1.5-.4 2-.9z"/></svg>
+      Appleで続ける
+    </button>
     <div style="font-size:11px;color:#9a93b0;margin-top:16px;text-align:center;line-height:1.7">
       ご利用は<a href="/terms" target="_blank" style="color:#5b3fd6">利用規約</a>・<a href="/privacy" target="_blank" style="color:#5b3fd6">プライバシーポリシー</a>に同意のうえご利用ください。<br>
       アカウント発行・お問い合わせ：eternidad475@gmail.com
@@ -4436,11 +4447,26 @@ button[id="localMLDetectButton"]{
 <button id="cfLogoutBtn" type="button" title="ログアウト" style="display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;z-index:2147483000;
   border:0;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;
   background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)">ログアウト</button>
+<div id="cfTokenBadge" title="残りトークン" style="display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:84px;z-index:2147483000;
+  border:0;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;
+  background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)">🪙 …</div>
+<!-- ===== Token-empty modal (Phase 3-B-1; checkout wired in 3-B-2) ===== -->
+<div id="cfTokenEmpty" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:24px;
+  background:rgba(30,20,50,.55);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif">
+  <div style="width:100%;max-width:360px;background:#fff;border-radius:22px;padding:28px 24px;text-align:center;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">
+    <div style="font-size:34px;margin-bottom:6px">🪙</div>
+    <div style="font-weight:900;font-size:16px;color:#5b3fd6;margin-bottom:8px">トークンが不足しています</div>
+    <p style="font-size:13px;color:#5a5470;line-height:1.7;margin:0 0 18px">無料トークンを使い切りました。プランにご登録いただくと、引き続き生成いただけます。</p>
+    <button id="cfTokenEmptyClose" type="button" style="width:100%;padding:12px;border:0;border-radius:12px;cursor:pointer;
+      background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:14px">閉じる</button>
+    <div style="font-size:11px;color:#9a93b0;margin-top:12px;line-height:1.6">プラン購入は近日対応（Stripe）。当面のご相談：eternidad475@gmail.com</div>
+  </div>
+</div>
 <script>
 /* ===== CASEFLOW auth gate (Phase 3-A). Gates the app behind Supabase login.
    Billing (active-subscription) check is layered on in Phase 3-B. ===== */
 (function(){
-  var CF_AUTH_ENABLED = false;
+  var CF_AUTH_ENABLED = true;
   var SUPA_URL  = 'https://nuolihmfdjzofporhwkp.supabase.co';
   var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51b2xpaG1mZGp6b2Zwb3Jod2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNjE5NDEsImV4cCI6MjA5NzkzNzk0MX0.dvEtTyDSMuV0vJDZfmUdsGbsoWtf4rww-Y7tNi1nWv4';
   if(!CF_AUTH_ENABLED) return;
@@ -4460,8 +4486,9 @@ button[id="localMLDetectButton"]{
       else { msg.style.background='rgba(124,92,255,.10)'; msg.style.color='#5b3fd6'; }
     }
     function clearMsg(){ msg.style.display='none'; msg.textContent=''; }
-    function openGate(){ gate.style.display='flex'; logoutBtn.style.display='none'; }
-    function closeGate(){ gate.style.display='none'; logoutBtn.style.display='block'; }
+    var badge=el('cfTokenBadge');
+    function openGate(){ gate.style.display='flex'; logoutBtn.style.display='none'; if(badge) badge.style.display='none'; }
+    function closeGate(){ gate.style.display='none'; logoutBtn.style.display='block'; if(badge) badge.style.display='block'; refreshTokens(); }
 
     if(!window.supabase || !window.supabase.createClient){
       openGate(); showMsg('読み込みに失敗しました。通信環境を確認して再読み込みしてください。','err');
@@ -4515,6 +4542,63 @@ button[id="localMLDetectButton"]{
     submit.addEventListener('click',submitAuth);
     passI.addEventListener('keydown',function(e){ if(e.key==='Enter') submitAuth(); });
     logoutBtn.addEventListener('click',async function(){ await sb.auth.signOut(); openGate(); setMode('login'); });
+
+    /* ---- OAuth (Google / Apple). Requires the provider to be enabled in
+       Supabase → Authentication → Providers. Redirects back to this app. ---- */
+    async function oauth(provider){
+      clearMsg(); showMsg(provider==='google'?'Googleに接続しています…':'Appleに接続しています…','info');
+      try{
+        var r = await sb.auth.signInWithOAuth({
+          provider: provider,
+          options: { redirectTo: window.location.origin + window.location.pathname }
+        });
+        if(r.error){ showMsg(translate(r.error.message),'err'); }
+      }catch(e){ showMsg('外部ログインに接続できませんでした。','err'); }
+    }
+    var gBtn=el('cfOAuthGoogle'), aBtn=el('cfOAuthApple');
+    if(gBtn) gBtn.addEventListener('click',function(){ oauth('google'); });
+    if(aBtn) aBtn.addEventListener('click',function(){ oauth('apple'); });
+
+    /* ---- Token balance: badge, refresh, consume (free-trial = 10) ---- */
+    function renderBadge(n){
+      if(!badge) return;
+      badge.textContent = '🪙 ' + (n==null ? '…' : n);
+      badge.style.color = (n!=null && n<=0) ? '#c0303a' : '#5b3fd6';
+    }
+    window.cfRenderTokenBadge = renderBadge;
+    async function refreshTokens(){
+      try{
+        var s = await sb.auth.getUser();
+        var uid = s && s.data && s.data.user && s.data.user.id;
+        if(!uid){ renderBadge(null); return; }
+        var q = await sb.from('profiles').select('tokens_remaining').eq('id', uid).single();
+        if(q.error){ renderBadge(null); return; }
+        var n = q.data ? q.data.tokens_remaining : null;
+        window.__cfTokens = n; renderBadge(n);
+      }catch(e){ renderBadge(null); }
+    }
+    window.cfRefreshTokens = refreshTokens;
+
+    /* Consume one token for an AI generation. Returns {ok:true,remaining} or
+       {ok:false,reason:'insufficient'|'auth'|'error'}. Atomic on the server. */
+    window.cfConsumeToken = async function(reason){
+      try{
+        var r = await sb.rpc('consume_token', { p_reason: reason||'generation' });
+        if(r.error){
+          var m = String(r.error.message||'');
+          if(/insufficient/i.test(m)) { renderBadge(0); return { ok:false, reason:'insufficient' }; }
+          if(/not authenticated|28000/i.test(m)) return { ok:false, reason:'auth' };
+          return { ok:false, reason:'error', message:m };
+        }
+        var n = r.data; window.__cfTokens = n; renderBadge(n);
+        return { ok:true, remaining:n };
+      }catch(e){ return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+    };
+
+    /* Token-empty modal */
+    var emptyModal=el('cfTokenEmpty'), emptyClose=el('cfTokenEmptyClose');
+    window.cfShowTokenEmpty = function(){ if(emptyModal) emptyModal.style.display='flex'; };
+    if(emptyClose) emptyClose.addEventListener('click',function(){ if(emptyModal) emptyModal.style.display='none'; });
 
     sb.auth.onAuthStateChange(function(_evt, session){
       if(session){ closeGate(); } else { openGate(); }
@@ -18178,6 +18262,15 @@ body[data-ui-tone="dark"]{
 
   async function generateViaAI(source){
     const epRaw=aiEndpoint(); if(!epRaw) return null;
+    // Token gate: 1 token per AI generation call. Blocks (no local fallback) when empty.
+    if(typeof window.cfConsumeToken==='function'){
+      const _tk = await window.cfConsumeToken('generation');
+      if(_tk && _tk.ok===false){
+        if(_tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function'){ window.cfShowTokenEmpty(); }
+        const _e=new Error(_tk.reason==='insufficient'?'トークンが不足しています':'トークンの確認に失敗しました');
+        _e.cfNoTokens=true; throw _e;
+      }
+    }
     let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
     const res=await fetchSimWithRetry(ep, JSON.stringify({ image:source.dataUrl, prompt:buildClinicalPrompt(),
         params:state.simV96, concept:(state.simV82||{}).concept, targets:(state.simV82||{}).targets,
@@ -18389,7 +18482,10 @@ body[data-ui-tone="dark"]{
     try{
       if(aiEnabled()){
         try{ const u=await generateViaAI(src); if(u) return u; }
-        catch(e){ console.warn(e); window.__caseflowLastAIError=String((e&&e.message)||e); toastFn('AI生成に失敗: '+((e&&e.message)||e)); }
+        catch(e){
+          if(e && e.cfNoTokens){ throw e; } // empty tokens → block, do not give a free local result
+          console.warn(e); window.__caseflowLastAIError=String((e&&e.message)||e); toastFn('AI生成に失敗: '+((e&&e.message)||e));
+        }
       }
       return await createSimulationImageV96(src, state.simV96);
     } finally {
