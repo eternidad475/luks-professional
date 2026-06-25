@@ -1,0 +1,41 @@
+/* Shared style for CASEFLOW STUDIO legal pages */
+:root{
+  --c1:#7c5cff; --c2:#ff9fd6; --accent:#9ff6c8;
+  --maxw:760px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{
+  background:linear-gradient(150deg,var(--c1) 0%,color-mix(in srgb,var(--c1) 45%,var(--c2)) 50%,var(--c2) 100%) fixed;
+  background-color:#be7ed6;
+}
+body{
+  margin:0;color:#231a3a;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif;
+  line-height:1.85;overflow-x:hidden;
+}
+a{color:#5b3fd6;text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:28px 20px 80px}
+.topbar{max-width:var(--maxw);margin:0 auto;padding:18px 20px 0;display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:900;letter-spacing:.04em;color:#fff;font-size:14px}
+.back{font-size:13px;font-weight:800;color:#fff;opacity:.92}
+.card{
+  background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.8);
+  border-radius:22px;padding:30px 26px;margin-top:18px;
+  box-shadow:0 20px 60px rgba(40,20,80,.18);
+}
+.eyebrow{font-size:11px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:#7c5cff;margin-bottom:8px}
+h1{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+.updated{font-size:12px;color:#7a7290;margin:0 0 18px}
+h2{font-size:16px;margin:26px 0 8px;padding-top:14px;border-top:1px solid rgba(60,40,100,.12)}
+h2:first-of-type{border-top:0;padding-top:0}
+p,li{font-size:14px;color:#3a3358}
+ul,ol{padding-left:1.2em;margin:8px 0}
+li{margin:4px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid rgba(60,40,100,.12)}
+th{width:34%;color:#5b3fd6;font-weight:800;white-space:nowrap}
+.ph{background:#fff3c4;border-radius:5px;padding:1px 6px;font-weight:700;color:#8a6d00}
+.note{margin-top:22px;font-size:12.5px;color:#7a7290;background:rgba(124,92,255,.08);border-radius:12px;padding:12px 14px}
+.foot{text-align:center;margin-top:26px;font-size:12px;color:rgba(255,255,255,.9)}
+.foot a{color:#fff;font-weight:700}

@@ -2,6 +2,9 @@
   "rewrites": [
     { "source": "/", "destination": "/caseflow_studio_v96.html" },
     { "source": "/app", "destination": "/caseflow_studio_v96.html" },
-    { "source": "/landing", "destination": "/caseflow_landing.html" }
+    { "source": "/landing", "destination": "/caseflow_landing.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/legal", "destination": "/legal.html" }
   ]
 }
