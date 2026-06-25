@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#be7ed6">
+<meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CaseFlow">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -4357,6 +4358,51 @@ button[id="localMLDetectButton"]{
 
 </head>
 <body>
+<!-- ===== Demo access gate (soft, client-side) ===== -->
+<div id="cfDemoGate" style="position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif">
+  <div style="width:100%;max-width:360px;background:rgba(255,255,255,.92);border-radius:24px;padding:32px 26px;
+    box-shadow:0 24px 70px rgba(40,20,80,.28);text-align:center;color:#231a3a">
+    <div style="font-weight:900;letter-spacing:.06em;font-size:15px;color:#5b3fd6">CASEFLOW STUDIO™</div>
+    <div style="font-size:12.5px;color:#7a7290;margin:6px 0 20px">限定プレビュー ・ Private Preview</div>
+    <p style="font-size:13.5px;color:#3a3358;margin:0 0 16px;line-height:1.7">アクセスコードを入力してください。</p>
+    <input id="cfDemoInput" type="password" inputmode="text" autocomplete="off" placeholder="アクセスコード"
+      style="width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid rgba(124,92,255,.35);border-radius:12px;
+      font-size:16px;text-align:center;outline:none;margin-bottom:10px">
+    <div id="cfDemoErr" style="display:none;color:#d23;font-size:12.5px;margin-bottom:10px">コードが正しくありません。</div>
+    <button id="cfDemoBtn" style="width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;
+      background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px">入る</button>
+    <div style="font-size:11px;color:#9a93b0;margin-top:16px">提携・デモのご相談：eternidad475@gmail.com</div>
+  </div>
+</div>
+<script>
+/* Soft demo gate. NOTE: client-side deterrent only (not hard security).
+   Real access control comes with the login + subscription phase.
+   To change the code, edit CF_DEMO_CODE below. To disable, set CF_DEMO_ENABLED=false. */
+(function(){
+  var CF_DEMO_ENABLED = true;
+  var CF_DEMO_CODE = 'caseflow2026';
+  if(!CF_DEMO_ENABLED) return;
+  var KEY='caseflow_demo_ok_v1';
+  try{ if(localStorage.getItem(KEY)==='1') return; }catch(e){}
+  function show(){
+    var g=document.getElementById('cfDemoGate'); if(!g) return;
+    g.style.display='flex';
+    var inp=document.getElementById('cfDemoInput'), btn=document.getElementById('cfDemoBtn'), err=document.getElementById('cfDemoErr');
+    function tryUnlock(){
+      if((inp.value||'').trim()===CF_DEMO_CODE){
+        try{ localStorage.setItem(KEY,'1'); }catch(e){}
+        g.style.display='none';
+      } else { err.style.display='block'; inp.value=''; inp.focus(); }
+    }
+    btn.addEventListener('click',tryUnlock);
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
+    setTimeout(function(){ try{inp.focus();}catch(e){} },50);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',show); else show();
+})();
+</script>
 <main class="app">
 <div class="marble"></div>
 
