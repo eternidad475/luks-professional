@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 *.mp4
 *.avi
+# sample morph videos served by the app must be tracked
+!media/*.mp4
 _test_imgs/
 _demo/
 _preview/
