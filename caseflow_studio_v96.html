@@ -11,6 +11,7 @@
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>CaseFlow Studio v9.6</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>/* hide consent gate before first paint if already agreed (prevents flash) */
 try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentElement.classList.add('cf-consented'); }catch(e){}</script>
 <style>
@@ -4381,7 +4382,7 @@ button[id="localMLDetectButton"]{
    Real access control comes with the login + subscription phase.
    To change the code, edit CF_DEMO_CODE below. To disable, set CF_DEMO_ENABLED=false. */
 (function(){
-  var CF_DEMO_ENABLED = true;
+  var CF_DEMO_ENABLED = false; /* superseded by the Supabase login gate below */
   var CF_DEMO_CODE = 'caseflow2026';
   if(!CF_DEMO_ENABLED) return;
   var KEY='caseflow_demo_ok_v1';
@@ -4401,6 +4402,128 @@ button[id="localMLDetectButton"]{
     setTimeout(function(){ try{inp.focus();}catch(e){} },50);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',show); else show();
+})();
+</script>
+<!-- ===== Supabase login gate (Phase 3-A) ===== -->
+<div id="cfAuthGate" style="position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif">
+  <div style="width:100%;max-width:380px;background:rgba(255,255,255,.94);border-radius:24px;padding:30px 26px;
+    box-shadow:0 24px 70px rgba(40,20,80,.28);color:#231a3a">
+    <div style="text-align:center">
+      <div style="font-weight:900;letter-spacing:.06em;font-size:15px;color:#5b3fd6">CASEFLOW STUDIO™</div>
+      <div style="font-size:12.5px;color:#7a7290;margin:6px 0 18px">Clinical beauty, visualized.</div>
+    </div>
+    <div style="display:flex;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:18px">
+      <button id="cfTabLogin"  type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:#fff;color:#5b3fd6;box-shadow:0 2px 8px rgba(40,20,80,.10)">ログイン</button>
+      <button id="cfTabSignup" type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:transparent;color:#7a7290">新規登録</button>
+    </div>
+    <label style="display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px">メールアドレス</label>
+    <input id="cfAuthEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@clinic.jp"
+      style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:12px">
+    <label style="display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px">パスワード</label>
+    <input id="cfAuthPass" type="password" autocomplete="current-password" placeholder="6文字以上"
+      style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:14px">
+    <div id="cfAuthMsg" style="display:none;font-size:12.5px;margin-bottom:12px;padding:9px 11px;border-radius:9px;line-height:1.6"></div>
+    <button id="cfAuthSubmit" type="button" style="width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;
+      background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px">ログイン</button>
+    <div style="font-size:11px;color:#9a93b0;margin-top:16px;text-align:center;line-height:1.7">
+      登録すると<a href="/terms" target="_blank" style="color:#5b3fd6">利用規約</a>・<a href="/privacy" target="_blank" style="color:#5b3fd6">プライバシーポリシー</a>に同意したものとみなされます。<br>
+      お問い合わせ：eternidad475@gmail.com
+    </div>
+  </div>
+</div>
+<button id="cfLogoutBtn" type="button" title="ログアウト" style="display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;z-index:2147483000;
+  border:0;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;
+  background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)">ログアウト</button>
+<script>
+/* ===== CASEFLOW auth gate (Phase 3-A). Gates the app behind Supabase login.
+   Billing (active-subscription) check is layered on in Phase 3-B. ===== */
+(function(){
+  var CF_AUTH_ENABLED = true;
+  var SUPA_URL  = 'https://nuolihmfdjzofporhwkp.supabase.co';
+  var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51b2xpaG1mZGp6b2Zwb3Jod2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNjE5NDEsImV4cCI6MjA5NzkzNzk0MX0.dvEtTyDSMuV0vJDZfmUdsGbsoWtf4rww-Y7tNi1nWv4';
+  if(!CF_AUTH_ENABLED) return;
+
+  function el(id){ return document.getElementById(id); }
+  function start(){
+    var gate=el('cfAuthGate'), msg=el('cfAuthMsg'), submit=el('cfAuthSubmit'),
+        tabLogin=el('cfTabLogin'), tabSignup=el('cfTabSignup'),
+        emailI=el('cfAuthEmail'), passI=el('cfAuthPass'), logoutBtn=el('cfLogoutBtn');
+    var mode='login';
+
+    function showMsg(text, kind){
+      msg.style.display='block';
+      msg.textContent=text;
+      if(kind==='err'){ msg.style.background='rgba(220,50,60,.10)'; msg.style.color='#c0303a'; }
+      else if(kind==='ok'){ msg.style.background='rgba(30,160,90,.12)'; msg.style.color='#1a8f57'; }
+      else { msg.style.background='rgba(124,92,255,.10)'; msg.style.color='#5b3fd6'; }
+    }
+    function clearMsg(){ msg.style.display='none'; msg.textContent=''; }
+    function openGate(){ gate.style.display='flex'; logoutBtn.style.display='none'; }
+    function closeGate(){ gate.style.display='none'; logoutBtn.style.display='block'; }
+
+    if(!window.supabase || !window.supabase.createClient){
+      openGate(); showMsg('読み込みに失敗しました。通信環境を確認して再読み込みしてください。','err');
+      submit.disabled=true; return;
+    }
+    var sb = window.supabase.createClient(SUPA_URL, SUPA_ANON);
+    window.cfSupabase = sb; /* expose for later billing code */
+
+    function setMode(m){
+      mode=m; clearMsg();
+      if(m==='login'){
+        tabLogin.style.background='#fff'; tabLogin.style.color='#5b3fd6'; tabLogin.style.boxShadow='0 2px 8px rgba(40,20,80,.10)';
+        tabSignup.style.background='transparent'; tabSignup.style.color='#7a7290'; tabSignup.style.boxShadow='none';
+        submit.textContent='ログイン'; passI.setAttribute('autocomplete','current-password');
+      } else {
+        tabSignup.style.background='#fff'; tabSignup.style.color='#5b3fd6'; tabSignup.style.boxShadow='0 2px 8px rgba(40,20,80,.10)';
+        tabLogin.style.background='transparent'; tabLogin.style.color='#7a7290'; tabLogin.style.boxShadow='none';
+        submit.textContent='登録する'; passI.setAttribute('autocomplete','new-password');
+      }
+    }
+    tabLogin.addEventListener('click',function(){ setMode('login'); });
+    tabSignup.addEventListener('click',function(){ setMode('signup'); });
+
+    async function submitAuth(){
+      var email=(emailI.value||'').trim(), pass=(passI.value||'');
+      if(!email || !pass){ showMsg('メールアドレスとパスワードを入力してください。','err'); return; }
+      submit.disabled=true; var label=submit.textContent; submit.textContent='処理中…'; clearMsg();
+      try{
+        if(mode==='signup'){
+          var r = await sb.auth.signUp({ email:email, password:pass });
+          if(r.error){ showMsg(translate(r.error.message),'err'); }
+          else if(r.data && r.data.session){ closeGate(); }
+          else { showMsg('確認メールを送信しました。メール内のリンクを開いてからログインしてください。','ok'); setMode('login'); }
+        } else {
+          var r2 = await sb.auth.signInWithPassword({ email:email, password:pass });
+          if(r2.error){ showMsg(translate(r2.error.message),'err'); }
+          else { closeGate(); }
+        }
+      } catch(e){ showMsg('通信エラーが発生しました。もう一度お試しください。','err'); }
+      submit.disabled=false; submit.textContent=label;
+    }
+    function translate(m){
+      m=String(m||'');
+      if(/Invalid login credentials/i.test(m)) return 'メールアドレスまたはパスワードが正しくありません。';
+      if(/Email not confirmed/i.test(m)) return 'メールの確認が完了していません。確認メールのリンクを開いてください。';
+      if(/User already registered/i.test(m)) return 'このメールアドレスは既に登録されています。「ログイン」からお進みください。';
+      if(/Password should be at least/i.test(m)) return 'パスワードは6文字以上で設定してください。';
+      if(/rate limit/i.test(m)) return '試行回数が多すぎます。しばらくしてからお試しください。';
+      return m;
+    }
+    submit.addEventListener('click',submitAuth);
+    passI.addEventListener('keydown',function(e){ if(e.key==='Enter') submitAuth(); });
+    logoutBtn.addEventListener('click',async function(){ await sb.auth.signOut(); openGate(); setMode('login'); });
+
+    sb.auth.onAuthStateChange(function(_evt, session){
+      if(session){ closeGate(); } else { openGate(); }
+    });
+    sb.auth.getSession().then(function(res){
+      if(res && res.data && res.data.session){ closeGate(); } else { openGate(); setMode('login'); }
+    }).catch(function(){ openGate(); setMode('login'); });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
 })();
 </script>
 <main class="app">
