@@ -4462,7 +4462,7 @@ button[id="localMLDetectButton"]{
 /* ===== CASEFLOW auth gate (Phase 3-A). Gates the app behind Supabase login.
    Billing (active-subscription) check is layered on in Phase 3-B. ===== */
 (function(){
-  var CF_AUTH_ENABLED = true;
+  var CF_AUTH_ENABLED = false;
   var SUPA_URL  = 'https://nuolihmfdjzofporhwkp.supabase.co';
   var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51b2xpaG1mZGp6b2Zwb3Jod2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNjE5NDEsImV4cCI6MjA5NzkzNzk0MX0.dvEtTyDSMuV0vJDZfmUdsGbsoWtf4rww-Y7tNi1nWv4';
   if(!CF_AUTH_ENABLED) return;
