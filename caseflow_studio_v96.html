@@ -11666,24 +11666,13 @@ window.addEventListener('DOMContentLoaded', () => {
       const banner = ensureSimBanner();
       const sum = selectedScopeSummary();
       if(banner){
-        let title = 'Using selected studio scope';
-        let detail = `現在 ${sum.total} 枚の選択画像だけを Simulation Studio で使用します。`;
-        if(sum.total===1){
-          if(state.simMacro && !state.simMicro){
-            title = 'Using one Facial image only';
-            detail = '選択した facial 1枚だけを使っています。focus は未選択のままでもシミュレーションを開始できます。';
-          }else if(state.simMicro && !state.simMacro){
-            title = 'Using one Focus image only';
-            detail = '選択した focus 1枚だけを使っています。facial は未選択のままでもシミュレーションを開始できます。';
-          }
-        }else if(state.simMacro && state.simMicro){
-          title = 'Using selected Facial + Focus images';
-          detail = '選択した画像の中から facial / focus を割り当てています。必要な方だけ選ぶ運用にも対応しています。';
-        }else if(state.simMacro || state.simMicro){
-          title = 'Using one image type from selection';
-          detail = '複数枚選択されていますが、現在のシミュレーション入力は片方のみです。必要に応じてもう一方も追加できます。';
-        }
-        banner.innerHTML = `<b>${title}</b><span>${detail}</span>`;
+        // Simple, always-clear status: which input is currently selected.
+        let label;
+        if(state.simMacro && state.simMicro) label = '現在 macro / facial と micro / focus を選択中です';
+        else if(state.simMacro)              label = '現在 macro / facial を選択中です';
+        else if(state.simMicro)              label = '現在 micro / focus を選択中です';
+        else                                 label = 'シミュレーションする画像を選択してください';
+        banner.innerHTML = `<b>${label}</b>`;
       }
       setChoiceState('macroChoice','macroThumb','facial',state.simMacro || null);
       setChoiceState('microChoice','microThumb','focus',state.simMicro || null);
@@ -18868,6 +18857,16 @@ body[data-ui-tone="dark"]{
       const bb = (clamp(((state.simV96||{}).bioBlend ?? 50), 0, 100) - 50) / 50;
       applyIntraoralBioBlend(ctx, ox, w, h, bb);
     }
+    // DETERMINISTIC midline-diastema closure on the AI result too. The AI backend is on by
+    // default and frequently leaves the すきっ歯 open, so close it here as a guaranteed
+    // post-process (no-op when no distinct gap remains → an already-closed smile is untouched).
+    try{
+      const _cc=((state.simV82||{}).concept)||'ortho';
+      if(facial && (_cc==='ortho'||_cc==='hybrid'||_cc==='prosthetic') && typeof closeMidlineGapFacial==='function'){
+        const _al=clamp((((state.simV96||{}).alignment)==null?50:state.simV96.alignment),0,100)/100;
+        await closeMidlineGapFacial(ctx, o, w, h, clamp(0.84+_al*0.16,0,1));
+      }
+    }catch(e){}
     drawBadge(ctx,w,h);
     return c.toDataURL('image/jpeg',0.94);
   }
