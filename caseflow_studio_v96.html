@@ -18797,13 +18797,14 @@ body[data-ui-tone="dark"]{
     if(!grid) return;
     state.simV96=Object.assign({}, DEF, state.simV96||{});
     const legend=`<div class="simV96Legend"><span>現状 / none</span><span>EBM</span><span>最大 / max</span></div>`;
-    const on=aiEnabled();
     const cpVal=String(state.simCustomPrompt||'');
     const cpEsc=cpVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // NOTE: the "AI backend" status line and endpoint-URL input were intentionally removed
+    // from the UI — system/connection details must never be visible on a chairside screen
+    // shown to patients. The backend connection itself is unchanged: aiEndpoint() resolves a
+    // built-in default endpoint, so generation works silently without any visible control.
     const aiRow=`<div class="simV96AiRow">
-        <div class="simV96AiHead"><b>AI backend</b><span class="${on?'simV96AiOn':''}">${on?'接続済み — 写実的な術後イメージを生成':'未接続 — ローカル処理（Shade中心）'}</span></div>
-        <input id="simV96AiEndpoint" type="url" inputmode="url" autocomplete="off" placeholder="img2img エンドポイント URL を貼り付け" value="${(aiEndpoint()||'').replace(/"/g,'&quot;')}">
-        <div class="simV96AiHead" style="margin-top:12px"><b>追加指示 / 主訴メモ</b><span id="simV96CpCount">${cpVal.length}/500</span></div>
+        <div class="simV96AiHead"><b>追加指示 / 主訴メモ</b><span id="simV96CpCount">${cpVal.length}/500</span></div>
         <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：右上1番の変色を改善。切縁の摩耗を補正して整える。犬歯のラインは保つ。正中を合わせる。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
       </div>`;
     // Automated pre-generation problem list (shown read-only; also folded into the prompt).
@@ -20149,16 +20150,59 @@ body.cfPresent .cfPresentExit{display:flex!important}
     window.state.title = prevTitle;
   }
 
+  // Resolve the set of saveable results from every possible source, in priority order:
+  //   1) state.simResults[] (v96 gallery)         2) state.simResult (v82/v95 single result)
+  //   3) the live #resultAfter image in the DOM   — the image the clinician is looking at NOW
+  // Guarantees the currently-displayed ("active") result is always saveable, even when the
+  // gallery array was never populated (the bug behind "保存する結果がありません").
+  function cfResolveSaveableResults(){
+    var st=window.state||{};
+    var arr=Array.isArray(st.simResults)?st.simResults.filter(function(r){return r&&r.dataUrl;}):[];
+    if(arr.length){ st.simResults=arr; return arr; }
+    if(st.simResult && st.simResult.dataUrl){ st.simResults=[st.simResult]; st.simResultIndex=0; return st.simResults; }
+    // Last-resort: harvest the active image straight from the DOM (compare slider).
+    var after=document.getElementById('resultAfter');
+    var before=document.getElementById('resultBefore');
+    var afterSrc=after&&after.src?after.src:'';
+    if(afterSrc && afterSrc.indexOf('data:')!==0 && afterSrc.indexOf('http')!==0){ afterSrc=''; }
+    if(afterSrc){
+      var rec={
+        dataUrl:afterSrc,
+        source:(before&&before.src)?before.src:afterSrc,
+        sourceKind:'Image',
+        createdAt:new Date().toISOString(),
+        settings:JSON.parse(JSON.stringify(st.simV82||st.simV96||{}))
+      };
+      st.simResult=rec; st.simResults=[rec]; st.simResultIndex=0;
+      return st.simResults;
+    }
+    return [];
+  }
+
   // Inline Library selection mode — toggle, item toggle, confirm, cancel.
   // Replaces the bottom-sheet approach (z-index conflicts) with in-gallery checkboxes.
   window.cfToggleLibrarySelect = function(){
-    var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
-    if(!arr.length && window.state.simResult && window.state.simResult.dataUrl){
-      window.state.simResults=[window.state.simResult]; window.state.simResultIndex=0; arr=window.state.simResults;
+    // Exiting selection mode: just toggle off.
+    if(window.state.cfLibrarySelectMode){
+      window.state.cfLibrarySelectMode=false;
+      window.state.cfLibrarySel=[];
+      if(typeof renderSimGallery==='function') renderSimGallery();
+      return;
     }
+    var arr=cfResolveSaveableResults();
     if(!arr.length){ if(typeof toast==='function') toast('保存する結果がありません'); return; }
-    window.state.cfLibrarySelectMode=!window.state.cfLibrarySelectMode;
-    window.state.cfLibrarySel=arr.map(function(){ return false; });
+    // Single result → save immediately, no selection UI needed.
+    if(arr.length===1){
+      var base=(window.state.title||'Simulation').trim()||'Simulation';
+      saveSimResultToLibrary(arr[0], base);
+      if(typeof toast==='function') toast('Library に保存しました');
+      if(typeof go==='function') setTimeout(function(){ go('library'); },450);
+      return;
+    }
+    // Multiple variations → enter selection mode with the ACTIVE result pre-selected.
+    window.state.cfLibrarySelectMode=true;
+    var active=window.state.simResultIndex||0;
+    window.state.cfLibrarySel=arr.map(function(_,i){ return i===active; });
     if(typeof renderSimGallery==='function') renderSimGallery();
   };
   window.cfToggleLibraryItem = function(i){
@@ -20174,6 +20218,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
   window.cfConfirmLibrarySelect = function(){
     var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
     var sel=Array.isArray(window.state.cfLibrarySel)?window.state.cfLibrarySel:[];
+    // If the clinician confirmed without ticking anything, default to the active result so
+    // the button never silently no-ops.
+    if(!sel.some(Boolean)){
+      var active=window.state.simResultIndex||0;
+      sel=arr.map(function(_,i){ return i===active; });
+    }
     var n=0;
     var base=(window.state.title||'Simulation').trim()||'Simulation';
     arr.forEach(function(r,i){
