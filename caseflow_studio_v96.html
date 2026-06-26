@@ -10802,6 +10802,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <label>File name<input id="v61PhotoName" type="text" placeholder="photo.jpg"></label>
         <label class="wide">Notes<textarea id="v61Notes" placeholder="memo / view / clinical comment"></textarea></label>
       </div>
+      <button class="v61AiStd" onclick="cfInfoAutoStandardize()" style="width:100%;border:0;border-radius:13px;padding:12px;font-weight:900;font-size:13px;background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;margin:2px 0 8px;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AIで傾き・トリミングを自動補正</button>
       <div class="v61InfoTools">
         <button onclick="v61QuickRotate(-90)">⟲ Rotate</button>
         <button onclick="v61QuickRotate(90)">Rotate ⟳</button>
@@ -10859,6 +10860,18 @@ window.addEventListener('DOMContentLoaded', () => {
   window.closeV61Info=function(){
     const m=$id('v61InfoModal');
     if(m){ m.classList.remove('open'); m.setAttribute('aria-hidden','true'); }
+  };
+  // Open the Visual Simulation Studio AI tilt/crop auto-correction for THIS image. The
+  // standardize sheet auto-runs the AI for facial images (Focus keeps its manual grid),
+  // so the same auto-correct used in Sim Studio is now reachable from Image Information /
+  // Photo Manager and (via the morphing edit button) the Morphing Studio.
+  window.cfInfoAutoStandardize=function(){
+    const i=state.v61InfoIndex;
+    const p=(state.photos||[])[i];
+    if(!p){ toastFn('画像がありません'); return; }
+    closeV61Info();
+    if(window.cfOpenStandardize) cfOpenStandardize(i);
+    else toastFn('規格化ツールを開けません');
   };
   window.saveV61Info=function(){
     const i=state.v61InfoIndex;
@@ -13615,6 +13628,7 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="v73SourceStrip">${cards}</div>
       <div class="v73PointTools">
         ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
+        ${isFacial(activePhoto()) ? `<button class="v75AiStd" onclick="caseflowV75Standardize()" style="background:linear-gradient(135deg,#6a3de8,#7c5cfc)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>AI傾き・トリミング補正</button>` : ''}
         <button onclick="caseflowV75PrevPoint()">Prev</button>
         <button onclick="caseflowV75NextPoint()">Next</button>
         <button onclick="caseflowV75UndoPoint()">Undo</button>
@@ -13757,6 +13771,17 @@ window.addEventListener('DOMContentLoaded', () => {
     showActiveImage(); drawLandmarks(); renderStudio();
   };
   function v75Refresh(){ try{ showActiveImage(); drawLandmarks(); renderStudio(); if(typeof window.renderPreview==='function') window.renderPreview(); }catch(e){} }
+  window.caseflowV75Refresh=v75Refresh;   // so the standardize tool can refresh the studio after applying
+  // Visual Simulation Studio AI tilt/crop auto-correction for the ACTIVE morphing source.
+  // Facial only (Focus papilla plotting is unchanged); routes through the shared standardize
+  // sheet, which auto-runs the AI on open and applies back to state.photos in place.
+  window.caseflowV75Standardize=function(){
+    const p=activePhoto();
+    if(!p){ toastFn('画像がありません'); return; }
+    if(!isFacial(p)){ toastFn('AI傾き・トリミング補正はFacial画像のみ対応です'); return; }
+    if(window.cfOpenStandardize) cfOpenStandardize(activeIndex());
+    else toastFn('規格化ツールを開けません');
+  };
   // Edit a source image with the same gallery editor popup (crop / rotate / standardize / etc.)
   window.caseflowV75EditSource=function(i){
     state.v75ActiveIndex=clamp(i,0,list().length-1);
@@ -19596,6 +19621,9 @@ body[data-ui-tone="dark"]{
     return openTarget({ category:cat(p), dataUrl:p.dataUrl, apply:function(url){
       if(!p.originalDataUrl) p.originalDataUrl=p.dataUrl; p.dataUrl=url;
       if(window.renderUpload) renderUpload(); if(window.renderSimulator) renderSimulator(); if(window.renderPreview) renderPreview();
+      // Refresh the Morphing Studio (source cards + preview) when standardizing one of its sources.
+      if(window.renderAlign) try{ renderAlign(); }catch(e){}
+      if(window.caseflowV75Refresh) try{ caseflowV75Refresh(); }catch(e){}
     }});
   }
   window.cfOpenStandardize=open;
