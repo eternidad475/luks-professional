@@ -18267,7 +18267,12 @@ body[data-ui-tone="dark"]{
     // Golden-proportion smile design for facial ortho/hybrid — the edit is composited only inside
     // the lip aperture, so push for a clearly idealised dentition.
     if(isFacial && (concept==='ortho'||concept==='hybrid')){
-      parts.push('SMILE DESIGN TARGET (intraoral only — change ONLY the teeth seen between the lips; keep lips, skin, framing and identity untouched): deliver a CLEARLY idealised result, not a timid one. (1) CLOSE the midline diastema and all anterior spacing completely so the central incisors meet at a coincident dental midline. (2) Apply golden/RED proportion to the maxillary anteriors — centrals dominant with an ideal ~75–85% width-to-height ratio, laterals and canines stepping down in harmonious proportion. (3) Level and de-rotate the incisal edges into a smooth smile arc that gently follows the lower lip; make right and left symmetric. (4) Even, natural enamel shade with realistic translucency — avoid a flat, fake "denture" look. The change must be obviously visible compared to the input while staying photorealistic and credible for THIS patient.');
+      parts.push('SMILE DESIGN TARGET (change ONLY the teeth/gingiva seen between the lips; keep lips, skin, framing and identity untouched): deliver a CLEARLY idealised but credible result. '+
+        '(1) CLOSE the midline diastema and all anterior spacing so the central incisors meet at a coincident, centred dental midline. '+
+        '(2) GOLDEN / RED PROPORTION: maxillary central incisor is the key reference with width-to-height ratio ~78–82%; from the front the apparent widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 (RED proportion); centrals gently dominant. Achieve the ratio by ideal crown FORM and LENGTH — NOT by shortening the crowns. '+
+        '(3) Incisal edges form a consonant smile arc parallel to the lower lip, with progressive central→lateral→canine embrasures; symmetric left/right. '+
+        '(4) ANTI-GUMMY — do NOT increase gingival display and do NOT create a gummy smile: keep upper-lip-to-gingival-margin display natural (about 1–2 mm of gingiva at most). If the patient already shows a gummy smile, REDUCE the gingival show (the crown-lengthening look — move gingival margins apically and lengthen the clinical crowns) so the teeth look longer and less gummy. Gingival zeniths harmonious (centrals & canines slightly apical to laterals). '+
+        '(5) Even, natural enamel shade with realistic translucency — never a flat, opaque "denture" look. The change must be obviously visible vs. the input yet photorealistic and believable for THIS patient.');
     }
     // ── Bracket control — clinician-confirmed flag (source-aware) ─────────────────────────────
     // This block is the single authoritative source for appliance-related prompting.
@@ -18944,7 +18949,9 @@ body[data-ui-tone="dark"]{
     // so the AI may change the dentition strongly without any identity/skin risk. Raise the
     // floor for facial ortho/hybrid so the smile correction is clearly visible (matches the
     // "補正が弱い" feedback) — the face stays the patient's own pixels regardless.
-    if(isFacialSrc && isOrtho && !isExtraction) denoising_strength=Math.max(denoising_strength, isHybrid?0.82:0.74);
+    // Facial floor: enough to clearly idealise the dentition, but NOT so high that the model
+    // regenerates a generic (often gummy) smile instead of editing this patient's teeth.
+    if(isFacialSrc && isOrtho && !isExtraction) denoising_strength=Math.max(denoising_strength, isHybrid?0.74:0.70);
     const payload={
       image:source.dataUrl,
       prompt:buildClinicalPrompt(),
@@ -19237,12 +19244,18 @@ body[data-ui-tone="dark"]{
   // Quota-aware persist: on QuotaExceededError, drop the oldest TEMP record and retry so the
   // newest generation always lands even when storage is tight.
   function cfPersistLib(KEY, arr){
-    for(let guard=0; guard<12; guard++){
+    for(let guard=0; guard<60; guard++){
       try{ localStorage.setItem(KEY, JSON.stringify(arr)); return true; }
       catch(e){
-        let ti=-1; for(let i=arr.length-1;i>=0;i--){ if(arr[i] && arr[i].temp){ ti=i; break; } }
-        if(ti>=0){ arr.splice(ti,1); continue; }
-        return false;
+        // Free space oldest-first to survive a full localStorage (years of saved images):
+        //   1) oldest temp record  2) oldest simulation-image record  3) (last resort) oldest
+        //      record overall — keeping projects/videos as long as possible.
+        let di=-1;
+        for(let i=arr.length-1;i>=0;i--){ if(arr[i] && arr[i].temp){ di=i; break; } }
+        if(di<0) for(let i=arr.length-1;i>=0;i--){ if(arr[i] && arr[i].kind==='simulation-image'){ di=i; break; } }
+        if(di<0) di=arr.length-1;
+        if(di<0 || !arr.length){ return false; }
+        arr.splice(di,1);
       }
     }
     return false;
@@ -19251,10 +19264,12 @@ body[data-ui-tone="dark"]{
     if(!r || !r.dataUrl) return;
     try{
       const KEY='caseflow_project_library_v55';
-      // Compress BEFORE storing: result ≤1080px, source ≤600px.
-      const thumb = await cfDownscale(r.dataUrl, 1080, 0.85);
+      // Compress hard BEFORE storing (≈60KB) so the Library record reliably fits even when
+      // localStorage is nearly full — the empty-Library cause. The result strip keeps the full
+      // resolution in memory for camera-roll export; the Library card only needs a thumbnail.
+      const thumb = await cfDownscale(r.dataUrl, 600, 0.82);
       const srcRaw = r.source || (r.srcObj&&r.srcObj.dataUrl) || '';
-      const srcSmall = srcRaw ? await cfDownscale(srcRaw, 600, 0.8) : '';
+      const srcSmall = srcRaw ? await cfDownscale(srcRaw, 384, 0.78) : '';
       let arr; try{ arr=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ arr=[]; }
       if(!Array.isArray(arr)) arr=[];
       const now=Date.now();
@@ -19270,9 +19285,10 @@ body[data-ui-tone="dark"]{
           title:((state.title||'Simulation'))+'（自動保存・48時間）',
           createdAt:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
           kind:'simulation-image', thumb:thumb, fav:!!r.fav, payload:payload });
-        // Cap temp entries (newest 8) as a secondary guard.
-        const temps=arr.filter(x=>x && x.temp);
-        if(temps.length>8){ const drop=new Set(temps.slice(8)); arr=arr.filter(x=>!drop.has(x)); }
+        // Cap stored simulation-image records (drop oldest) so the Library store can't grow
+        // without bound and start failing writes.
+        const sims=arr.filter(x=>x && x.kind==='simulation-image');
+        if(sims.length>12){ const drop=new Set(sims.slice(12)); arr=arr.filter(x=>!drop.has(x)); }
       }
       const ok=cfPersistLib(KEY, arr);
       if(window.state) window.state.projectLibrary=arr;
