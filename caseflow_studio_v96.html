@@ -4318,6 +4318,21 @@ button[id="localMLDetectButton"]{
 #microChoice .simShotPickBtn{text-align:left;border:1.5px solid rgba(32,27,53,.16);background:rgba(255,255,255,.85);color:#201b35;border-radius:11px;padding:8px 10px;font:inherit;font-size:11px;font-weight:850;line-height:1.2;cursor:pointer;transition:border-color .15s,background .15s}
 #microChoice .simShotPickBtn small{display:block;font-size:9px;font-weight:700;color:rgba(32,27,53,.55);margin-top:2px}
 #microChoice .simShotPickBtn.on{border-color:var(--c1,#6a4df4);background:color-mix(in srgb,var(--c1,#6a4df4) 13%,white)}
+/* Required badge: red = unconfirmed, green = confirmed */
+#microChoice .simShotPickHead .simShotReq{font-size:8.5px;font-weight:900;border-radius:5px;padding:2px 6px;letter-spacing:.03em;transition:background .2s,color .2s}
+#microChoice .simShotPick:not(.confirmed) .simShotPickHead .simShotReq{background:#e84343;color:#fff;content:'必須 Required'}
+#microChoice .simShotPick:not(.confirmed) .simShotPickHead .simShotReq::after{content:'必須 Required'}
+#microChoice .simShotPick.confirmed .simShotPickHead .simShotReq{background:#22c06b;color:#fff}
+#microChoice .simShotPick.confirmed .simShotPickHead .simShotReq::after{content:'✓ 確認済み'}
+/* Bracket checkbox row */
+#microChoice .simBracketRow{display:flex;align-items:flex-start;gap:9px;grid-column:1/-1;margin-top:5px;padding:9px 10px;border-radius:10px;background:rgba(32,27,53,.045);border:1.5px solid rgba(32,27,53,.1);cursor:pointer;transition:border-color .15s,background .15s}
+#microChoice .simBracketRow:hover{background:rgba(32,27,53,.07);border-color:rgba(32,27,53,.2)}
+#microChoice .simBracketRow.bracketOn{border-color:color-mix(in srgb,var(--c1,#6a4df4) 50%,transparent);background:color-mix(in srgb,var(--c1,#6a4df4) 9%,white)}
+#microChoice .simBracketRow input[type=checkbox]{width:16px;height:16px;accent-color:var(--c1,#6a4df4);cursor:pointer;flex-shrink:0;margin-top:1px}
+#microChoice .simBracketRow label{font-size:11px;font-weight:800;color:#201b35;line-height:1.35;cursor:pointer}
+#microChoice .simBracketRow label small{display:block;font-size:9px;font-weight:700;color:rgba(32,27,53,.5);margin-top:2px;line-height:1.4}
+/* Generate button disabled state from shot-type validation */
+#simulator button.primary[disabled]{opacity:.42;cursor:not-allowed;pointer-events:auto}
 #microChoice .simCardBadge,#macroChoice .simCardBadge{position:absolute;left:9px;top:9px;width:27px;height:27px;border-radius:50%;overflow:hidden;z-index:6;background:#fff;box-shadow:0 2px 7px rgba(16,12,30,.28);border:1.5px solid var(--c1,#6a4df4);pointer-events:none}
 #microChoice .simCardBadge img,#macroChoice .simCardBadge img{width:100%;height:100%;object-fit:cover;display:block}
 #simulator .simTargetGrid{grid-template-columns:1fr 1fr}
@@ -14882,10 +14897,19 @@ window.addEventListener('DOMContentLoaded', () => {
       card.appendChild(pick);
     }
     let cur=shotKeyOf(s); if(cur==='facial') cur='focuslips';
-    pick.innerHTML='<div class="simShotPickHead"><span>撮影タイプ</span><small>リップの有無・コントラスター</small></div>'
+    const confirmed=!!s._shotConfirmed;
+    const bracketChecked=!!s.hasBrackets;
+    pick.classList.toggle('confirmed', confirmed);
+    pick.innerHTML='<div class="simShotPickHead"><span>撮影タイプ</span><span class="simShotReq"></span></div>'
       + ['focuslips','retracted','dark'].map(k=>
           `<button type="button" class="simShotPickBtn${k===cur?' on':''}" data-shot="${k}">${SHOT_LABEL[k][0]}<small>${SHOT_LABEL[k][1]}</small></button>`
-        ).join('');
+        ).join('')
+      + '<div class="simBracketRow'+(bracketChecked?' bracketOn':'')+'">'
+        +'<input type="checkbox" id="cfBracketCheck"'+(bracketChecked?' checked':'')+'>'
+        +'<label for="cfBracketCheck">矯正装置（ブラケット・ワイヤー）装着中'
+          +'<small>チェック＝AI がブラケット・ワイヤーを消去して歯面を再構築します。未チェック＝ブラケット描画を厳禁にします。</small>'
+        +'</label>'
+      +'</div>';
     pick.querySelectorAll('.simShotPickBtn').forEach(btn=>{
       btn.addEventListener('click',ev=>{
         ev.stopPropagation();
@@ -14896,6 +14920,18 @@ window.addEventListener('DOMContentLoaded', () => {
         if(typeof toastFn==='function') toastFn('撮影タイプ：'+SHOT_LABEL[btn.dataset.shot][0]);
       });
     });
+    // Bracket checkbox handler
+    const bracketInput=pick.querySelector('#cfBracketCheck');
+    if(bracketInput){
+      bracketInput.addEventListener('change',ev=>{
+        ev.stopPropagation();
+        const tgt=state.simMicro||s;
+        if(tgt) tgt.hasBrackets=!!ev.target.checked;
+        const row=pick.querySelector('.simBracketRow');
+        if(row) row.classList.toggle('bracketOn',!!ev.target.checked);
+        if(typeof toastFn==='function') toastFn(ev.target.checked?'ブラケット装着中に設定しました（AI が装置を消去します）':'ブラケットなしに設定しました（ブラケット描画を禁止）');
+      });
+    }
   }
   function updateSimulationChoicesV82(){
     const macro = state.simMacro || pickCategoryPhoto('facial');
@@ -14944,6 +14980,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     ensureSimCardActions(macroCard,'facial',macro);
     ensureSimCardActions(microCard,'focus',micro);
+    // Gate generate button: if a Micro image is loaded but shot type not yet confirmed, block.
+    const genBtn=document.querySelector('#simulator button.primary[onclick*="generateSimulation"]');
+    if(genBtn){
+      const unconfirmed=!!(micro&&!micro._shotConfirmed);
+      genBtn.disabled=unconfirmed;
+      genBtn.title=unconfirmed?'撮影タイプ（必須）を選択してください':'';
+    }
   }
 
   async function resizeAdvancedLocal(file){
@@ -17820,6 +17863,26 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
+    // ── Bracket control — clinician-confirmed hasBrackets flag ────────────────────────────────
+    // This block is the single authoritative source for appliance-related prompting.
+    // The flag comes from the doctor's UI checkbox — never from auto-detection.
+    const hasBracketsFlag=!!(srcP&&srcP.hasBrackets);
+    if(hasBracketsFlag){
+      parts.push(
+        'BRACKET REMOVAL — clinician confirmed: this patient is wearing fixed orthodontic appliances (brackets and archwires). '
+        +'MANDATORY INPAINTING TASK: completely remove ALL brackets, archwires, bonded attachments, metal clips and any visible orthodontic hardware from every tooth surface. '
+        +'Reconstruct the natural tooth enamel surface beneath each bracket pad — clean, healthy enamel with no adhesive discolouration, bracket-base marks, enamel demineralisation halo or wire groove. '
+        +'After appliance removal, then apply the requested alignment and aesthetic corrections to the clean tooth surfaces as if the brackets were never present. '
+        +'(remove orthodontic brackets and wires completely, restore natural tooth surface beneath appliances, inpaint brackets with clean enamel)'
+      );
+    } else {
+      parts.push(
+        'BRACKET-FREE GUARANTEE — clinician confirmed: this photo contains NO orthodontic brackets, archwires or bonded attachments. '
+        +'STRICTLY FORBIDDEN to generate, invent, hallucinate or add any bracket, wire, metal clip, archwire, ligature, orthodontic button or bonded attachment anywhere in the output image — not even partially visible, implied, or in shadow. '
+        +'Any metallic glint, rectangular shadow or wire-like line on tooth surfaces in the output is a generation error and must be avoided. '
+        +'Negative prompt (enforce hard): braces, brackets, wires, archwires, metallic dental appliances, orthodontic attachments, bracket slots, metal clips, ligatures, bonded attachments.'
+      );
+    }
     // ── Orthodontic Visual Simulation Knowledge Base (CaseFlow Studio™ v16) ──────────────────
     // Condensed from the full Orthodontic Visual Diagnosis & Simulation Knowledge Base Prompt.
     // These rules extend and sharpen the generation constraints above.
@@ -17990,15 +18053,11 @@ body[data-ui-tone="dark"]{
       'Analyze the supplied dental photograph and extract observable findings using the 4-step pipeline below.\n'+
       'Output ONLY valid JSON: {"findings":[{"en":"<English finding>","ja":"<日本語所見>"}]}\n'+
       'Maximum 5 findings. No duplicates. Only report findings clearly visible in the image. No explanations.\n\n'+
-      'STEP 1 — APPLIANCE / ARTIFACT DETECTION (run first, highest priority):\n'+
-      'Check for orthodontic appliances (brackets, archwires, bonded attachments, retainers) on the teeth.\n'+
-      'CRITICAL RULE — FALSE POSITIVE PREVENTION: Output the appliance finding ONLY when metal brackets or archwires are PHYSICALLY AND UNAMBIGUOUSLY VISIBLE on the tooth surfaces. ' +
-      'Do NOT guess, infer, or assume appliances from indirect cues. ' +
-      'Light reflections on enamel, enamel texture, gingival shadows, dark interproximal spaces, and normal tooth morphology MUST NOT be classified as brackets or wires. ' +
-      '絶対に推測で矯正装置の所見を出力しないでください。金属ブラケットやワイヤーが画像内に物理的・明確に視認できる場合のみ報告してください。光の反射・歯面のテクスチャ・歯肉の影を装置と誤認しないこと。\n'+
-      'If clearly present → include: {"en":"orthodontic appliances present (brackets/archwire) — crowding treatment in progress","ja":"矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中"}\n'+
-      'Then STRICTLY exclude metal shadows, wire gaps, bracket slots from being classified as\n'+
-      'diastema, black triangles, caries, or discolouration in Steps 2–4.\n\n'+
+      'STEP 1 — APPLIANCE STATUS (clinician-confirmed, SKIP auto-detection):\n'+
+      'Bracket and wire status is explicitly confirmed by the treating clinician via the UI hasBrackets control — do NOT attempt to auto-detect orthodontic appliances from the image pixel data.\n'+
+      'Do NOT include any appliance finding in your output JSON regardless of what you observe in the image.\n'+
+      'The bracket/wire parameter is injected directly into the generation prompt by the system. Your role in this step is only to suppress appliance-related artifact misclassification:\n'+
+      'STRICTLY exclude any metal shadow, reflective glint, wire-like line, slot gap or dark interproximal mark from being classified as diastema, black triangle, caries, or crown discolouration in Steps 2–4.\n\n'+
       'STEP 2 — ALIGNMENT & CROWDING:\n'+
       '• Crowding (tooth overlap, rotation, labial/lingual displacement) → {"en":"crowding (tooth overlap / rotation)","ja":"叢生（歯の重なり・ガタガタ）"}\n'+
       '• Diastema / spacing (gap between teeth, especially central) → {"en":"spacing / diastema","ja":"歯間離開（すきっ歯）"}\n'+
@@ -18081,37 +18140,12 @@ body[data-ui-tone="dark"]{
       for(let q=0,p=0;q<mask.length;q++,p+=4){ if(mask[q]<0.5) continue; if((d[p]+d[p+1]+d[p+2])/3<meanL*0.6) dark++; }
       const F=[];
 
-      // ── STEP 1: Appliance / artifact detection ─────────────────────────────────
-      // (a) Archwire: a row where ≥45% of mask pixels are dark AND a contiguous dark
-      //     run of ≥12 pixels exists — must span the arch horizontally like a real wire.
-      //     Threshold raised from 0.28 to prevent false positives on natural tooth shadows.
-      // (b) Multiple bracket slots: ≥6 distinct dark vertical gaps (raised from 4).
-      let hasBrackets=false;
-      {
-        const wireY0=Math.round(minY+bh*0.25),wireY1=Math.round(minY+bh*0.75);
-        outer: for(let y=wireY0;y<=wireY1;y++){
-          let mpx=0,dpx=0,run=0,maxRun=0;
-          for(let x=minX;x<=maxX;x++){
-            if(mask[y*W+x]>0.5){ mpx++;
-              const p4=(y*W+x)*4;
-              const dark=(d[p4]+d[p4+1]+d[p4+2])/3<85;
-              if(dark){ dpx++; run++; if(run>maxRun) maxRun=run; } else run=0;
-            }
-          }
-          // require both ratio ≥45% AND continuous dark run ≥12px (real wire characteristic)
-          if(mpx>12&&dpx/mpx>0.45&&maxRun>=12){ hasBrackets=true; break outer; }
-        }
-        if(!hasBrackets){
-          const gy0=Math.round(minY+bh*0.42),gy1=Math.round(minY+bh*0.58);
-          let gapCount=0,inGap=false;
-          for(let x=minX;x<=maxX;x++){
-            let ht=false; for(let y=gy0;y<=gy1;y++){ if(mask[y*W+x]>0.5){ht=true;break;} }
-            if(!ht){ if(!inGap){gapCount++;inGap=true;} } else inGap=false;
-          }
-          if(gapCount>=6) hasBrackets=true;
-        }
-      }
-      if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire) — crowding treatment in progress',ja:'矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中'});
+      // ── STEP 1: Appliance status — clinician-provided, no pixel auto-detection ──
+      // hasBrackets is set by the doctor via the UI checkbox on the Micro/Focus card.
+      // Pixel detection is abolished to eliminate hallucination false positives.
+      const srcForBrackets=window.state._simSource||window.state.simMicro||null;
+      const hasBrackets=!!(srcForBrackets&&srcForBrackets.hasBrackets);
+      if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire) — clinician confirmed; brackets will be removed in simulation',ja:'矯正装置（ブラケット・ワイヤー）装着中（医師確認済み）— シミュレーションでブラケットを消去します'});
 
       // ── STEP 2: Alignment & Crowding ───────────────────────────────────────────
       // Incisal profile roughness: colMaxY[x] = incisal edge (lowest tooth pixel per col).
@@ -18415,6 +18449,11 @@ body[data-ui-tone="dark"]{
     // prompt_weights: passed to backends that support multi-priority or ControlNet
     // weight scheduling (alignment phase first, prosthetic surface phase second).
     const prompt_weights=isHybrid?{alignment:isExtraction?1.8:1.5,prosthetic:1.1,shade:1.0}:null;
+    // Clinician-confirmed bracket state drives inpainting mode and negative prompting.
+    const hasBracketsFlag=!!(source&&source.hasBrackets);
+    // Bracket removal needs more aggressive denoising to fully erase metal hardware
+    // and reconstruct underlying enamel — floor raised to 0.72.
+    if(hasBracketsFlag) denoising_strength=Math.max(denoising_strength,0.72);
     const payload={
       image:source.dataUrl,
       prompt:buildClinicalPrompt(),
@@ -18425,8 +18464,16 @@ body[data-ui-tone="dark"]{
       lips:!!(source&&source.lips),
       denoising_strength:denoising_strength,
       extraction_mode:isExtraction,
-      hybrid_mode:isHybrid
+      hybrid_mode:isHybrid,
+      has_brackets:hasBracketsFlag
     };
+    if(!hasBracketsFlag){
+      // Hard negative prompt when no brackets: blocks the AI from hallucinating appliances.
+      payload.negative_prompt='braces, brackets, wires, archwires, metallic dental appliances, orthodontic attachments, bracket slots, metal clips, ligatures, bonded attachments';
+    } else {
+      // Signal to the backend that this is an inpainting/removal task.
+      payload.inpaint_brackets=true;
+    }
     if(control_weight!==undefined) payload.control_weight=control_weight;
     if(prompt_weights) payload.prompt_weights=prompt_weights;
     return payload;
