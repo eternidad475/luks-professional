@@ -12315,12 +12315,19 @@ window.addEventListener('DOMContentLoaded', () => {
   function drawWarpedTriangle(ctx, src, s0,s1,s2,d0,d1,d2, alpha){
     const m=solveAffine(s0,s1,s2,d0,d1,d2);
     if(!m) return;
+    // Dilate the destination triangle outward from its centroid by ~0.9px so neighbouring
+    // triangles OVERLAP. Without this, the anti-aliased clip edges leave 1px gaps that expose
+    // the white background as a fine "grid" of seam lines. The affine still maps the original
+    // triangle, so we just sample a hair of the neighbouring source pixels at the edges.
+    const cxx=(d0.x+d1.x+d2.x)/3, cyy=(d0.y+d1.y+d2.y)/3, G=0.9;
+    const ex=function(p){ const dx=p.x-cxx, dy=p.y-cyy, L=Math.hypot(dx,dy)||1; return {x:p.x+dx/L*G, y:p.y+dy/L*G}; };
+    const e0=ex(d0), e1=ex(d1), e2=ex(d2);
     ctx.save();
     ctx.globalAlpha=alpha;
     ctx.beginPath();
-    ctx.moveTo(d0.x,d0.y);
-    ctx.lineTo(d1.x,d1.y);
-    ctx.lineTo(d2.x,d2.y);
+    ctx.moveTo(e0.x,e0.y);
+    ctx.lineTo(e1.x,e1.y);
+    ctx.lineTo(e2.x,e2.y);
     ctx.closePath();
     ctx.clip();
     ctx.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
@@ -12359,13 +12366,16 @@ window.addEventListener('DOMContentLoaded', () => {
     const p1=pairs.map(p=>p.p1), p2=pairs.map(p=>p.p2);
     const tris=delaunay(mid);
     if(!state.trueMeshEnabled || tris.length<1){
-      ctx.save(); ctx.globalAlpha=1-e; ctx.drawImage(baseA,0,0); ctx.restore();
+      // Cross-DISSOLVE without a white midpoint: A is the OPAQUE base, B fades in over it. Drawing
+      // B at alpha=e over an opaque A equals A*(1-e)+B*e — the correct blend, but it never passes
+      // through the white fill (which was the "white fade").
+      ctx.save(); ctx.globalAlpha=1; ctx.drawImage(baseA,0,0); ctx.restore();
       ctx.save(); ctx.globalAlpha=e; ctx.drawImage(baseB,0,0); ctx.restore();
     }else{
-      // Draw A then B into the same intermediate mesh.
+      // A as the opaque warped base (covers the frame → no white seams), B warped over it at e.
       tris.forEach(tr=>{
         const [i,j,k]=tr;
-        drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1-e);
+        drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1);
       });
       tris.forEach(tr=>{
         const [i,j,k]=tr;
