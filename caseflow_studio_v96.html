@@ -8869,6 +8869,16 @@ async function initMediaPipeLocalML(){
   return CaseFlowLocalML._promise;
 }
 
+// ── Expose module-scoped ML helpers to the global scope ───────────────────────────────────
+// CRITICAL: this <script type="module"> has its OWN scope — top-level bindings here are NOT
+// global. caseflowV75AutoDetect (the "AI自動検出" button) lives in a separate classic <script>
+// and was calling initMediaPipeLocalML() / imageElementFromDataURL() / CaseFlowLocalML by bare
+// name → ReferenceError every time, so AI auto-detect NEVER worked. Publish them on window so
+// the button's script can reach them (as window.*).
+window.CaseFlowLocalML = CaseFlowLocalML;
+window.initMediaPipeLocalML = initMediaPipeLocalML;
+window.MEDIAPIPE_VISION_VER = MEDIAPIPE_VISION_VER;
+
 async function imageElementFromDataURL(src){
   return await new Promise((resolve,reject)=>{
     const im=new Image();
@@ -8877,6 +8887,7 @@ async function imageElementFromDataURL(src){
     im.src=src;
   });
 }
+window.imageElementFromDataURL = imageElementFromDataURL;
 
 async function detectFaceWithLocalML(photo){
   const ok = await initMediaPipeLocalML();
@@ -13805,19 +13816,23 @@ window.addEventListener('DOMContentLoaded', () => {
     if(!p){ if(typeof toastFn==='function') toastFn('画像がありません'); return; }
     if(!isFacial(p)){ if(typeof toastFn==='function') toastFn('AI自動検出はFacial画像のみ対応です。口元(Focus)は手動でプロットしてください'); return; }
     if(typeof toastFn==='function') toastFn('AIで顔のランドマークを検出中…');
+    // NOTE: these helpers live in a separate <script type="module"> and are only reachable via
+    // window.* from this classic script — calling them by bare name throws ReferenceError.
+    const initFn=window.initMediaPipeLocalML, ML=window.CaseFlowLocalML, imgFn=window.imageElementFromDataURL;
+    if(typeof initFn!=='function' || !imgFn){ if(typeof toastFn==='function') toastFn('AI検出モジュールが初期化されていません。ページを再読み込みしてください'); return; }
     let ok=false;
-    try{ ok=await initMediaPipeLocalML(); }catch(e){ ok=false; }
-    if(!ok || !CaseFlowLocalML.faceLandmarker){
+    try{ ok=await initFn(); }catch(e){ ok=false; }
+    if(!ok || !ML || !ML.faceLandmarker){
       // Build/version marker + failing stage embedded so a deployed build can be identified
       // from the toast alone (import / wasm / model). If this tag is absent, an OLD build is live.
-      var _le=(window.CaseFlowLocalML&&CaseFlowLocalML.lastError)||{};
-      var _ver=(typeof MEDIAPIPE_VISION_VER!=='undefined')?MEDIAPIPE_VISION_VER:'?';
+      var _le=(ML&&ML.lastError)||{};
+      var _ver=(typeof window.MEDIAPIPE_VISION_VER!=='undefined')?window.MEDIAPIPE_VISION_VER:'?';
       if(typeof toastFn==='function') toastFn('AIモデル読込失敗 [build mp-'+_ver+'/'+(_le.stage||'?')+'] 手動でプロット可');
       return;
     }
     try{
-      const img=await imageElementFromDataURL(p.dataUrl);
-      const result=CaseFlowLocalML.faceLandmarker.detect(img);
+      const img=await imgFn(p.dataUrl);
+      const result=ML.faceLandmarker.detect(img);
       if(!result || !result.faceLandmarks || !result.faceLandmarks.length){ if(typeof toastFn==='function') toastFn('顔を検出できませんでした。手動でプロットしてください'); return; }
       const L=result.faceLandmarks[0];
       const avg=(a,b)=> (L[a]&&L[b]) ? {x:(L[a].x+L[b].x)/2, y:(L[a].y+L[b].y)/2} : null;
@@ -19419,9 +19434,11 @@ body[data-ui-tone="dark"]{
   async function facialAuto(){
     if(curCat!=='facial'){ toastFn('AI自動補正はFacial画像のみ対応です'); return; }
     toastFn('AIで顔を解析中…');
-    var ok=false; try{ ok=await initMediaPipeLocalML(); }catch(e){}
-    if(!ok || !window.CaseFlowLocalML || !CaseFlowLocalML.faceLandmarker){ toastFn('AIモデルを読み込めませんでした'); return; }
-    var res; try{ res=CaseFlowLocalML.faceLandmarker.detect(curImg); }catch(e){ res=null; }
+    // window.* — initMediaPipeLocalML/CaseFlowLocalML live in a separate module script.
+    var initFn=window.initMediaPipeLocalML, ML=window.CaseFlowLocalML;
+    var ok=false; try{ ok=(typeof initFn==='function') ? await initFn() : false; }catch(e){}
+    if(!ok || !ML || !ML.faceLandmarker){ var _le=(ML&&ML.lastError)||{}; toastFn('AIモデル読込失敗 [build mp-'+(window.MEDIAPIPE_VISION_VER||'?')+'/'+(_le.stage||'?')+']'); return; }
+    var res; try{ res=ML.faceLandmarker.detect(curImg); }catch(e){ res=null; }
     if(!res||!res.faceLandmarks||!res.faceLandmarks.length){ toastFn('顔を検出できませんでした。手動で調整してください'); return; }
     var L=res.faceLandmarks[0], iw=curImg.naturalWidth, ih=curImg.naturalHeight;
     var P=function(i){ return {x:L[i].x*iw, y:L[i].y*ih}; };
