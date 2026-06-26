@@ -13646,19 +13646,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const cards=photos.map((p,i)=>{
       const pts=lm(p)||[];
       const name=p.metaId || p.name || `Image ${i+1}`;
-      return `<button class="v73SourceCard ${i===active?'active':''}" onclick="caseflowV75SelectSource(${i})">
-        <img src="${p.dataUrl}" alt="">
+      return `<div class="v73SourceCard ${i===active?'active':''}" data-idx="${i}" role="button" tabindex="0" aria-label="${esc(name)}" onclick="caseflowV75SelectSource(${i})">
+        <img src="${p.dataUrl}" alt="" draggable="false">
         <span class="v73SourceNo">${i+1}</span>
-        <span class="v73SourceName">${esc(name)}</span>
-        <span class="v73SourceMeta">${pts.length} ${landmarkLabel(p)} pts · ${esc(p.category||'uncategorized')}</span>
-        <span class="v73SourceActions" onclick="event.stopPropagation()">
-          <button title="編集" onclick="caseflowV75EditSource(${i})">✎</button>
-          <button title="差し替え" onclick="caseflowV75ReplaceSource(${i})">⇄</button>
-          <button onclick="caseflowV75MoveSource(${i},-1)">←</button>
-          <button onclick="caseflowV75MoveSource(${i},1)">→</button>
-          <button title="削除" class="danger" onclick="caseflowV75DeleteSource(${i})">🗑</button>
-        </span>
-      </button>`;
+        <button class="v73SourceDel" title="削除" onclick="event.stopPropagation();caseflowV75DeleteSource(${i})">×</button>
+      </div>`;
     }).join('');
     const pts=lm(activePhoto())||[];
     const sel=state.v75SelectedIndex;
@@ -13682,6 +13674,51 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="v73Hint">${sel==null ? 'プレビュー上をタップしてポイントを追加。ポイントはドラッグで微調整、<b>ダブルタップで削除</b>できます。' : `Selected point ${sel+1} / ${pts.length}。<b>ダブルタップ</b>または Delete で削除、Prev/Next で選択移動。`}</div>
       <div class="v74Guide">${currentGuide()}</div>
     `;
+    bindSourceReorder(panel);
+  }
+
+  // Reorder a source by drag (replaces the cluttered ← → / 🗑 buttons with a clean,
+  // slider-like drag of the thumbnail strip). The strip order == the morphing order.
+  function reorderPhotos(from, to){
+    const arr=list(); if(from===to || from<0 || from>=arr.length) return;
+    to=Math.max(0,Math.min(arr.length-1,to));
+    const [it]=arr.splice(from,1); arr.splice(to,0,it);
+    if(state.v75ActiveIndex===from) state.v75ActiveIndex=to;
+    else if(from<state.v75ActiveIndex && to>=state.v75ActiveIndex) state.v75ActiveIndex--;
+    else if(from>state.v75ActiveIndex && to<=state.v75ActiveIndex) state.v75ActiveIndex++;
+    showActiveImage(); drawLandmarks(); renderStudio();
+    if(typeof window.cfCapRefresh==='function') try{ window.cfCapRefresh(); }catch(e){}
+  }
+  function bindSourceReorder(panel){
+    const strip=panel.querySelector('.v73SourceStrip'); if(!strip || strip.dataset.reorderBound==='1') return;
+    strip.dataset.reorderBound='1';
+    let drag=null;
+    strip.addEventListener('pointerdown', ev=>{
+      const card=ev.target.closest && ev.target.closest('.v73SourceCard'); if(!card) return;
+      if(ev.target.closest('.v73SourceDel')) return;
+      drag={ idx:Number(card.dataset.idx), startX:ev.clientX, card:card, moved:false };
+    });
+    strip.addEventListener('pointermove', ev=>{
+      if(!drag) return;
+      const dx=ev.clientX-drag.startX;
+      if(!drag.moved && Math.abs(dx)<8) return;
+      drag.moved=true; ev.preventDefault();
+      drag.card.style.transform='translateX('+dx+'px) scale(1.04)';
+      drag.card.style.zIndex='6'; drag.card.style.opacity='.9';
+    }, {passive:false});
+    function end(ev){
+      if(!drag) return;
+      const moved=drag.moved, from=drag.idx, card=drag.card;
+      card.style.transform=''; card.style.zIndex=''; card.style.opacity='';
+      if(moved){
+        const x=ev.clientX, cards=Array.prototype.slice.call(strip.querySelectorAll('.v73SourceCard'));
+        let to=0; cards.forEach((c,k)=>{ const r=c.getBoundingClientRect(); if(x > r.left + r.width/2) to=k; });
+        reorderPhotos(from, to);
+      }
+      drag=null;
+    }
+    strip.addEventListener('pointerup', end);
+    strip.addEventListener('pointercancel', end);
   }
 
   function showActiveImage(){
@@ -21640,6 +21677,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapHint b{color:#6a3de8;font-weight:900}
 /* declutter: the new editor replaces the old preview panel + guide rails */
 #align .pairPreviewPanel,#align .rangePanel,#align .gestureHint{display:none!important}
+/* clean, slider-like source strip (drag thumbnails to reorder; small × to delete) */
+#align .v73SourceStrip{gap:8px;padding:4px 2px 10px;touch-action:pan-x}
+#align .v73SourceCard{flex:0 0 76px;height:76px;padding:0;border-radius:14px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:pan-x;will-change:transform}
+#align .v73SourceCard:active{cursor:grabbing}
+#align .v73SourceCard img{width:100%;height:100%;object-fit:cover;border-radius:14px}
+#align .v73SourceCard.active{outline:2.5px solid var(--c1,#7c5cff);outline-offset:-1px}
+#align .v73SourceCard .v73SourceNo{top:5px;left:5px;min-width:20px;height:20px;font-size:10px;background:rgba(8,6,16,.55);color:#fff}
+#align .v73SourceCard .v73SourceDel{position:absolute;top:4px;right:4px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(8,6,16,.5);color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;backdrop-filter:blur(4px)}
+#align .v73SourceCard .v73SourceName,#align .v73SourceCard .v73SourceMeta,#align .v73SourceCard .v73SourceActions{display:none}
 </style>
 <script>
 /* ---------- CapCut-style live morphing editor (beginner-friendly) ---------- */
