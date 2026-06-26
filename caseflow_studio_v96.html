@@ -4774,7 +4774,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="result">
-  <div class="topbar"><button class="iconbtn" onclick="go('simulator')">‹</button><div><h2 class="title">シミュレーション結果</h2><p class="subtitle">Simulation / Reference Image</p></div><button class="linkbtn" onclick="saveResult()">保存</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('simulator')">‹</button><div><h2 class="title">シミュレーション結果</h2><p class="subtitle">Simulation / Reference Image</p></div><button class="linkbtn cfPresentBtn" onclick="cfEnterPresentation()" title="患者提示モード" aria-label="Presentation mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>提示</button></div>
   <div class="simResultStage">
   <div class="simResultGallery" id="simResultGallery"></div>
   <div class="simResultCompare card">
@@ -4797,7 +4797,11 @@ button[id="localMLDetectButton"]{
     <!-- v9.6 aesthetic correction axes. Built/bound by the v9.6 script (cf-v96-simulation-studio). -->
     <div class="simSliderGrid" id="simV96EditGrid"></div>
   </div>
-  <div class="toolbar"><button class="tool" onclick="generateSimulation()">再生成<br>Again</button><button class="tool" onclick="saveResult()">保存<br>Save</button></div>
+  <div class="toolbar cfResultActions">
+    <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
+    <button class="tool" onclick="cfSaveToLibrary()" title="アプリ内Libraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
+    <button class="tool" onclick="cfExportToDevice()" title="デバイスに画像として書き出し"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>書き出し</button>
+  </div>
   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
 </section>
 
@@ -4893,7 +4897,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="export">
-  <div class="topbar"><button class="iconbtn" onclick="go('preview')">‹</button><div><h2 class="title">Export</h2><p class="subtitle">Library に自動保存済み / Auto-saved to Library</p></div><span class="iconSvg exportIconSvg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"></path><path d="M8 9l4 4 4-4"></path><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg></span></div>
+  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('preview')">‹</button><div><h2 class="title">Export</h2><p class="subtitle">Library に自動保存済み / Auto-saved to Library</p></div><span class="iconSvg exportIconSvg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"></path><path d="M8 9l4 4 4-4"></path><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg></span></div>
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem">2<span>Preview</span></div><div class="stepitem on">3<span>Export</span></div></div>
   <div class="card export"><img id="exportImage"><video id="exportVideo" controls playsinline loop style="display:none;width:100%;border-radius:18px;background:#000"></video></div>
   <div class="smallcaps">Share / 共有</div>
@@ -4916,9 +4920,14 @@ button[id="localMLDetectButton"]{
   </div>
 </div>
 
+<button class="cfPresentExit" id="cfPresentExitBtn" onclick="cfExitPresentation()" aria-label="提示モードを終了">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+</button>
+
 <nav class="bottom">
   <button class="nav on" onclick="go('start')"><span class="ico">▤</span>Project</button>
   <button class="nav" onclick="go('upload')"><span class="ico">▣</span>Gallery</button>
+  <button class="nav" id="navSimBtn" onclick="go('simulator')"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-1px"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z"/></svg></span>Sim</button>
   <button class="nav" onclick="go('library')"><span class="ico">☰</span>Library</button>
   <button class="nav" onclick="go('shareApp')"><span class="ico">↗</span>Share</button>
 </nav>
@@ -18457,9 +18466,20 @@ body[data-ui-tone="dark"]{
     // only make sure the flags are resolved (no popup at generation time).
     try{ await ensureIntraoralFlag(src); }catch(e){}
     try{ await ensureProblemList(src); }catch(e){}
-    try{ if(window.cfWait) cfWait.show('画像を生成中', aiEnabled()?0:220); }catch(e){}
+    const _aiOn=aiEnabled();
+    try{ if(window.cfWait) cfWait.show(_aiOn?'AIシミュレーション中':'画像を処理中', _aiOn?0:220); }catch(e){}
+    // Progressive sub-messages for AI path
+    let _progressTimer=null;
+    if(_aiOn){
+      const _msgs=['患者写真を分析中…','臨床パラメータを適用中…','AIに送信中…','シミュレーション生成中…','仕上げ処理中…'];
+      let _mi=0;
+      const _subEl=()=>document.querySelector('.cfWaitOverlay .cfWaitSub');
+      const _tick=()=>{ try{ const s=_subEl(); if(s) s.textContent=_msgs[_mi]; }catch(e){} _mi=(_mi+1)%_msgs.length; };
+      _tick();
+      _progressTimer=setInterval(_tick, 2400);
+    }
     try{
-      if(aiEnabled()){
+      if(_aiOn){
         try{ const u=await generateViaAI(src); if(u) return u; }
         catch(e){
           if(e && e.cfNoTokens){ throw e; } // empty tokens → block, do not give a free local result
@@ -18468,6 +18488,7 @@ body[data-ui-tone="dark"]{
       }
       return await createSimulationImageV96(src, state.simV96);
     } finally {
+      clearInterval(_progressTimer);
       try{ if(window.cfWait) cfWait.hide(); }catch(e){}
     }
   }
@@ -19676,6 +19697,230 @@ window.cfWait = (function(){
     /* Initial render */
     setTimeout(function(){ refreshPanels(); wrSetFilter('all'); }, 500);
   });
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CF v9.6-UX2 — Navigation history · Presentation Mode ·
+     Dual Save · Undo Banner · Bottom nav Sim highlight
+═══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Presentation Mode ────────────────────────────────────────── */
+body.cfPresent .screen{display:none!important}
+body.cfPresent #result.screen{display:flex!important;flex-direction:column;padding:0!important;overflow:hidden}
+body.cfPresent #result .topbar,
+body.cfPresent #result .simResultGallery,
+body.cfPresent #result .simEditPanel,
+body.cfPresent #result .simResultEditPanel,
+body.cfPresent #result .simFinishHead,
+body.cfPresent #result .toolbar,
+body.cfPresent #result .cfResultActions,
+body.cfPresent #result .note,
+body.cfPresent #result .caption,
+body.cfPresent #result .compareHead{display:none!important}
+body.cfPresent #result .simResultStage{flex:1;margin:0;display:flex;flex-direction:column}
+body.cfPresent #result .simResultCompare.card{flex:1;margin:0;border-radius:0;padding:0;box-shadow:none;background:#000;display:flex;flex-direction:column}
+body.cfPresent #result .compareSlider{flex:1!important;height:100%!important;border-radius:0!important;min-height:0!important}
+body.cfPresent .bottom,
+body.cfPresent .cfPresentBtn{display:none!important}
+body.cfPresent .cfPresentExit{display:flex!important}
+
+/* Presentation exit floating button */
+.cfPresentExit{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;
+  z-index:99999;width:44px;height:44px;border-radius:50%;
+  background:rgba(0,0,0,.52);border:none;color:#fff;
+  display:none;align-items:center;justify-content:center;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  cursor:pointer;transition:background .18s ease;
+}
+.cfPresentExit:active{background:rgba(0,0,0,.75)}
+
+/* ── Bottom nav: 5-item layout ───────────────────────────────── */
+.bottom{display:grid;grid-template-columns:repeat(5,1fr)}
+
+/* ── Undo snackbar ───────────────────────────────────────────── */
+.cfUndoBanner{
+  position:fixed;bottom:calc(78px + var(--safe,0px));left:50%;
+  transform:translateX(-50%) translateY(10px);
+  z-index:9998;display:flex;align-items:center;gap:10px;
+  background:#201b35;color:#fff;border-radius:14px;
+  padding:10px 12px 10px 16px;font-size:13px;font-weight:700;
+  white-space:nowrap;box-shadow:0 8px 28px rgba(0,0,0,.38);
+  opacity:0;transition:opacity .22s ease,transform .22s ease;pointer-events:none;
+}
+.cfUndoBanner.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.cfUndoBtn{
+  background:none;border:1px solid rgba(255,255,255,.38);color:#fff;
+  border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;
+  font-weight:900;cursor:pointer;
+}
+.cfUndoBtn:active{background:rgba(255,255,255,.15)}
+
+/* ── Result actions layout ───────────────────────────────────── */
+.cfResultActions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cfResultActions .tool{min-width:0}
+</style>
+
+<script>
+/* ── CF v9.6-UX2 ─────────────────────────────────────────────── */
+(function(){
+  'use strict';
+
+  /* ── 1. Navigation history stack ─────────────────────────────
+     Wraps go() to maintain a stack so cfGoBack() pops to the real
+     previous screen instead of a hardcoded fallback.              */
+  var _cfNavStack = [];
+  var _cfNavIgnoreNext = false;
+
+  (function wrapGo(){
+    var _orig = window.go;
+    if(!_orig){ document.addEventListener('DOMContentLoaded',wrapGo); return; }
+    window.go = function(id){
+      if(!_cfNavIgnoreNext){
+        // Record current active screen before navigating
+        var cur = document.querySelector('.screen.active');
+        if(cur && cur.id && cur.id !== id) _cfNavStack.push(cur.id);
+        if(_cfNavStack.length > 20) _cfNavStack.shift(); // cap
+      }
+      _cfNavIgnoreNext = false;
+      _orig(id);
+      // Highlight Simulation nav button
+      var simBtn = document.getElementById('navSimBtn');
+      if(simBtn){
+        simBtn.classList.toggle('on', id==='simulator'||id==='result');
+      }
+    };
+  })();
+
+  window.cfGoBack = function(fallback){
+    var prev = _cfNavStack.pop();
+    _cfNavIgnoreNext = true;       // don't push current screen when going back
+    window.go(prev || fallback || 'start');
+  };
+
+  /* ── 2. Presentation Mode ────────────────────────────────────
+     Hides all chrome so the clinician can show the patient the
+     Before/After slider on a full-screen view.                   */
+  window.cfEnterPresentation = function(){
+    document.body.classList.add('cfPresent');
+    // Request fullscreen on supported browsers
+    try{
+      var el = document.getElementById('result') || document.documentElement;
+      if(el.requestFullscreen) el.requestFullscreen();
+      else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }catch(e){}
+    // Nudge compare slider to repaint at new dimensions
+    setTimeout(function(){
+      var s = document.getElementById('simulationCompareSlider');
+      if(s && typeof setupCompareSlider === 'function') setupCompareSlider(s);
+    }, 80);
+  };
+
+  window.cfExitPresentation = function(){
+    document.body.classList.remove('cfPresent');
+    try{
+      if(document.exitFullscreen) document.exitFullscreen();
+      else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }catch(e){}
+  };
+
+  // Exit presentation when Escape is pressed
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && document.body.classList.contains('cfPresent')) cfExitPresentation();
+  });
+  // Also exit if fullscreen is dismissed by OS (e.g. home button)
+  document.addEventListener('fullscreenchange', function(){
+    if(!document.fullscreenElement && document.body.classList.contains('cfPresent')) cfExitPresentation();
+  });
+  document.addEventListener('webkitfullscreenchange', function(){
+    if(!document.webkitFullscreenElement && document.body.classList.contains('cfPresent')) cfExitPresentation();
+  });
+
+  /* ── 3. Dual save actions ────────────────────────────────────
+     cfSaveToLibrary  → saves to in-app library (existing flow)
+     cfExportToDevice → direct download/share to device           */
+  window.cfSaveToLibrary = async function(){
+    try{
+      if(typeof saveResult === 'function') await saveResult();
+    }catch(e){
+      if(typeof toastFn==='function') toastFn('Libraryへの保存に失敗しました');
+    }
+  };
+
+  window.cfExportToDevice = async function(){
+    var img = document.getElementById('resultAfter');
+    if(!img || !img.src){ if(typeof toastFn==='function') toastFn('生成結果がありません'); return; }
+    var url = img.src;
+    try{
+      // If Web Share API supports files, use it (iOS Safari)
+      var res = await fetch(url);
+      var blob = await res.blob();
+      var file = new File([blob], 'caseflow_simulation.jpg', {type:'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:'CaseFlow Simulation'});
+        return;
+      }
+    }catch(e){}
+    // Fallback: trigger <a download>
+    try{
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'caseflow_simulation.jpg';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ document.body.removeChild(a); }, 100);
+      if(typeof toastFn==='function') toastFn('画像をダウンロードしました');
+    }catch(e){
+      if(typeof toastFn==='function') toastFn('書き出しに失敗しました');
+    }
+  };
+
+  /* ── 4. Undo snackbar ─────────────────────────────────────────
+     Call cfUndoable(label, doFn, undoFn) before any destructive
+     action. Shows a snackbar for 5s; tapping Undo calls undoFn. */
+  var _cfUndoBanner = null, _cfUndoTimer = null, _cfUndoFn = null;
+
+  function ensureUndoBanner(){
+    if(_cfUndoBanner) return _cfUndoBanner;
+    _cfUndoBanner = document.createElement('div');
+    _cfUndoBanner.className = 'cfUndoBanner';
+    _cfUndoBanner.innerHTML = '<span class="cfUndoMsg"></span><button class="cfUndoBtn" onclick="cfUndo()">元に戻す</button>';
+    document.body.appendChild(_cfUndoBanner);
+    return _cfUndoBanner;
+  }
+
+  window.cfUndoable = function(label, doFn, undoFn, durationMs){
+    if(typeof doFn === 'function') doFn();
+    _cfUndoFn = undoFn || null;
+    var banner = ensureUndoBanner();
+    banner.querySelector('.cfUndoMsg').textContent = label || '削除しました';
+    banner.classList.add('show');
+    clearTimeout(_cfUndoTimer);
+    _cfUndoTimer = setTimeout(function(){
+      banner.classList.remove('show');
+      _cfUndoFn = null;
+    }, durationMs || 5000);
+  };
+
+  window.cfUndo = function(){
+    if(typeof _cfUndoFn === 'function'){ _cfUndoFn(); _cfUndoFn = null; }
+    var banner = ensureUndoBanner();
+    banner.classList.remove('show');
+    clearTimeout(_cfUndoTimer);
+  };
+
+  /* ── 5. Simulation nav highlight fix ─────────────────────────
+     The go() wrapper above handles real navigations; this handles
+     the initial page load state where result/simulator may be
+     the active screen.                                            */
+  document.addEventListener('DOMContentLoaded', function(){
+    var simBtn = document.getElementById('navSimBtn');
+    if(!simBtn) return;
+    var cur = document.querySelector('.screen.active');
+    if(cur && (cur.id==='simulator'||cur.id==='result')) simBtn.classList.add('on');
+  });
+
 })();
 </script>
 </body>
