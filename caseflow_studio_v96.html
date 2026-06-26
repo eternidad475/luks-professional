@@ -20,6 +20,7 @@ try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentEle
 :root{
   --c1:#7c5cff; --c2:#ff9fd6; --ink:#201b35; --muted:rgba(32,27,53,.58);
   --card:rgba(255,255,255,.78); --line:rgba(32,27,53,.10); --safe:env(safe-area-inset-bottom,0px);
+  --blend:50%;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif;color:var(--ink)}
@@ -27,7 +28,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,BlinkMa
    whole viewport edge-to-edge — including wide / landscape screens where the animated
    ::before radials can't reach the far corners. No hard seam (it never moves); the
    animated radials simply add soft colour accents on top. */
-html{background:linear-gradient(145deg,var(--c1) 0%,color-mix(in srgb,var(--c1) 45%,var(--c2)) 50%,var(--c2) 100%) fixed;background-color:#be7ed6}
+html{background:linear-gradient(145deg,var(--c1) 0%,color-mix(in srgb,var(--c1) var(--blend),var(--c2)) 50%,var(--c2) 100%) fixed;background-color:#be7ed6}
 body{background:transparent;display:grid;place-items:center}
 /* Full-viewport gradient backdrop so the animated background fills the whole
    screen (incl. landscape, where the .app column is narrower than the viewport
@@ -90,6 +91,12 @@ input[type=color]{appearance:none;-webkit-appearance:none;width:44px;height:36px
 input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-webkit-color-swatch{border:0;border-radius:999px}
 .note{font-size:11px;line-height:1.55;color:rgba(32,27,53,.52);background:rgba(255,255,255,.54);border-radius:18px;padding:12px 14px;margin-top:14px}
 .hero .note{color:rgba(255,255,255,.78);background:transparent;padding:0}
+details.note{padding:8px 14px}
+details.note summary{cursor:pointer;font-size:11px;font-weight:800;color:rgba(32,27,53,.45);list-style:none;display:flex;align-items:center;gap:5px}
+details.note summary::-webkit-details-marker{display:none}
+details.note summary::before{content:"";display:inline-block;width:14px;height:14px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(32,27,53,.45)' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") center/contain no-repeat;flex-shrink:0}
+details.note[open] summary{margin-bottom:6px}
+details.note p{margin:0;font-size:11px;line-height:1.55}
 .option{position:relative;overflow:hidden;min-height:138px;padding:20px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
 .option:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,color-mix(in srgb,var(--c1) 80%,transparent),color-mix(in srgb,var(--c2) 58%,transparent));opacity:.86}
 .option>*{position:relative}.option h3{margin:0 0 8px;color:white;font-size:20px;letter-spacing:-.03em}.option p{margin:0;color:rgba(255,255,255,.78);font-size:12px;line-height:1.55;font-weight:700}.circle{width:54px;height:54px;min-width:54px;min-height:54px;flex:0 0 54px;aspect-ratio:1;border:2px solid rgba(255,255,255,.85);border-radius:50%;display:grid;place-items:center;color:white;font-size:24px}
@@ -108,7 +115,7 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .hidden{display:none}
 .stage{position:relative;overflow:hidden;border-radius:25px;background:#0d0a18;box-shadow:0 18px 48px rgba(33,25,70,.22)}
 .align{min-height:312px;display:grid;place-items:center}.align img{width:100%;height:auto;max-height:390px;object-fit:contain}.guide{position:absolute;pointer-events:none;opacity:.95}.v{top:0;bottom:0;left:var(--mid,50%);width:2px;background:white}.h{left:0;right:0;top:var(--y,50%);height:2px;background:#fff}.smile{background:#9b7bff}.incisal{background:#6ea8ff}.gingival{background:#48c794}
-.rangePanel{background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.78);border-radius:22px;padding:13px 14px;margin:13px 0}.row{display:grid;grid-template-columns:112px 1fr 44px;align-items:center;gap:8px;font-size:12px;font-weight:850;color:rgba(32,27,53,.72);margin:9px 0}input[type=range]{width:100%;accent-color:var(--c1)}
+.rangePanel{background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.78);border-radius:22px;padding:13px 14px;margin:13px 0}.row{display:grid;grid-template-columns:112px 1fr 44px;align-items:center;gap:8px;font-size:12px;font-weight:850;color:rgba(32,27,53,.72);margin:9px 0}input[type=range]{width:100%;accent-color:var(--c1);touch-action:pan-y}
 .previewFrame{position:relative;border-radius:21px;overflow:hidden;min-height:410px;background:#0d0a18}.morphCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;background:#0d0a18}.overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.22),transparent 35%,rgba(0,0,0,.34));pointer-events:none}.tag{position:absolute;left:14px;top:14px;background:rgba(255,255,255,.78);color:#201b35;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:900;backdrop-filter:blur(12px)}.watermark{position:absolute;right:12px;bottom:12px;color:rgba(255,255,255,.82);font-size:11px;font-weight:800}
 .timeline{display:flex;gap:7px;overflow:auto;padding:12px 2px 4px}.mini{width:58px;height:46px;border-radius:10px;object-fit:cover;border:2px solid transparent;flex:0 0 auto}.mini.on{border-color:var(--c1)}
 .emptyState{text-align:center;color:rgba(255,255,255,.78);padding:35px 14px;z-index:2}.emptyState .big{font-size:42px;margin-bottom:10px}.emptyState b{display:block;margin-bottom:5px;color:white}
@@ -1198,7 +1205,7 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 }
 .cfColorGrid{
   display:grid;
-  grid-template-columns:1fr 58px 1fr;
+  grid-template-columns:1fr 1fr;
   align-items:center;
   gap:10px;
   margin-bottom:13px;
@@ -1233,24 +1240,6 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 .cfColorInput::-moz-color-swatch{border:0;border-radius:50%}
 .cfColorCard b{font-size:12px}
 .cfColorCard small{font-size:9px;color:rgba(32,27,53,.46);font-weight:800;line-height:1.2}
-.cfSwapButton{
-  position:relative;
-  width:58px;
-  height:58px;
-  border-radius:50%;
-  border:1px solid rgba(255,255,255,.70);
-  background:linear-gradient(90deg,var(--c1) 0 49.5%,rgba(255,255,255,.92) 49.5% 50.5%,var(--c2) 50.5% 100%);
-  box-shadow:0 16px 36px rgba(32,27,53,.18),inset 0 1px 0 rgba(255,255,255,.55);
-}
-.cfSwapButton span{
-  position:absolute;
-  inset:14px;
-  border-radius:50%;
-  border:1px solid rgba(255,255,255,.66);
-  background:
-    radial-gradient(circle at 32% 50%,rgba(255,255,255,.94) 0 4px,transparent 5px),
-    radial-gradient(circle at 68% 50%,rgba(255,255,255,.94) 0 4px,transparent 5px);
-}
 .cfPalettePreview{
   height:42px;
   border-radius:999px;
@@ -1376,8 +1365,7 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 }
 @media(max-width:420px){
   .cfPaletteButton{width:50px;height:28px}
-  .cfColorGrid{grid-template-columns:1fr 54px 1fr;gap:8px}
-  .cfSwapButton{width:54px;height:54px}
+  .cfColorGrid{grid-template-columns:1fr 1fr;gap:8px}
   .cfColorCard{min-height:108px}
   .cfColorInput{width:56px;height:56px}
 }
@@ -2842,7 +2830,6 @@ button[id="localMLDetectButton"]{
   pointer-events:auto;
 }
 .cfPreset,
-#cfSwapPalette,
 #cfShufflePalette,
 #cfPaletteClose,
 #cfPaletteBackdrop,
@@ -2885,7 +2872,7 @@ button[id="localMLDetectButton"]{
   height:24px;
   background:transparent;
   accent-color:unset;
-  touch-action:pan-x;
+  touch-action:pan-y;
 }
 .cfHueSlider::-webkit-slider-runnable-track{
   height:12px;
@@ -3005,7 +2992,7 @@ button[id="localMLDetectButton"]{
   width:100%;
   height:30px;
   background:transparent;
-  touch-action:pan-x;
+  touch-action:pan-y;
 }
 .cfBlendSlider::-webkit-slider-runnable-track{
   height:14px;
@@ -3040,27 +3027,7 @@ button[id="localMLDetectButton"]{
   border:3px solid rgba(32,27,53,.82);
   box-shadow:0 9px 20px rgba(32,27,53,.26);
 }
-#cfSwapPalette{
-  cursor:pointer!important;
-  pointer-events:auto!important;
-}
-#cfSwapPalette span{
-  display:block;
-  width:22px;
-  height:22px;
-  margin:auto;
-  position:relative;
-}
-#cfSwapPalette span::before{
-  content:"";
-  display:grid;
-  place-items:center;
-  width:100%;
-  height:100%;
-  font-size:18px;
-  font-weight:950;
-  color:#201b35;
-}
+
 
 
 /* ---------- v7.0 True Mesh Morph Engine ---------- */
@@ -4447,12 +4414,12 @@ button[id="localMLDetectButton"]{
   background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)">ログアウト</button>
 <div id="cfTokenBadge" title="残りトークン" style="display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:84px;z-index:2147483000;
   border:0;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:800;
-  background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)">🪙 …</div>
+  background:rgba(255,255,255,.85);color:#5b3fd6;box-shadow:0 4px 14px rgba(40,20,80,.18)"><svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:2px;display:inline-block"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2"/></svg> …</div>
 <!-- ===== Token-empty modal (Phase 3-B-1; checkout wired in 3-B-2) ===== -->
 <div id="cfTokenEmpty" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:24px;
   background:rgba(30,20,50,.55);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif">
   <div style="width:100%;max-width:360px;background:#fff;border-radius:22px;padding:28px 24px;text-align:center;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">
-    <div style="font-size:34px;margin-bottom:6px">🪙</div>
+    <div style="margin-bottom:12px;line-height:1"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5b3fd6" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="#5b3fd6" stroke="none"/></svg></div>
     <div style="font-weight:900;font-size:16px;color:#5b3fd6;margin-bottom:8px">トークンが不足しています</div>
     <p style="font-size:13px;color:#5a5470;line-height:1.7;margin:0 0 18px">無料トークンを使い切りました。プランにご登録いただくと、引き続き生成いただけます。</p>
     <button id="cfTokenEmptyClose" type="button" style="width:100%;padding:12px;border:0;border-radius:12px;cursor:pointer;
@@ -4559,7 +4526,7 @@ button[id="localMLDetectButton"]{
     /* ---- Token balance: badge, refresh, consume (free-trial = 10) ---- */
     function renderBadge(n){
       if(!badge) return;
-      badge.textContent = '🪙 ' + (n==null ? '…' : n);
+      badge.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:2px;display:inline-block"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2"/></svg>' + (n==null ? '…' : n);
       badge.style.color = (n!=null && n<=0) ? '#c0303a' : '#5b3fd6';
     }
     window.cfRenderTokenBadge = renderBadge;
@@ -4664,7 +4631,7 @@ button[id="localMLDetectButton"]{
   <div class="topbar"><button class="iconbtn" onclick="go('upload')">‹</button><div><h2 class="title">Morphing Video Studio™︎</h2><p class="subtitle">Landmark Morph / 手動ランドマーク編集</p></div><button class="linkbtn" onclick="go('preview')">Preview</button></div>
   <div class="stepbar"><div class="stepitem">1<span>Gallery</span></div><div class="stepitem on">2<span>Landmarks</span></div><div class="stepitem">3<span>Preview</span></div></div>
   <div class="stage align" id="alignStage">
-    <div class="emptyState" id="alignEmpty"><div class="big">🦷</div><b>写真がありません</b><span>写真を追加してください。</span></div>
+    <div class="emptyState" id="alignEmpty"><div class="big"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="opacity:.4;display:block;margin:0 auto"><path d="M12 3c-2.2 0-4 1.8-4 4 0 1.3.4 2.5.9 3.7.8 2.4 1.1 4.9 1.1 7.3 0 .6.4 1 1 1h2c.6 0 1-.4 1-1 0-2.4.3-4.9 1.1-7.3.5-1.2.9-2.4.9-3.7 0-2.2-1.8-4-4-4z"/></svg></div><b>写真がありません</b><span>写真を追加してください。</span></div>
     <img id="alignGhostImage" class="alignGhostImage" style="display:none"><img id="alignImage" style="display:none"><svg id="landmarkSvg" class="landmarkSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
     <div class="guide v"></div><div class="guide h smile" id="gSmile"></div><div class="guide h incisal" id="gIncisal"></div><div class="guide h gingival" id="gGingival"></div>
   </div>
@@ -4775,7 +4742,7 @@ button[id="localMLDetectButton"]{
     <div class="row"><span>スマイル範囲</span><input type="range" min="25" max="75" value="50" id="simBand"><b id="simBandVal">50</b></div>
   </div>
   <div class="aiPanel"><div><b>AI Simulation</b><span id="aiStatus">Local preview mode. Replit backend can be connected.</span></div><label class="switch"><input type="checkbox" id="aiMode"><span></span></label></div><button class="primary" onclick="generateSimulation()">参考イメージを生成</button>
-  <div class="note">参考イメージ作成用の仮処理です（歯の明度・空隙閉鎖・ブラックトライアングル・スマイル整えを可視化）。治療結果の保証・診断ではありません。</div>
+  <details class="note"><summary>免責事項</summary><p>参考イメージ作成用の仮処理です（歯の明度・空隙閉鎖・ブラックトライアングル・スマイル整えを可視化）。治療結果の保証・診断ではありません。</p></details>
 </section>
 
 <section class="screen soft" id="result">
@@ -4803,7 +4770,7 @@ button[id="localMLDetectButton"]{
     <div class="simSliderGrid" id="simV96EditGrid"></div>
   </div>
   <div class="toolbar"><button class="tool" onclick="generateSimulation()">再生成<br>Again</button><button class="tool" onclick="saveResult()">保存<br>Save</button></div>
-  <div class="note">Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</div>
+  <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
 </section>
 
 
@@ -4985,10 +4952,6 @@ button[id="localMLDetectButton"]{
         <b>Color 1</b>
         <small>primary</small>
       </label>
-
-      <button type="button" class="cfSwapButton" id="cfSwapPalette" aria-label="Swap colors">
-        <span></span>
-      </button>
 
       <label class="cfColorCard">
         <input id="cfColorB" class="cfColorInput" type="color" value="#ff9fd6">
@@ -5582,7 +5545,6 @@ attachPaletteEvents();
     $id('cfColorB')?.addEventListener('input',()=>applyPalette());
     $id('cfColorA')?.addEventListener('change',()=>applyPalette());
     $id('cfColorB')?.addEventListener('change',()=>applyPalette());
-    $id('cfSwapPalette')?.addEventListener('click',swap);
     $id('cfShufflePalette')?.addEventListener('click',shuffle);
     document.querySelectorAll('.cfPreset').forEach(btn=>{
       btn.addEventListener('click',()=>setPalette(btn.dataset.a,btn.dataset.b));
@@ -7327,7 +7289,6 @@ button[id="localMLDetectButton"]{
   pointer-events:auto;
 }
 .cfPreset,
-#cfSwapPalette,
 #cfShufflePalette,
 #cfPaletteClose,
 #cfPaletteBackdrop,
@@ -7370,7 +7331,7 @@ button[id="localMLDetectButton"]{
   height:24px;
   background:transparent;
   accent-color:unset;
-  touch-action:pan-x;
+  touch-action:pan-y;
 }
 .cfHueSlider::-webkit-slider-runnable-track{
   height:12px;
@@ -7490,7 +7451,7 @@ button[id="localMLDetectButton"]{
   width:100%;
   height:30px;
   background:transparent;
-  touch-action:pan-x;
+  touch-action:pan-y;
 }
 .cfBlendSlider::-webkit-slider-runnable-track{
   height:14px;
@@ -7525,27 +7486,7 @@ button[id="localMLDetectButton"]{
   border:3px solid rgba(32,27,53,.82);
   box-shadow:0 9px 20px rgba(32,27,53,.26);
 }
-#cfSwapPalette{
-  cursor:pointer!important;
-  pointer-events:auto!important;
-}
-#cfSwapPalette span{
-  display:block;
-  width:22px;
-  height:22px;
-  margin:auto;
-  position:relative;
-}
-#cfSwapPalette span::before{
-  content:"";
-  display:grid;
-  place-items:center;
-  width:100%;
-  height:100%;
-  font-size:18px;
-  font-weight:950;
-  color:#201b35;
-}
+
 
 
 /* ---------- v7.0 True Mesh Morph Engine ---------- */
@@ -11613,7 +11554,6 @@ window.addEventListener('DOMContentLoaded', () => {
     var trigger=q('cfPaletteTrigger');
     var backdrop=q('cfPaletteBackdrop');
     var closeBtn=q('cfPaletteClose');
-    var swap=q('cfSwapPalette');
     var shuffle=q('cfShufflePalette');
 
     if(trigger) trigger.onclick=function(e){ e.preventDefault(); open(); };
@@ -11626,11 +11566,6 @@ window.addEventListener('DOMContentLoaded', () => {
       input.addEventListener('change', function(){ applyPalette(ca.value, cb.value, false); });
     });
 
-    if(swap) swap.onclick=function(e){
-      e.preventDefault();
-      var a=ca.value; ca.value=cb.value; cb.value=a;
-      applyPalette(ca.value, cb.value, false);
-    };
     if(shuffle) shuffle.onclick=function(e){
       e.preventDefault();
       var palettes=[
@@ -11778,7 +11713,7 @@ window.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('change', syncSlidersFromColors);
       }
     });
-    document.querySelectorAll('.cfPreset,#cfSwapPalette,#cfShufflePalette').forEach(function(btn){
+    document.querySelectorAll('.cfPreset,#cfShufflePalette').forEach(function(btn){
       if(btn.dataset.boundV68Preset==='1') return;
       btn.dataset.boundV68Preset='1';
       btn.addEventListener('click', function(){ setTimeout(syncSlidersFromColors,30); }, true);
@@ -11823,35 +11758,6 @@ window.addEventListener('DOMContentLoaded', () => {
       slider.dataset.boundV69='1';
       slider.addEventListener('input', function(){ setBlend(slider.value, true); }, {passive:true});
       slider.addEventListener('change', function(){ setBlend(slider.value, false); });
-    }
-
-    var swap=q('cfSwapPalette');
-    if(swap){
-      // Earlier palette modules (v4.x / v6.7 / v6.8) each bound their own swap handler
-      // to this same button. Multiple handlers swapped the two colors more than once per
-      // click, cancelling out to a visible no-op. Replace the node to strip ALL prior
-      // listeners, then bind exactly one swap handler here.
-      var freshSwap=swap.cloneNode(true);
-      if(swap.parentNode) swap.parentNode.replaceChild(freshSwap, swap);
-      swap=freshSwap;
-      swap.onclick=function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        var a = ca ? ca.value : '#7c5cff';
-        var b = cb ? cb.value : '#ff9fd6';
-        if(ca) ca.value = b;
-        if(cb) cb.value = a;
-        applyPaletteNoToast(b,a);
-        // Reverse the blend ratio so the visual weight stays intuitive after swapping.
-        var current = Number((q('cfBlendSlider')||{}).value || 50);
-        setBlend(100-current, true);
-        if(typeof toast === 'function') toast('Colors swapped');
-        setTimeout(function(){
-          var evt = new Event('change', {bubbles:true});
-          if(ca) ca.dispatchEvent(evt);
-          if(cb) cb.dispatchEvent(evt);
-        }, 20);
-      };
     }
 
     // Keep blend preview stable when presets/shuffle/color inputs change.
@@ -13448,7 +13354,7 @@ window.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="v73SourceStrip">${cards}</div>
       <div class="v73PointTools">
-        ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900">✨ AI自動検出</button>` : ''}
+        ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
         <button onclick="caseflowV75PrevPoint()">Prev</button>
         <button onclick="caseflowV75NextPoint()">Next</button>
         <button onclick="caseflowV75UndoPoint()">Undo</button>
@@ -14883,7 +14789,7 @@ window.addEventListener('DOMContentLoaded', () => {
     retracted:{intraoral:true, intraoralDark:false,lips:false},
     dark:     {intraoral:true, intraoralDark:true, lips:false}
   };
-  const SHOT_BADGE={facial:'🙂',focuslips:'👄',retracted:'🦷',dark:'⬛'};
+  const SHOT_BADGE={facial:'F',focuslips:'FL',retracted:'R',dark:'D'};
   const SHOT_LABEL={
     facial:['顔貌・スマイル','リップあり'],
     focuslips:['スマイルフォーカス','リップあり'],
@@ -18830,7 +18736,7 @@ body[data-ui-tone="dark"]{
       '<div class="cfStdSheet">'+
       '<div class="cfStdHead"><div><b id="cfStdTitle">規格化 / Normalize</b><span id="cfStdSub"></span></div><button class="cfStdClose" id="cfStdClose">×</button></div>'+
       '<div class="cfStdStage"><div class="cfStdFrameWrap"><canvas class="cfStdCanvas" id="cfStdCanvas"></canvas><svg class="cfStdGrid" id="cfStdGrid" preserveAspectRatio="none"></svg></div></div>'+
-      '<button class="cfStdAi" id="cfStdAi">✨ AIで傾き・トリミングを自動補正</button>'+
+      '<button class="cfStdAi" id="cfStdAi"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AIで傾き・トリミングを自動補正</button>'+
       '<div class="cfStdHint" id="cfStdHint"></div>'+
       '<div class="cfStdRow"><label>傾き</label><input type="range" id="cfStdRot" min="-20" max="20" step="0.5" value="0"><b id="cfStdRotV">0°</b></div>'+
       '<div class="cfStdRow"><label>拡大</label><input type="range" id="cfStdZoom" min="60" max="320" value="100"><b id="cfStdZoomV">100%</b></div>'+
