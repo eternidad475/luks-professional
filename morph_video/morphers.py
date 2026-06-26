@@ -173,6 +173,38 @@ def _morph_triangle(
     out[r[1]:r[1] + r[3], r[0]:r[0] + r[2]] = np.clip(region, 0, 255).astype(np.uint8)
 
 
+def _warp_triangle_single(
+    src: np.ndarray,
+    out: np.ndarray,
+    src_tri: np.ndarray,
+    dst_tri: np.ndarray,
+) -> None:
+    """1 つの三角形を単一画像だけから中間形状へワープして out に書き込む。
+
+    ``FeatureMorpher`` のように warped1 と warped2 をアルファ合成しないため、
+    歯科症例で目立ちやすい二重像・透け・ゴーストを抑えるために使う。
+    """
+    r_src = cv2.boundingRect(np.float32([src_tri]))
+    r_dst = cv2.boundingRect(np.float32([dst_tri]))
+
+    src_rect_tri = [(p[0] - r_src[0], p[1] - r_src[1]) for p in src_tri]
+    dst_rect_tri = [(p[0] - r_dst[0], p[1] - r_dst[1]) for p in dst_tri]
+
+    mask = np.zeros((r_dst[3], r_dst[2], 3), dtype=np.float32)
+    cv2.fillConvexPoly(mask, np.int32(dst_rect_tri), (1.0, 1.0, 1.0), cv2.LINE_AA, 0)
+
+    src_rect = src[r_src[1]:r_src[1] + r_src[3], r_src[0]:r_src[0] + r_src[2]]
+    if src_rect.size == 0:
+        return
+
+    size = (r_dst[2], r_dst[3])
+    warped = _apply_affine(src_rect, src_rect_tri, dst_rect_tri, size).astype(np.float32)
+
+    region = out[r_dst[1]:r_dst[1] + r_dst[3], r_dst[0]:r_dst[0] + r_dst[2]].astype(np.float32)
+    region = region * (1.0 - mask) + warped * mask
+    out[r_dst[1]:r_dst[1] + r_dst[3], r_dst[0]:r_dst[0] + r_dst[2]] = np.clip(region, 0, 255).astype(np.uint8)
+
+
 def _delaunay_indices(
     size: Tuple[int, int], points: np.ndarray
 ) -> List[Tuple[int, int, int]]:
@@ -258,9 +290,9 @@ class FeatureMorpher(Morpher):
                     good_src.append(kp1[m.queryIdx].pt)
                     good_dst.append(kp2[m.trainIdx].pt)
 
+        src = np.float32(good_src) if good_src else np.empty((0, 2), dtype=np.float32)
+        dst = np.float32(good_dst) if good_dst else np.empty((0, 2), dtype=np.float32)
         if len(good_src) >= self.min_matches:
-            src = np.float32(good_src)
-            dst = np.float32(good_dst)
             # RANSAC で幾何的な外れ値を除去
             _, mask = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
             if mask is not None:
@@ -311,10 +343,62 @@ class FeatureMorpher(Morpher):
         return out
 
 
+class WarpOnlyFeatureMorpher(FeatureMorpher):
+    """特徴点ベースの Warp Only モーフィング。
+
+    ``FeatureMorpher`` は各三角形で img1 と img2 の両方を中間形状へワープし、
+    最後にアルファ合成する。これは一般写真では滑らかだが、歯科症例では
+    歯列が透ける、二重に見える、癒着して見える原因になりやすい。
+
+    この方式では、t < switch_t では img1 だけ、t >= switch_t では img2 だけを
+    中間形状へワープして描画する。全画面クロスフェードを使わないため、
+    症例説明で避けたい「透過感」を抑えることを優先する。
+    """
+
+    name = "warp_only"
+
+    def __init__(
+        self,
+        max_features: int = 2000,
+        ratio: float = 0.75,
+        min_matches: int = 12,
+        switch_t: float = 0.5,
+    ):
+        super().__init__(max_features=max_features, ratio=ratio, min_matches=min_matches)
+        self.switch_t = float(np.clip(switch_t, 0.05, 0.95))
+
+    def frame(self, img1: np.ndarray, img2: np.ndarray, t: float) -> np.ndarray:
+        if t <= 0.0:
+            return img1
+        if t >= 1.0:
+            return img2
+        if self._triangles is None and not self._fallback:
+            self.prepare(img1, img2)
+        if self._fallback:
+            warnings.warn(
+                "対応点が不足しています。warp_only はクロスフェードせず、近い方のキーフレームを返します。",
+                RuntimeWarning,
+            )
+            return img1 if t < self.switch_t else img2
+
+        pts = (1.0 - t) * self._pts1 + t * self._pts2
+        out = np.zeros_like(img1)
+        use_first = t < self.switch_t
+        src_img = img1 if use_first else img2
+        src_pts = self._pts1 if use_first else self._pts2
+
+        for a, b, c in self._triangles:
+            src_tri = src_pts[[a, b, c]]
+            dst_tri = pts[[a, b, c]]
+            _warp_triangle_single(src_img, out, src_tri, dst_tri)
+        return out
+
+
 MORPHERS: Dict[str, Type[Morpher]] = {
     CrossfadeMorpher.name: CrossfadeMorpher,
     OpticalFlowMorpher.name: OpticalFlowMorpher,
     FeatureMorpher.name: FeatureMorpher,
+    WarpOnlyFeatureMorpher.name: WarpOnlyFeatureMorpher,
 }
 
 
