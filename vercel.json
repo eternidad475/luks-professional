@@ -1,5 +1,4 @@
 {
-  "buildCommand": "node caseflow-palette-build-patch.js",
   "rewrites": [
     { "source": "/", "destination": "/caseflow_studio_v96.html" },
     { "source": "/app", "destination": "/caseflow_studio_v96.html" },
