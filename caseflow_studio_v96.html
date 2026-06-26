@@ -18133,6 +18133,12 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
+    // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
+    // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
+    // WIDTH (not orthodontic movement). The face stays the patient's own pixels.
+    if(concept==='prosthetic' && isFacial){
+      parts.push('PROSTHETIC FACIAL MODE — treat the smile as a CLOSE-UP restorative (focus) case: refine ONLY the visible teeth with veneer/crown-level precision (crown form, proportions, incisal edges, shade) and CLOSE any midline diastema / spacing by restoring natural tooth WIDTH and contact points, NOT by moving teeth. Work tooth-by-tooth for an individualised, natural result; keep the lips, gingiva, framing and the rest of the face exactly as in the patient\'s own photograph.');
+    }
     // ── Bracket control — clinician-confirmed flag (source-aware) ─────────────────────────────
     // This block is the single authoritative source for appliance-related prompting.
     // The flag comes from the doctor's UI checkbox — never from auto-detection.
@@ -18791,7 +18797,10 @@ body[data-ui-tone="dark"]{
       extraction_mode:isExtraction,
       hybrid_mode:isHybrid,
       has_brackets:hasBracketsFlag,
-      facial_source:isFacialSrc
+      facial_source:isFacialSrc,
+      // Prosthetic + facial → backend should process the mouth with close-up (focus) restorative
+      // precision while the facial lip-mask blend preserves the surrounding face.
+      prosthetic_focus:(concept==='prosthetic' && isFacialSrc)
     };
     if(!hasBracketsFlag){
       // Hard negative prompt when no brackets: blocks the AI from hallucinating appliances.
@@ -18913,8 +18922,10 @@ body[data-ui-tone="dark"]{
     // face is never distorted. Gated to ortho/hybrid concepts; skips safely if no face/lips.
     try{
       const _cc=((state.simV82||{}).concept)||'ortho';
-      if(_cc==='ortho'||_cc==='hybrid'){
-        const _ai=clamp(0.62 + P.alignment*0.38, 0, 1);   // floor so選択した時点で必ず閉じる
+      // Ortho closes by alignment, prosthetic by crown-widening, hybrid by both — all visually
+      // close a midline diastema, so the closure runs for every treatment concept.
+      if(_cc==='ortho'||_cc==='hybrid'||_cc==='prosthetic'){
+        const _ai=clamp(0.84 + P.alignment*0.16, 0, 1);   // strong floor so選択時に確実かつ十分閉じる
         await closeMidlineGapFacial(ctx, img, w, h, _ai);
       }
     }catch(e){}
@@ -18995,9 +19006,10 @@ body[data-ui-tone="dark"]{
     let gl=0; for(let x=gapX;   x>=sx0; x--){ if(colB[x]<thr) gl++; else break; }
     let gr=0; for(let x=gapX+1; x<=sx1; x++){ if(colB[x]<thr) gr++; else break; }
     let gap=Math.max(2, gl+gr);
-    gap=Math.min(gap, Math.round(mouthW*0.18));  // safety clamp
-    const half=Math.min(mouthW*0.16, Math.max(gap*1.6, mouthW*0.05));
-    const maxShift=Math.min(mouthW*0.085, gap*0.6*intensity);
+    gap=Math.min(gap, Math.round(mouthW*0.20));  // safety clamp
+    // Stronger closure (fuller gap fill) + wider influence for a smoother, more natural blend.
+    const half=Math.min(mouthW*0.22, Math.max(gap*1.9, mouthW*0.07));
+    const maxShift=Math.min(mouthW*0.15, gap*0.95*intensity);
     if(maxShift<0.5) return;
     // Warp rows: full upper-incisor band, with a smooth vertical taper (0 at band edges).
     const wy0=Math.max(0, Math.round(box.minY + mouthH*0.04));
@@ -19016,6 +19028,18 @@ body[data-ui-tone="dark"]{
         let sx=Math.round(x+shift); if(sx<0)sx=0; else if(sx>=w)sx=w-1;
         const di=(y*w+x)*4, si=(y*w+sx)*4;
         d[di]=src[si]; d[di+1]=src[si+1]; d[di+2]=src[si+2];
+      }
+    }
+    // Soften the midline contact line with a light 3-tap horizontal blur so the two central
+    // incisors read as a natural contact rather than a hard warp seam.
+    const sc0=Math.max(1, gapX-2), sc1=Math.min(w-2, gapX+2);
+    for(let y=wy0;y<wy1;y++){
+      const vt=Math.sin(Math.PI*(y-wy0)/span); if(vt<=0.05) continue;
+      for(let x=sc0;x<=sc1;x++){
+        const di=(y*w+x)*4, li=(y*w+(x-1))*4, ri=(y*w+(x+1))*4;
+        d[di]  =Math.round((d[li]  +2*d[di]  +d[ri]  )/4);
+        d[di+1]=Math.round((d[li+1]+2*d[di+1]+d[ri+1])/4);
+        d[di+2]=Math.round((d[li+2]+2*d[di+2]+d[ri+2])/4);
       }
     }
     ctx.putImageData(id,0,0);
@@ -19092,7 +19116,9 @@ body[data-ui-tone="dark"]{
       }
       const ok=cfPersistLib(KEY, arr);
       if(window.state) window.state.projectLibrary=arr;
-      if(ok && typeof window.renderLibrary==='function' && document.getElementById('library') && document.getElementById('library').classList.contains('active')) window.renderLibrary();
+      // Real-time reflection: refresh the Library list whenever a generation is auto-saved, so
+      // it is already up to date the moment the clinician opens (or is viewing) the Library.
+      if(ok && typeof window.renderLibrary==='function') window.renderLibrary();
     }catch(e){}
   }
   window.cfAutoSaveTempSim=cfAutoSaveTempSim;
@@ -21339,31 +21365,49 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button class="cfLibToolBtn" onclick="cfLibCancelSelect()">キャンセル</button>';
     }
   }
+  function cardId(card){ return (card && card.dataset) ? card.dataset.id : null; }
+  function recById(id){ return libRecords().find(function(x){ return String(x.id)===String(id); }); }
   function enhanceCards(){
     var list=$id('libraryList'); if(!list) return;
-    var recs=libRecords();
     var cards=list.querySelectorAll('.libraryCard');
-    cards.forEach(function(card, i){
-      var r=recs[i]; if(!r) return; var id=r.id;
+    cards.forEach(function(card){
+      // Match by data-id (NOT array index — the rendered order and libRecords() can diverge,
+      // which silently mis-selected the wrong record).
+      var id=cardId(card); if(!id) return;
+      var r=recById(id); if(!r) return;
       var star=card.querySelector('.cfLibFav');
       if(!star){ star=document.createElement('span'); star.className='cfLibFav'; star.textContent='✦'; star.title='お気に入り';
-        star.addEventListener('click',function(e){ e.stopPropagation(); cfLibToggleFav(id); }); card.appendChild(star); }
+        star.addEventListener('click',function(e){ e.stopPropagation(); e.preventDefault(); cfLibToggleFav(id); }); card.appendChild(star); }
       star.classList.toggle('on', recFav(r));
       var cb=card.querySelector('.cfLibCheck');
       if(selectMode && isImage(r)){
         if(!cb){ cb=document.createElement('span'); cb.className='cfLibCheck'; card.appendChild(cb); }
         cb.classList.toggle('on', !!selected[id]); cb.textContent=selected[id]?'✓':'';
         card.classList.add('cfLibSelMode');
-        card.__cfSel=function(e){ if(e.target.closest('.cfLibFav')) return; e.preventDefault(); e.stopPropagation(); cfLibToggleItem(id); };
-        card.addEventListener('click', card.__cfSel, true);
       } else {
         if(cb) cb.remove();
         card.classList.remove('cfLibSelMode');
-        if(card.__cfSel){ card.removeEventListener('click', card.__cfSel, true); card.__cfSel=null; }
       }
     });
   }
-  function refresh(){ try{ ensureToolbar(); enhanceCards(); }catch(e){} }
+  // ONE delegated click listener on the list container (installed once). Using a single
+  // capture-phase listener — instead of re-adding a per-card listener on every refresh —
+  // eliminates the listener STACKING that made each tap fire several toggles and cancel out
+  // (the "選択・選択取り消しが出来ない" bug).
+  function installDelegate(){
+    var list=$id('libraryList'); if(!list || list.__cfLibDelegated) return;
+    list.__cfLibDelegated=true;
+    list.addEventListener('click', function(e){
+      if(!selectMode) return;
+      if(e.target.closest('.cfLibFav')) return;
+      var card=e.target.closest('.libraryCard'); if(!card) return;
+      var id=cardId(card); if(!id) return;
+      var r=recById(id); if(!r || !isImage(r)) return;
+      e.preventDefault(); e.stopPropagation();
+      window.cfLibToggleItem(id);
+    }, true);
+  }
+  function refresh(){ try{ installDelegate(); ensureToolbar(); enhanceCards(); }catch(e){} }
 
   function hook(){
     var orig=window.renderLibrary;
