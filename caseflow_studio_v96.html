@@ -3590,15 +3590,16 @@ button[id="localMLDetectButton"]{
   stroke:rgba(255,255,255,.001);
 }
 .v73PapillaPoint{
-  fill:#45c486;
-  stroke:#fff;
-  stroke-width:1.35;
+  fill:none;
+  stroke:#45c486;
+  stroke-width:1.5;
+  stroke-linecap:round;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.20));
 }
 .v73PapillaNode.selected .v73PapillaPoint{
-  fill:#fff;
+  fill:none;
   stroke:#201b35;
-  stroke-width:2.25;
+  stroke-width:2.4;
 }
 .v73PapillaIndex{
   font-size:4px;
@@ -8095,15 +8096,16 @@ button[id="localMLDetectButton"]{
   stroke:rgba(255,255,255,.001);
 }
 .v73PapillaPoint{
-  fill:#45c486;
-  stroke:#fff;
-  stroke-width:1.35;
+  fill:none;
+  stroke:#45c486;
+  stroke-width:1.5;
+  stroke-linecap:round;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.20));
 }
 .v73PapillaNode.selected .v73PapillaPoint{
-  fill:#fff;
+  fill:none;
   stroke:#201b35;
-  stroke-width:2.25;
+  stroke-width:2.4;
 }
 .v73PapillaIndex{
   font-size:4px;
@@ -13666,8 +13668,12 @@ window.addEventListener('DOMContentLoaded', () => {
       const hit=document.createElementNS(NS,'circle');
       hit.setAttribute('cx',p.x); hit.setAttribute('cy',p.y); hit.setAttribute('r','7.2'); hit.setAttribute('class','v73PapillaHit');
       g.appendChild(hit);
-      const c=document.createElementNS(NS,'circle');
-      c.setAttribute('cx',p.x); c.setAttribute('cy',p.y); c.setAttribute('r','2.0'); c.setAttribute('class','v73PapillaPoint');
+      // × cross marker (was a filled ● circle). Colour/selected-state come from the
+      // .v73PapillaPoint CSS (stroke-based, fill:none) so the cascade still works.
+      const xr=2.2;
+      const c=document.createElementNS(NS,'path');
+      c.setAttribute('d',`M${(p.x-xr).toFixed(2)},${(p.y-xr).toFixed(2)}L${(p.x+xr).toFixed(2)},${(p.y+xr).toFixed(2)}M${(p.x+xr).toFixed(2)},${(p.y-xr).toFixed(2)}L${(p.x-xr).toFixed(2)},${(p.y+xr).toFixed(2)}`);
+      c.setAttribute('class','v73PapillaPoint');
       g.appendChild(c);
       const t=document.createElementNS(NS,'text');
       t.setAttribute('x',p.x+2.7); t.setAttribute('y',p.y-1.8); t.setAttribute('class','v73PapillaIndex'); t.textContent=String(i+1);
