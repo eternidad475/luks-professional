@@ -3052,7 +3052,7 @@ button[id="localMLDetectButton"]{
   position:relative;
 }
 #cfSwapPalette span::before{
-  content:"⇄";
+  content:"";
   display:grid;
   place-items:center;
   width:100%;
@@ -7537,7 +7537,7 @@ button[id="localMLDetectButton"]{
   position:relative;
 }
 #cfSwapPalette span::before{
-  content:"⇄";
+  content:"";
   display:grid;
   place-items:center;
   width:100%;
@@ -11827,6 +11827,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     var swap=q('cfSwapPalette');
     if(swap){
+      // Earlier palette modules (v4.x / v6.7 / v6.8) each bound their own swap handler
+      // to this same button. Multiple handlers swapped the two colors more than once per
+      // click, cancelling out to a visible no-op. Replace the node to strip ALL prior
+      // listeners, then bind exactly one swap handler here.
+      var freshSwap=swap.cloneNode(true);
+      if(swap.parentNode) swap.parentNode.replaceChild(freshSwap, swap);
+      swap=freshSwap;
       swap.onclick=function(e){
         e.preventDefault();
         e.stopPropagation();
