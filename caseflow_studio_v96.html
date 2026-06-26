@@ -18060,8 +18060,22 @@ body[data-ui-tone="dark"]{
       'STRICTLY exclude any metal shadow, reflective glint, wire-like line, slot gap or dark interproximal mark from being classified as diastema, black triangle, caries, or crown discolouration in Steps 2–4.\n\n'+
       'STEP 2 — ALIGNMENT & CROWDING:\n'+
       '• Crowding (tooth overlap, rotation, labial/lingual displacement) → {"en":"crowding (tooth overlap / rotation)","ja":"叢生（歯の重なり・ガタガタ）"}\n'+
-      '• Diastema / spacing (gap between teeth, especially central) → {"en":"spacing / diastema","ja":"歯間離開（すきっ歯）"}\n'+
+      '• Diastema / spacing → {"en":"spacing / diastema","ja":"歯間離開（すきっ歯）"}\n'+
       '• Narrow / V-shaped arch form → {"en":"narrow arch form (V-shaped tendency)","ja":"狭窄歯列弓（V字型アーチ傾向）"}\n\n'+
+      '⚠ CRITICAL — CROWDING-SHADOW / DIASTEMA CONFUSION PREVENTION (2D photography artefact):\n'+
+      'In 2D dental photographs, overlapping or lingually displaced teeth cast DEEP SHADOWS between and behind adjacent teeth. ' +
+      'These shadows appear as dark gaps or black spaces in the image but are NOT open interdental spaces — they are optical depth effects caused by the 3-dimensional arch being compressed onto a flat sensor.\n'+
+      'RULE A — MUTUAL EXCLUSIVITY: Crowding and diastema are clinically OPPOSITE conditions. ' +
+      'If you have already identified crowding (tooth overlap, rotation, or lingual displacement) in this image, you MUST NOT simultaneously output spacing / diastema. ' +
+      'When crowding is present, all dark interproximal areas MUST be classified as crowding-related shadows, NOT as open gaps.\n'+
+      'RULE B — DIASTEMA CONFIRMATION STANDARD: Output spacing / diastema ONLY when ALL three conditions are met simultaneously: ' +
+      '(1) No visible tooth overlap or rotation anywhere in the same arch. ' +
+      '(2) The gap is physically open — tooth structure is absent and background (gingiva, palate or black contraster) is clearly visible through the space. ' +
+      '(3) The gap spans the full coronal height of the adjacent teeth, not just a shadow at one depth plane. ' +
+      'A dark region that is visible only between labially displaced or rotated teeth does NOT meet this standard.\n'+
+      'RULE C — PRIORITY OUTPUT: When the same arch shows any sign of crowding, lingual displacement, ectopic eruption or arch irregularity, ' +
+      'always output crowding as the primary finding and BLOCK the spacing/diastema finding entirely — even if a dark gap appears to be present. ' +
+      '叢生（歯の重なりや舌側転位）によって生じる暗い影・凹み・奥行きを「歯間離開（すきっ歯）」と絶対に誤認しないでください。叢生が確認できる場合、すきっ歯の出力は強制ブロックし、叢生を最優先で出力してください。\n\n'+
       'STEP 3 — OCCLUSION (vertical & horizontal):\n'+
       '• Deep bite: upper anteriors cover >50% of lower anteriors → {"en":"deep bite (excessive vertical overbite)","ja":"過蓋咬合（噛み合わせが深い）"}\n'+
       '• Open bite: anterior gap while posteriors occlude → {"en":"anterior open bite","ja":"開咬（前歯が噛み合わない）"}\n'+
@@ -18149,16 +18163,22 @@ body[data-ui-tone="dark"]{
 
       // ── STEP 2: Alignment & Crowding ───────────────────────────────────────────
       // Incisal profile roughness: colMaxY[x] = incisal edge (lowest tooth pixel per col).
-      // High roughness = severe step-downs between teeth → crowding / rotation proxy.
-      // Moderate roughness = worn or uneven incisal plane.
+      // High roughness = severe step-downs → crowding / rotation. Moderate = uneven incisal.
+      // hasCrowding is used to suppress diastema detection (crowding shadows mimic gaps in 2D).
       const cols=[]; for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0) cols.push(colMaxY[x]); }
+      let hasCrowdingFinding=false;
       if(cols.length>12){
         let rough=0; for(let i=1;i<cols.length;i++) rough+=Math.abs(cols[i]-cols[i-1]); rough/=cols.length;
-        if(rough/bh>0.11) F.push({en:'crowding (severe incisal step-downs — tooth overlap or rotation likely)',ja:'叢生（歯の重なり・ガタガタ）'});
+        if(rough/bh>0.11){ F.push({en:'crowding (severe incisal step-downs — tooth overlap or rotation likely)',ja:'叢生（歯の重なり・ガタガタ）'}); hasCrowdingFinding=true; }
         else if(rough/bh>0.04) F.push({en:'uneven incisal edges (mild irregularity or wear)',ja:'切縁の不揃い・軽度摩耗'});
       }
-      // Spacing / diastema — SUPPRESSED when brackets present (bracket slots mimic a gap)
-      if(!hasBrackets){
+      // Spacing / diastema — SUPPRESSED when:
+      //   (a) brackets present (bracket slots and wire gaps mimic open spaces), OR
+      //   (b) crowding detected — in 2D photography, overlapping / lingually displaced teeth
+      //       cast deep shadows that look like gaps. Crowding and diastema are clinically
+      //       MUTUALLY EXCLUSIVE; when crowding is present every dark interproximal region
+      //       must be treated as a depth shadow, never as an open interdental space.
+      if(!hasBrackets && !hasCrowdingFinding){
         const y0=Math.round(minY+bh*0.42),y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
         for(let x=minX;x<=maxX;x++){ let t=false; for(let y=y0;y<=y1;y++){ if(mask[y*W+x]>0.5){t=true;break;} } if(!t){run++;if(run>maxRun)maxRun=run;}else run=0; }
         if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth',ja:'歯間離開（すきっ歯）'});
