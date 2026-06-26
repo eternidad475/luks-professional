@@ -4966,7 +4966,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="library">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="linkbtn" onclick="saveCurrentProject()">Save Current</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><span class="linkbtn" style="visibility:hidden">　</span></div>
   <div class="note">現在のワークスペースを保存し、ここから再度読み込めます。Morphing Video Studio™︎（landmark / manual animation）と Visual Simulation Studio™︎ の状態をまとめて保存します。</div>
   <div id="libraryList" class="libraryList"></div>
 </section>
@@ -10430,12 +10430,20 @@ window.addEventListener('DOMContentLoaded', () => {
     return [1080,1920];
   }
   window.exportPairPreview=async function(){
-    ensurePair();
-    if(!pairPhoto('a') || !pairPhoto('b')){ toastFn('Layer 1 と Layer 2 を設定してください'); return; }
+    // Export the FULL sequence through every uploaded image with mesh WARPING (not just the
+    // first pair, and never the flat crossfade). Mirrors the CapCut live-preview engine.
+    const idx=[]; (state.photos||[]).forEach((p,i)=>{ if(p&&p.dataUrl) idx.push(i); });
+    if(idx.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     toastFn('動画を書き出し中…');
     const [w,h]=outputSize();
-    const dur=Math.max(900,Number($id('morphDuration')?.value)||2600);
-    const result=await recordCanvas((canvas,t)=>drawPairFrame(canvas,t),w,h,dur,'caseflow_morph');
+    const segCount=idx.length-1;
+    const perSeg=Math.max(900,Number($id('morphDuration')?.value)||2600);
+    const dur=perSeg*segCount;
+    state.trueMeshEnabled=true; state.meshOverlayEnabled=false;   // warp ON, triangle grid OFF
+    const drawFrame = (typeof window.cfDrawMorphFrame==='function')
+      ? async (canvas,t)=>{ const g=Math.max(0,Math.min(0.999999,t))*segCount; let seg=Math.floor(g), lt=g-seg; if(seg>=segCount){seg=segCount-1;lt=1;} await window.cfDrawMorphFrame(canvas, lt, {aIndex:idx[seg], bIndex:idx[seg+1]}); }
+      : (canvas,t)=>drawPairFrame(canvas,t);
+    const result=await recordCanvas(drawFrame,w,h,dur,'caseflow_morph');
     if(result && typeof setExportBlob==='function'){
       setExportBlob(result.blob,result.name,result.mime);
       toastFn('動画を書き出しました');
@@ -12144,6 +12152,30 @@ window.addEventListener('DOMContentLoaded', () => {
     pairs.push({p1,p2,type});
   }
 
+  // ---- Automatic DENSE face-mesh correspondence (MediaPipe 468 pts) -----------------------
+  // Strides the full face mesh for ~156 evenly-spaced points so two facial portraits warp
+  // automatically (no manual plotting needed). Cached per photo; runs in the background.
+  const CF_MESH_IDX=(function(){ const a=[]; for(let i=0;i<468;i+=3) a.push(i); return a; })();
+  async function cfEnsureFaceMesh(photo){
+    if(!photo || !photo.dataUrl) return null;
+    if(photo._faceMesh) return photo._faceMesh;
+    if(photo._faceMeshTried && photo._faceMeshSrc===photo.dataUrl) return null;
+    photo._faceMeshTried=true; photo._faceMeshSrc=photo.dataUrl;
+    try{
+      const ok = window.initMediaPipeLocalML ? await window.initMediaPipeLocalML() : false;
+      if(!ok || !window.CaseFlowLocalML || !CaseFlowLocalML.faceLandmarker) return null;
+      const img=await loadImage(photo.dataUrl);
+      const res=CaseFlowLocalML.faceLandmarker.detect(img);
+      if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+      const L=res.faceLandmarks[0];
+      const mesh=CF_MESH_IDX.map(i=> L[i] ? {x:L[i].x,y:L[i].y} : null).filter(Boolean);
+      if(mesh.length<60) return null;
+      photo._faceMesh=mesh;
+      return mesh;
+    }catch(e){ return null; }
+  }
+  window.cfEnsureFaceMesh=cfEnsureFaceMesh;
+
   function collectMorphPairs(photoA, photoB, rectA, rectB, w, h){
     const pairs = [];
     // Canvas boundary: fixed, keeps the white frame stable.
@@ -12174,6 +12206,18 @@ window.addEventListener('DOMContentLoaded', () => {
         userCount++;
       }
     });
+    // Automatic dense face-mesh correspondence — gives real WARPING on facial portraits with no
+    // manual plotting (the 468-pt mesh is detected/cached in the background). Mesh coords are
+    // normalised to the image (0..1) → mapped into each fitted rect.
+    const ma=photoA && photoA._faceMesh, mb=photoB && photoB._faceMesh;
+    if(ma && mb && ma.length && ma.length===mb.length){
+      for(let i=0;i<ma.length;i++){
+        addPair(pairs,
+          {x:rectA.x+ma[i].x*rectA.w, y:rectA.y+ma[i].y*rectA.h},
+          {x:rectB.x+mb[i].x*rectB.w, y:rectB.y+mb[i].y*rectB.h}, 'facemesh');
+        userCount++;
+      }
+    }
 
     // A very light stabilizer near the center of each image.
     addPair(pairs,{x:rectA.x+rectA.w*.5,y:rectA.y+rectA.h*.52},{x:rectB.x+rectB.w*.5,y:rectB.y+rectB.h*.52},'center');
@@ -21590,7 +21634,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapScrub{width:100%;accent-color:var(--c1,#7c5cff);height:26px}
 #cfCapScrubMeta{display:flex;justify-content:space-between;font-family:ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.08em;color:rgba(32,27,53,.5);text-transform:uppercase}
 #cfCapSpeed{display:flex;gap:6px;margin-top:12px}
-#cfCapSpeed button{flex:1;border:0;border-radius:12px;min-height:40px;font-size:12px;font-weight:900;background:rgba(32,27,53,.06);color:#201b35;cursor:pointer}
+#cfCapSpeed button{flex:1;border:0;border-radius:12px;min-height:40px;font-family:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;background:rgba(32,27,53,.06);color:rgba(32,27,53,.62);cursor:pointer}
 #cfCapSpeed button.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.32)}
 #cfCapHint{margin-top:9px;font-size:10.5px;line-height:1.55;color:rgba(32,27,53,.55);font-weight:600}
 #cfCapHint b{color:#6a3de8;font-weight:900}
@@ -21629,13 +21673,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button id="cfCapPlay" aria-label="再生">&#9654;</button>'+
         '<div id="cfCapScrubWrap">'+
           '<input type="range" id="cfCapScrub" min="0" max="100" value="0">'+
-          '<div id="cfCapScrubMeta"><span>変化前</span><span id="cfCapPct">0%</span><span>変化後</span></div>'+
+          '<div id="cfCapScrubMeta"><span id="cfCapPair">1 → 2</span><span id="cfCapPct">0%</span></div>'+
         '</div>'+
       '</div>'+
       '<div id="cfCapSpeed">'+
-        '<button data-ms="3800">ゆっくり</button>'+
-        '<button data-ms="2600" class="on">ふつう</button>'+
-        '<button data-ms="1400">はやい</button>'+
+        '<button data-ms="3800">Slow</button>'+
+        '<button data-ms="2600" class="on">Normal</button>'+
+        '<button data-ms="1400">Fast</button>'+
       '</div>'+
       '<div id="cfCapHint">スライダーを左右に<b>こする</b>と、変化の途中がリアルタイムで見られます。&#9654; で再生、右上の<b>書き出し</b>で動画を作成。下のプレビューでポイント追加／<b>ダブルタップで削除</b>。</div>';
     var step=align.querySelector('.stepbar');
@@ -21660,12 +21704,20 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   async function render(t){
     var cv=$id('cfCapCanvas'); if(!cv || typeof window.cfDrawMorphFrame!=='function') return;
-    var p=pair(), empty=$id('cfCapEmpty');
-    if(!p.ph || p.ph.length<2){ if(empty) empty.style.display='flex'; try{ var c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height); }catch(e){} return; }
+    var ph=(window.state&&state.photos)||[], empty=$id('cfCapEmpty');
+    if(ph.length<2){ if(empty) empty.style.display='flex'; try{ var c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height); }catch(e){} return; }
     if(empty) empty.style.display='none';
+    // Map the global scrub (0..1) across ALL images (N-1 segments) so a 4-image set morphs
+    // through every image, not just the first pair.
+    var segCount=ph.length-1;
+    var g=Math.max(0,Math.min(0.999999,t))*segCount;
+    var seg=Math.floor(g), localT=g-seg;
+    if(seg>=segCount){ seg=segCount-1; localT=1; }
+    var lbl=$id('cfCapPair'); if(lbl) lbl.textContent=(seg+1)+' → '+(seg+2);
     if(rendering){ pendingT=t; return; }
     rendering=true;
-    try{ if(window.state) state.trueMeshEnabled=true; await window.cfDrawMorphFrame(cv,t,{aIndex:p.a,bIndex:p.b}); }catch(e){}
+    // trueMesh ON (warping), overlay OFF (no triangle grid baked into the preview/output).
+    try{ if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; } await window.cfDrawMorphFrame(cv,localT,{aIndex:seg,bIndex:seg+1}); }catch(e){}
     rendering=false;
     if(pendingT!=null){ var nt=pendingT; pendingT=null; render(nt); }
   }
@@ -21675,9 +21727,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function stop(){ if(playing){ playing=false; playToken++; } setPlayIcon(false); }
   function toggle(){ if(playing){ stop(); return; } play(); }
   function play(){
-    var p=pair(); if(!p.ph||p.ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+    var ph=(window.state&&state.photos)||[]; if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     playing=true; setPlayIcon(true);
-    var token=++playToken, dur=speedMs(), start=performance.now(), scrub=$id('cfCapScrub');
+    var token=++playToken, segCount=Math.max(1,ph.length-1), dur=speedMs()*segCount, start=performance.now(), scrub=$id('cfCapScrub');
     (function loop(now){
       if(!playing||token!==playToken) return;
       var t=((now-start)%dur)/dur;
@@ -21687,7 +21739,20 @@ body.cfPresent .cfPresentExit{display:flex!important}
     })(performance.now());
   }
 
-  function refresh(){ var box=ensureUI(); if(!box) return; var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR()); window.cfCapRender(); }
+  function refresh(){
+    var box=ensureUI(); if(!box) return;
+    var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
+    window.cfCapRender();
+    // Background: auto-detect a dense face mesh for every photo so morphs WARP (not crossfade)
+    // with no manual plotting, then re-render once detection completes.
+    try{
+      var ph=(window.state&&state.photos)||[];
+      if(window.cfEnsureFaceMesh && ph.length>=2){
+        Promise.all(ph.map(function(p){ return window.cfEnsureFaceMesh(p); }))
+          .then(function(){ window.cfCapRender(); }).catch(function(){});
+      }
+    }catch(e){}
+  }
   window.cfCapRefresh=refresh;
 
   var prevGo=window.go;
