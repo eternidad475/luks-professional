@@ -9124,7 +9124,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if(!p.editState) p.editState = {rotate:0,flipX:false,flipY:false,straighten:0,zoom:100,offsetX:0,offsetY:0};
   }
   function ensureAllMeta(){ if(Array.isArray(state.photos)) state.photos.forEach((p,i)=>ensureMeta(p,i)); }
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[m])); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function photoSearchIndex(p){ return [p.metaId,p.shotDate,p.name,p.category,p.notes,p.label].join(' ').toLowerCase(); }
   function filteredPhotos(){
     ensureAllMeta();
@@ -9312,7 +9312,11 @@ window.addEventListener('DOMContentLoaded', () => {
 <script>
 /* ---------- v5.5 manual animation / library / share / nav ---------- */
 (function(){
-  if(!window.state) return;
+  // `state` is a global lexical `const` (NOT window.state, which isn't assigned until a later
+  // script). Guarding on window.state made this whole block early-return, leaving
+  // saveCurrentProject/persistLibrary/etc. undefined → "Library に保存" silently failed.
+  if(typeof state==='undefined') return;
+  if(!window.state){ try{ window.state=state; }catch(e){} }
   const $id=id=>document.getElementById(id);
   const toastFn=msg=>window.toast?toast(msg):console.log(msg);
   state.projectLibrary = state.projectLibrary || [];
@@ -9322,7 +9326,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function loadLibrary(){ try{ state.projectLibrary = JSON.parse(localStorage.getItem('caseflow_project_library_v55')||'[]'); }catch(e){ state.projectLibrary=[]; } }
   function persistLibrary(){ try{ localStorage.setItem('caseflow_project_library_v55', JSON.stringify(state.projectLibrary)); }catch(e){} }
   function deep(obj){ return JSON.parse(JSON.stringify(obj)); }
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[m])); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
   function getProjectThumb(){
     return (state.simResult && state.simResult.dataUrl) || (state.photos[0] && state.photos[0].dataUrl) || 'icons/icon-512.png';
@@ -15420,9 +15424,9 @@ window.addEventListener('DOMContentLoaded', () => {
       tabs.style.gridTemplateColumns='1fr 1fr';
       tabs.style.gap='10px';
       tabs.style.margin='10px 0 14px';
-      tabs.innerHTML='
+      tabs.innerHTML=`
         <button type="button" data-type="facial" class="secondary" style="width:100%;padding:12px 14px;border-radius:16px">Facial</button>
-        <button type="button" data-type="focus" class="secondary" style="width:100%;padding:12px 14px;border-radius:16px">Focus</button>';
+        <button type="button" data-type="focus" class="secondary" style="width:100%;padding:12px 14px;border-radius:16px">Focus</button>`;
       const head=sheet.querySelector('.sampleVideoHead');
       if(head) head.insertAdjacentElement('afterend', tabs); else sheet.prepend(tabs);
       tabs.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>setMorphingVideoSample(btn.dataset.type,true)));
