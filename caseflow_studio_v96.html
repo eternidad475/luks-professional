@@ -17744,13 +17744,19 @@ body[data-ui-tone="dark"]{
     const reqs=[];
     if(L.shade && shadeSigned>0)      reqs.push('Shade — WHITENING ('+L.shade+', strength '+shadeMag+'%): raise VALUE/brightness toward a natural healthy lighter shade while keeping chroma and incisal translucency — never flat opaque white');
     else if(L.shade && shadeSigned<0) reqs.push('Shade — AGING / 色調エイジング ('+L.shade+', strength '+shadeMag+'%): move strongly OPPOSITE to whitening — clearly LOWER the value/brightness AND INCREASE the chroma/saturation toward a deeper, warmer, more saturated amber-yellow mature shade (more chromatic and darker, NOT muted, grey or bleached). Scale the effect to the strength; keep it photorealistic and natural, never artificially orange or dirty');
+    const isExtractionFacial = !isIntraoral && Math.round(s.alignment||0)>=80;
     if(L.alignment){
       const a=Math.round(s.alignment);
       let aGoal;
       if(a<40) aGoal='lightly tidy the arrangement — close minor gaps and level small step-downs while keeping the overall arch essentially as-is';
       else if(a<70) aGoal='correct MODERATE crowding: clearly de-rotate and re-align the overlapping, rotated or tilted teeth, close spacing, level the incisal plane and upright the tooth axes into a smooth, well-aligned arch. This must be a clearly visible orthodontic improvement (the kind of result expected from finished alignment of a moderately crowded case), while still reading as this patient\'s own natural teeth';
-      else aGoal='achieve an IDEAL, fully-aligned finish: completely resolve crowding, rotations and spacing and deliver an even, harmonious arch with textbook tooth positions, an incisal plane that forms a gentle smile arc, uprighted axes (centrals near vertical, slight distal inclination toward the canines) and a centred midline — the polished look of completed orthodontic treatment. Keep realistic per-tooth morphology, contacts and translucency (a natural aligned arch, never a flat fused bar)';
-      reqs.push('Alignment ('+L.alignment+', strength '+a+'%): '+aGoal+', with the midline parallel to the facial midline. Apply the FULL correction at this strength — do NOT under-treat or leave residual crowding below the requested level');
+      else if(a<80) aGoal='achieve an IDEAL, fully-aligned finish: completely resolve crowding, rotations and spacing and deliver an even, harmonious arch with textbook tooth positions, an incisal plane that forms a gentle smile arc, uprighted axes (centrals near vertical, slight distal inclination toward the canines) and a centred midline — the polished look of completed orthodontic treatment. Keep realistic per-tooth morphology, contacts and translucency (a natural aligned arch, never a flat fused bar)';
+      else aGoal='[抜歯矯正モード / Extraction Orthodontic Mode] DRASTIC ORTHODONTIC CORRECTION — EXTRACTION CASE: simulate the completed result of first-premolar-extraction orthodontic treatment. MANDATORY CHANGES: (1) ANTERIOR RETRACTION — incisors and canines must be bodily retracted posteriorly by a clinically significant amount; the anterior teeth sit clearly further back compared to the original photo, with visibly reduced dental protrusion. (2) ARCH REDUCTION — the dental arch perimeter is shorter; all extraction spaces are fully closed; the anterior arch is flatter and more retracted. (3) LIP SUPPORT — the upper lip is slightly less protrusive; the nasolabial angle opens slightly; the lower lip follows the retracted incisors. (4) COMPLETE ALIGNMENT — simultaneously resolve ALL crowding, rotations, spacing and midline discrepancy. Scale the magnitude to the slider: at 80% clearly visible but conservative retraction; at 100% maximal dramatic retraction consistent with a high-extraction finished case. This must look like a real post-treatment clinical photograph — natural, credible and achievable, not a caricature';
+      reqs.push('Alignment ('+L.alignment+', strength '+a+'%): '+aGoal+', with the midline centred to the facial midline. Apply the FULL correction at this strength — do NOT under-treat or leave residual crowding below the requested level');
+    }
+    if(concept==='hybrid' && L.alignment){
+      const hw=isExtractionFacial?1.8:1.5;
+      reqs.push('HYBRID MODE PRIORITY WEIGHTING — rank changes as follows: (arch alignment, corrected crowding, uprighted tooth axes: '+hw+'), (crown shape refinement, aesthetic crown form: 1.1), (shade and colour correction: 1.0). The arch ALIGNMENT changes MUST be clearly visible above all other edits; complete repositioning first, then refine surface aesthetics within the aligned configuration');
     }
     if(tsMag>=15 && tsSigned<0) reqs.push('Tooth Shape — OVOID / curved (strength '+tsMag+'%): reshape the crown OUTLINE toward a rounded OVOID (egg-shaped) form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it gently CURVED/rounded with softly rounded mesio-/disto-incisal corners; (2) SECONDARY — the proximal (mesial/distal) outlines: ease them into gentle convex curves; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
     else if(tsMag>=15 && tsSigned>0) reqs.push('Tooth Shape — SQUARE / edged (strength '+tsMag+'%): reshape the crown OUTLINE toward an angular SQUARE form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it FLAT and near-horizontal with sharp, well-defined mesio-/disto-incisal corners (line angles approaching right angles); (2) SECONDARY — the proximal (mesial/distal) outlines: make them more vertical/parallel; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
@@ -17822,7 +17828,7 @@ body[data-ui-tone="dark"]{
       ' (7) OVERJET & OVERBITE — after alignment correction keep a natural positive overjet (upper anterior teeth slightly ahead of lower); do NOT create edge-to-edge or reverse bite unless the case type explicitly requires it.' +
       ' (8) MIDLINE — shift the upper dental midline toward the facial midline only as much as the requested alignment strength allows; never over-correct to produce new asymmetry.' +
       ' (9) GINGIVAL MARGIN — keep the gingival line scalloped and natural; do NOT raise or dramatically lower gingival margins; avoid puffy, recessed or surgically modified-looking gingiva unless explicitly requested.' +
-      ' (10) TOOTH COUNT — maintain the exact same number of teeth as in the original photo; never delete, add or duplicate a tooth.' +
+      ' (10) TOOTH COUNT — '+(isExtractionFacial?'extraction orthodontic mode is active: keep the same number of visible teeth but render them in a retracted, arch-shortened configuration consistent with closed first-premolar extraction spaces — do NOT show an open gap or missing-tooth socket':'maintain the exact same number of teeth as in the original photo; never delete, add or duplicate a tooth')+'. Never add new teeth.' +
       ' (11) FACE & IDENTITY — eyes, nose, brows, facial outline, skin, lip outer contour and expression must remain pixel-faithful to the original; modify ONLY what is inside the dental arch.' +
       ' (12) FORBIDDEN OUTPUTS — never generate: fused teeth, uniformly identical crowns, celebrity-white veneers, shortened stumps, unnaturally elongated incisors, swollen gingiva, eliminated papillae, reversed overjet, extra/missing teeth, altered face shape or nose, changed background.' +
       ' (13) CLINICAL DISCLAIMER — this simulation is for chairside patient education; it does NOT guarantee a treatment outcome. The image must look natural, credible and achievable — not like a dental advertisement.'
@@ -18248,6 +18254,46 @@ body[data-ui-tone="dark"]{
     throw lastErr || new Error('リクエストに失敗しました');
   }
 
+  // ── buildSimulationPayload ────────────────────────────────────────────────────
+  // Unified payload builder. Centralises all AI generation parameters so that
+  // extraction mode, hybrid priority weighting, and denoising_strength are all
+  // computed from the same source of truth. generateViaAI() calls this instead
+  // of assembling the payload inline.
+  function buildSimulationPayload(source){
+    const s=state.simV96||{}, v=state.simV82||{};
+    const concept=v.concept||'ortho';
+    const align=Math.round(s.alignment||0);
+    const isOrtho=(concept==='ortho'||concept==='hybrid');
+    const isHybrid=(concept==='hybrid');
+    const isExtraction=isOrtho && align>=80;
+    // denoising_strength: controls how aggressively the AI departs from the source.
+    // Extraction cases need higher values to achieve anterior retraction.
+    // Hybrid mode uses an elevated value to allow arch reconstruction before
+    // surface refinement. Normal/prosthetic stays conservative.
+    let denoising_strength;
+    if(isExtraction){ denoising_strength=align>=90?0.78:0.68; }
+    else if(isHybrid){ denoising_strength=0.65; }
+    else { denoising_strength=0.45; }
+    // prompt_weights: passed to backends that support multi-priority or ControlNet
+    // weight scheduling (alignment phase first, prosthetic surface phase second).
+    const prompt_weights=isHybrid?{alignment:isExtraction?1.8:1.5,prosthetic:1.1,shade:1.0}:null;
+    const payload={
+      image:source.dataUrl,
+      prompt:buildClinicalPrompt(),
+      params:s,
+      concept:concept,
+      targets:v.targets,
+      intraoral:!!(source&&source.intraoral),
+      lips:!!(source&&source.lips),
+      denoising_strength:denoising_strength,
+      extraction_mode:isExtraction,
+      hybrid_mode:isHybrid
+    };
+    if(prompt_weights) payload.prompt_weights=prompt_weights;
+    return payload;
+  }
+  window.buildSimulationPayload=buildSimulationPayload;
+
   async function generateViaAI(source){
     const epRaw=aiEndpoint(); if(!epRaw) return null;
     // Token gate: 1 token per AI generation call. Blocks (no local fallback) when empty.
@@ -18260,9 +18306,7 @@ body[data-ui-tone="dark"]{
       }
     }
     let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
-    const res=await fetchSimWithRetry(ep, JSON.stringify({ image:source.dataUrl, prompt:buildClinicalPrompt(),
-        params:state.simV96, concept:(state.simV82||{}).concept, targets:(state.simV82||{}).targets,
-        intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips) }));
+    const res=await fetchSimWithRetry(ep, JSON.stringify(buildSimulationPayload(source)));
     const j=await res.json();
     if(j && j.error) throw new Error(String(j.error).slice(0,400));
     const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
@@ -18560,7 +18604,14 @@ body[data-ui-tone="dark"]{
       const hint = (key==='shade')
         ? `<div class="simShadeHint"><span>stained</span><span></span><span>brighter</span></div>`
         : (key==='alignment')
-        ? `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`
+        ? (()=>{
+            const cpt=(state.simV82||{}).concept||'ortho';
+            const ortho=(cpt==='ortho'||cpt==='hybrid');
+            const initA=Math.round(state.simV96.alignment||0);
+            const show=ortho&&initA>=80;
+            return `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`+
+              `<div id="cfExtractBadge" class="cfExtractBadge" style="display:${show?'flex':'none'}">抜歯矯正モード</div>`;
+          })()
         : (key==='toothShape')
         ? `<div class="simShadeHint"><span>curve</span><span></span><span>edge</span></div>`
         : (key==='scallop')
@@ -18586,7 +18637,10 @@ body[data-ui-tone="dark"]{
         if(key==='alignment'){
           const cpt=(state.simV82||{}).concept||'ortho';
           const ortho=(cpt==='ortho'||cpt==='hybrid');
-          if(ortho && Number(el.value)>=100){
+          const av=Number(el.value);
+          const badge=document.getElementById('cfExtractBadge');
+          if(badge) badge.style.display=(ortho&&av>=80)?'flex':'none';
+          if(ortho && av>=80){
             if(!window._cfExtractWarned){ window._cfExtractWarned=true; if(window.cfShowExtractionWarning) cfShowExtractionWarning(); }
           } else { window._cfExtractWarned=false; }
         }
@@ -19344,6 +19398,18 @@ window.shareAppLink = window.cfOpenTopPage;
   .cfWaitSpinner{animation-duration:1.6s}
   .cfWaitDots span{animation:none;opacity:.7}
 }
+/* Extraction mode badge — appears below the Alignment slider when value ≥ 80 */
+.cfExtractBadge{
+  display:none;align-items:center;gap:5px;
+  margin-top:5px;padding:4px 10px;
+  border-radius:20px;font-size:10.5px;font-weight:800;
+  letter-spacing:.03em;line-height:1.2;
+  color:#fff;background:linear-gradient(135deg,#b01c1c 0%,#d92121 100%);
+  box-shadow:0 2px 8px rgba(180,20,20,.35);
+  border:1px solid rgba(255,255,255,.18);
+  width:fit-content;
+}
+.cfExtractBadge::before{content:'⚠';font-size:11px;margin-right:2px;}
 </style>
 <script>
 /* Global "Waiting •••" popup shown during image / video generation. */
@@ -19367,7 +19433,7 @@ window.cfShowExtractionWarning = function(){
     el=document.createElement('div'); el.id='cfExtractWarn'; el.className='cfExtractWarn';
     el.innerHTML='<div class="cfExtractWarnCard"><span class="cfExtractWarnIcon">⚠️</span>'
       +'<div class="cfExtractWarnText"><b>抜歯矯正シミュレーション</b>'
-      +'<span>スライダー最大では、小臼歯などの抜歯を伴う矯正を想定した強い補正を行います。参考イメージであり、抜歯の要否や治療方針を示すものではありません。</span></div>'
+      +'<span>Alignment 80%以上では抜歯矯正モードが有効になります。前歯を大きく後退させた抜歯ケースの仕上がりイメージを生成します。参考イメージであり、抜歯の要否や治療方針を示すものではありません。</span></div>'
       +'<button type="button" class="cfExtractWarnClose" aria-label="閉じる">×</button></div>';
     document.body.appendChild(el);
     el.querySelector('.cfExtractWarnClose').addEventListener('click',function(){ el.classList.remove('show'); clearTimeout(el._t); });
