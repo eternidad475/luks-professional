@@ -122,7 +122,7 @@ body::before{
 
 /* Cinematic typographic contrast — restrained, scoped to the result/preview screen:
    bold serif for the title, cold monospace "instrument" readouts for the meta line. */
-#result .title{ font-family:var(--cf-serif); font-weight:600; letter-spacing:.012em; }
+#result .title{ font-family:inherit; font-weight:850; letter-spacing:-.04em; }
 #result #resultCaption,
 #result .simCompareHead span{
   font-family:var(--cf-mono);
@@ -4893,7 +4893,7 @@ button[id="localMLDetectButton"]{
   </div>
   <div class="toolbar cfResultActions">
     <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
-    <button class="tool cfLibraryBtn" onclick="cfToggleLibrarySelect()" title="バリエーションを選択してLibraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
+    <button class="tool cfLibraryBtn" onclick="go('library')" title="Library を開く（生成画像は自動保存されます）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
 </section>
@@ -16429,11 +16429,14 @@ body[data-ui-tone="dark"]{
     const map=new Map();
     stored.forEach(r=>r && r.id && map.set(String(r.id),r));
     mem.forEach(r=>r && r.id && map.set(String(r.id),Object.assign({},map.get(String(r.id))||{},r)));
-    const arr=[...map.values()].sort((a,b)=>{
+    let arr=[...map.values()].sort((a,b)=>{
       const ai=Number(String(a.id||'').replace(/\D/g,''))||0;
       const bi=Number(String(b.id||'').replace(/\D/g,''))||0;
       return bi-ai;
     });
+    // ① Purge expired temporary auto-saved simulation images (48h TTL) on every Library read.
+    const _now=Date.now();
+    arr=arr.filter(r=>!(r && r.temp && r.expiresAt && r.expiresAt<_now));
     state.projectLibrary=arr;
     setStore(arr);
     return arr;
@@ -17496,6 +17499,10 @@ body[data-ui-tone="dark"]{
 #result .cfLibSelSave{background:linear-gradient(135deg,#6a3de8,#7c5cfc);color:#fff;box-shadow:0 3px 12px rgba(108,63,252,.35)}
 #result .cfLibSelSave:disabled{opacity:.4;cursor:default}
 #result .cfLibSelCancel{background:rgba(32,27,53,.08);color:var(--cfUiText,#201b35)}
+#result .cfLibSelAll{background:rgba(124,92,255,.12);color:#6a3de8;flex:0 0 auto;min-width:64px}
+#result .cfLibSelSave{flex:2}
+#result .srGalHint{flex:1 0 100%;margin-top:5px;font-size:10px;line-height:1.45;color:var(--cfUiSub,rgba(32,27,53,.55));font-weight:600}
+#result .srGalHint b{color:#6a3de8;font-weight:900}
 #result #simV96EditGrid .simShadeHint{
   display:flex;justify-content:space-between;
   margin:3px 1px 0;font-size:8.5px;font-weight:800;letter-spacing:.01em;
@@ -18582,7 +18589,10 @@ body[data-ui-tone="dark"]{
     // colour-matched AI layer
     const aic=document.createElement('canvas'); aic.width=w; aic.height=h;
     const aix=aic.getContext('2d',{willReadFrequently:true}); aix.imageSmoothingQuality='high'; aix.drawImage(a,0,0,w,h);
-    toneMatchToOriginal(aix, ox, w, h, 0.55);
+    // ③ Stronger global colour/exposure match so the AI layer's overall brightness tracks the
+    // patient's own photo — the smaller the brightness gap across the mask edge, the less any
+    // feathered boundary can ever read as a seam.
+    toneMatchToOriginal(aix, ox, w, h, 0.72);
 
     const facial=(kind==='Facial');
     // Detect the mouth (teeth) via lip landmarks; on a portrait, blend the AI result ONLY inside a
@@ -18593,13 +18603,16 @@ body[data-ui-tone="dark"]{
       ctx.drawImage(oc,0,0);  // untouched original face as base
       let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
       let minX=1e9,maxX=-1e9; lip.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
-      const mouthW=Math.max(20,maxX-minX), exp=1.42;
+      // ③ Cover the full perioral region (teeth + lips) and feather it WIDE so the AI mouth
+      // dissolves into the patient's own skin with no rectangular edge. A larger blur radius
+      // relative to the mouth width is the single biggest factor in a natural-looking seam.
+      const mouthW=Math.max(20,maxX-minX), exp=1.5;
       const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
       const m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
       lip.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
       m1x.closePath(); m1x.fill();
       const mk=document.createElement('canvas'); mk.width=w; mk.height=h;
-      const mx=mk.getContext('2d'); mx.filter='blur('+Math.max(6,Math.round(mouthW*0.13))+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
+      const mx=mk.getContext('2d'); mx.filter='blur('+Math.max(10,Math.round(mouthW*0.22))+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
       // mask the AI layer, then lay it over the original
       const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
       const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
@@ -18638,9 +18651,11 @@ body[data-ui-tone="dark"]{
           // (full replacement here would risk altering identity).
           const e1=document.createElement('canvas'); e1.width=w; e1.height=h;
           const e1x=e1.getContext('2d'); e1x.fillStyle='#fff'; e1x.beginPath();
-          e1x.ellipse(w*0.5, h*0.66, w*0.20, h*0.12, 0, 0, Math.PI*2); e1x.fill();
+          // ③ Larger + softer fallback mouth ellipse so a missed lip-detection still blends
+          // smoothly instead of leaving a hard patch (matches IMG_5829 failure case).
+          e1x.ellipse(w*0.5, h*0.66, w*0.24, h*0.15, 0, 0, Math.PI*2); e1x.fill();
           const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
-          const fbx=fb.getContext('2d'); fbx.filter='blur('+Math.max(8,Math.round(w*0.03))+'px)'; fbx.drawImage(e1,0,0); fbx.filter='none';
+          const fbx=fb.getContext('2d'); fbx.filter='blur('+Math.max(10,Math.round(w*0.05))+'px)'; fbx.drawImage(e1,0,0); fbx.filter='none';
           mask=fb;
         }
         if(mask){
@@ -18880,12 +18895,48 @@ body[data-ui-tone="dark"]{
   /* ============================ result view + sliders ============================ */
   /* ---- generated-image gallery (up to 5 variations, navigable + editable) ---- */
   const SIM_GALLERY_MAX = 5;
+  // ① Auto-save every generated image to the Library as a TEMPORARY record (48h TTL). The
+  // record updates in place on slider re-generation (matched by r.__autoId), and expired temp
+  // records are purged whenever the Library is read (see mergeLibrary). Heavy localStorage
+  // writes are wrapped in try/catch so a quota error degrades gracefully.
+  const CF_TEMP_TTL = 48*3600*1000;
+  function cfAutoSaveTempSim(r){
+    if(!r || !r.dataUrl) return;
+    try{
+      const KEY='caseflow_project_library_v55';
+      let arr; try{ arr=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ arr=[]; }
+      if(!Array.isArray(arr)) arr=[];
+      const now=Date.now();
+      arr=arr.filter(x=>!(x && x.temp && x.expiresAt && x.expiresAt<now)); // purge expired
+      const srcUrl=r.source || (r.srcObj&&r.srcObj.dataUrl) || '';
+      const payload={ simResult:{ dataUrl:r.dataUrl, source:srcUrl, sourceKind:r.sourceKind||'Image', settings:r.settings||{}, fav:!!r.fav }, photos:[], title:'Simulation Reference Image' };
+      const existing = r.__autoId ? arr.find(x=>x && x.id===r.__autoId) : null;
+      if(existing){
+        existing.thumb=r.dataUrl; existing.payload=payload; existing.fav=!!r.fav; existing.expiresAt=now+CF_TEMP_TTL;
+      } else {
+        const id='simauto_'+now+'_'+Math.random().toString(36).slice(2,7);
+        r.__autoId=id;
+        arr.unshift({ id:id, temp:true, expiresAt:now+CF_TEMP_TTL,
+          title:((state.title||'Simulation'))+'（自動保存・48時間）',
+          createdAt:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
+          kind:'simulation-image', thumb:r.dataUrl, fav:!!r.fav, payload:payload });
+        // Cap temp entries (newest 6) so the auto-save can't exhaust localStorage.
+        const temps=arr.filter(x=>x && x.temp);
+        if(temps.length>6){ const drop=new Set(temps.slice(6)); arr=arr.filter(x=>!drop.has(x)); }
+      }
+      localStorage.setItem(KEY, JSON.stringify(arr));
+      if(window.state) window.state.projectLibrary=arr;
+      if(typeof window.renderLibrary==='function' && document.getElementById('library') && document.getElementById('library').classList.contains('active')) window.renderLibrary();
+    }catch(e){}
+  }
+  window.cfAutoSaveTempSim=cfAutoSaveTempSim;
   function pushSimResult(r){
     if(!Array.isArray(state.simResults)) state.simResults=[];
     state.simResults.push(r);
     while(state.simResults.length>SIM_GALLERY_MAX) state.simResults.shift();
     state.simResultIndex=state.simResults.length-1;
     state.simResult=r;
+    cfAutoSaveTempSim(r);
   }
   function selectSimResult(i){
     const arr=Array.isArray(state.simResults)?state.simResults:[];
@@ -18927,14 +18978,34 @@ body[data-ui-tone="dark"]{
     if(!selMode){
       h+='<button class="srGalNav" '+(idx>=arr.length-1?'disabled':'')+' onclick="cfSelectSimResult('+(idx+1)+')">›</button>';
       if(arr.length<SIM_GALLERY_MAX) h+='<button class="srGalNav srGalAdd" title="現在の設定で新しいバリエーションを生成" onclick="generateSimulation()">＋</button>';
+      h+='<div class="srGalHint">サムネイルを<b>長押し</b>で複数選択 → カメラロールへ一括保存／生成画像は Library に自動保存（48時間）</div>';
     }
     g.innerHTML=h;
-    // Selection mode: append save bar directly into gallery container (no overlay, no z-index)
+    // ① Long-press a thumbnail (outside selection mode) to ENTER multi-select for a camera-roll
+    // batch export. Single tap still switches the active variation.
+    if(!selMode){
+      Array.prototype.forEach.call(g.querySelectorAll('.srGalThumb'), function(el, i){
+        var timer=null;
+        var begin=function(){ timer=setTimeout(function(){ timer=null; try{ if(navigator.vibrate) navigator.vibrate(14); }catch(e){} if(window.cfEnterStripSelect) window.cfEnterStripSelect(i); }, 460); };
+        var abort=function(){ if(timer){ clearTimeout(timer); timer=null; } };
+        el.addEventListener('touchstart', begin, {passive:true});
+        el.addEventListener('touchend', abort);
+        el.addEventListener('touchmove', abort, {passive:true});
+        el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+        el.addEventListener('mousedown', begin);
+        el.addEventListener('mouseup', abort);
+        el.addEventListener('mouseleave', abort);
+      });
+    }
+    // ④ Selection mode: append the action bar directly into the gallery container (no overlay,
+    // no z-index). 全選択 / カメラロールに保存 / キャンセル — all wired to global handlers.
     if(selMode){
       const n=(state.cfLibrarySel||[]).filter(Boolean).length;
+      const allOn=n>0 && n===arr.length;
       const bar=document.createElement('div');
       bar.className='cfLibSelBar';
-      bar.innerHTML='<button class="cfLibSelSave"'+(n===0?' disabled':'')+' onclick="cfConfirmLibrarySelect()">'+n+' 枚を Library に保存</button>'+
+      bar.innerHTML='<button class="cfLibSelAll" onclick="cfStripSelectAll()">'+(allOn?'全解除':'全選択')+'</button>'+
+        '<button class="cfLibSelSave"'+(n===0?' disabled':'')+' onclick="cfConfirmLibrarySelect()">'+n+' 枚をカメラロールに保存</button>'+
         '<button class="cfLibSelCancel" onclick="cfCancelLibrarySelect()">キャンセル</button>';
       g.appendChild(bar);
     }
@@ -18950,7 +19021,11 @@ body[data-ui-tone="dark"]{
     const r=state.simResult || arr[state.simResultIndex||0], src=state._simSource||pickSource();
     if(!r||!src){ renderSimGallery(); return; }
     const before=$id('resultBefore'), after=$id('resultAfter');
-    if(before) before.src=src.dataUrl;
+    // ⑤ ALWAYS pair the before image with THIS result's OWN source (never the global
+    // _simSource, which is stale when switching between variations generated from different
+    // uploads). r.source / r.srcObj are stored per-result in pushSimResult/regenerate.
+    const beforeSrc=(r.source) || (r.srcObj && r.srcObj.dataUrl) || src.dataUrl;
+    if(before) before.src=beforeSrc;
     if(after)  after.src=r.dataUrl;
     const cap=$id('resultCaption');
     if(cap) cap.textContent=`${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。`;
@@ -19049,6 +19124,7 @@ body[data-ui-tone="dark"]{
       if(Array.isArray(state.simResults) && state.simResults.length){ state.simResults[state.simResultIndex||0]=r; }
       else { state.simResults=[r]; state.simResultIndex=0; }
       state.simResult=r;
+      cfAutoSaveTempSim(r);   // ① keep the 48h temp Library copy in sync with slider edits
       renderResultImages();
       // Persist the new result immediately so a reload won't lose it
       try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
@@ -19508,6 +19584,10 @@ body[data-ui-tone="dark"]{
     ov.querySelector('#cfStdWb').checked=false;
     ov.querySelector('#cfStdGridChk').checked=true; gridEl.style.display='block';
     syncSliders(); render(); ov.classList.add('open');
+    // ⑥ Facial images adopt the Visual Simulation Studio AI tilt/crop AUTOMATICALLY on open —
+    // Morphing Video Studio and Photo Manager both route their facial editing through here, so
+    // the same AI auto-level/auto-crop now applies everywhere. Focus stays fully manual.
+    if(curCat==='facial'){ setTimeout(function(){ try{ facialAuto(); }catch(e){} }, 80); }
   }
   // index-based entry (gallery / Photo Manager): edits S.photos[idx] in place
   async function open(idx){
@@ -20467,66 +20547,79 @@ body.cfPresent .cfPresentExit{display:flex!important}
     return [];
   }
 
-  // Inline Library selection mode — toggle, item toggle, confirm, cancel.
-  // Replaces the bottom-sheet approach (z-index conflicts) with in-gallery checkboxes.
-  window.cfToggleLibrarySelect = function(){
-    // Exiting selection mode: just toggle off.
-    if(window.state.cfLibrarySelectMode){
-      window.state.cfLibrarySelectMode=false;
-      window.state.cfLibrarySel=[];
-      if(typeof renderSimGallery==='function') renderSimGallery();
-      return;
+  // ── Preview-strip multi-select → batch save to CAMERA ROLL ──────────────────
+  // Every generated image is ALSO auto-saved to the Library (48h temp) by the studio
+  // module, so selection mode here is purely for exporting one-or-more variations to the
+  // device camera roll at once.
+  // CRITICAL: renderSimGallery() lives in a DIFFERENT IIFE (the v9.6 studio module); from
+  // here it is only reachable via the global alias window.cfRenderSimGallery — calling it by
+  // bare name silently no-ops (typeof === 'undefined'), which is why the checkboxes / save /
+  // cancel buttons previously appeared dead.
+  function reRenderStrip(){ if(typeof window.cfRenderSimGallery==='function') window.cfRenderSimGallery(); }
+
+  // Convert any data:/http image URL to a File for the share sheet / download fallback.
+  async function urlToFile(url, name){
+    var resp=await fetch(url); var blob=await resp.blob();
+    return new File([blob], name, {type:blob.type||'image/jpeg'});
+  }
+  // Save a list of image URLs to the camera roll (share sheet) with a per-file download fallback.
+  async function saveUrlsToCameraRoll(urls){
+    var files=[];
+    for(var i=0;i<urls.length;i++){ if(!urls[i]) continue; try{ files.push(await urlToFile(urls[i],'caseflow_'+(i+1)+'.jpg')); }catch(e){} }
+    if(!files.length){ if(typeof toast==='function') toast('保存できる画像がありません'); return false; }
+    if(navigator.canShare && navigator.canShare({files:files}) && navigator.share){
+      try{ await navigator.share({files:files, title:'CaseFlow Studio'}); if(typeof toast==='function') toast('共有シートから「画像を保存」を選んでください'); return true; }
+      catch(e){ if(e && e.name==='AbortError') return false; }
     }
+    files.forEach(function(f){ var a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1200); });
+    if(typeof toast==='function') toast(files.length+' 枚をダウンロードしました');
+    return true;
+  }
+  window.cfSaveUrlsToCameraRoll=saveUrlsToCameraRoll;
+
+  // Long-press a preview thumbnail to ENTER selection mode (that thumb pre-checked).
+  window.cfEnterStripSelect = function(i){
     var arr=cfResolveSaveableResults();
-    if(!arr.length){ if(typeof toast==='function') toast('保存する結果がありません'); return; }
-    // Single result → save immediately, no selection UI needed.
-    if(arr.length===1){
-      var base=(window.state.title||'Simulation').trim()||'Simulation';
-      saveSimResultToLibrary(arr[0], base);
-      if(typeof toast==='function') toast('Library に保存しました');
-      if(typeof go==='function') setTimeout(function(){ go('library'); },450);
-      return;
-    }
-    // Multiple variations → enter selection mode with the ACTIVE result pre-selected.
+    if(!arr.length){ if(typeof toast==='function') toast('保存する画像がありません'); return; }
     window.state.cfLibrarySelectMode=true;
-    var active=window.state.simResultIndex||0;
-    window.state.cfLibrarySel=arr.map(function(_,i){ return i===active; });
-    if(typeof renderSimGallery==='function') renderSimGallery();
+    window.state.cfLibrarySel=arr.map(function(_,k){ return k===i; });
+    reRenderStrip();
+  };
+  // Toolbar fallback entry (kept for any legacy caller): toggle selection mode on/off.
+  window.cfToggleLibrarySelect = function(){
+    if(window.state.cfLibrarySelectMode){ window.cfCancelLibrarySelect(); return; }
+    window.cfEnterStripSelect(window.state.simResultIndex||0);
   };
   window.cfToggleLibraryItem = function(i){
     if(!Array.isArray(window.state.cfLibrarySel)) return;
     window.state.cfLibrarySel[i]=!window.state.cfLibrarySel[i];
-    if(typeof renderSimGallery==='function') renderSimGallery();
+    reRenderStrip();
+  };
+  // Select-all / deselect-all toggle.
+  window.cfStripSelectAll = function(){
+    var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
+    var sel=Array.isArray(window.state.cfLibrarySel)?window.state.cfLibrarySel:[];
+    var allOn=arr.length>0 && sel.length===arr.length && sel.every(Boolean);
+    window.state.cfLibrarySel=arr.map(function(){ return !allOn; });
+    reRenderStrip();
   };
   window.cfCancelLibrarySelect = function(){
     window.state.cfLibrarySelectMode=false;
     window.state.cfLibrarySel=[];
-    if(typeof renderSimGallery==='function') renderSimGallery();
+    reRenderStrip();
   };
-  window.cfConfirmLibrarySelect = function(){
+  window.cfConfirmLibrarySelect = async function(){
     var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
     var sel=Array.isArray(window.state.cfLibrarySel)?window.state.cfLibrarySel:[];
-    // If the clinician confirmed without ticking anything, default to the active result so
-    // the button never silently no-ops.
-    if(!sel.some(Boolean)){
-      var active=window.state.simResultIndex||0;
-      sel=arr.map(function(_,i){ return i===active; });
-    }
-    var n=0;
-    var base=(window.state.title||'Simulation').trim()||'Simulation';
-    arr.forEach(function(r,i){
-      if(!sel[i]) return;
-      var label=arr.length>1?base+' — variation '+(i+1):base;
-      saveSimResultToLibrary(r,label);
-      n++;
-    });
+    // Confirm with nothing ticked → default to the active result so the button never no-ops.
+    if(!sel.some(Boolean)){ var active=window.state.simResultIndex||0; sel=arr.map(function(_,i){ return i===active; }); }
+    var urls=[];
+    arr.forEach(function(r,i){ if(sel[i] && r && r.dataUrl) urls.push(r.dataUrl); });
+    if(!urls.length){ if(typeof toast==='function') toast('保存する画像がありません'); return; }
+    await saveUrlsToCameraRoll(urls);
     window.state.cfLibrarySelectMode=false;
     window.state.cfLibrarySel=[];
-    if(typeof renderSimGallery==='function') renderSimGallery();
-    if(n>0){
-      if(typeof toast==='function') toast(n+' 件を Library に保存しました');
-      if(typeof go==='function') setTimeout(function(){ go('library'); },450);
-    }
+    reRenderStrip();
   };
 
   // Open the Library batch-selection bottom sheet.
