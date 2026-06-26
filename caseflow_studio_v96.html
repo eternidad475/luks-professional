@@ -18173,6 +18173,11 @@ body[data-ui-tone="dark"]{
     if(concept==='prosthetic' && isFacial){
       parts.push('PROSTHETIC FACIAL MODE — treat the smile as a CLOSE-UP restorative (focus) case: refine ONLY the visible teeth with veneer/crown-level precision (crown form, proportions, incisal edges, shade) and CLOSE any midline diastema / spacing by restoring natural tooth WIDTH and contact points, NOT by moving teeth. Work tooth-by-tooth for an individualised, natural result; keep the lips, gingiva, framing and the rest of the face exactly as in the patient\'s own photograph.');
     }
+    // Golden-proportion smile design for facial ortho/hybrid — the edit is composited only inside
+    // the lip aperture, so push for a clearly idealised dentition.
+    if(isFacial && (concept==='ortho'||concept==='hybrid')){
+      parts.push('SMILE DESIGN TARGET (intraoral only — change ONLY the teeth seen between the lips; keep lips, skin, framing and identity untouched): deliver a CLEARLY idealised result, not a timid one. (1) CLOSE the midline diastema and all anterior spacing completely so the central incisors meet at a coincident dental midline. (2) Apply golden/RED proportion to the maxillary anteriors — centrals dominant with an ideal ~75–85% width-to-height ratio, laterals and canines stepping down in harmonious proportion. (3) Level and de-rotate the incisal edges into a smooth smile arc that gently follows the lower lip; make right and left symmetric. (4) Even, natural enamel shade with realistic translucency — avoid a flat, fake "denture" look. The change must be obviously visible compared to the input while staying photorealistic and credible for THIS patient.');
+    }
     // ── Bracket control — clinician-confirmed flag (source-aware) ─────────────────────────────
     // This block is the single authoritative source for appliance-related prompting.
     // The flag comes from the doctor's UI checkbox — never from auto-detection.
@@ -18258,6 +18263,23 @@ body[data-ui-tone="dark"]{
       const L=res.faceLandmarks[0];
       // ordered outer-lip ring (upper L->R, then lower R->L) => a clean closed contour
       const ring=[61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146];
+      const pts=ring.map(i=>L[i]).filter(Boolean).map(p=>({x:p.x*w,y:p.y*h}));
+      return pts.length>=10 ? pts : null;
+    }catch(e){ return null; }
+  }
+  // INNER lip ring (the mouth aperture between the lips). Compositing the AI result inside THIS
+  // contour replaces only the intraoral region (teeth / gingiva) and leaves the lips + facial
+  // skin as the patient's own pixels — eliminating the skin-side seam, and treating the mouth
+  // interior like a focus/intraoral close-up edit for higher tooth quality.
+  async function lipInnerPolygon(img,w,h){
+    try{
+      const ok = (typeof initMediaPipeLocalML==='function') ? await initMediaPipeLocalML() : false;
+      if(!ok || !window.CaseFlowLocalML || !CaseFlowLocalML.faceLandmarker) return null;
+      const res = CaseFlowLocalML.faceLandmarker.detect(img);
+      if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+      const L=res.faceLandmarks[0];
+      // ordered inner-lip ring (upper inner L→R, then lower inner R→L)
+      const ring=[78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
       const pts=ring.map(i=>L[i]).filter(Boolean).map(p=>({x:p.x*w,y:p.y*h}));
       return pts.length>=10 ? pts : null;
     }catch(e){ return null; }
@@ -18663,21 +18685,29 @@ body[data-ui-tone="dark"]{
     // Detect the mouth (teeth) via lip landmarks; on a portrait, blend the AI result ONLY inside a
     // generously-feathered mouth region so the rest of the face stays the patient's own pixels.
     // Tone-matched layer + large feather => no visible boundary.
-    let lip = facial ? await lipMaskPolygon(o,w,h) : null;
+    // Prefer the INNER lip aperture so the AI replaces ONLY the intraoral region (teeth/gingiva)
+    // and the lips + facial skin stay the patient's own pixels — this moves the seam from the
+    // skin (visible gap) to the natural lip-tooth margin, and treats the mouth interior like a
+    // focus/intraoral close-up edit for quality. Fall back to the outer lip if the inner ring
+    // isn't found.
+    let lipInner = facial ? await lipInnerPolygon(o,w,h) : null;
+    let lip = lipInner || (facial ? await lipMaskPolygon(o,w,h) : null);
     if(facial && lip){
       ctx.drawImage(oc,0,0);  // untouched original face as base
       let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
       let minX=1e9,maxX=-1e9; lip.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
-      // ③ Cover the full perioral region (teeth + lips) and feather it WIDE so the AI mouth
-      // dissolves into the patient's own skin with no rectangular edge. A larger blur radius
-      // relative to the mouth width is the single biggest factor in a natural-looking seam.
-      const mouthW=Math.max(20,maxX-minX), exp=1.5;
+      const mouthW=Math.max(20,maxX-minX);
+      // Inner aperture → tight expansion (catch teeth at the lip margin) + a soft feather along
+      // the lip edge (a high-contrast lip/tooth boundary reads naturally). Outer fallback keeps
+      // the previous wider, more-feathered behaviour.
+      const exp = lipInner ? 1.14 : 1.5;
+      const featherPx = lipInner ? Math.max(3,Math.round(mouthW*0.045)) : Math.max(10,Math.round(mouthW*0.22));
       const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
       const m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
       lip.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
       m1x.closePath(); m1x.fill();
       const mk=document.createElement('canvas'); mk.width=w; mk.height=h;
-      const mx=mk.getContext('2d'); mx.filter='blur('+Math.max(10,Math.round(mouthW*0.22))+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
+      const mx=mk.getContext('2d'); mx.filter='blur('+featherPx+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
       // mask the AI layer, then lay it over the original
       const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
       const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
@@ -18803,9 +18833,9 @@ body[data-ui-tone="dark"]{
     // Hybrid mode uses an elevated value to allow arch reconstruction before
     // surface refinement. Normal/prosthetic stays conservative.
     let denoising_strength;
-    if(isExtraction){ denoising_strength=align>=90?0.88:0.85; }
-    else if(isHybrid){ denoising_strength=0.65; }
-    else { denoising_strength=0.45; }
+    if(isExtraction){ denoising_strength=align>=90?0.90:0.86; }
+    else if(isHybrid){ denoising_strength=0.74; }
+    else { denoising_strength=0.48; }
     // control_weight: relaxes ControlNet conditioning for extraction cases so the AI
     // has enough freedom to reconstruct the anterior arch in a retracted position.
     const control_weight=isExtraction?0.45:undefined;
@@ -18819,6 +18849,11 @@ body[data-ui-tone="dark"]{
     // Bracket removal needs more aggressive denoising to fully erase metal hardware
     // and reconstruct underlying enamel — floor raised to 0.72.
     if(hasBracketsFlag) denoising_strength=Math.max(denoising_strength,0.72);
+    // Facial source: the result is composited back ONLY inside the lip aperture (teeth/gingiva),
+    // so the AI may change the dentition strongly without any identity/skin risk. Raise the
+    // floor for facial ortho/hybrid so the smile correction is clearly visible (matches the
+    // "補正が弱い" feedback) — the face stays the patient's own pixels regardless.
+    if(isFacialSrc && isOrtho && !isExtraction) denoising_strength=Math.max(denoising_strength, isHybrid?0.82:0.74);
     const payload={
       image:source.dataUrl,
       prompt:buildClinicalPrompt(),
@@ -19033,7 +19068,7 @@ body[data-ui-tone="dark"]{
     let gapX=Math.round(cx0), minB=Infinity;
     for(let x=sx0;x<=sx1;x++){ if(colB[x]<minB){ minB=colB[x]; gapX=x; } }
     // A real diastema = a dark notch flanked by clearly brighter enamel on BOTH sides.
-    if(minB > 0.80*maxB) return;                 // no distinct dark gap → no-op
+    if(minB > 0.88*maxB) return;                 // no distinct dark gap → no-op (sensitive to subtle diastema)
     if(gapX<=sx0+1 || gapX>=sx1-1) return;       // notch must be interior (flanked)
     // Gap half-width: contiguous darker-than-threshold columns around gapX.
     const thr=0.86*maxB;
@@ -19484,6 +19519,19 @@ body[data-ui-tone="dark"]{
     }
     state.simV96 = Object.assign({}, DEF, state.simV96||{});
     state._simSource = src;
+
+    // ① Any image put through generation/editing is added to the Gallery immediately so it is
+    // reusable (e.g. a Sim Studio upload that wasn't in the gallery yet).
+    try{
+      if(src && src.dataUrl){
+        if(!Array.isArray(state.photos)) state.photos=[];
+        if(!state.photos.some(p=>p && p.dataUrl===src.dataUrl)){
+          state.photos.push(src);
+          if(typeof window.renderUpload==='function') window.renderUpload();
+          if(typeof window.cfPersist!=='undefined' && window.cfPersist && window.cfPersist.schedule) try{ window.cfPersist.schedule(800); }catch(e){}
+        }
+      }
+    }catch(e){}
 
     const _concept=(state.simV82||{}).concept||'ortho';
     const _ortho=(_concept==='ortho'||_concept==='hybrid');
