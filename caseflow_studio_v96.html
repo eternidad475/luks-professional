@@ -13634,7 +13634,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <button onclick="caseflowV75UndoPoint()">Undo</button>
         <button class="danger" onclick="caseflowV75DeletePoint()">Delete</button>
       </div>
-      <div class="v73Hint">${sel==null ? 'プレビュー上をタップしてポイントを追加します。ポイントはドラッグで微調整できます。' : `Selected point ${sel+1} / ${pts.length}。Deleteで削除、Prev/Nextで選択移動できます。`}</div>
+      <div class="v73Hint">${sel==null ? 'プレビュー上をタップしてポイントを追加。ポイントはドラッグで微調整、<b>ダブルタップで削除</b>できます。' : `Selected point ${sel+1} / ${pts.length}。<b>ダブルタップ</b>または Delete で削除、Prev/Next で選択移動。`}</div>
       <div class="v74Guide">${currentGuide()}</div>
     `;
   }
@@ -13719,6 +13719,19 @@ window.addEventListener('DOMContentLoaded', () => {
       const node=ev.target && ev.target.closest ? ev.target.closest('.v73PapillaNode') : null;
       if(node){
         const idx=Number(node.dataset.index);
+        const arr=lm(activePhoto());
+        const now=Date.now();
+        // Double-tap a point to DELETE it — the intuitive way to remove an × added by mistake.
+        if(arr && arr[idx] && state._v75TapIdx===idx && (now-(state._v75TapT||0))<300){
+          arr.splice(idx,1);
+          state.v75SelectedIndex = arr.length ? Math.min(idx, arr.length-1) : null;
+          state._v75TapIdx=-1; state._v75TapT=0; drag=null;
+          try{ svg.releasePointerCapture(ev.pointerId); }catch(e){}
+          drawLandmarks(); renderStudio();
+          if(typeof toastFn==='function') toastFn('ポイントを削除しました（ダブルタップ）');
+          return;
+        }
+        state._v75TapIdx=idx; state._v75TapT=now;
         state.v75SelectedIndex=idx;
         drag={index:idx,pointerId:ev.pointerId};
         try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
@@ -13775,12 +13788,32 @@ window.addEventListener('DOMContentLoaded', () => {
   // Visual Simulation Studio AI tilt/crop auto-correction for the ACTIVE morphing source.
   // Facial only (Focus papilla plotting is unchanged); routes through the shared standardize
   // sheet, which auto-runs the AI on open and applies back to state.photos in place.
-  window.caseflowV75Standardize=function(){
+  window.caseflowV75Standardize=async function(){
     const p=activePhoto();
     if(!p){ toastFn('画像がありません'); return; }
     if(!isFacial(p)){ toastFn('AI傾き・トリミング補正はFacial画像のみ対応です'); return; }
-    if(window.cfOpenStandardize) cfOpenStandardize(activeIndex());
-    else toastFn('規格化ツールを開けません');
+    toastFn('AIで傾き・トリミングを補正中…');
+    let url=null;
+    try{ if(window.cfAutoStandardizeFacial) url=await window.cfAutoStandardizeFacial(p.dataUrl); }catch(e){ url=null; }
+    if(url){
+      // Apply DIRECTLY so the preview image visibly changes in one tap (the previous version
+      // only opened a sheet, so the morphing image never updated → "反映されていません").
+      if(!p.originalDataUrl) p.originalDataUrl=p.dataUrl;
+      p.dataUrl=url;
+      // the old landmarks were plotted on the pre-crop framing → clear, then re-detect on the
+      // corrected image so the × points line up with the new geometry.
+      try{ const arr=lm(p); if(arr) arr.length=0; }catch(e){}
+      state.v75SelectedIndex=null;
+      if(typeof v75Refresh==='function') v75Refresh();
+      if(window.renderAlign) try{ renderAlign(); }catch(e){}
+      if(window.renderUpload) try{ renderUpload(); }catch(e){}
+      toastFn('AI補正を適用しました');
+      try{ if(typeof window.caseflowV75AutoDetect==='function') await window.caseflowV75AutoDetect(); }catch(e){}
+    } else {
+      // face model unavailable → fall back to the manual sheet (also auto-runs the AI on open)
+      if(window.cfOpenStandardize) cfOpenStandardize(activeIndex());
+      else toastFn('AIモデルを読み込めませんでした。少し待って再度お試しください');
+    }
   };
   // Edit a source image with the same gallery editor popup (crop / rotate / standardize / etc.)
   window.caseflowV75EditSource=function(i){
@@ -19750,6 +19783,48 @@ body[data-ui-tone="dark"]{
     tf.offsetX=Math.min(0.5,Math.max(-0.5,-qx/W)); tf.offsetY=Math.min(0.5,Math.max(-0.5,(0.40*H-H/2-qy)/H));
     syncSliders(); render(); toastFn('自動補正しました。必要ならスライダーで微調整できます');
   }
+
+  // HEADLESS one-tap facial auto-level/crop → returns a corrected dataURL (no sheet, no manual
+  // 適用). Same eye-line + face-bbox math as facialAuto, rendered straight into the 960×1280
+  // facial output frame. Returns null if the face model is unavailable (caller falls back to
+  // opening the manual sheet). This is what makes the Morphing/PM button actually CHANGE the
+  // image in one tap instead of only showing a sheet.
+  async function cfAutoStandardizeFacial(dataUrl){
+    if(!dataUrl) return null;
+    var img; try{ img=await loadImg(dataUrl); }catch(e){ return null; }
+    var initFn=window.initMediaPipeLocalML, ML=window.CaseFlowLocalML;
+    var ok=false; try{ ok=(typeof initFn==='function') ? await initFn() : false; }catch(e){}
+    if(!ok || !ML || !ML.faceLandmarker) return null;
+    var res; try{ res=ML.faceLandmarker.detect(img); }catch(e){ res=null; }
+    if(!res||!res.faceLandmarks||!res.faceLandmarks.length) return null;
+    var L=res.faceLandmarks[0], iw=img.naturalWidth, ih=img.naturalHeight;
+    var L_EYE=[362,263,386,374,385,380,373,387,249,390], R_EYE=[33,133,159,145,158,153,144,160,7,163];
+    var eyeC=function(idxs){ var sx=0,sy=0,n=0; for(var k=0;k<idxs.length;k++){ var pt=L[idxs[k]]; if(pt){ sx+=pt.x; sy+=pt.y; n++; } } return n?{x:sx/n*iw, y:sy/n*ih}:null; };
+    var eL=eyeC(L_EYE), eR=eyeC(R_EYE);
+    if(!eL||!eR){ var P=function(i){return {x:L[i].x*iw,y:L[i].y*ih};}; eL=P(362); eR=P(33); }
+    var _lft=(eL.x<=eR.x)?eL:eR, _rgt=(eL.x<=eR.x)?eR:eL;
+    var tilt=Math.atan2(_rgt.y-_lft.y, _rgt.x-_lft.x);
+    var rotDeg=Math.max(-15,Math.min(15, -tilt*180/Math.PI));
+    var minY=1e9,maxY=-1e9;
+    for(var i=0;i<L.length;i++){ var y=L[i].y*ih; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+    var faceH=Math.max(1,maxY-minY);
+    var W=288,H=384, cover=Math.max(W/iw,H/ih);
+    var s=0.64*H/faceH, zoom=Math.max(0.8,Math.min(2.6, s/cover)); s=cover*zoom;
+    var mid={x:(eL.x+eR.x)/2, y:(eL.y+eR.y)/2}, v={x:mid.x-iw/2, y:mid.y-ih/2};
+    var rr=rotDeg*Math.PI/180, qx=(v.x*Math.cos(rr)-v.y*Math.sin(rr))*s, qy=(v.x*Math.sin(rr)+v.y*Math.cos(rr))*s;
+    var offX=Math.min(0.5,Math.max(-0.5,-qx/W)), offY=Math.min(0.5,Math.max(-0.5,(0.40*H-H/2-qy)/H));
+    // render into the 960×1280 facial frame (same 3:4 aspect as the 288×384 preview, so the
+    // fractional offsets/zoom reproduce the framing exactly)
+    var OW=960, OH=1280, c=document.createElement('canvas'); c.width=OW; c.height=OH;
+    var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    ctx.save(); ctx.fillStyle='#fff'; ctx.fillRect(0,0,OW,OH);
+    var ocover=Math.max(OW/iw,OH/ih), os=ocover*zoom;
+    ctx.translate(OW/2+offX*OW, OH/2+offY*OH); ctx.rotate(rr);
+    ctx.drawImage(img, -iw*os/2, -ih*os/2, iw*os, ih*os);
+    ctx.restore();
+    try{ return c.toDataURL('image/jpeg',0.95); }catch(e){ return null; }
+  }
+  window.cfAutoStandardizeFacial=cfAutoStandardizeFacial;
   function apply(){
     if(!curTarget){ close(); return; }
     var f=frameSize(), c=document.createElement('canvas'); c.width=f.ow; c.height=f.oh;
