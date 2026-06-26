@@ -4799,8 +4799,7 @@ button[id="localMLDetectButton"]{
   </div>
   <div class="toolbar cfResultActions">
     <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
-    <button class="tool" onclick="cfSaveToLibrary()" title="アプリ内Libraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
-    <button class="tool" onclick="cfExportToDevice()" title="デバイスに画像として書き出し"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>書き出し</button>
+    <button class="tool cfLibraryBtn" onclick="cfOpenLibraryBatchSheet()" title="バリエーションを選択してLibraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
 </section>
@@ -17997,6 +17996,43 @@ body[data-ui-tone="dark"]{
       const meanL=sL/n, meanC=sC/n, bh=Math.max(1,maxY-minY), bw=Math.max(1,maxX-minX);
       let dark=0; for(let q=0,p=0;q<mask.length;q++,p+=4){ if(mask[q]<0.5) continue; if((d[p]+d[p+1]+d[p+2])/3 < meanL*0.6) dark++; }
       const F=[];
+      // ── Bracket / archwire detection (must run before spacing/diastema check) ──
+      // Orthodontic appliances create either:
+      //   (a) A continuous horizontal dark stripe across ≥28% of mask-covered pixels in any
+      //       single row within the middle 25–75% of crown height (archwire signature), OR
+      //   (b) ≥4 distinct dark vertical gaps in the mid-band zone (bracket-slot pattern).
+      // If detected: add "appliances present" finding and SUPPRESS diastema detection to
+      // prevent the false-positive where bracket slots / wire shadows mimic a space.
+      // REQUIREMENT: "まず矯正装置が存在するか確認し、ブラケット・ワイヤーの隙間を
+      // 歯間離開と誤認しないよう除外すること。装置がある場合は矯正装置装着中を優先出力。"
+      let hasBrackets = false;
+      {
+        // (a) Archwire: a row inside the tooth band where ≥28% of mask pixels are dark
+        const wireY0=Math.round(minY+bh*0.25), wireY1=Math.round(minY+bh*0.75);
+        outer: for(let y=wireY0; y<=wireY1; y++){
+          let mpx=0, dpx=0;
+          for(let x=minX; x<=maxX; x++){
+            if(mask[y*W+x]>0.5){
+              mpx++;
+              const p4=(y*W+x)*4;
+              if((d[p4]+d[p4+1]+d[p4+2])/3 < 85) dpx++;
+            }
+          }
+          if(mpx>8 && dpx/mpx>0.28){ hasBrackets=true; break outer; }
+        }
+        // (b) Multiple bracket-slot gaps: ≥4 distinct dark vertical segments in mid-band
+        if(!hasBrackets){
+          const gy0=Math.round(minY+bh*0.42), gy1=Math.round(minY+bh*0.58);
+          let gapCount=0, inGap=false;
+          for(let x=minX; x<=maxX; x++){
+            let hasTooth=false;
+            for(let y=gy0; y<=gy1; y++){ if(mask[y*W+x]>0.5){ hasTooth=true; break; } }
+            if(!hasTooth){ if(!inGap){ gapCount++; inGap=true; } } else inGap=false;
+          }
+          if(gapCount>=4) hasBrackets=true;
+        }
+      }
+      if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire visible) — crowding treatment in progress; spacing findings suppressed', ja:'矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中'});
       // 1) Shade
       if(meanL<150 || meanC>42) F.push({en:'tooth discolouration / low value (yellowish or uneven shade)', ja:'歯の変色・明度低下（黄ばみ／色ムラ）'});
       // 2) Incisal-edge wear / unevenness (roughness of the incisal contour)
@@ -18005,12 +18041,17 @@ body[data-ui-tone="dark"]{
         if(rough/bh>0.05) F.push({en:'uneven or worn incisal edges (irregular incisal plane)', ja:'切縁の摩耗・不揃い（切縁ラインの乱れ）'}); }
       // 3) Midline deviation
       if(Math.abs((minX+maxX)/2-bandCx)/Math.max(1,(band.x1-band.x0))>0.06) F.push({en:'dental midline appears off-centre', ja:'正中のずれ'});
-      // 4) Spacing / diastema (a prominent dark vertical channel through the mid tooth band)
-      { const y0=Math.round(minY+bh*0.42), y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
+      // 4) Spacing / diastema — SUPPRESSED when orthodontic appliances are detected.
+      //    Bracket slots and wire create dark channels that mimic a space; if hasBrackets
+      //    is true we skip this check entirely to prevent false-positive reports.
+      if(!hasBrackets){
+        const y0=Math.round(minY+bh*0.42), y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
         for(let x=minX;x<=maxX;x++){ let tooth=false; for(let y=y0;y<=y1;y++){ if(mask[y*W+x]>0.5){ tooth=true; break; } } if(!tooth){ run++; if(run>maxRun)maxRun=run; } else run=0; }
-        if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth', ja:'歯間離開（すきっ歯）'}); }
-      // 5) Crown defect / structural loss
-      if(dark/n>0.04) F.push({en:'possible crown defect, dark lesion or old restoration (structural loss)', ja:'歯冠の実質欠損・暗色病変／旧修復物の可能性'});
+        if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth', ja:'歯間離開（すきっ歯）'});
+      }
+      // 5) Crown defect / structural loss (bracket bodies raise the dark-pixel ratio — only
+      //    report this finding when no appliances are detected, or the ratio is very high).
+      if(!hasBrackets && dark/n>0.04) F.push({en:'possible crown defect, dark lesion or old restoration (structural loss)', ja:'歯冠の実質欠損・暗色病変／旧修復物の可能性'});
       // 6) Left–right anterior asymmetry (deviation from the golden / RED proportion)
       if(leftN>0 && rightN>0){ const ratio=Math.max(leftN,rightN)/Math.min(leftN,rightN); if(ratio>1.28) F.push({en:'left–right anterior asymmetry (deviation from the ideal golden / RED proportion)', ja:'左右非対称（ゴールデン／REDプロポーションからの乖離）'}); }
       // 7) Crown width-to-height proportion note (very wide & short visible crowns)
@@ -19826,7 +19867,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfUndoBtn:active{background:rgba(255,255,255,.15)}
 
 /* ── Result actions layout ───────────────────────────────────── */
-.cfResultActions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cfResultActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .cfResultActions .tool{min-width:0}
 </style>
 
@@ -19905,16 +19946,132 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(!document.webkitFullscreenElement && document.body.classList.contains('cfPresent')) cfExitPresentation();
   });
 
-  /* ── 3. Dual save actions ────────────────────────────────────
-     cfSaveToLibrary  → saves to in-app library (existing flow)
-     cfExportToDevice → direct download/share to device           */
-  window.cfSaveToLibrary = async function(){
-    try{
-      if(typeof saveResult === 'function') await saveResult();
-    }catch(e){
-      if(typeof toastFn==='function') toastFn('Libraryへの保存に失敗しました');
+  /* ── 3. Library batch-save ────────────────────────────────────
+     cfOpenLibraryBatchSheet → bottom sheet: select variations → batch save
+     cfSaveToLibrary         → kept for legacy callers; now opens batch sheet
+     cfExportToDevice        → kept for Library screen export button           */
+
+  // Save one simResult object to the project library without touching state.simResult.
+  function saveSimResultToLibrary(r, label){
+    if(!r || !r.dataUrl) return;
+    if(typeof window.saveCurrentProject !== 'function') return;
+    var prev = window.state.simResult;
+    window.state.simResult = r;
+    var prevTitle = window.state.title;
+    if(label) window.state.title = label;
+    try{ window.saveCurrentProject(); }catch(e){}
+    window.state.simResult = prev;
+    window.state.title = prevTitle;
+  }
+
+  // Open the Library batch-selection bottom sheet.
+  window.cfOpenLibraryBatchSheet = function(){
+    var arr = Array.isArray(window.state.simResults) ? window.state.simResults : [];
+    if(!arr.length){
+      if(window.state.simResult && window.state.simResult.dataUrl){
+        arr = [window.state.simResult];
+      } else {
+        if(typeof toastFn==='function') toastFn('保存する結果がありません');
+        return;
+      }
     }
+    // Inject styles once
+    if(!document.getElementById('cfBatchSheetCss')){
+      var st=document.createElement('style'); st.id='cfBatchSheetCss';
+      st.textContent=
+        '.cfBatchBackdrop{position:fixed;inset:0;z-index:2000;background:rgba(12,9,24,.55);' +
+          'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-end;' +
+          'opacity:0;transition:opacity .22s ease;}' +
+        '.cfBatchBackdrop.show{opacity:1;}' +
+        '.cfBatchSheet{width:100%;max-width:520px;margin:0 auto;background:#18152b;' +
+          'border-radius:22px 22px 0 0;padding:0 0 env(safe-area-inset-bottom,0);' +
+          'transform:translateY(100%);transition:transform .28s cubic-bezier(.22,1,.36,1);}' +
+        '.cfBatchBackdrop.show .cfBatchSheet{transform:translateY(0);}' +
+        '.cfBatchSheetHandle{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.18);' +
+          'margin:10px auto 0;}' +
+        '.cfBatchSheetHead{padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;}' +
+        '.cfBatchSheetHead h3{font-size:14px;font-weight:900;color:#fff;margin:0;letter-spacing:.01em;}' +
+        '.cfBatchSheetHead button{background:none;border:0;color:rgba(255,255,255,.5);font-size:22px;cursor:pointer;line-height:1;padding:0 2px;}' +
+        '.cfBatchGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;' +
+          'padding:4px 16px 16px;max-height:44vh;overflow-y:auto;}' +
+        '.cfBatchThumb{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;' +
+          'border:2px solid transparent;transition:border-color .14s;}' +
+        '.cfBatchThumb.sel{border-color:#7c5cfc;}' +
+        '.cfBatchThumb img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;}' +
+        '.cfBatchThumb .cfBatchNum{position:absolute;top:5px;left:6px;font-size:10px;font-weight:900;' +
+          'color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);}' +
+        '.cfBatchCheck{position:absolute;top:5px;right:6px;width:20px;height:20px;border-radius:50%;' +
+          'background:rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.6);display:flex;' +
+          'align-items:center;justify-content:center;font-size:12px;color:transparent;transition:all .14s;}' +
+        '.cfBatchThumb.sel .cfBatchCheck{background:#7c5cfc;border-color:#7c5cfc;color:#fff;}' +
+        '.cfBatchFooter{padding:12px 16px 16px;border-top:1px solid rgba(255,255,255,.07);}' +
+        '.cfBatchSaveBtn{width:100%;padding:13px;border-radius:14px;border:0;cursor:pointer;' +
+          'font-size:14px;font-weight:900;letter-spacing:.01em;color:#fff;' +
+          'background:linear-gradient(135deg,#6a3de8 0%,#7c5cfc 100%);' +
+          'box-shadow:0 4px 16px rgba(108,63,252,.4);transition:opacity .14s;}' +
+        '.cfBatchSaveBtn:disabled{opacity:.4;cursor:default;}';
+      document.head.appendChild(st);
+    }
+    // Remove any existing sheet
+    var old=document.getElementById('cfBatchBackdrop');
+    if(old) old.remove();
+    // Track selection (default: all selected)
+    var sel = arr.map(function(){ return true; });
+    function countSel(){ return sel.filter(Boolean).length; }
+    function renderGrid(){
+      var html='';
+      arr.forEach(function(r,i){
+        html+='<div class="cfBatchThumb'+(sel[i]?' sel':'')+'" role="button" tabindex="0" data-i="'+i+'">'
+          +'<img src="'+r.dataUrl+'" loading="lazy">'
+          +'<span class="cfBatchNum">'+(i+1)+'</span>'
+          +'<span class="cfBatchCheck">✓</span>'
+          +'</div>';
+      });
+      return html;
+    }
+    function updateBtn(){
+      var btn=document.getElementById('cfBatchSaveBtn');
+      var n=countSel();
+      if(btn){ btn.textContent='選択した '+n+' 枚を Library に保存'; btn.disabled=(n===0); }
+    }
+    var bd=document.createElement('div');
+    bd.id='cfBatchBackdrop'; bd.className='cfBatchBackdrop';
+    bd.innerHTML='<div class="cfBatchSheet">'
+      +'<div class="cfBatchSheetHandle"></div>'
+      +'<div class="cfBatchSheetHead"><h3>Library に保存する画像を選択</h3><button onclick="document.getElementById(\'cfBatchBackdrop\').remove()">×</button></div>'
+      +'<div class="cfBatchGrid" id="cfBatchGrid">'+renderGrid()+'</div>'
+      +'<div class="cfBatchFooter"><button class="cfBatchSaveBtn" id="cfBatchSaveBtn">選択した '+arr.length+' 枚を Library に保存</button></div>'
+      +'</div>';
+    document.body.appendChild(bd);
+    // Toggle selection on thumbnail click
+    document.getElementById('cfBatchGrid').addEventListener('click', function(e){
+      var thumb=e.target.closest('.cfBatchThumb');
+      if(!thumb) return;
+      var i=parseInt(thumb.dataset.i,10);
+      sel[i]=!sel[i];
+      thumb.classList.toggle('sel', sel[i]);
+      updateBtn();
+    });
+    // Save action
+    document.getElementById('cfBatchSaveBtn').addEventListener('click', function(){
+      var n=countSel(); if(!n) return;
+      var base=(window.state.title||'Simulation').trim()||'Simulation';
+      arr.forEach(function(r,i){
+        if(!sel[i]) return;
+        var label = arr.length>1 ? base+' — variation '+(i+1) : base;
+        saveSimResultToLibrary(r, label);
+      });
+      bd.remove();
+      if(typeof toastFn==='function') toastFn(n+' 件を Library に保存しました');
+      if(typeof go==='function') go('library');
+    });
+    // Tap backdrop to close
+    bd.addEventListener('click', function(e){ if(e.target===bd) bd.remove(); });
+    // Animate in
+    requestAnimationFrame(function(){ bd.classList.add('show'); });
   };
+
+  window.cfSaveToLibrary = function(){ window.cfOpenLibraryBatchSheet(); };
 
   window.cfExportToDevice = async function(){
     var img = document.getElementById('resultAfter');
