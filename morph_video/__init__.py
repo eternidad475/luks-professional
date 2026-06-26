@@ -1,10 +1,11 @@
 """morph_video - 複数の画像をモーフィングでつないで動画にするライブラリ。
 
-3 つのモーフィング方式を選べます:
+4 つのモーフィング方式を選べます:
 
-- ``crossfade``: 単純なアルファブレンド (変形なし、最速)
-- ``flow``    : オプティカルフローで画素の動きを推定して変形しながら合成
-- ``feature`` : 特徴点対応 + Delaunay 三角形分割によるワープモーフィング
+- ``crossfade`` : 単純なアルファブレンド (変形なし、最速)
+- ``flow``      : オプティカルフローで画素の動きを推定して変形しながら合成
+- ``feature``   : 特徴点対応 + Delaunay 三角形分割によるワープモーフィング
+- ``warp_only`` : 特徴点対応 + Delaunay 三角形分割。全画面クロスフェードを避け、透過感を抑える
 """
 
 from .morphers import (
@@ -13,6 +14,7 @@ from .morphers import (
     FeatureMorpher,
     Morpher,
     OpticalFlowMorpher,
+    WarpOnlyFeatureMorpher,
     get_morpher,
 )
 from .pipeline import build_video
@@ -23,6 +25,7 @@ __all__ = [
     "CrossfadeMorpher",
     "OpticalFlowMorpher",
     "FeatureMorpher",
+    "WarpOnlyFeatureMorpher",
     "get_morpher",
     "build_video",
 ]
