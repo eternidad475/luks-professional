@@ -17797,6 +17797,27 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
+    // ── Orthodontic Visual Simulation Knowledge Base (CaseFlow Studio™ v16) ──────────────────
+    // Condensed from the full Orthodontic Visual Diagnosis & Simulation Knowledge Base Prompt.
+    // These rules extend and sharpen the generation constraints above.
+    parts.push(
+      'ORTHODONTIC SIMULATION RULES (apply to every generation, non-negotiable):' +
+      ' (1) TOOTH INDIVIDUALITY — every tooth must keep its own distinct crown outline with separate mesial/distal contours,' +
+      ' natural interdental contact points and a visible, papilla-filled embrasure. NEVER merge, fuse or blend adjacent tooth crowns.' +
+      ' (2) NATURAL SHADE — do NOT whiten beyond a realistic healthy enamel range; keep per-tooth chroma variation,' +
+      ' cervico-incisal value gradient, incisal translucency/opalescence and subtle surface texture. No flat opaque white, no plastic gloss.' +
+      ' (3) CROWN MORPHOLOGY — keep each tooth\'s individual form (square / ovoid / triangular); do NOT homogenise crowns into identical veneer-like rectangles.' +
+      ' (4) INCISAL EDGE — preserve or very slightly refine incisal edge length; NEVER truncate incisors to a flat bar or lengthen them unnaturally.' +
+      ' (5) BLACK TRIANGLES — if improving contacts, close them by naturally lowering the interdental contact point and keeping a papilla; do NOT widen crowns or merge teeth.' +
+      ' (6) ARCH FORM — respect the patient\'s existing arch type (U / V / tapered / square); any arch widening must look biomechanically plausible.' +
+      ' (7) OVERJET & OVERBITE — after alignment correction keep a natural positive overjet (upper anterior teeth slightly ahead of lower); do NOT create edge-to-edge or reverse bite unless the case type explicitly requires it.' +
+      ' (8) MIDLINE — shift the upper dental midline toward the facial midline only as much as the requested alignment strength allows; never over-correct to produce new asymmetry.' +
+      ' (9) GINGIVAL MARGIN — keep the gingival line scalloped and natural; do NOT raise or dramatically lower gingival margins; avoid puffy, recessed or surgically modified-looking gingiva unless explicitly requested.' +
+      ' (10) TOOTH COUNT — maintain the exact same number of teeth as in the original photo; never delete, add or duplicate a tooth.' +
+      ' (11) FACE & IDENTITY — eyes, nose, brows, facial outline, skin, lip outer contour and expression must remain pixel-faithful to the original; modify ONLY what is inside the dental arch.' +
+      ' (12) FORBIDDEN OUTPUTS — never generate: fused teeth, uniformly identical crowns, celebrity-white veneers, shortened stumps, unnaturally elongated incisors, swollen gingiva, eliminated papillae, reversed overjet, extra/missing teeth, altered face shape or nose, changed background.' +
+      ' (13) CLINICAL DISCLAIMER — this simulation is for chairside patient education; it does NOT guarantee a treatment outcome. The image must look natural, credible and achievable — not like a dental advertisement.'
+    );
     parts.push('Output: a photorealistic clinical photograph that looks like a real after-treatment photo of the SAME patient — natural enamel texture, translucency and surface gloss, healthy gingiva, soft realistic lighting matching the original exposure and white balance. Return the FULL image at the same crop, framing, resolution and head position as the input so it overlays the before image exactly. No text, no watermark, no grid, no cartoon or 3D-render look, no plastic/over-smoothed skin.');
     return parts.join(' ');
   }
