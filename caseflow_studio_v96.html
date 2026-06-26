@@ -8747,6 +8747,7 @@ const CaseFlowLocalML = {
   loading:false,
   faceLandmarker:null,
   source:'rule-based',
+  _promise:null,
 };
 
 window.showMorphSampleResult = async function(){
@@ -8797,37 +8798,69 @@ window.downloadVideoDirect = async function(){
   if(typeof toast==='function') toast('先に動画を書き出してください');
 };
 
+// MediaPipe Face Landmarker loader.
+// FIXES for "AI自動検出 が使えない":
+//   (1) Version was pinned to '@latest' for the JS, WASM *and* model — a moving target.
+//       When MediaPipe publishes a new tasks-vision build, the dynamic ESM import, the
+//       wasm fileset and the model can fall out of sync and the whole load throws, so the
+//       button silently fails. Now pinned to a single known-good version (matches the
+//       official MediaPipe Face Landmarker web sample) across all three URLs.
+//   (2) Single CDN: if jsdelivr is momentarily unreachable the feature dies. Added an
+//       unpkg fallback.
+//   (3) delegate:'GPU' can throw on devices/browsers without a usable WebGL2/GPU path.
+//       Now falls back to 'CPU'.
+//   (4) The old loading-guard returned `ready` (=false) to any caller that arrived while a
+//       load was already in flight (e.g. a click during the startup preload) — a spurious
+//       failure. Now every caller awaits the SAME cached promise; on failure the cache is
+//       cleared so a later retry (after network recovers) can try again.
+const MEDIAPIPE_VISION_VER = '0.10.3';
 async function initMediaPipeLocalML(){
-  if(CaseFlowLocalML.ready || CaseFlowLocalML.loading) return CaseFlowLocalML.ready;
+  if(CaseFlowLocalML.ready) return true;
+  if(CaseFlowLocalML._promise) return CaseFlowLocalML._promise;
   CaseFlowLocalML.loading=true;
-  try{
-    const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest');
-    const {FaceLandmarker, FilesetResolver} = vision;
-    const filesetResolver = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-    );
-    CaseFlowLocalML.faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-      baseOptions: {
-        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
-        delegate: 'GPU'
-      },
-      outputFaceBlendshapes: false,
-      outputFacialTransformationMatrixes: false,
-      runningMode: 'IMAGE',
-      numFaces: 1
-    });
-    CaseFlowLocalML.ready=true;
-    CaseFlowLocalML.source='mediapipe-face-landmarker';
-    if(typeof toast==='function') toast('Local ML Face Landmarker を読み込みました');
-    return true;
-  }catch(e){
-    CaseFlowLocalML.ready=false;
-    CaseFlowLocalML.source='rule-based-fallback';
-    console.warn('MediaPipe local ML unavailable; using fallback detection.', e);
-    return false;
-  }finally{
-    CaseFlowLocalML.loading=false;
-  }
+  CaseFlowLocalML._promise = (async ()=>{
+    const ver=MEDIAPIPE_VISION_VER;
+    // Each source pairs the ESM entry with its matching wasm directory. NOTE: jsdelivr serves
+    // the package's ESM "module" build for the bare root, but unpkg serves CJS unless ?module
+    // is appended — and unpkg's wasm dir is the plain path (no ?module). Hence explicit pairs.
+    const SOURCES=[
+      { js:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+ver,          wasm:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+ver+'/wasm' },
+      { js:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'?module',           wasm:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'/wasm' }
+    ];
+    const MODEL='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+    try{
+      let vision=null, wasmBase=null, lastErr=null;
+      for(const src of SOURCES){
+        try{ vision=await import(src.js); wasmBase=src.wasm; break; }
+        catch(e){ lastErr=e; console.warn('tasks-vision import failed from '+src.js, e); }
+      }
+      if(!vision) throw lastErr || new Error('tasks-vision import failed (all CDNs)');
+      const {FaceLandmarker, FilesetResolver} = vision;
+      const filesetResolver = await FilesetResolver.forVisionTasks(wasmBase);
+      const build = (delegate)=>FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions:{ modelAssetPath:MODEL, delegate:delegate },
+        outputFaceBlendshapes:false,
+        outputFacialTransformationMatrixes:false,
+        runningMode:'IMAGE',
+        numFaces:1
+      });
+      try{ CaseFlowLocalML.faceLandmarker = await build('GPU'); }
+      catch(e){ console.warn('GPU delegate unavailable, retrying with CPU', e); CaseFlowLocalML.faceLandmarker = await build('CPU'); }
+      CaseFlowLocalML.ready=true;
+      CaseFlowLocalML.source='mediapipe-face-landmarker';
+      if(typeof toast==='function') toast('Local ML Face Landmarker を読み込みました');
+      return true;
+    }catch(e){
+      CaseFlowLocalML.ready=false;
+      CaseFlowLocalML.source='rule-based-fallback';
+      CaseFlowLocalML._promise=null;   // allow a later retry once network/GPU recovers
+      console.warn('MediaPipe local ML unavailable; using fallback detection.', e);
+      return false;
+    }finally{
+      CaseFlowLocalML.loading=false;
+    }
+  })();
+  return CaseFlowLocalML._promise;
 }
 
 async function imageElementFromDataURL(src){
