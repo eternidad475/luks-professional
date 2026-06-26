@@ -17965,12 +17965,82 @@ body[data-ui-tone="dark"]{
     return fb;
   }
 
-  // ===== Automated pre-generation PROBLEM LIST =====
-  // A lightweight image screening (shade / incisal wear / midline / spacing / crown defect /
-  // golden-RED-proportion symmetry) whose findings are folded into the generation prompt
-  // together with the treatment concept and the chief-complaint cards. Heuristic screening
-  // only — NOT a diagnosis. Each finding is { en (for the prompt), ja (for the UI) }.
+  // ===== Automated pre-generation PROBLEM LIST — v3 (4-step clinical pipeline) =====
+  // Two-tier architecture:
+  //   Tier 1 — Vision AI (/screen endpoint): preferred. Sends image + structured system
+  //             prompt. Returns {findings:[{en,ja}]}. Used when AI endpoint is configured.
+  //   Tier 2 — Pixel heuristic (buildProblemListPixel): canvas-based, always available
+  //             offline or when no /screen endpoint exists. Follows the same 4-step logic.
+  //
+  // Both tiers output [{en,ja}] — en goes into the generation prompt, ja into the UI.
+
+  // ── Vision AI system prompt (4-step clinical screening pipeline) ──────────────
+  function buildClinicalScreeningPrompt(){
+    return (
+      'You are a clinical dental image screening assistant for an orthodontic/aesthetic simulation platform.\n'+
+      'Analyze the supplied dental photograph and extract observable findings using the 4-step pipeline below.\n'+
+      'Output ONLY valid JSON: {"findings":[{"en":"<English finding>","ja":"<日本語所見>"}]}\n'+
+      'Maximum 5 findings. No duplicates. Only report findings clearly visible in the image. No explanations.\n\n'+
+      'STEP 1 — APPLIANCE / ARTIFACT DETECTION (run first, highest priority):\n'+
+      'Check for orthodontic appliances (brackets, archwires, bonded attachments, retainers) on the teeth.\n'+
+      'If present → include: {"en":"orthodontic appliances present (brackets/archwire) — crowding treatment in progress","ja":"矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中"}\n'+
+      'Then STRICTLY exclude metal shadows, wire gaps, bracket slots from being classified as\n'+
+      'diastema, black triangles, caries, or discolouration in Steps 2–4.\n\n'+
+      'STEP 2 — ALIGNMENT & CROWDING:\n'+
+      '• Crowding (tooth overlap, rotation, labial/lingual displacement) → {"en":"crowding (tooth overlap / rotation)","ja":"叢生（歯の重なり・ガタガタ）"}\n'+
+      '• Diastema / spacing (gap between teeth, especially central) → {"en":"spacing / diastema","ja":"歯間離開（すきっ歯）"}\n'+
+      '• Narrow / V-shaped arch form → {"en":"narrow arch form (V-shaped tendency)","ja":"狭窄歯列弓（V字型アーチ傾向）"}\n\n'+
+      'STEP 3 — OCCLUSION (vertical & horizontal):\n'+
+      '• Deep bite: upper anteriors cover >50% of lower anteriors → {"en":"deep bite (excessive vertical overbite)","ja":"過蓋咬合（噛み合わせが深い）"}\n'+
+      '• Open bite: anterior gap while posteriors occlude → {"en":"anterior open bite","ja":"開咬（前歯が噛み合わない）"}\n'+
+      '• Overjet / reverse crossbite → {"en":"anteroposterior discrepancy (overjet / crossbite)","ja":"上顎前突・反対咬合（前後的な不正咬合）"}\n\n'+
+      'STEP 4 — AESTHETICS & SOFT TISSUE:\n'+
+      '• Midline deviation (upper vs lower midline) → {"en":"dental midline deviation","ja":"正中のずれ"}\n'+
+      '• Smile cant (asymmetric incisal plane, one side higher) → {"en":"smile cant (asymmetric incisal plane)","ja":"咬合平面の傾斜（スマイルラインの左右非対称）"}\n'+
+      '• Black triangles / gingival recession (NOT appliance shadow) → {"en":"black triangles / gingival recession","ja":"ブラックトライアングル（歯肉の隙間）"}\n'+
+      '• Tooth discolouration / uneven shade → {"en":"tooth discolouration / uneven shade","ja":"歯の変色・明度低下（黄ばみ／色ムラ）"}\n'+
+      '• Crown W/H ratio outside ideal ~75–85% → {"en":"crown width-to-height ratio anomaly","ja":"歯冠幅/高さ比の異常（短い歯冠・過剰歯肉露出）"}\n\n'+
+      'Output: raw JSON only, no markdown, no code fences, no explanation text.'
+    );
+  }
+  window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
+
+  // ── Orchestrator: try Vision AI /screen, fall back to pixel heuristic ─────────
   async function buildProblemList(dataUrl){
+    try{
+      // Tier 1: Vision AI screening (preferred when endpoint is configured)
+      const epRaw=(typeof aiEndpoint==='function')?aiEndpoint():null;
+      if(epRaw){
+        try{
+          const base=epRaw.replace(/\/+$/,'').replace(/\/simulate$/,'');
+          const ctrl=new AbortController();
+          const tid=setTimeout(()=>ctrl.abort(),12000);
+          const res=await fetch(base+'/screen',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({image:dataUrl,prompt:buildClinicalScreeningPrompt(),format:'findings'}),
+            signal:ctrl.signal
+          });
+          clearTimeout(tid);
+          if(res.ok){
+            const j=await res.json();
+            const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);
+            if(arr&&arr.length) return arr.slice(0,6);
+          }
+        }catch(e){ /* no /screen endpoint or timeout → fall through */ }
+      }
+      // Tier 2: Enhanced pixel heuristic (offline / no endpoint)
+      return await buildProblemListPixel(dataUrl);
+    }catch(e){ return []; }
+  }
+  window.caseflowProblemList = buildProblemList;
+
+  // ── Pixel heuristic — 4-step local analysis ───────────────────────────────────
+  // Step 3 (Occlusion — deep bite / open bite / crossbite) cannot be reliably inferred
+  // from frontal-view pixel statistics and is therefore omitted in this tier. All other
+  // steps are covered. colMaxY[x] = lowest tooth pixel per column = incisal edge position
+  // (Y increases downward; incisal edges are at the bottom of a frontal smile).
+  async function buildProblemListPixel(dataUrl){
     try{
       const img=await loadImage(dataUrl);
       const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
@@ -17985,82 +18055,86 @@ body[data-ui-tone="dark"]{
       const colMaxY=new Int16Array(W).fill(-1);
       const bandCx=(band.x0+band.x1)/2;
       for(let q=0,p=0;q<mask.length;q++,p+=4){ if(mask[q]<0.5) continue;
-        const r=d[p],g=d[p+1],b=d[p+2], l=(r+g+b)/3, ch=Math.max(r,g,b)-Math.min(r,g,b);
+        const r=d[p],g=d[p+1],b=d[p+2],l=(r+g+b)/3,ch=Math.max(r,g,b)-Math.min(r,g,b);
         n++; sL+=l; sC+=ch;
-        const x=q%W, y=(q/W)|0;
+        const x=q%W,y=(q/W)|0;
         if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
         if(y>colMaxY[x]) colMaxY[x]=y;
         if(x<bandCx) leftN++; else rightN++;
       }
-      if(n<200) return [];                       // not enough teeth visible to screen
-      const meanL=sL/n, meanC=sC/n, bh=Math.max(1,maxY-minY), bw=Math.max(1,maxX-minX);
-      let dark=0; for(let q=0,p=0;q<mask.length;q++,p+=4){ if(mask[q]<0.5) continue; if((d[p]+d[p+1]+d[p+2])/3 < meanL*0.6) dark++; }
+      if(n<200) return [];
+      const meanL=sL/n,meanC=sC/n,bh=Math.max(1,maxY-minY),bw=Math.max(1,maxX-minX);
+      let dark=0;
+      for(let q=0,p=0;q<mask.length;q++,p+=4){ if(mask[q]<0.5) continue; if((d[p]+d[p+1]+d[p+2])/3<meanL*0.6) dark++; }
       const F=[];
-      // ── Bracket / archwire detection (must run before spacing/diastema check) ──
-      // Orthodontic appliances create either:
-      //   (a) A continuous horizontal dark stripe across ≥28% of mask-covered pixels in any
-      //       single row within the middle 25–75% of crown height (archwire signature), OR
-      //   (b) ≥4 distinct dark vertical gaps in the mid-band zone (bracket-slot pattern).
-      // If detected: add "appliances present" finding and SUPPRESS diastema detection to
-      // prevent the false-positive where bracket slots / wire shadows mimic a space.
-      // REQUIREMENT: "まず矯正装置が存在するか確認し、ブラケット・ワイヤーの隙間を
-      // 歯間離開と誤認しないよう除外すること。装置がある場合は矯正装置装着中を優先出力。"
-      let hasBrackets = false;
+
+      // ── STEP 1: Appliance / artifact detection ─────────────────────────────────
+      // (a) Archwire: any mid-crown row where ≥28% of mask pixels have lum < 85
+      // (b) Multiple bracket slots: ≥4 distinct dark vertical gaps in the mid-band zone
+      let hasBrackets=false;
       {
-        // (a) Archwire: a row inside the tooth band where ≥28% of mask pixels are dark
-        const wireY0=Math.round(minY+bh*0.25), wireY1=Math.round(minY+bh*0.75);
-        outer: for(let y=wireY0; y<=wireY1; y++){
-          let mpx=0, dpx=0;
-          for(let x=minX; x<=maxX; x++){
-            if(mask[y*W+x]>0.5){
-              mpx++;
-              const p4=(y*W+x)*4;
-              if((d[p4]+d[p4+1]+d[p4+2])/3 < 85) dpx++;
-            }
+        const wireY0=Math.round(minY+bh*0.25),wireY1=Math.round(minY+bh*0.75);
+        outer: for(let y=wireY0;y<=wireY1;y++){
+          let mpx=0,dpx=0;
+          for(let x=minX;x<=maxX;x++){
+            if(mask[y*W+x]>0.5){ mpx++;
+              const p4=(y*W+x)*4; if((d[p4]+d[p4+1]+d[p4+2])/3<85) dpx++; }
           }
-          if(mpx>8 && dpx/mpx>0.28){ hasBrackets=true; break outer; }
+          if(mpx>8&&dpx/mpx>0.28){ hasBrackets=true; break outer; }
         }
-        // (b) Multiple bracket-slot gaps: ≥4 distinct dark vertical segments in mid-band
         if(!hasBrackets){
-          const gy0=Math.round(minY+bh*0.42), gy1=Math.round(minY+bh*0.58);
-          let gapCount=0, inGap=false;
-          for(let x=minX; x<=maxX; x++){
-            let hasTooth=false;
-            for(let y=gy0; y<=gy1; y++){ if(mask[y*W+x]>0.5){ hasTooth=true; break; } }
-            if(!hasTooth){ if(!inGap){ gapCount++; inGap=true; } } else inGap=false;
+          const gy0=Math.round(minY+bh*0.42),gy1=Math.round(minY+bh*0.58);
+          let gapCount=0,inGap=false;
+          for(let x=minX;x<=maxX;x++){
+            let ht=false; for(let y=gy0;y<=gy1;y++){ if(mask[y*W+x]>0.5){ht=true;break;} }
+            if(!ht){ if(!inGap){gapCount++;inGap=true;} } else inGap=false;
           }
           if(gapCount>=4) hasBrackets=true;
         }
       }
-      if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire visible) — crowding treatment in progress; spacing findings suppressed', ja:'矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中'});
-      // 1) Shade
-      if(meanL<150 || meanC>42) F.push({en:'tooth discolouration / low value (yellowish or uneven shade)', ja:'歯の変色・明度低下（黄ばみ／色ムラ）'});
-      // 2) Incisal-edge wear / unevenness (roughness of the incisal contour)
+      if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire) — crowding treatment in progress',ja:'矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中'});
+
+      // ── STEP 2: Alignment & Crowding ───────────────────────────────────────────
+      // Incisal profile roughness: colMaxY[x] = incisal edge (lowest tooth pixel per col).
+      // High roughness = severe step-downs between teeth → crowding / rotation proxy.
+      // Moderate roughness = worn or uneven incisal plane.
       const cols=[]; for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0) cols.push(colMaxY[x]); }
-      if(cols.length>12){ let rough=0; for(let i=1;i<cols.length;i++) rough+=Math.abs(cols[i]-cols[i-1]); rough/=cols.length;
-        if(rough/bh>0.05) F.push({en:'uneven or worn incisal edges (irregular incisal plane)', ja:'切縁の摩耗・不揃い（切縁ラインの乱れ）'}); }
-      // 3) Midline deviation
-      if(Math.abs((minX+maxX)/2-bandCx)/Math.max(1,(band.x1-band.x0))>0.06) F.push({en:'dental midline appears off-centre', ja:'正中のずれ'});
-      // 4) Spacing / diastema — SUPPRESSED when orthodontic appliances are detected.
-      //    Bracket slots and wire create dark channels that mimic a space; if hasBrackets
-      //    is true we skip this check entirely to prevent false-positive reports.
-      if(!hasBrackets){
-        const y0=Math.round(minY+bh*0.42), y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
-        for(let x=minX;x<=maxX;x++){ let tooth=false; for(let y=y0;y<=y1;y++){ if(mask[y*W+x]>0.5){ tooth=true; break; } } if(!tooth){ run++; if(run>maxRun)maxRun=run; } else run=0; }
-        if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth', ja:'歯間離開（すきっ歯）'});
+      if(cols.length>12){
+        let rough=0; for(let i=1;i<cols.length;i++) rough+=Math.abs(cols[i]-cols[i-1]); rough/=cols.length;
+        if(rough/bh>0.11) F.push({en:'crowding (severe incisal step-downs — tooth overlap or rotation likely)',ja:'叢生（歯の重なり・ガタガタ）'});
+        else if(rough/bh>0.04) F.push({en:'uneven incisal edges (mild irregularity or wear)',ja:'切縁の不揃い・軽度摩耗'});
       }
-      // 5) Crown defect / structural loss (bracket bodies raise the dark-pixel ratio — only
-      //    report this finding when no appliances are detected, or the ratio is very high).
-      if(!hasBrackets && dark/n>0.04) F.push({en:'possible crown defect, dark lesion or old restoration (structural loss)', ja:'歯冠の実質欠損・暗色病変／旧修復物の可能性'});
-      // 6) Left–right anterior asymmetry (deviation from the golden / RED proportion)
-      if(leftN>0 && rightN>0){ const ratio=Math.max(leftN,rightN)/Math.min(leftN,rightN); if(ratio>1.28) F.push({en:'left–right anterior asymmetry (deviation from the ideal golden / RED proportion)', ja:'左右非対称（ゴールデン／REDプロポーションからの乖離）'}); }
-      // 7) Crown width-to-height proportion note (very wide & short visible crowns)
-      if(cols.length>20){ const meanCrownH = (function(){ let s=0,c=0; for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0){ s+=(colMaxY[x]-minY); c++; } } return c?s/c:bh; })();
-        if(meanCrownH/bw < 0.55) F.push({en:'crown width-to-height ratio looks low (short / worn crowns vs ideal ~75–85%)', ja:'歯冠の幅/高さ比が低め（咬耗等で短い／理想は約75–85%）'}); }
+      // Spacing / diastema — SUPPRESSED when brackets present (bracket slots mimic a gap)
+      if(!hasBrackets){
+        const y0=Math.round(minY+bh*0.42),y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
+        for(let x=minX;x<=maxX;x++){ let t=false; for(let y=y0;y<=y1;y++){ if(mask[y*W+x]>0.5){t=true;break;} } if(!t){run++;if(run>maxRun)maxRun=run;}else run=0; }
+        if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth',ja:'歯間離開（すきっ歯）'});
+      }
+
+      // ── STEP 3: Occlusion (deep bite / open bite / crossbite) ─────────────────
+      // Cannot be reliably inferred from a frontal-view pixel scan. Reported by Vision AI
+      // (Tier 1) only. Pixel tier skips Step 3.
+
+      // ── STEP 4: Aesthetics & Soft tissue ───────────────────────────────────────
+      // 4a) Shade — reported under aesthetics (affects treatment prompt directly)
+      if(meanL<150||meanC>42) F.push({en:'tooth discolouration / low value (yellowish or uneven shade)',ja:'歯の変色・明度低下（黄ばみ／色ムラ）'});
+      // 4b) Midline deviation
+      if(Math.abs((minX+maxX)/2-bandCx)/Math.max(1,(band.x1-band.x0))>0.06) F.push({en:'dental midline deviation',ja:'正中のずれ'});
+      // 4c) Smile cant: compare mean incisal Y (colMaxY) of left vs right half of tooth span.
+      //     A significant difference means one side's incisal plane is lower → cant.
+      { const midX=Math.round((minX+maxX)/2); let lS=0,lC=0,rS=0,rC=0;
+        for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0){ if(x<midX){lS+=colMaxY[x];lC++;}else{rS+=colMaxY[x];rC++;} } }
+        if(lC>4&&rC>4){ const diff=Math.abs(lS/lC-rS/rC); if(diff/bh>0.12) F.push({en:'smile cant (asymmetric incisal plane, one side higher)',ja:'咬合平面の傾斜（スマイルラインの左右非対称）'}); } }
+      // 4d) Crown defect / structural loss (suppressed with brackets — they raise dark ratio)
+      if(!hasBrackets&&dark/n>0.04) F.push({en:'possible crown defect, dark lesion or old restoration',ja:'歯冠の実質欠損・暗色病変／旧修復物の可能性'});
+      // 4e) Left–right anterior mass asymmetry (golden / RED proportion)
+      if(leftN>0&&rightN>0){ const ratio=Math.max(leftN,rightN)/Math.min(leftN,rightN); if(ratio>1.28) F.push({en:'left–right anterior asymmetry (deviation from ideal proportion)',ja:'左右非対称（ゴールデン／REDプロポーションからの乖離）'}); }
+      // 4f) Crown width-to-height ratio (existing logic preserved)
+      if(cols.length>20){ const meanCrownH=(function(){let s=0,c=0; for(let x=minX;x<=maxX;x++){if(colMaxY[x]>=0){s+=(colMaxY[x]-minY);c++;}} return c?s/c:bh; })();
+        if(meanCrownH/bw<0.55) F.push({en:'crown width-to-height ratio looks low (short / worn crowns vs ideal ~75–85%)',ja:'歯冠の幅/高さ比が低め（咬耗等で短い／理想は約75–85%）'}); }
       return F.slice(0,6);
     }catch(e){ return []; }
   }
-  window.caseflowProblemList = buildProblemList;
   async function ensureProblemList(src){
     if(!src || !src.dataUrl) return [];
     if(Array.isArray(src.problemList)) return src.problemList;
