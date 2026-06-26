@@ -8828,6 +8828,9 @@ async function initMediaPipeLocalML(){
       { js:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'?module',           wasm:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'/wasm' }
     ];
     const MODEL='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+    // Track which stage fails so the UI can surface a precise reason code.
+    let stage='import';
+    CaseFlowLocalML.lastError=null;
     try{
       let vision=null, wasmBase=null, lastErr=null;
       for(const src of SOURCES){
@@ -8836,7 +8839,9 @@ async function initMediaPipeLocalML(){
       }
       if(!vision) throw lastErr || new Error('tasks-vision import failed (all CDNs)');
       const {FaceLandmarker, FilesetResolver} = vision;
+      stage='wasm';
       const filesetResolver = await FilesetResolver.forVisionTasks(wasmBase);
+      stage='model';
       const build = (delegate)=>FaceLandmarker.createFromOptions(filesetResolver, {
         baseOptions:{ modelAssetPath:MODEL, delegate:delegate },
         outputFaceBlendshapes:false,
@@ -8853,8 +8858,9 @@ async function initMediaPipeLocalML(){
     }catch(e){
       CaseFlowLocalML.ready=false;
       CaseFlowLocalML.source='rule-based-fallback';
+      CaseFlowLocalML.lastError={stage:stage, message:String((e&&e.message)||e).slice(0,160)};
       CaseFlowLocalML._promise=null;   // allow a later retry once network/GPU recovers
-      console.warn('MediaPipe local ML unavailable; using fallback detection.', e);
+      console.warn('MediaPipe local ML unavailable ['+stage+']; using fallback detection.', e);
       return false;
     }finally{
       CaseFlowLocalML.loading=false;
@@ -13801,7 +13807,14 @@ window.addEventListener('DOMContentLoaded', () => {
     if(typeof toastFn==='function') toastFn('AIで顔のランドマークを検出中…');
     let ok=false;
     try{ ok=await initMediaPipeLocalML(); }catch(e){ ok=false; }
-    if(!ok || !CaseFlowLocalML.faceLandmarker){ if(typeof toastFn==='function') toastFn('AIモデルを読み込めませんでした（通信環境をご確認ください）。手動でプロットできます'); return; }
+    if(!ok || !CaseFlowLocalML.faceLandmarker){
+      // Build/version marker + failing stage embedded so a deployed build can be identified
+      // from the toast alone (import / wasm / model). If this tag is absent, an OLD build is live.
+      var _le=(window.CaseFlowLocalML&&CaseFlowLocalML.lastError)||{};
+      var _ver=(typeof MEDIAPIPE_VISION_VER!=='undefined')?MEDIAPIPE_VISION_VER:'?';
+      if(typeof toastFn==='function') toastFn('AIモデル読込失敗 [build mp-'+_ver+'/'+(_le.stage||'?')+'] 手動でプロット可');
+      return;
+    }
     try{
       const img=await imageElementFromDataURL(p.dataUrl);
       const result=CaseFlowLocalML.faceLandmarker.detect(img);
