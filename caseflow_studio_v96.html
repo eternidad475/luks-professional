@@ -71,7 +71,11 @@ mix-blend-mode:soft-light;filter:blur(22px);animation:swirl 26s ease-in-out infi
 
 .screen{position:absolute;inset:0;display:none;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(16px + env(safe-area-inset-top)) 18px calc(98px + var(--safe))}
 .screen.active{display:block}
-.screen.soft:before{content:"";position:fixed;inset:0;background:linear-gradient(148deg,color-mix(in srgb,var(--c1) 10%,rgba(255,255,255,.28)),color-mix(in srgb,var(--c2) 10%,rgba(255,255,255,.28)));backdrop-filter:blur(22px) saturate(1.4);z-index:-1;pointer-events:none}
+.screen.soft:before{content:"";position:fixed;inset:0;background:
+  radial-gradient(ellipse 90% 55% at 14% 18%, color-mix(in srgb,var(--c2) 32%,transparent) 0%, transparent 100%),
+  radial-gradient(ellipse 65% 70% at 88% 92%, color-mix(in srgb,var(--c1) 26%,transparent) 0%, transparent 100%),
+  linear-gradient(148deg,color-mix(in srgb,var(--c1) 14%,rgba(255,255,255,.22)),color-mix(in srgb,var(--c2) 14%,rgba(255,255,255,.22)));
+backdrop-filter:blur(22px) saturate(1.55);z-index:-1;pointer-events:none}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;min-height:44px}
 .title{font-size:24px;line-height:1.05;font-weight:850;letter-spacing:-.04em;margin:0}
 .subtitle{font-size:12px;line-height:1.45;color:var(--muted);margin:5px 0 0}
@@ -1241,12 +1245,36 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 .cfColorCard b{font-size:12px}
 .cfColorCard small{font-size:9px;color:rgba(32,27,53,.46);font-weight:800;line-height:1.2}
 .cfPalettePreview{
-  height:42px;
+  height:48px;
   border-radius:999px;
   margin:2px 0 12px;
   background:linear-gradient(90deg,var(--c1),var(--c2));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.50),0 8px 18px rgba(32,27,53,.08);
+  cursor:pointer;
+  position:relative;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:manipulation;
+  transition:transform .15s ease,box-shadow .15s ease;
 }
+.cfPalettePreview:active{transform:scale(.97)}
+.cfPalettePreview::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.7)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 16H3v-4'/%3E%3Cpath d='M3 12a9 9 0 0 1 15-6.7L21 8'/%3E%3Cpath d='M17 8h4v4'/%3E%3Cpath d='M21 12a9 9 0 0 1-15 6.7L3 16'/%3E%3C/svg%3E") center/20px no-repeat;
+}
+@keyframes cfPreviewFlip{
+  0%{background-image:linear-gradient(90deg,var(--c1),var(--c2));transform:scaleX(1)}
+  45%{transform:scaleX(0)}
+  55%{transform:scaleX(0)}
+  100%{background-image:linear-gradient(90deg,var(--c2),var(--c1));transform:scaleX(1)}
+}
+.cfPalettePreview.swapping{animation:cfPreviewFlip .35s cubic-bezier(.4,0,.2,1) forwards}
 .cfPresetGrid{
   display:grid;
   grid-template-columns:repeat(5,1fr);
@@ -5530,8 +5558,27 @@ attachPaletteEvents();
   function swap(){
     const aEl=$id('cfColorA'), bEl=$id('cfColorB');
     if(!aEl || !bEl) return;
-    const temp=aEl.value; aEl.value=bEl.value; bEl.value=temp; applyPalette();
+    const temp=aEl.value; aEl.value=bEl.value; bEl.value=temp;
+    applyPalette();
+    // mirror blend ratio so visual weight stays intuitive after swap
+    try{
+      const blendSlider=document.getElementById('cfBlendSlider');
+      if(blendSlider){
+        const cur=Number(blendSlider.value||50);
+        const inv=100-cur;
+        blendSlider.value=inv;
+        document.documentElement.style.setProperty('--blend',inv+'%');
+        const valEl=document.getElementById('cfBlendVal');
+        if(valEl) valEl.textContent=inv+' / '+(100-inv);
+        try{localStorage.setItem('caseflow_v69_blend',String(inv));}catch(e){}
+      }
+    }catch(e){}
+    if(navigator.vibrate) navigator.vibrate(10);
+    // flip animation on preview strip
+    const prev=document.getElementById('cfPalettePreview');
+    if(prev){ prev.classList.remove('swapping'); void prev.offsetWidth; prev.classList.add('swapping'); }
   }
+  window.cfSwapColors=swap;
   function init(){
     const aEl=$id('cfColorA'), bEl=$id('cfColorB');
     try{
@@ -5546,6 +5593,7 @@ attachPaletteEvents();
     $id('cfColorA')?.addEventListener('change',()=>applyPalette());
     $id('cfColorB')?.addEventListener('change',()=>applyPalette());
     $id('cfShufflePalette')?.addEventListener('click',shuffle);
+    $id('cfPalettePreview')?.addEventListener('click',swap);
     document.querySelectorAll('.cfPreset').forEach(btn=>{
       btn.addEventListener('click',()=>setPalette(btn.dataset.a,btn.dataset.b));
     });
