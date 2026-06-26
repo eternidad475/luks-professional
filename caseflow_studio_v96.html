@@ -18511,6 +18511,8 @@ body[data-ui-tone="dark"]{
       else { state.simResults=[r]; state.simResultIndex=0; }
       state.simResult=r;
       renderResultImages();
+      // Persist the new result immediately so a reload won't lose it
+      try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
     }catch(e){ console.error(e); toastFn('再生成に失敗しました'); }
     regenBusy=false; setBusy(false);
     if(regenQueued){ regenQueued=false; regenerate(); }
@@ -19920,6 +19922,323 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var cur = document.querySelector('.screen.active');
     if(cur && (cur.id==='simulator'||cur.id==='result')) simBtn.classList.add('on');
   });
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CF v9.6-PERSIST — Robust state persistence
+     IndexedDB for images · sessionStorage for metadata
+     Survives reload, iOS background kill, accidental navigation.
+═══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  // ─── constants ──────────────────────────────────────────────
+  var SS_KEY    = 'cf_session_meta_v96';    // sessionStorage key (metadata)
+  var DB_NAME   = 'caseflow_session_v96';   // IndexedDB name
+  var DB_VER    = 1;
+  var MAX_AGE   = 4 * 60 * 60 * 1000;      // 4-hour session expiry
+  var POLL_MS   = 4000;                     // change-detection interval
+  var SAVE_DEBOUCE = 2000;                  // debounce after detected change
+  var FULL_SAVE_INTERVAL = 30000;           // unconditional full save every 30s
+
+  // ─── IndexedDB helpers ──────────────────────────────────────
+  var _db = null;
+
+  function openDB(){
+    if(_db) return Promise.resolve(_db);
+    return new Promise(function(res, rej){
+      var req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = function(e){
+        var db = e.target.result;
+        if(!db.objectStoreNames.contains('imgs'))  db.createObjectStore('imgs');
+        if(!db.objectStoreNames.contains('smeta')) db.createObjectStore('smeta');
+      };
+      req.onsuccess = function(e){ _db = e.target.result; res(_db); };
+      req.onerror   = function(){ rej(req.error); };
+    });
+  }
+
+  function idbSet(store, key, val){
+    return openDB().then(function(db){
+      return new Promise(function(res, rej){
+        var tx  = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(val, key);
+        tx.oncomplete = res;
+        tx.onerror    = function(){ rej(tx.error); };
+      });
+    });
+  }
+
+  function idbGet(store, key){
+    return openDB().then(function(db){
+      return new Promise(function(res, rej){
+        var tx  = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).get(key);
+        req.onsuccess = function(){ res(req.result); };
+        req.onerror   = function(){ rej(req.error); };
+      });
+    });
+  }
+
+  // ─── Serialization ──────────────────────────────────────────
+  function serPhoto(p){
+    if(!p || !p.dataUrl) return null;
+    return {
+      dataUrl: p.dataUrl,
+      label:   p.label   || '',
+      category:p.category|| '',
+      intraoral:    !!p.intraoral,
+      intraoralDark:!!p.intraoralDark,
+      lips:         !!p.lips,
+      shotType:     p.shotType  || null,
+      problemList:  p.problemList || null
+    };
+  }
+
+  function serResult(r){
+    if(!r || !r.dataUrl) return null;
+    return {
+      dataUrl:    r.dataUrl,
+      source:     r.source     || '',
+      sourceKind: r.sourceKind || '',
+      createdAt:  r.createdAt  || '',
+      settings:   r.settings   ? JSON.parse(JSON.stringify(r.settings)) : null,
+      fav:        !!r.fav
+    };
+  }
+
+  // ─── SAVE ───────────────────────────────────────────────────
+  var _saveTimer = null;
+
+  function scheduleSave(delay){
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(saveAll, delay == null ? SAVE_DEBOUCE : delay);
+  }
+
+  async function saveAll(){
+    var s = window.state;
+    if(!s) return;
+
+    // 1. Metadata → sessionStorage (synchronous, always succeeds for small data)
+    var meta = {
+      alignIndex:      s.alignIndex      || 0,
+      previewIndex:    s.previewIndex    || 0,
+      ratio:           s.ratio           || '9:16',
+      treatment:       s.treatment       || '矯正',
+      template:        s.template        || 'minimal',
+      title:           s.title           || '',
+      simV96:          s.simV96          ? JSON.parse(JSON.stringify(s.simV96)) : null,
+      simV82:          s.simV82          ? JSON.parse(JSON.stringify(s.simV82)) : null,
+      simCustomPrompt: s.simCustomPrompt || '',
+      simResultIndex:  s.simResultIndex  || 0,
+      photoCount:      (s.photos||[]).length,
+      resultCount:     (s.simResults||[]).filter(function(r){return r&&r.dataUrl;}).length,
+      activeScreen:    (document.querySelector('.screen.active')||{}).id || 'start',
+      savedAt:         Date.now()
+    };
+    try{ sessionStorage.setItem(SS_KEY, JSON.stringify(meta)); }catch(e){}
+
+    // 2. Photos → IndexedDB
+    try{
+      var photos = (s.photos||[]).map(serPhoto).filter(Boolean);
+      await idbSet('imgs', 'photos', photos);
+    }catch(e){ console.warn('[cfPersist] photos save:', e); }
+
+    // 3. Sim macro/micro source photos
+    try{ await idbSet('imgs', 'simMacro', s.simMacro ? serPhoto(s.simMacro) : null); }catch(e){}
+    try{ await idbSet('imgs', 'simMicro', s.simMicro ? serPhoto(s.simMicro) : null); }catch(e){}
+    try{ await idbSet('imgs', 'simSource', s._simSource ? serPhoto(s._simSource) : null); }catch(e){}
+
+    // 4. AI results → IndexedDB (can be large)
+    try{
+      var results = (s.simResults||[]).map(serResult).filter(Boolean);
+      await idbSet('imgs', 'simResults', results);
+    }catch(e){ console.warn('[cfPersist] results save:', e); }
+  }
+
+  // Expose for external hooks (e.g. after generation completes)
+  window.cfPersist = { save: saveAll, schedule: scheduleSave };
+
+  // ─── RESTORE ────────────────────────────────────────────────
+  async function restoreAll(){
+    // Read metadata
+    var meta = null;
+    try{ var raw = sessionStorage.getItem(SS_KEY); if(raw) meta = JSON.parse(raw); }catch(e){}
+    if(!meta || !meta.savedAt) return null;
+    if(Date.now() - meta.savedAt > MAX_AGE) return null;  // expired
+
+    var s = window.state;
+    if(!s) return null;
+
+    // Read images from IndexedDB
+    var photos=[], simMacro=null, simMicro=null, simSource=null, simResults=[];
+    try{ photos     = (await idbGet('imgs','photos'))     || []; }catch(e){}
+    try{ simMacro   =  await idbGet('imgs','simMacro');          }catch(e){}
+    try{ simMicro   =  await idbGet('imgs','simMicro');          }catch(e){}
+    try{ simSource  =  await idbGet('imgs','simSource');         }catch(e){}
+    try{ simResults = (await idbGet('imgs','simResults')) || []; }catch(e){}
+
+    // Nothing worth restoring
+    if(!photos.length && !simResults.length) return null;
+
+    // Apply metadata to state
+    if(meta.alignIndex      != null) s.alignIndex      = meta.alignIndex;
+    if(meta.previewIndex    != null) s.previewIndex    = meta.previewIndex;
+    if(meta.ratio               )    s.ratio           = meta.ratio;
+    if(meta.treatment           )    s.treatment       = meta.treatment;
+    if(meta.template            )    s.template        = meta.template;
+    if(meta.title               )    s.title           = meta.title;
+    if(meta.simCustomPrompt     )    s.simCustomPrompt = meta.simCustomPrompt;
+    if(meta.simResultIndex!=null)    s.simResultIndex  = meta.simResultIndex;
+    // Merge rather than replace so module defaults are preserved for missing keys
+    if(meta.simV96) s.simV96 = Object.assign(s.simV96||{}, meta.simV96);
+    if(meta.simV82) s.simV82 = Object.assign(s.simV82||{}, meta.simV82);
+
+    // Apply images
+    if(photos.length)  s.photos      = photos;
+    if(simMacro)       s.simMacro    = simMacro;
+    if(simMicro)       s.simMicro    = simMicro;
+    if(simSource)      s._simSource  = simSource;
+    if(simResults.length){
+      s.simResults = simResults;
+      var idx = Math.min(meta.simResultIndex||0, simResults.length-1);
+      s.simResult  = simResults[idx] || simResults[0] || null;
+    }
+
+    return meta;  // truthy = success
+  }
+
+  // ─── Change-detection polling ────────────────────────────────
+  var _prevPhotoCount  = -1;
+  var _prevResultCount = -1;
+
+  setInterval(function(){
+    var s = window.state;
+    if(!s) return;
+    var pc = (s.photos||[]).length;
+    var rc = (s.simResults||[]).filter(function(r){return r&&r.dataUrl;}).length;
+    if(pc !== _prevPhotoCount || rc !== _prevResultCount){
+      _prevPhotoCount  = pc;
+      _prevResultCount = rc;
+      scheduleSave(SAVE_DEBOUCE);
+    }
+  }, POLL_MS);
+
+  // Periodic unconditional save
+  setInterval(saveAll, FULL_SAVE_INTERVAL);
+
+  // ─── Event hooks ────────────────────────────────────────────
+
+  // Most reliable save: fires before unload / iOS background suspend
+  window.addEventListener('pagehide',     saveAll, {passive:true});
+  window.addEventListener('beforeunload', saveAll, {passive:true});
+
+  // Slider / textarea changes → schedule save
+  document.addEventListener('input', function(e){
+    var t = e.target;
+    if(!t) return;
+    if(t.type==='range' || t.tagName==='TEXTAREA' || t.id==='simV96CustomPrompt')
+      scheduleSave(3000);
+  }, {passive:true});
+
+  // Save on screen navigation (wraps the go() chain)
+  (function hookGo(){
+    var _prev = window.go;
+    if(!_prev){ document.addEventListener('DOMContentLoaded', hookGo); return; }
+    if(_prev.__cfPersistHooked) return;
+    function _hooked(id){ _prev(id); scheduleSave(800); }
+    _hooked.__cfPersistHooked = true;
+    window.go = _hooked;
+  })();
+
+  // Hook clearPhotos to also wipe the persisted images (so stale restore doesn't come back)
+  (function hookClear(){
+    var _prev = window.clearPhotos;
+    if(!_prev){ document.addEventListener('DOMContentLoaded', hookClear); return; }
+    window.clearPhotos = function(){
+      _prev.apply(this, arguments);
+      // Wipe photo images from IDB but keep metadata (keeps simResults)
+      try{ idbSet('imgs','photos',[]); idbSet('imgs','simMacro',null); idbSet('imgs','simMicro',null); }catch(e){}
+      try{ var m=JSON.parse(sessionStorage.getItem(SS_KEY)||'{}'); m.photoCount=0; sessionStorage.setItem(SS_KEY,JSON.stringify(m)); }catch(e){}
+    };
+  })();
+
+  // ─── RESTORE on DOMContentLoaded ────────────────────────────
+  async function tryRestore(){
+    var meta = await restoreAll();
+    if(!meta) return;
+
+    var s = window.state;
+
+    // Re-render photo gallery
+    try{ if(typeof renderUpload==='function') renderUpload(); }catch(e){}
+
+    // Re-render simulator input choosers
+    try{ if(typeof updateSimulationChoicesV82==='function') updateSimulationChoicesV82(); }catch(e){}
+    try{ if(typeof renderSimulator==='function') renderSimulator(); }catch(e){}
+
+    // Re-render AI results
+    if((s.simResults||[]).length){
+      try{ if(typeof renderResultImages==='function') renderResultImages(); }catch(e){}
+      // buildEditGrid depends on simV96; give renderResultImages time to paint first
+      setTimeout(function(){
+        try{ if(typeof buildEditGrid==='function') buildEditGrid(); }catch(e){}
+        try{ if(typeof cfRenderSimGallery==='function') cfRenderSimGallery(); }catch(e){}
+      }, 120);
+    }
+
+    // Restore custom-prompt textarea (built by buildEditGrid)
+    if(meta.simCustomPrompt){
+      setTimeout(function(){
+        var el = document.getElementById('simV96CustomPrompt');
+        if(el) el.value = meta.simCustomPrompt;
+      }, 200);
+    }
+
+    // Restore treatment concept pill
+    if(s.simV82 && s.simV82.concept){
+      setTimeout(function(){
+        var map = {ortho:'矯正', prosthetic:'補綴', hybrid:'矯正＋補綴'};
+        var treatment = map[s.simV82.concept] || s.treatment || '矯正';
+        document.querySelectorAll('.pill[data-treatment]').forEach(function(btn){
+          btn.classList.toggle('on', btn.dataset.treatment===treatment);
+        });
+      }, 150);
+    }
+
+    // Navigate to last screen (only meaningful screens)
+    var restorable = ['simulator','result','upload','align','preview','library'];
+    if(meta.activeScreen && restorable.indexOf(meta.activeScreen) !== -1){
+      setTimeout(function(){
+        try{ if(typeof go==='function') go(meta.activeScreen); }catch(e){}
+      }, 350);
+    }
+
+    // Toast notification
+    var photoCount  = (s.photos  ||[]).length;
+    var resultCount = (s.simResults||[]).length;
+    if(photoCount || resultCount){
+      var msg = photoCount
+        ? 'セッションを復元しました（写真 '+photoCount+'枚）'
+        : 'シミュレーション結果を復元しました';
+      setTimeout(function(){
+        try{ if(typeof toastFn==='function') toastFn(msg); else if(typeof toast==='function') toast(msg); }catch(e){}
+      }, 900);
+    }
+
+    // Sync polling counters
+    _prevPhotoCount  = (s.photos  ||[]).length;
+    _prevResultCount = (s.simResults||[]).filter(function(r){return r&&r.dataUrl;}).length;
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryRestore, 650); });
+  } else {
+    setTimeout(tryRestore, 650);
+  }
 
 })();
 </script>
