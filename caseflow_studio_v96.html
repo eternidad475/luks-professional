@@ -4799,7 +4799,7 @@ button[id="localMLDetectButton"]{
   </div>
   <div class="toolbar cfResultActions">
     <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
-    <button class="tool cfLibraryBtn" onclick="cfOpenLibraryBatchSheet()" title="バリエーションを選択してLibraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
+    <button class="tool cfLibraryBtn" onclick="cfToggleLibrarySelect()" title="バリエーションを選択してLibraryに保存"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
 </section>
@@ -17197,7 +17197,7 @@ body[data-ui-tone="dark"]{
 /* Generated-image gallery — a compact horizontal strip ABOVE the compare card so the
    preview keeps its full width (a left rail shrank the preview). */
 #result .simResultStage{display:block}
-#result .simResultGallery{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0 0 8px}
+#result .simResultGallery{display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px}
 #result .simResultGallery:empty{display:none}
 #result .srGalThumbs{display:flex;flex-direction:row;gap:6px;overflow-x:auto;flex:1;min-width:0;padding:1px}
 #result .srGalThumb{position:relative;flex:0 0 auto;width:52px;height:52px;padding:0;border:2px solid transparent;border-radius:9px;overflow:hidden;background:transparent;cursor:pointer}
@@ -17206,6 +17206,15 @@ body[data-ui-tone="dark"]{
 #result .srGalThumb.active{border-color:var(--c1,#6a4df4)}
 #result .srGalNav{flex:0 0 auto;width:34px;height:34px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanel,rgba(255,255,255,.82));border-radius:9px;font-size:16px;font-weight:900;color:var(--cfUiText,#201b35);cursor:pointer;line-height:1}
 #result .srGalNav:disabled{opacity:.35;cursor:default}
+#result .srGalThumb.cfSelMode{cursor:pointer}
+#result .srGalThumb.cfSelOn{border-color:#7c5cfc}
+#result .srGalThumb .srGalCheck{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;transition:all .14s;pointer-events:none}
+#result .srGalThumb.cfSelOn .srGalCheck{background:#7c5cfc;border-color:#7c5cfc;color:#fff}
+#result .cfLibSelBar{display:flex;align-items:center;gap:8px;padding:8px 0 2px;width:100%}
+#result .cfLibSelBar button{flex:1;padding:9px;border-radius:11px;border:0;cursor:pointer;font-size:12px;font-weight:800;letter-spacing:.01em}
+#result .cfLibSelSave{background:linear-gradient(135deg,#6a3de8,#7c5cfc);color:#fff;box-shadow:0 3px 12px rgba(108,63,252,.35)}
+#result .cfLibSelSave:disabled{opacity:.4;cursor:default}
+#result .cfLibSelCancel{background:rgba(32,27,53,.08);color:var(--cfUiText,#201b35)}
 #result #simV96EditGrid .simShadeHint{
   display:flex;justify-content:space-between;
   margin:3px 1px 0;font-size:8.5px;font-weight:800;letter-spacing:.01em;
@@ -17983,7 +17992,11 @@ body[data-ui-tone="dark"]{
       'Maximum 5 findings. No duplicates. Only report findings clearly visible in the image. No explanations.\n\n'+
       'STEP 1 — APPLIANCE / ARTIFACT DETECTION (run first, highest priority):\n'+
       'Check for orthodontic appliances (brackets, archwires, bonded attachments, retainers) on the teeth.\n'+
-      'If present → include: {"en":"orthodontic appliances present (brackets/archwire) — crowding treatment in progress","ja":"矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中"}\n'+
+      'CRITICAL RULE — FALSE POSITIVE PREVENTION: Output the appliance finding ONLY when metal brackets or archwires are PHYSICALLY AND UNAMBIGUOUSLY VISIBLE on the tooth surfaces. ' +
+      'Do NOT guess, infer, or assume appliances from indirect cues. ' +
+      'Light reflections on enamel, enamel texture, gingival shadows, dark interproximal spaces, and normal tooth morphology MUST NOT be classified as brackets or wires. ' +
+      '絶対に推測で矯正装置の所見を出力しないでください。金属ブラケットやワイヤーが画像内に物理的・明確に視認できる場合のみ報告してください。光の反射・歯面のテクスチャ・歯肉の影を装置と誤認しないこと。\n'+
+      'If clearly present → include: {"en":"orthodontic appliances present (brackets/archwire) — crowding treatment in progress","ja":"矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中"}\n'+
       'Then STRICTLY exclude metal shadows, wire gaps, bracket slots from being classified as\n'+
       'diastema, black triangles, caries, or discolouration in Steps 2–4.\n\n'+
       'STEP 2 — ALIGNMENT & CROWDING:\n'+
@@ -18069,18 +18082,24 @@ body[data-ui-tone="dark"]{
       const F=[];
 
       // ── STEP 1: Appliance / artifact detection ─────────────────────────────────
-      // (a) Archwire: any mid-crown row where ≥28% of mask pixels have lum < 85
-      // (b) Multiple bracket slots: ≥4 distinct dark vertical gaps in the mid-band zone
+      // (a) Archwire: a row where ≥45% of mask pixels are dark AND a contiguous dark
+      //     run of ≥12 pixels exists — must span the arch horizontally like a real wire.
+      //     Threshold raised from 0.28 to prevent false positives on natural tooth shadows.
+      // (b) Multiple bracket slots: ≥6 distinct dark vertical gaps (raised from 4).
       let hasBrackets=false;
       {
         const wireY0=Math.round(minY+bh*0.25),wireY1=Math.round(minY+bh*0.75);
         outer: for(let y=wireY0;y<=wireY1;y++){
-          let mpx=0,dpx=0;
+          let mpx=0,dpx=0,run=0,maxRun=0;
           for(let x=minX;x<=maxX;x++){
             if(mask[y*W+x]>0.5){ mpx++;
-              const p4=(y*W+x)*4; if((d[p4]+d[p4+1]+d[p4+2])/3<85) dpx++; }
+              const p4=(y*W+x)*4;
+              const dark=(d[p4]+d[p4+1]+d[p4+2])/3<85;
+              if(dark){ dpx++; run++; if(run>maxRun) maxRun=run; } else run=0;
+            }
           }
-          if(mpx>8&&dpx/mpx>0.28){ hasBrackets=true; break outer; }
+          // require both ratio ≥45% AND continuous dark run ≥12px (real wire characteristic)
+          if(mpx>12&&dpx/mpx>0.45&&maxRun>=12){ hasBrackets=true; break outer; }
         }
         if(!hasBrackets){
           const gy0=Math.round(minY+bh*0.42),gy1=Math.round(minY+bh*0.58);
@@ -18089,7 +18108,7 @@ body[data-ui-tone="dark"]{
             let ht=false; for(let y=gy0;y<=gy1;y++){ if(mask[y*W+x]>0.5){ht=true;break;} }
             if(!ht){ if(!inGap){gapCount++;inGap=true;} } else inGap=false;
           }
-          if(gapCount>=4) hasBrackets=true;
+          if(gapCount>=6) hasBrackets=true;
         }
       }
       if(hasBrackets) F.push({en:'orthodontic appliances present (brackets/archwire) — crowding treatment in progress',ja:'矯正装置（ブラケット・ワイヤー）装着中 — 叢生矯正治療中'});
@@ -18382,13 +18401,17 @@ body[data-ui-tone="dark"]{
     const isHybrid=(concept==='hybrid');
     const isExtraction=isOrtho && align>=80;
     // denoising_strength: controls how aggressively the AI departs from the source.
-    // Extraction cases need higher values to achieve anterior retraction.
+    // Extraction cases need high values (0.85+) to achieve anterior retraction and
+    // arch shortening — previous 0.68/0.78 was insufficient for visible arch change.
     // Hybrid mode uses an elevated value to allow arch reconstruction before
     // surface refinement. Normal/prosthetic stays conservative.
     let denoising_strength;
-    if(isExtraction){ denoising_strength=align>=90?0.78:0.68; }
+    if(isExtraction){ denoising_strength=align>=90?0.88:0.85; }
     else if(isHybrid){ denoising_strength=0.65; }
     else { denoising_strength=0.45; }
+    // control_weight: relaxes ControlNet conditioning for extraction cases so the AI
+    // has enough freedom to reconstruct the anterior arch in a retracted position.
+    const control_weight=isExtraction?0.45:undefined;
     // prompt_weights: passed to backends that support multi-priority or ControlNet
     // weight scheduling (alignment phase first, prosthetic surface phase second).
     const prompt_weights=isHybrid?{alignment:isExtraction?1.8:1.5,prosthetic:1.1,shade:1.0}:null;
@@ -18404,6 +18427,7 @@ body[data-ui-tone="dark"]{
       extraction_mode:isExtraction,
       hybrid_mode:isHybrid
     };
+    if(control_weight!==undefined) payload.control_weight=control_weight;
     if(prompt_weights) payload.prompt_weights=prompt_weights;
     return payload;
   }
@@ -18541,23 +18565,43 @@ body[data-ui-tone="dark"]{
   function renderSimGallery(){
     const g=$id('simResultGallery'); if(!g) return;
     const arr=Array.isArray(state.simResults)?state.simResults:[];
-    if(!arr.length){ g.innerHTML=''; return; }   // only hide when there are no results at all
+    if(!arr.length){ g.innerHTML=''; return; }
     const idx=state.simResultIndex||0;
-    let h='<button class="srGalNav" '+(idx<=0?'disabled':'')+' onclick="cfSelectSimResult('+(idx-1)+')">‹</button>';
+    const selMode=!!state.cfLibrarySelectMode;
+    // Ensure selection array stays in sync with results array length
+    if(!Array.isArray(state.cfLibrarySel)||state.cfLibrarySel.length!==arr.length){
+      state.cfLibrarySel=arr.map(()=>false);
+    }
+    let h='';
+    if(!selMode) h+='<button class="srGalNav" '+(idx<=0?'disabled':'')+' onclick="cfSelectSimResult('+(idx-1)+')">‹</button>';
     h+='<div class="srGalThumbs">';
     arr.forEach((r,i)=>{
       const fav=r.fav?'on':'';
-      h+='<div class="srGalThumb'+(i===idx?' active':'')+'" role="button" tabindex="0" onclick="cfSelectSimResult('+i+')">'
-        +'<img src="'+r.dataUrl+'">'
-        +'<span>'+(i+1)+'</span>'
-        +'<span class="srInfo" onclick="event.stopPropagation();openSimInfoSheet('+i+')" role="button" tabindex="0" title="情報を編集"><i>i</i></span>'
-        +'<span class="srFav '+fav+'" onclick="event.stopPropagation();toggleSimFav('+i+')" role="button" tabindex="0" title="お気に入り">✦</span>'
-        +'</div>';
+      const checked=selMode&&!!state.cfLibrarySel[i];
+      h+='<div class="srGalThumb'+(i===idx?' active':'')+(selMode?' cfSelMode':'')+(checked?' cfSelOn':'')+'" role="button" tabindex="0" onclick="'+(selMode?'cfToggleLibraryItem('+i+')':'cfSelectSimResult('+i+')')+'">'+
+        '<img src="'+r.dataUrl+'">'+
+        '<span>'+(i+1)+'</span>'+
+        (selMode
+          ?'<span class="srGalCheck">'+(checked?'✓':'')+'</span>'
+          :'<span class="srInfo" onclick="event.stopPropagation();openSimInfoSheet('+i+')" role="button" tabindex="0" title="情報を編集"><i>i</i></span>'+
+           '<span class="srFav '+fav+'" onclick="event.stopPropagation();toggleSimFav('+i+')" role="button" tabindex="0" title="お気に入り">✦</span>')+
+        '</div>';
     });
     h+='</div>';
-    h+='<button class="srGalNav" '+(idx>=arr.length-1?'disabled':'')+' onclick="cfSelectSimResult('+(idx+1)+')">›</button>';
-    if(arr.length<SIM_GALLERY_MAX) h+='<button class="srGalNav srGalAdd" title="現在の設定で新しいバリエーションを生成" onclick="generateSimulation()">＋</button>';
+    if(!selMode){
+      h+='<button class="srGalNav" '+(idx>=arr.length-1?'disabled':'')+' onclick="cfSelectSimResult('+(idx+1)+')">›</button>';
+      if(arr.length<SIM_GALLERY_MAX) h+='<button class="srGalNav srGalAdd" title="現在の設定で新しいバリエーションを生成" onclick="generateSimulation()">＋</button>';
+    }
     g.innerHTML=h;
+    // Selection mode: append save bar directly into gallery container (no overlay, no z-index)
+    if(selMode){
+      const n=(state.cfLibrarySel||[]).filter(Boolean).length;
+      const bar=document.createElement('div');
+      bar.className='cfLibSelBar';
+      bar.innerHTML='<button class="cfLibSelSave"'+(n===0?' disabled':'')+' onclick="cfConfirmLibrarySelect()">'+n+' 枚を Library に保存</button>'+
+        '<button class="cfLibSelCancel" onclick="cfCancelLibrarySelect()">キャンセル</button>';
+      g.appendChild(bar);
+    }
   }
   window.cfRenderSimGallery=renderSimGallery;
 
@@ -20037,6 +20081,48 @@ body.cfPresent .cfPresentExit{display:flex!important}
     window.state.simResult = prev;
     window.state.title = prevTitle;
   }
+
+  // Inline Library selection mode — toggle, item toggle, confirm, cancel.
+  // Replaces the bottom-sheet approach (z-index conflicts) with in-gallery checkboxes.
+  window.cfToggleLibrarySelect = function(){
+    var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
+    if(!arr.length && window.state.simResult && window.state.simResult.dataUrl){
+      window.state.simResults=[window.state.simResult]; window.state.simResultIndex=0; arr=window.state.simResults;
+    }
+    if(!arr.length){ if(typeof toast==='function') toast('保存する結果がありません'); return; }
+    window.state.cfLibrarySelectMode=!window.state.cfLibrarySelectMode;
+    window.state.cfLibrarySel=arr.map(function(){ return false; });
+    if(typeof renderSimGallery==='function') renderSimGallery();
+  };
+  window.cfToggleLibraryItem = function(i){
+    if(!Array.isArray(window.state.cfLibrarySel)) return;
+    window.state.cfLibrarySel[i]=!window.state.cfLibrarySel[i];
+    if(typeof renderSimGallery==='function') renderSimGallery();
+  };
+  window.cfCancelLibrarySelect = function(){
+    window.state.cfLibrarySelectMode=false;
+    window.state.cfLibrarySel=[];
+    if(typeof renderSimGallery==='function') renderSimGallery();
+  };
+  window.cfConfirmLibrarySelect = function(){
+    var arr=Array.isArray(window.state.simResults)?window.state.simResults:[];
+    var sel=Array.isArray(window.state.cfLibrarySel)?window.state.cfLibrarySel:[];
+    var n=0;
+    var base=(window.state.title||'Simulation').trim()||'Simulation';
+    arr.forEach(function(r,i){
+      if(!sel[i]) return;
+      var label=arr.length>1?base+' — variation '+(i+1):base;
+      saveSimResultToLibrary(r,label);
+      n++;
+    });
+    window.state.cfLibrarySelectMode=false;
+    window.state.cfLibrarySel=[];
+    if(typeof renderSimGallery==='function') renderSimGallery();
+    if(n>0){
+      if(typeof toast==='function') toast(n+' 件を Library に保存しました');
+      if(typeof go==='function') setTimeout(function(){ go('library'); },450);
+    }
+  };
 
   // Open the Library batch-selection bottom sheet.
   window.cfOpenLibraryBatchSheet = function(){
