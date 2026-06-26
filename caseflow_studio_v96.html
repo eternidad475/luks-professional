@@ -21030,5 +21030,120 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
 })();
 </script>
+
+<style>
+/* Library: favourite star + multi-select camera-roll export */
+#library .cfLibToolbar{display:flex;gap:8px;margin:10px 0 4px}
+#library .cfLibToolbar:empty{display:none}
+#library .cfLibToolBtn{flex:1;padding:11px 12px;border-radius:13px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanel,rgba(255,255,255,.86));color:var(--cfUiText,#201b35);font:inherit;font-size:12.5px;font-weight:850;cursor:pointer}
+#library .cfLibToolBtn.primary{border:0;color:#fff;background:linear-gradient(135deg,#6a3de8,#7c5cfc);box-shadow:0 3px 12px rgba(108,63,252,.35)}
+#library .cfLibToolBtn:disabled{opacity:.42;cursor:default}
+#library .libraryCard{position:relative}
+#library .libraryCard .cfLibFav{position:absolute;top:7px;right:7px;z-index:5;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;background:rgba(0,0,0,.42);color:rgba(255,255,255,.85);transition:.15s}
+#library .libraryCard .cfLibFav.on{background:rgba(255,206,0,.92);color:#201b35}
+#library .libraryCard .cfLibCheck{position:absolute;top:7px;left:7px;z-index:5;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:transparent;background:rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.8);transition:.15s}
+#library .libraryCard.cfLibSelMode{cursor:pointer}
+#library .libraryCard.cfLibSelMode .cfLibCheck.on{background:#7c5cfc;border-color:#7c5cfc;color:#fff}
+#library .libraryCard.cfLibSelMode .libraryBtns,
+#library .libraryCard.cfLibSelMode .libraryTitleEdit{pointer-events:none;opacity:.5}
+</style>
+<script>
+/* ── Library: favourite reflection + multi-select save-to-camera-roll ──────────────
+   Self-contained enhancement layer over the existing renderLibrary. The saved record
+   carries the generation-screen favourite via payload.simResult.fav. */
+(function(){
+  function $id(id){return document.getElementById(id);}
+  function toastFn(m){ if(typeof toast==='function') toast(m); else console.log(m); }
+  var selectMode=false, selected={};
+
+  function getStore(){ try{return JSON.parse(localStorage.getItem('caseflow_project_library_v55')||'[]');}catch(e){return [];} }
+  function persist(recs){ try{ localStorage.setItem('caseflow_project_library_v55', JSON.stringify(recs)); }catch(e){} }
+  function libRecords(){ return (window.state&&Array.isArray(state.projectLibrary))?state.projectLibrary:getStore(); }
+  function recImage(r){ return (r&&r.payload&&r.payload.simResult&&r.payload.simResult.dataUrl) || (r&&r.thumb) || ''; }
+  function isImage(r){ var u=recImage(r); return !!u && /^data:image|^https?:|\.jpg|\.png|\.jpeg/i.test(u) && !(r&&r.kind==='landmark-video'); }
+  function recFav(r){ return !!(r&&((r.payload&&r.payload.simResult&&r.payload.simResult.fav)||r.fav)); }
+
+  function ensureToolbar(){
+    var list=$id('libraryList'); if(!list) return;
+    var bar=$id('cfLibToolbar');
+    if(!bar){ bar=document.createElement('div'); bar.id='cfLibToolbar'; bar.className='cfLibToolbar'; list.parentNode.insertBefore(bar, list); }
+    var recs=libRecords().filter(isImage);
+    if(!recs.length){ bar.innerHTML=''; selectMode=false; return; }
+    if(!selectMode){
+      bar.innerHTML='<button class="cfLibToolBtn" onclick="cfLibStartSelect()">📷 カメラロールに保存（複数選択）</button>';
+    } else {
+      var n=Object.keys(selected).filter(function(k){return selected[k];}).length;
+      bar.innerHTML='<button class="cfLibToolBtn primary"'+(n===0?' disabled':'')+' onclick="cfLibSaveSelected()">選択した '+n+' 枚を保存</button>'+
+        '<button class="cfLibToolBtn" onclick="cfLibCancelSelect()">キャンセル</button>';
+    }
+  }
+  function enhanceCards(){
+    var list=$id('libraryList'); if(!list) return;
+    var recs=libRecords();
+    var cards=list.querySelectorAll('.libraryCard');
+    cards.forEach(function(card, i){
+      var r=recs[i]; if(!r) return; var id=r.id;
+      var star=card.querySelector('.cfLibFav');
+      if(!star){ star=document.createElement('span'); star.className='cfLibFav'; star.textContent='✦'; star.title='お気に入り';
+        star.addEventListener('click',function(e){ e.stopPropagation(); cfLibToggleFav(id); }); card.appendChild(star); }
+      star.classList.toggle('on', recFav(r));
+      var cb=card.querySelector('.cfLibCheck');
+      if(selectMode && isImage(r)){
+        if(!cb){ cb=document.createElement('span'); cb.className='cfLibCheck'; card.appendChild(cb); }
+        cb.classList.toggle('on', !!selected[id]); cb.textContent=selected[id]?'✓':'';
+        card.classList.add('cfLibSelMode');
+        card.__cfSel=function(e){ if(e.target.closest('.cfLibFav')) return; e.preventDefault(); e.stopPropagation(); cfLibToggleItem(id); };
+        card.addEventListener('click', card.__cfSel, true);
+      } else {
+        if(cb) cb.remove();
+        card.classList.remove('cfLibSelMode');
+        if(card.__cfSel){ card.removeEventListener('click', card.__cfSel, true); card.__cfSel=null; }
+      }
+    });
+  }
+  function refresh(){ try{ ensureToolbar(); enhanceCards(); }catch(e){} }
+
+  function hook(){
+    var orig=window.renderLibrary;
+    if(typeof orig!=='function' || orig.__cfLibWrapped) return;
+    var wrapped=function(){ var r=orig.apply(this,arguments); refresh(); return r; };
+    wrapped.__cfLibWrapped=true; window.renderLibrary=wrapped;
+  }
+
+  window.cfLibStartSelect=function(){ selectMode=true; selected={}; if(window.renderLibrary) renderLibrary(); else refresh(); };
+  window.cfLibCancelSelect=function(){ selectMode=false; selected={}; if(window.renderLibrary) renderLibrary(); else refresh(); };
+  window.cfLibToggleItem=function(id){ selected[id]=!selected[id]; refresh(); };
+  window.cfLibToggleFav=function(id){
+    var recs=libRecords(); var r=recs.find(function(x){return x.id===id;}); if(!r) return;
+    var nv=!recFav(r); r.fav=nv; if(r.payload&&r.payload.simResult) r.payload.simResult.fav=nv;
+    persist(recs); refresh(); toastFn(nv?'お気に入りに追加しました':'お気に入りを解除しました');
+  };
+  window.cfLibSaveSelected=async function(){
+    var recs=libRecords();
+    var ids=Object.keys(selected).filter(function(k){return selected[k];});
+    if(!ids.length) return;
+    var files=[];
+    for(var i=0;i<ids.length;i++){
+      var r=recs.find(function(x){return x.id===ids[i];}); if(!r) continue;
+      var url=recImage(r); if(!url) continue;
+      try{ var resp=await fetch(url); var blob=await resp.blob(); files.push(new File([blob],'caseflow_'+(i+1)+'.jpg',{type:blob.type||'image/jpeg'})); }catch(e){}
+    }
+    if(!files.length){ toastFn('保存できる画像がありません'); return; }
+    // iOS / Android share sheet with multiple image files → "画像を保存" = camera roll
+    if(navigator.canShare && navigator.canShare({files:files}) && navigator.share){
+      try{ await navigator.share({files:files, title:'CaseFlow Studio'}); toastFn('共有シートから「画像を保存」を選んでください'); cfLibCancelSelect(); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    // Fallback: download each file
+    files.forEach(function(f){ var a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },120); });
+    toastFn(files.length+' 枚をダウンロードしました'); cfLibCancelSelect();
+  };
+
+  function init(){ hook(); refresh(); }
+  if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
+  var go0=window.go;
+  if(typeof go0==='function' && !go0.__cfLibGo){ var gw=function(id){ var r=go0.apply(this,arguments); if(id==='library'){ selectMode=false; selected={}; setTimeout(init,40); } return r; }; gw.__cfLibGo=true; window.go=gw; }
+})();
+</script>
 </body>
 </html>
