@@ -22016,13 +22016,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
   var mouse = new THREE.Vector2(), targetMouse = new THREE.Vector2();
 
   /* Read --c1 / --c2 CSS custom properties and push them into the
-     Three.Color objects that are directly referenced by the uniforms. */
+     Three.Color objects that are directly referenced by the uniforms.
+     We parse hex manually (bypassing THREE.Color.set which in r152+ applies
+     sRGB→linear gamma correction) so the shader receives the same 0-1 sRGB
+     floats the browser uses for CSS — keeping WebGL brightness on par with
+     the palette preview. */
+  function hexToRGB01(hex){
+    hex = (hex||'').replace(/^#/,'').trim();
+    if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    if(hex.length!==6) return null;
+    return [parseInt(hex.substr(0,2),16)/255,
+            parseInt(hex.substr(2,2),16)/255,
+            parseInt(hex.substr(4,2),16)/255];
+  }
   function syncColors(){
     var s = getComputedStyle(document.documentElement);
     var h1 = (s.getPropertyValue('--c1')||'').trim() || '#7c5cff';
     var h2 = (s.getPropertyValue('--c2')||'').trim() || '#ff9fd6';
-    try{ c1.set(h1); }catch(e){}
-    try{ c2.set(h2); }catch(e){}
+    var r1 = hexToRGB01(h1), r2 = hexToRGB01(h2);
+    if(r1){ c1.r=r1[0]; c1.g=r1[1]; c1.b=r1[2]; } else { try{ c1.set(h1); }catch(e){} }
+    if(r2){ c2.r=r2[0]; c2.g=r2[1]; c2.b=r2[2]; } else { try{ c2.set(h2); }catch(e){} }
   }
 
   var VS = [
@@ -22075,9 +22088,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '  float fm=clamp(smoothstep(0.2,0.8,f)+(u_blend-0.5)*2.0,0.0,1.0);',
 
     '  vec3 color=mix(u_color1,u_color2,fm);',
-    '  color+=smoothstep(0.1,0.9,r.x)*0.15;',
-    '  color-=smoothstep(0.1,0.9,q.y)*0.10;',
-    '  color-=random(st*u_time)*0.05;',  // film grain
+    '  color+=smoothstep(0.1,0.9,r.x)*0.10;',
+    '  color-=smoothstep(0.1,0.9,q.y)*0.06;',
+    '  color-=random(st*u_time)*0.03;',  // film grain
 
     '  gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);',
     '}'
