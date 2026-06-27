@@ -22097,7 +22097,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   function animate(time){
     animId = requestAnimationFrame(animate);
-    material.uniforms.u_time.value = (time||0) * 0.0015;
+    material.uniforms.u_time.value = (time||0) * 0.00055;
     /* Lerp mouse toward target (matching the provided reference code). */
     mouse.x += (targetMouse.x - mouse.x) * 0.05;
     mouse.y += (targetMouse.y - mouse.y) * 0.05;
