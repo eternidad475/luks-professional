@@ -13806,7 +13806,9 @@ window.addEventListener('DOMContentLoaded', () => {
           loupe.style.left=(lx-65)+'px';
           loupe.style.top=Math.max(4,(ly-165))+'px';
           const lctx=lc.getContext('2d');
-          const S=130/3;
+          const displayW=Math.max(1,imgEl.getBoundingClientRect().width||imgEl.clientWidth||375);
+          const zoom=3.5;
+          const S=(130/zoom)*(imgEl.naturalWidth/displayW);
           const natX=pt.x/100*imgEl.naturalWidth;
           const natY=pt.y/100*imgEl.naturalHeight;
           lctx.clearRect(0,0,130,130);
