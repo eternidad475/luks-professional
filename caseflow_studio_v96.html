@@ -4706,6 +4706,7 @@ button[id="localMLDetectButton"]{
       <div class="brandLogo" role="img" aria-label="CaseFlow Studio"></div>
       <p class="brandSubtitle">&nbsp;Clinical beauty, visualized.</p>
     </div>
+    <div id="clioneHeart" class="clioneHeart" aria-hidden="true"></div>
     <div class="homePartners" aria-hidden="true">
       <span class="partnerMark partnerDentistry" role="img" aria-label="For Dentistry"></span>
       <span class="partnerMark partnerCds" role="img" aria-label="Clinical Design Systems"></span>
@@ -21847,6 +21848,79 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   if(document.readyState!=='loading') setTimeout(refresh,400);
   else document.addEventListener('DOMContentLoaded',function(){ setTimeout(refresh,400); });
+})();
+</script>
+
+<style>
+/* ===== Clione-heart: organic glowing motif on the home hero ===== */
+#home .hero{ position:relative; }
+#home .clioneHeart{
+  position:absolute; top:33%; left:50%;
+  transform:translate(-50%,-50%);
+  width:150px; height:150px; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,105,180,.40) 0%, rgba(255,182,193,.10) 50%, transparent 70%);
+  filter:blur(8px);
+  mix-blend-mode:screen;
+  z-index:1; pointer-events:auto;
+  transition:background .3s ease, filter .3s ease, box-shadow .3s ease;
+  animation:clioneFloat 4s ease-in-out infinite alternate;
+  cursor:pointer; touch-action:none; -webkit-tap-highlight-color:transparent;
+}
+#home .clioneHeart.active{
+  background:radial-gradient(circle, rgba(255,50,100,.80) 0%, rgba(255,100,150,.50) 50%, transparent 80%);
+  filter:blur(4px);
+  box-shadow:0 0 40px 20px rgba(255,50,100,.6);
+  animation:clioneHeartBeat .8s infinite;
+}
+@keyframes clioneFloat{
+  0%   { transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:.6; }
+  100% { transform:translate(-50%,-45%) scale(1.05) rotate(5deg); opacity:.9; }
+}
+@keyframes clioneHeartBeat{
+  0%   { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
+  15%  { transform:translate(-50%,-50%) scale(1.15); opacity:1; }
+  30%  { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
+  45%  { transform:translate(-50%,-50%) scale(1.1);  opacity:1; }
+  100% { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
+}
+@media (prefers-reduced-motion:reduce){
+  #home .clioneHeart{ animation:none; }
+  #home .clioneHeart.active{ animation:none; }
+}
+</style>
+<script>
+/* ---------- Clione-heart: long-press to glow + heartbeat (home hero) ---------- */
+(function(){
+  if(window.__clioneHeart) return; window.__clioneHeart=true;
+  function init(){
+    var heart=document.getElementById('clioneHeart');
+    if(!heart || heart.__bound) return;
+    heart.__bound=true;
+    var beatInterval=null;
+    function startBeating(){
+      if(heart.classList.contains('active')) return;
+      heart.classList.add('active');
+      if(navigator.vibrate){
+        try{ navigator.vibrate([100,50,100]); }catch(e){}
+        beatInterval=setInterval(function(){ try{ navigator.vibrate([100,50,100]); }catch(e){} }, 800);
+      }
+    }
+    function stopBeating(){
+      heart.classList.remove('active');
+      if(beatInterval){ clearInterval(beatInterval); beatInterval=null; }
+      if(navigator.vibrate){ try{ navigator.vibrate(0); }catch(e){} }
+    }
+    // Pointer events cover touch + mouse; the named handlers let us detach cleanly if needed.
+    heart.addEventListener('pointerdown', function(e){ e.preventDefault(); startBeating(); });
+    heart.addEventListener('pointerup', stopBeating);
+    heart.addEventListener('pointercancel', stopBeating);
+    heart.addEventListener('pointerleave', stopBeating);
+    // Safety: a touchend anywhere ends the beat (in case the pointer leaves the element first).
+    window.addEventListener('touchend', stopBeating, {passive:true});
+    window.addEventListener('mouseup', stopBeating);
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
 </body>
