@@ -13795,6 +13795,31 @@ window.addEventListener('DOMContentLoaded', () => {
     if(!svg || svg.dataset.v75Bound==='1') return;
     svg.dataset.v75Bound='1';
     let drag=null;
+    function updateLoupe(ev, pt){
+      try{
+        const loupe=document.getElementById('v75Loupe');
+        const lc=document.getElementById('v75LoupeCanvas');
+        const imgEl=document.getElementById('alignImage');
+        if(loupe && lc && imgEl && imgEl.naturalWidth){
+          const lx=ev.clientX, ly=ev.clientY;
+          loupe.style.display='block';
+          loupe.style.left=(lx-65)+'px';
+          loupe.style.top=Math.max(4,(ly-165))+'px';
+          const lctx=lc.getContext('2d');
+          const S=130/3;
+          const natX=pt.x/100*imgEl.naturalWidth;
+          const natY=pt.y/100*imgEl.naturalHeight;
+          lctx.clearRect(0,0,130,130);
+          lctx.drawImage(imgEl, natX-S/2, natY-S/2, S, S, 0, 0, 130, 130);
+          lctx.save();
+          lctx.strokeStyle='rgba(255,255,255,0.85)';
+          lctx.lineWidth=1.5;
+          lctx.beginPath(); lctx.moveTo(65,50); lctx.lineTo(65,80); lctx.stroke();
+          lctx.beginPath(); lctx.moveTo(50,65); lctx.lineTo(80,65); lctx.stroke();
+          lctx.restore();
+        }
+      }catch(e){}
+    }
     svg.addEventListener('pointerdown',ev=>{
       ev.preventDefault();
       ev.stopImmediatePropagation();
@@ -13817,6 +13842,7 @@ window.addEventListener('DOMContentLoaded', () => {
         state.v75SelectedIndex=idx;
         drag={index:idx,pointerId:ev.pointerId};
         try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+        updateLoupe(ev, arr[idx]);
         drawLandmarks(); renderStudio();
       }else{
         const pt=pointFromEvent(ev);
@@ -13824,6 +13850,9 @@ window.addEventListener('DOMContentLoaded', () => {
         if(!pt||!arr) return;
         arr.push(pt);
         state.v75SelectedIndex=arr.length-1;
+        drag={index:arr.length-1,pointerId:ev.pointerId};
+        try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+        updateLoupe(ev, pt);
         drawLandmarks(); renderStudio();
       }
     },{capture:true,passive:false});
@@ -13839,32 +13868,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(!state.v75DrawRaf){
         state.v75DrawRaf=requestAnimationFrame(()=>{state.v75DrawRaf=0; drawLandmarks();});
       }
-      // Magnifier loupe: show a 3× zoomed view above the finger so the landmark
-      // is visible even when the fingertip covers the screen.
-      try{
-        const loupe=document.getElementById('v75Loupe');
-        const lc=document.getElementById('v75LoupeCanvas');
-        const imgEl=document.getElementById('alignImage');
-        if(loupe && lc && imgEl && imgEl.naturalWidth){
-          const lx=ev.clientX, ly=ev.clientY;
-          loupe.style.display='block';
-          loupe.style.left=(lx-65)+'px';
-          loupe.style.top=Math.max(4,(ly-165))+'px';
-          const lctx=lc.getContext('2d');
-          const zoom=3, S=130/zoom;
-          const natX=pt.x/100*imgEl.naturalWidth;
-          const natY=pt.y/100*imgEl.naturalHeight;
-          lctx.clearRect(0,0,130,130);
-          lctx.drawImage(imgEl, natX-S/2, natY-S/2, S, S, 0, 0, 130, 130);
-          // Crosshair at center
-          lctx.save();
-          lctx.strokeStyle='rgba(255,255,255,0.85)';
-          lctx.lineWidth=1.5;
-          lctx.beginPath(); lctx.moveTo(65,50); lctx.lineTo(65,80); lctx.stroke();
-          lctx.beginPath(); lctx.moveTo(50,65); lctx.lineTo(80,65); lctx.stroke();
-          lctx.restore();
-        }
-      }catch(e){}
+      updateLoupe(ev, pt);
     },{capture:true,passive:false});
     function end(ev){
       if(!drag) return;
@@ -21896,7 +21900,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
     box.querySelectorAll('#cfCapSpeed button').forEach(function(b){
       b.addEventListener('click',function(){
         box.querySelectorAll('#cfCapSpeed button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
-        var md=$id('morphDuration'); if(md){ md.value=b.dataset.ms; try{ md.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+        var ms=Number(b.dataset.ms)||2600;
+        var md=$id('morphDuration'); if(md){ md.value=ms; try{ md.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+        // Sync to v75Settings so export duration matches preview speed
+        var segCount=Math.max(1,((window.state&&window.state.photos)||[]).length-1);
+        var totalSec=Math.min(10,Math.max(1.5,ms*segCount/1000));
+        if(window.state&&window.state.v75Settings) window.state.v75Settings.duration=totalSec;
+        var v75dur=$id('v75Duration'), v75durVal=$id('v75DurationVal');
+        if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
   }
@@ -21971,6 +21982,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
   window.cfMorphExport=function(){
     var p=pair(); if(!p.ph||p.ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     stop();
+    // Ensure export duration matches cfCap preview speed (morphDuration × segCount)
+    var segCount=Math.max(1,p.ph.length-1);
+    var totalSec=Math.min(10,Math.max(1.5,speedMs()*segCount/1000));
+    if(window.state&&window.state.v75Settings) window.state.v75Settings.duration=totalSec;
     if(typeof window.exportPreview==='function') window.exportPreview();
     else if(typeof window.go==='function') window.go('preview');
   };
