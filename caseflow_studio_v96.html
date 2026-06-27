@@ -12393,17 +12393,19 @@ window.addEventListener('DOMContentLoaded', () => {
       });
       ctx.restore();
     }
-    ctx.save();
-    ctx.fillStyle='rgba(255,255,255,.88)';
-    roundRectLocal(ctx,20,20,310,58,24);
-    ctx.fill();
-    ctx.fillStyle='#201b35';
-    ctx.font='850 20px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
-    ctx.fillText('True Mesh Morph',38,51);
-    ctx.fillStyle='rgba(32,27,53,.46)';
-    ctx.font='750 13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
-    ctx.fillText(`Frame ${Math.round(e*100)}% · ${tris.length} triangles`,38,73);
-    ctx.restore();
+    if(!state.cfExportMode){
+      ctx.save();
+      ctx.fillStyle='rgba(255,255,255,.88)';
+      roundRectLocal(ctx,20,20,310,58,24);
+      ctx.fill();
+      ctx.fillStyle='#201b35';
+      ctx.font='850 20px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+      ctx.fillText('True Mesh Morph',38,51);
+      ctx.fillStyle='rgba(32,27,53,.46)';
+      ctx.font='750 13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+      ctx.fillText(`Frame ${Math.round(e*100)}% · ${tris.length} triangles`,38,73);
+      ctx.restore();
+    }
     return {triangles:tris.length,points:pairs.length,userCount:collected.userCount,fallback:false};
   }
 
@@ -21980,16 +21982,94 @@ body.cfPresent .cfPresentExit{display:flex!important}
     raw.__cfCap=true; window.renderAlign=raw;
   }
 
+  // Two-phase export: pre-render all frames with cfDrawMorphFrame (same engine as preview),
+  // then replay at controlled fps so the exported video speed matches what the user saw.
+  async function cfCapDoExport(){
+    var ph=(window.state&&state.photos)||[];
+    if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+    if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
+      toastFn('この環境では動画書き出しが未対応です'); return;
+    }
+    if(typeof window.cfDrawMorphFrame!=='function'){
+      if(typeof window.exportPreview==='function') window.exportPreview(); return;
+    }
+    var segCount=Math.max(1,ph.length-1);
+    var durationMs=speedMs()*segCount;
+    var fps=30;
+    var frames=Math.max(2,Math.round(durationMs/1000*fps));
+    var frameMs=1000/fps;
+    // Canvas size from aspect ratio setting
+    var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
+    var w,h;
+    if(r==='16:9'){w=1080;h=608;}else if(r==='1:1'){w=1080;h=1080;}else if(r==='4:5'){w=1080;h=1350;}else{w=1080;h=1920;}
+    toastFn('書き出し準備中… ('+frames+'フレーム)');
+    // Save & patch state flags for export rendering
+    var prevMesh=(window.state&&state.trueMeshEnabled);
+    var prevOverlay=(window.state&&state.meshOverlayEnabled);
+    var prevExportMode=(window.state&&!!state.cfExportMode);
+    if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
+    var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
+    var tc=tmp.getContext('2d');
+    var blobs=[];
+    try{
+      for(var f=0;f<frames;f++){
+        var t=f/(frames-1);
+        var g=Math.max(0,Math.min(0.999999,t))*segCount;
+        var seg=Math.floor(g), localT=g-seg;
+        if(seg>=segCount){seg=segCount-1;localT=1;}
+        await window.cfDrawMorphFrame(tmp,localT,{aIndex:seg,bIndex:seg+1});
+        // Watermark (replaces suppressed debug badge)
+        tc.save();
+        tc.font='bold 17px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+        tc.fillStyle='rgba(255,255,255,.80)';
+        tc.textAlign='right';
+        tc.fillText('CaseFlow Studio™',w-18,h-20);
+        tc.textAlign='left';
+        tc.restore();
+        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.88); });
+        blobs.push(blob);
+      }
+    }finally{
+      if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
+    }
+    toastFn('動画エンコード中…');
+    // Phase 2: replay pre-rendered frames at controlled fps so video speed is always correct
+    var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    var ctx=canvas.getContext('2d');
+    var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
+    var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
+    var stream,track,manual=false;
+    try{
+      stream=canvas.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+      if(track&&typeof track.requestFrame==='function') manual=true; else stream=canvas.captureStream(fps);
+    }catch(e){ stream=canvas.captureStream(fps); }
+    var rec=new MediaRecorder(stream,{mimeType:mime}),parts=[];
+    rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
+    rec.start();
+    for(var f2=0;f2<frames;f2++){
+      var bmp=await createImageBitmap(blobs[f2]);
+      ctx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
+      if(manual&&track) track.requestFrame();
+      await new Promise(function(r){setTimeout(r,frameMs);});
+    }
+    await new Promise(function(r){setTimeout(r,200);});
+    var result=await new Promise(function(resolve){
+      rec.onstop=function(){
+        resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')});
+      };
+      rec.stop();
+    });
+    if(result){
+      if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
+      toastFn('動画を書き出しました（'+Math.round(durationMs/100)/10+'s / '+fps+'fps）');
+    }
+  }
+
   // header / step-3 "書き出し"
   window.cfMorphExport=function(){
     var p=pair(); if(!p.ph||p.ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     stop();
-    // Ensure export duration matches cfCap preview speed (morphDuration × segCount)
-    var segCount=Math.max(1,p.ph.length-1);
-    var totalSec=Math.min(10,Math.max(1.5,speedMs()*segCount/1000));
-    if(window.state&&window.state.v75Settings) window.state.v75Settings.duration=totalSec;
-    if(typeof window.exportPreview==='function') window.exportPreview();
-    else if(typeof window.go==='function') window.go('preview');
+    cfCapDoExport().catch(function(e){ toastFn('書き出しエラー: '+(e&&e.message||String(e)).slice(0,80)); });
   };
 
   if(document.readyState!=='loading') setTimeout(refresh,400);
