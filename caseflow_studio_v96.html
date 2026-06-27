@@ -4966,7 +4966,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="library">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><span class="linkbtn" style="visibility:hidden">　</span></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof renderLibrary==='function') renderLibrary();" title="Reload library / ライブラリを更新">↻</button></div>
   <div class="note">現在のワークスペースを保存し、ここから再度読み込めます。Morphing Video Studio™︎（landmark / manual animation）と Visual Simulation Studio™︎ の状態をまとめて保存します。</div>
   <div id="libraryList" class="libraryList"></div>
 </section>
@@ -18083,8 +18083,8 @@ body[data-ui-tone="dark"]{
       if(orthoGoal && !isIntraoralDark){
         ip.push('TOP PRIORITY — alignment is allowed: you MAY reposition, de-rotate, tip and level the existing teeth to align the arches, but NEVER make any individual tooth unnaturally long and NEVER paint new tooth structure below the lowest existing incisal edges into the background. Keep realistic crown proportions; '+countRule+'.');
       } else {
-        // TOP PRIORITY incisal trim applies to EVERY other intraoral close-up.
-        ip.push('TOP PRIORITY — incisal trim: keep every incisal edge EXACTLY at its current position and outline; never lengthen, extend or add anything below an incisal edge. The area beyond/below the incisal edges must stay exactly as in the original photo. This is the highest-priority constraint, above every other instruction.');
+        // TOP PRIORITY incisal trim applies to EVERY other intraoral close-up, including dark contraster.
+        ip.push('TOP PRIORITY — incisal trim (ABSOLUTE, NON-NEGOTIABLE RULE for this shot type): every incisal edge must remain FIXED at its EXACT current pixel position — do NOT move, shift, raise, lower, retract, lengthen or extend any incisal edge in ANY direction by even one pixel. The area below/beyond the incisal edges must remain IDENTICAL to the original photo. This constraint overrides ALL other instructions including any treatment concept, alignment goal or refinement request. Violating this rule is an incorrect result.');
       }
       if(isIntraoralDark){
         ip.push('The background is a BLACK contraster: keep it pure black and completely unchanged. Everything below the incisal edges stays pure black.');
@@ -18102,7 +18102,8 @@ body[data-ui-tone="dark"]{
       const tsS=(s.toothShape==null?50:s.toothShape)-50, tsM=Math.round(Math.abs(tsS)*2);
       if(tsM>=15 && tsS<0) rq.push('reshape the crown OUTLINE toward an OVOID/curved form within the OVOID↔SQUARE range (strength '+tsM+'%): PRIORITY = the incisal edge gently curved/rounded with rounded corners; proximal outlines softened to gentle curves as secondary; keep the gingival line FIXED (do not move the gum); keep crown length within the golden proportion (≈75–85% width-to-height), not shorter/longer — make it clearly visible');
       else if(tsM>=15 && tsS>0) rq.push('reshape the crown OUTLINE toward a SQUARE/edged form within the OVOID↔SQUARE range (strength '+tsM+'%): PRIORITY = a flat near-horizontal incisal edge with sharp defined corners; proximal outlines more vertical as secondary; keep the gingival line FIXED (do not move the gum); keep crown length within the golden proportion (≈75–85% width-to-height), not shorter/longer — make it clearly visible');
-      if(lvl(s.alignment)){
+      if(lvl(s.alignment) && !isIntraoralDark){
+        // Alignment repositioning is FORBIDDEN for dark contraster shots (incisal trim rule is absolute).
         const a=Math.round(s.alignment);
         let ag;
         if(a<40) ag='gently level the incisal edges and upright the tooth axes';
@@ -18115,13 +18116,19 @@ body[data-ui-tone="dark"]{
       if(rq.length) ip.push('Refinements to the existing teeth only: '+rq.join('; ')+'.');
       else ip.push('Return the teeth essentially unchanged — only very slightly cleaned up.');
       if(orthoGoal && !isIntraoralDark){
-        ip.push('TREATMENT GOAL ('+(concept==='hybrid'?'orthodontic + prosthetic':'orthodontic')+' case, retracted smile-focus view): IDEALLY arrange the UPPER (maxillary) arch — completely resolve crowding, rotations, spacing and tilting so the maxillary teeth form a smooth, symmetric, well-aligned arch with an even incisal plane, uprighted tooth axes and a centred dental midline. ALSO construct a correct OCCLUSAL / opposing-arch relationship: align the lower (mandibular) teeth so they meet the upper arch with a natural overjet and overbite, coincident upper/lower midlines and a harmonious, properly interdigitated bite — make the two arches relate to each other ideally, as in a finished orthodontic case. Keep it photorealistic and true to THIS patient\'s own teeth ('+countRule+', preserving each tooth\'s individual character); do NOT add lips, a full-face smile or skin, and do NOT change the framing, magnification or gingiva.');
+        const hybridExtra = concept==='hybrid'
+          ? ' In addition, as part of the PROSTHETIC component: also refine the crown forms — reshape incisal edges and proximal contours to ideal proportions (width-to-height ~78–82% for centrals, golden/RED proportion step-down central→lateral→canine), even contact points, and natural scalloped gingival contours. The combined hybrid result must show GREATER visible change than an orthodontic-only result — both arch alignment AND crown form improvement must be clearly apparent.'
+          : '';
+        ip.push('TREATMENT GOAL ('+(concept==='hybrid'?'orthodontic + prosthetic':'orthodontic')+' case, retracted smile-focus view): IDEALLY arrange BOTH arches — completely resolve ALL of the following where present: crowding (叢生), rotations (捻転), crossbite/reverse overjet (反対咬合/クロスバイト), midline diastema and spacing (正中離開/空隙歯列), open bite (開咬/オープンバイト), deep bite/excessive overbite (過蓋咬合), and excessive overjet (オーバージェット). Deliver a smooth, symmetric, well-aligned arch with a centred dental midline, an even incisal plane, uprighted tooth axes, and a harmonious interdigitated bite with natural overjet and overbite — as in a COMPLETED orthodontic case. Preserve each tooth\'s individual crown character and keep it photorealistic ('+countRule+'); do NOT add lips, a full-face smile or skin, and do NOT change the framing or gingiva.'+hybridExtra);
       }
       const bioSigned=(s.bioBlend==null?50:s.bioBlend)-50, bioMag=Math.round(Math.abs(bioSigned)*2);
       if(bioSigned>0 && bioMag>=10) ip.push('Bio-Blend naturalization ('+bioMag+'%): add subtle lifelike enamel translucency, micro-texture, incisal opalescence and gentle mammellons/perikymata/halo to the existing teeth — realistic, never artificial.');
       else if(bioSigned<0 && bioMag>=10) ip.push('Bio-Blend smooth ('+bioMag+'%): MINIMISE surface texture and anatomy — reduce perikymata and mammellons, soften micro-morphology and emphasise a smooth, even, gently glossy enamel surface. Natural, not plastic; do NOT add cracks, craze lines or aging.');
       const plI=(srcP && Array.isArray(srcP.problemList))?srcP.problemList:[];
-      if(plI.length) ip.push('Automated screening of THIS photo noted: '+plI.map(f=>f.en||f).join('; ')+'. Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.');
+      if(plI.length) ip.push('Automated screening of THIS photo noted: '+plI.map(f=>f.en||f).join('; ')+'. '+
+        (isIntraoralDark
+          ? 'Address ONLY shade, colour and surface texture findings. DO NOT address any alignment, position or crowding findings — the incisal trim rule is absolute for this dark contraster shot.'
+          : 'Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.'));
       const customI=String(state.simCustomPrompt||'').trim();
       if(customI) ip.push('Clinician note (stay strictly within the above constraints): '+customI);
       if(orthoGoal && !isIntraoralDark){
@@ -18191,7 +18198,11 @@ body[data-ui-tone="dark"]{
     }
     if(concept==='hybrid' && L.alignment){
       const hw=isExtractionFacial?1.8:1.5;
-      reqs.push('HYBRID MODE PRIORITY WEIGHTING — rank changes as follows: (arch alignment, corrected crowding, uprighted tooth axes: '+hw+'), (crown shape refinement, aesthetic crown form: 1.1), (shade and colour correction: 1.0). The arch ALIGNMENT changes MUST be clearly visible above all other edits; complete repositioning first, then refine surface aesthetics within the aligned configuration');
+      reqs.push('HYBRID COMBINED TREATMENT — MANDATORY: apply BOTH components at FULL STRENGTH simultaneously. '
+        +'(1) ORTHODONTIC component (priority ×'+hw+'): resolve ALL crowding, rotations, crossbites, spacing and axial tilting — deliver fully aligned arches as if orthodontic treatment is complete. '
+        +'(2) PROSTHETIC component (priority ×1.5): reshape individual crown FORMS to veneer/crown-level ideal — correct width-to-height ratios, ideal proximal contact points, harmonious interdental embrasures, scalloped gingival contours. '
+        +'(3) Shade/colour (priority ×1.0). '
+        +'CRITICAL: the final hybrid result MUST show MORE total visible change than an orthodontic-only result would. Do NOT halve the effort for each component — apply each at its own full strength. A result where the teeth look only slightly moved or barely changed is INCORRECT for hybrid mode.');
     }
     if(tsMag>=15 && tsSigned<0) reqs.push('Tooth Shape — OVOID / curved (strength '+tsMag+'%): reshape the crown OUTLINE toward a rounded OVOID (egg-shaped) form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it gently CURVED/rounded with softly rounded mesio-/disto-incisal corners; (2) SECONDARY — the proximal (mesial/distal) outlines: ease them into gentle convex curves; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
     else if(tsMag>=15 && tsSigned>0) reqs.push('Tooth Shape — SQUARE / edged (strength '+tsMag+'%): reshape the crown OUTLINE toward an angular SQUARE form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it FLAT and near-horizontal with sharp, well-defined mesio-/disto-incisal corners (line angles approaching right angles); (2) SECONDARY — the proximal (mesial/distal) outlines: make them more vertical/parallel; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
@@ -18256,12 +18267,16 @@ body[data-ui-tone="dark"]{
     // Golden-proportion smile design for facial ortho/hybrid — the edit is composited only inside
     // the lip aperture, so push for a clearly idealised dentition.
     if(isFacial && (concept==='ortho'||concept==='hybrid')){
+      const hybridSmileExtra = concept==='hybrid'
+        ? ' (6) PROSTHETIC CROWN FORM (hybrid only — in addition to arch alignment): reshape individual crown forms toward veneer/crown-level ideal proportions — precise incisal edge definition, ideal proximal contact points, even crown widths stepped correctly central→lateral→canine, natural scalloped gingival zeniths with harmonious interdental papilla height. The COMBINED hybrid result must show CLEARLY MORE change than an ortho-only result: both the arch position AND the individual crown shapes must be obviously improved vs. the input.'
+        : '';
       parts.push('SMILE DESIGN TARGET (change ONLY the teeth/gingiva seen between the lips; keep lips, skin, framing and identity untouched): deliver a CLEARLY idealised but credible result. '+
-        '(1) CLOSE the midline diastema and all anterior spacing so the central incisors meet at a coincident, centred dental midline. '+
+        '(1) CLOSE the midline diastema and all anterior spacing so the central incisors meet at a coincident, centred dental midline. Resolve all crowding (叢生), rotations (捻転), crossbites (反対咬合), open bite (開咬), deep bite (過蓋咬合) and excessive overjet (オーバージェット) visible within the smile window. '+
         '(2) GOLDEN / RED PROPORTION: maxillary central incisor is the key reference with width-to-height ratio ~78–82%; from the front the apparent widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 (RED proportion); centrals gently dominant. Achieve the ratio by ideal crown FORM and LENGTH — NOT by shortening the crowns. '+
         '(3) Incisal edges form a consonant smile arc parallel to the lower lip, with progressive central→lateral→canine embrasures; symmetric left/right. '+
         '(4) ANTI-GUMMY — do NOT increase gingival display and do NOT create a gummy smile: keep upper-lip-to-gingival-margin display natural (about 1–2 mm of gingiva at most). If the patient already shows a gummy smile, REDUCE the gingival show (the crown-lengthening look — move gingival margins apically and lengthen the clinical crowns) so the teeth look longer and less gummy. Gingival zeniths harmonious (centrals & canines slightly apical to laterals). '+
-        '(5) Even, natural enamel shade with realistic translucency — never a flat, opaque "denture" look. The change must be obviously visible vs. the input yet photorealistic and believable for THIS patient.');
+        '(5) Even, natural enamel shade with realistic translucency — never a flat, opaque "denture" look. The change must be obviously visible vs. the input yet photorealistic and believable for THIS patient.'+
+        hybridSmileExtra);
     }
     // ── Bracket control — clinician-confirmed flag (source-aware) ─────────────────────────────
     // This block is the single authoritative source for appliance-related prompting.
