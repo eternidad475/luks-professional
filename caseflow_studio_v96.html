@@ -4467,7 +4467,15 @@ button[id="localMLDetectButton"]{
        contrast — no white overlay on the app container itself.
    (3) Silence .marble (bg set via inline style by applyPalette → !important). */
 html.cf-webgl-active body::before{
-  opacity:0;pointer-events:none;transition:opacity 1.8s ease;
+  /* Lift above the WebGL canvas (z-index:-1) so the vivid CSS radial gradient
+     sits on top of the fluid animation. mix-blend-mode:screen adds the two
+     colour layers additively — WebGL gives the fluid motion, the CSS gradient
+     contributes its saturated hue blobs on top. */
+  z-index:0;
+  opacity:0.52;
+  mix-blend-mode:screen;
+  pointer-events:none;
+  transition:opacity 1.8s ease;
 }
 html.cf-webgl-active .app{
   background:transparent !important;
