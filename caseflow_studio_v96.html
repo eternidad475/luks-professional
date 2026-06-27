@@ -4459,17 +4459,18 @@ button[id="localMLDetectButton"]{
 
 /* When WebGL is live:
    (1) Suppress the CSS radial-gradient animation on body::before.
-   (2) Make the .app column transparent so the WebGL canvas behind it shows
-       through — on mobile .app fills 100vw×100dvh, which is why WebGL was
-       invisible. A 14% white tint provides a subtle frosted base so card
-       content remains readable (cards themselves are rgba(255,255,255,.78)).
-   (3) Silence .marble (both the CSS default and any inline style set by
-       applyPalette) — !important is required to win over inline style. */
+   (2) Make .app fully transparent — the WebGL canvas behind it (z-index:-1
+       in the body stacking context) shows through at full saturation/vibrancy,
+       matching the reference demo where the fluid fills the entire viewport and
+       glass/card elements float on top. Cards (rgba(255,255,255,.78)) and
+       .screen.soft::before (backdrop-filter:blur(22px)) provide the readability
+       contrast — no white overlay on the app container itself.
+   (3) Silence .marble (bg set via inline style by applyPalette → !important). */
 html.cf-webgl-active body::before{
   opacity:0;pointer-events:none;transition:opacity 1.8s ease;
 }
 html.cf-webgl-active .app{
-  background:rgba(251,248,255,0.14) !important;
+  background:transparent !important;
   transition:background 1.8s ease;
 }
 html.cf-webgl-active .marble{
