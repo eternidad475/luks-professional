@@ -15218,7 +15218,9 @@ window.addEventListener('DOMContentLoaded', () => {
       });
       act.querySelector('.simCardDel').addEventListener('click',function(e){
         e.stopPropagation();
-        if(kind==='facial') state.simMacro=null; else state.simMicro=null;
+        // Set exclusion flag so pickCategoryPhoto fallback doesn't immediately re-fill the slot.
+        if(kind==='facial'){ state._simMacroExcluded=true; state.simMacro=null; }
+        else { state._simMicroExcluded=true; state.simMicro=null; }
         updateSimulationChoicesV82(); toastFn('画像を外しました');
       });
     }
@@ -15334,8 +15336,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSimulationChoicesV82(){
-    const macro = state.simMacro || pickCategoryPhoto('facial');
-    const micro = state.simMicro || pickCategoryPhoto('focus');
+    // Auto-pick from gallery only if the user has NOT explicitly dismissed this slot.
+    // Dismissal is set when 削除 is pressed; cleared when a new photo is explicitly uploaded.
+    const macro = state.simMacro || (state._simMacroExcluded ? null : pickCategoryPhoto('facial'));
+    const micro = state.simMicro || (state._simMicroExcluded ? null : pickCategoryPhoto('focus'));
     const macroCard=$id('macroChoice'), microCard=$id('microChoice');
     const macroThumb=$id('macroThumb'), microThumb=$id('microThumb');
     if(macroThumb) macroThumb.src = macro && macro.dataUrl ? macro.dataUrl : '';
@@ -15384,6 +15388,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     ensureSimCardActions(macroCard,'facial',macro);
     ensureSimCardActions(microCard,'focus',micro);
+    // Remove legacy v6.6 "Not selected / Using selected image" badge that conflicts with
+    // the v8.2 "Facial image ready / Focus image ready" display.
+    [macroCard, microCard].forEach(card=>{
+      if(!card) return;
+      card.querySelector('.simChoiceState')?.remove();
+      // Also hide the original subtitle span that v6.6 overwrites with "未選択..." text,
+      // since v8.2 has .choiceFileMeta + .choiceState for the same info.
+      const inner=card.querySelector('div');
+      const origSpan=inner?.querySelector('span:not(.choiceFileMeta):not(.choiceState)');
+      if(origSpan) origSpan.style.display='none';
+    });
     // Gate generate button: if a Micro image is loaded but shot type not yet confirmed, block.
     const genBtn=document.querySelector('#simulator button.primary[onclick*="generateSimulation"]');
     if(genBtn){
@@ -15411,6 +15426,7 @@ window.addEventListener('DOMContentLoaded', () => {
       let intra=false, dark=false, lm=null, aMac=null;
       try{ if(window.caseflowLocalAnalyze){ aMac=await window.caseflowLocalAnalyze(dataUrl,'facial'); intra=!!aMac.intraoral; dark=!!aMac.intraoralDark; lm=aMac.landmarks; } }catch(_){}
       // Facial portraits inherently have lips — no shot-type picker needed on this card.
+      state._simMacroExcluded=false;
       state.simMacro={dataUrl, label:'Macro / Facial', category:'facial', intraoral:intra, intraoralDark:dark, lips:!intra, _shotConfirmed:true, macroHasBrackets:false, landmarks:lm, name:f.name||'', date:new Date().toISOString()};
       updateSimulationChoicesV82();
       toastFn('Facial image を設定しました');
@@ -15424,6 +15440,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // No popup at upload: seed flags from auto-detection; the shot-type picker inside the
       // Micro/Focus card is where the user confirms / corrects リップの有無・コントラスター.
       const intra=!!(a&&a.intraoral), dark=!!(a&&a.intraoralDark);
+      state._simMicroExcluded=false;
       state.simMicro={dataUrl, label:'Micro / Focus', category:'focus', intraoral:intra, intraoralDark:dark, lips:!intra, landmarks:a?a.landmarks:null, name:f.name||'', date:new Date().toISOString()};
       updateSimulationChoicesV82();
       toastFn('Focus image を設定しました');
