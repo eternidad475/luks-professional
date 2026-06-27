@@ -21855,10 +21855,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
 /* ===== Clione-heart: organic glowing motif on the home hero ===== */
 #home .hero{ position:relative; }
 #home .clioneHeart{
+  /* --clione-r/g/b are set by JS from the "Start New Project" button text color */
+  --clione-r:255; --clione-g:105; --clione-b:180;
   position:absolute; top:33%; left:50%;
   transform:translate(-50%,-50%);
   width:150px; height:150px; border-radius:50%;
-  background:radial-gradient(circle, rgba(255,105,180,.40) 0%, rgba(255,182,193,.10) 50%, transparent 70%);
+  background:radial-gradient(circle, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.40) 0%, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.10) 50%, transparent 70%);
   filter:blur(8px);
   mix-blend-mode:screen;
   z-index:1;
@@ -21871,9 +21873,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
   -webkit-tap-highlight-color:transparent;
 }
 #home .clioneHeart.active{
-  background:radial-gradient(circle, rgba(255,50,100,.80) 0%, rgba(255,100,150,.50) 50%, transparent 80%);
+  background:radial-gradient(circle, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.80) 0%, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.50) 50%, transparent 80%);
   filter:blur(4px);
-  box-shadow:0 0 40px 20px rgba(255,50,100,.6);
+  box-shadow:0 0 40px 20px rgba(var(--clione-r),var(--clione-g),var(--clione-b),.6);
   animation:clioneHeartBeat .8s infinite;
 }
 @keyframes clioneFloat{
@@ -21941,6 +21943,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
     window.addEventListener('pointerup', stopBeating, {passive:true});
     window.addEventListener('pointercancel', stopBeating, {passive:true});
     window.addEventListener('touchend', stopBeating, {passive:true});
+
+    // Inherit the "Start New Project" button text colour so the orb always matches the palette.
+    (function(){
+      var btn=document.querySelector('#home .primary');
+      if(!btn) return;
+      var col=getComputedStyle(btn).color;
+      var m=col.match(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/);
+      if(!m) return;
+      heart.style.setProperty('--clione-r', m[1]);
+      heart.style.setProperty('--clione-g', m[2]);
+      heart.style.setProperty('--clione-b', m[3]);
+    })();
 
     moveRandom(); scheduleWander();
   }
