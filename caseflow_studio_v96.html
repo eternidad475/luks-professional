@@ -21861,10 +21861,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
   background:radial-gradient(circle, rgba(255,105,180,.40) 0%, rgba(255,182,193,.10) 50%, transparent 70%);
   filter:blur(8px);
   mix-blend-mode:screen;
-  z-index:1; pointer-events:auto;
-  transition:background .3s ease, filter .3s ease, box-shadow .3s ease;
+  z-index:1;
+  /* pointer-events:none so the roaming orb never blocks the home buttons; the long-press is
+     detected on the home screen by proximity to the orb's current centre. */
+  pointer-events:none;
+  /* smooth glide between the random target positions (left/top), plus the glow transitions */
+  transition:left 4.2s cubic-bezier(.45,.05,.35,1), top 4.2s cubic-bezier(.45,.05,.35,1), background .3s ease, filter .3s ease, box-shadow .3s ease;
   animation:clioneFloat 4s ease-in-out infinite alternate;
-  cursor:pointer; touch-action:none; -webkit-tap-highlight-color:transparent;
+  -webkit-tap-highlight-color:transparent;
 }
 #home .clioneHeart.active{
   background:radial-gradient(circle, rgba(255,50,100,.80) 0%, rgba(255,100,150,.50) 50%, transparent 80%);
@@ -21896,9 +21900,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var heart=document.getElementById('clioneHeart');
     if(!heart || heart.__bound) return;
     heart.__bound=true;
-    var beatInterval=null;
+    var home=document.getElementById('home');
+    var beatInterval=null, wanderTimer=null, roaming=true;
+
+    // Wander to a new random position across the screen. Paused while held (so it stays put and
+    // pulses under the finger). Bounds keep it on-screen and clear of the very bottom nav.
+    function moveRandom(){
+      if(!roaming) return;
+      var x=10+Math.random()*80;   // 10%–90% horizontally
+      var y=12+Math.random()*66;   // 12%–78% vertically
+      heart.style.left=x.toFixed(1)+'%';
+      heart.style.top=y.toFixed(1)+'%';
+    }
+    function scheduleWander(){ clearTimeout(wanderTimer); wanderTimer=setTimeout(function(){ moveRandom(); scheduleWander(); }, 3600+Math.random()*1800); }
+
     function startBeating(){
       if(heart.classList.contains('active')) return;
+      roaming=false;                 // hold position while pulsing
       heart.classList.add('active');
       if(navigator.vibrate){
         try{ navigator.vibrate([100,50,100]); }catch(e){}
@@ -21906,18 +21924,25 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
     }
     function stopBeating(){
+      if(!heart.classList.contains('active') && roaming) return;
       heart.classList.remove('active');
       if(beatInterval){ clearInterval(beatInterval); beatInterval=null; }
       if(navigator.vibrate){ try{ navigator.vibrate(0); }catch(e){} }
+      roaming=true;                  // resume wandering
     }
-    // Pointer events cover touch + mouse; the named handlers let us detach cleanly if needed.
-    heart.addEventListener('pointerdown', function(e){ e.preventDefault(); startBeating(); });
-    heart.addEventListener('pointerup', stopBeating);
-    heart.addEventListener('pointercancel', stopBeating);
-    heart.addEventListener('pointerleave', stopBeating);
-    // Safety: a touchend anywhere ends the beat (in case the pointer leaves the element first).
+
+    // Long-press detection by PROXIMITY (the orb itself is pointer-events:none so it never blocks
+    // the home buttons). A press that starts within ~90px of the orb's current centre lights it up.
+    function near(e){
+      var r=heart.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+      return Math.hypot((e.clientX||0)-cx,(e.clientY||0)-cy) <= Math.max(80, r.width*0.6);
+    }
+    (home||document).addEventListener('pointerdown', function(e){ if(near(e)) startBeating(); }, {passive:true});
+    window.addEventListener('pointerup', stopBeating, {passive:true});
+    window.addEventListener('pointercancel', stopBeating, {passive:true});
     window.addEventListener('touchend', stopBeating, {passive:true});
-    window.addEventListener('mouseup', stopBeating);
+
+    moveRandom(); scheduleWander();
   }
   if(document.readyState!=='loading') init();
   else document.addEventListener('DOMContentLoaded', init);
