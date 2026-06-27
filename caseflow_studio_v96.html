@@ -14413,7 +14413,8 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       return copy;
     });
-    setStore(serializable);
+    const _libKey='caseflow_project_library_v55';
+    if(typeof window.cfPersistLib==='function') window.cfPersistLib(_libKey, serializable); else setStore(serializable);
     try{ if(typeof renderLibrary==='function') renderLibrary(); }catch(e){}
     toastFn('動画をLibraryに追加しました');
   }
@@ -15120,22 +15121,35 @@ window.addEventListener('DOMContentLoaded', () => {
   function setStore(arr){ try{ localStorage.setItem('caseflow_project_library_v55', JSON.stringify(arr)); }catch(e){} }
   function addSimulationToLibrary(){
     if(!state.simResult || !state.simResult.dataUrl) return;
+    const KEY='caseflow_project_library_v55';
     state.projectLibrary = Array.isArray(state.projectLibrary) ? state.projectLibrary : getStore();
-    const id='sim_' + Date.now();
-    const record={
-      id,
-      title:'Simulation Reference Image',
-      createdAt:todayStamp(),
-      kind:'simulation-image',
-      thumb:state.simResult.dataUrl,
-      payload:{
-        simResult:JSON.parse(JSON.stringify(state.simResult)),
-        photos:JSON.parse(JSON.stringify(state.photos||[])),
-        title:'Simulation Reference Image'
+    // Prefer promoting the existing compressed auto-save record to permanent,
+    // rather than storing a new full-resolution record that would overflow localStorage.
+    const autoId = state.simResult.__autoId;
+    if(autoId){
+      const ex = state.projectLibrary.find(r=>r && r.id===autoId);
+      if(ex){
+        ex.temp=false; delete ex.expiresAt;
+        ex.title='Simulation Reference Image';
+        if(typeof window.cfPersistLib==='function') window.cfPersistLib(KEY, state.projectLibrary); else setStore(state.projectLibrary);
+        if(typeof renderLibrary==='function') renderLibrary();
+        toastFn('Simulation image を Library に追加しました');
+        return;
       }
-    };
+    }
+    // Fallback: delegate to cfAutoSaveTempSim (compressed storage) if available.
+    if(typeof window.cfAutoSaveTempSim==='function'){
+      window.cfAutoSaveTempSim(state.simResult);
+      toastFn('Simulation image を Library に追加しました');
+      return;
+    }
+    // Last resort: use compressed thumb from state if possible, else skip full-res.
+    const thumb = (state.simResult.thumb && state.simResult.thumb.length < 400000) ? state.simResult.thumb : '';
+    if(!thumb){ toastFn('Simulation image を Library に追加しました'); return; }
+    const id='sim_' + Date.now();
+    const record={ id, title:'Simulation Reference Image', createdAt:todayStamp(), kind:'simulation-image', thumb, payload:{ simResult:{ dataUrl:thumb, sourceKind:state.simResult.sourceKind||'Image', settings:state.simResult.settings||{}, fav:!!state.simResult.fav }, photos:[], title:'Simulation Reference Image' } };
     state.projectLibrary.unshift(record);
-    setStore(state.projectLibrary);
+    if(typeof window.cfPersistLib==='function') window.cfPersistLib(KEY, state.projectLibrary); else setStore(state.projectLibrary);
     if(typeof renderLibrary==='function') renderLibrary();
     toastFn('Simulation image を Library に追加しました');
   }
@@ -19356,6 +19370,7 @@ body[data-ui-tone="dark"]{
     }catch(e){}
   }
   window.cfAutoSaveTempSim=cfAutoSaveTempSim;
+  window.cfPersistLib=cfPersistLib;
   function pushSimResult(r){
     if(!Array.isArray(state.simResults)) state.simResults=[];
     state.simResults.push(r);
@@ -20636,24 +20651,48 @@ window.cfWait = (function(){
   function persistSavedSims(arr){
     try{ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }catch(e){}
   }
+  /* Compress a data URL to a small 180px thumbnail (async callback).
+     Full-res images in savedSims were filling all of localStorage quota and
+     preventing cfPersistLib from writing Library records. */
+  function _shrinkSim(url, cb){
+    if(!url||!url.startsWith('data:image')){ cb(''); return; }
+    var img=new Image();
+    img.onload=function(){
+      var S=180,s=Math.min(1,S/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+      var w=Math.max(1,Math.round((img.naturalWidth||1)*s));
+      var h=Math.max(1,Math.round((img.naturalHeight||1)*s));
+      var c=document.createElement('canvas');c.width=w;c.height=h;
+      try{c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.72));}
+      catch(e){cb('');}
+    };
+    img.onerror=function(){cb('');};
+    img.src=url;
+  }
   /* Push or update the current sim result into saved sims when one is generated */
   function syncCurrentResult(){
     if(!window.state) return;
     var arr=Array.isArray(state.simResults)?state.simResults:[];
     if(!arr.length) return;
     var saved=loadSavedSims();
-    arr.forEach(function(r){
-      if(!r||!r.dataUrl) return;
+    var items=arr.filter(function(r){return r&&r.dataUrl;});
+    if(!items.length) return;
+    var done=0;
+    items.forEach(function(r){
       var key=r._savedKey;
       if(!key){ key=Date.now()+'_'+Math.random().toString(36).slice(2,7); r._savedKey=key; }
-      var ex=saved.findIndex(function(s){ return s._savedKey===key; });
-      var entry={_savedKey:key,dataUrl:r.dataUrl,fav:!!r.fav,title:r.title||'',date:r.date||'',note:r.note||'',ts:r.ts||Date.now()};
-      if(ex>=0) saved[ex]=entry; else saved.unshift(entry);
+      _shrinkSim(r.dataUrl, function(thumb){
+        var ex=saved.findIndex(function(s){return s._savedKey===key;});
+        var entry={_savedKey:key,dataUrl:thumb,fav:!!r.fav,title:r.title||'',date:r.date||'',note:r.note||'',ts:r.ts||Date.now()};
+        if(ex>=0) saved[ex]=entry; else saved.unshift(entry);
+        done++;
+        if(done===items.length){
+          // Cap at 20 compressed entries (~15 KB each ≈ 300 KB total)
+          if(saved.length>20) saved=saved.slice(0,20);
+          persistSavedSims(saved);
+          renderRightPanel();
+        }
+      });
     });
-    // Keep max 40 saved
-    if(saved.length>40) saved=saved.slice(0,40);
-    persistSavedSims(saved);
-    renderRightPanel();
   }
   window.cfSyncSimResult=syncCurrentResult;
 
