@@ -18265,7 +18265,19 @@ body[data-ui-tone="dark"]{
       'Smile frame — keep a natural buccal corridor (do not fully eliminate it); balance lip-to-tooth display; do not over-elevate the corners or over-expose gingiva. '+
       'Always keep lips, skin, face and lighting unchanged; modify only teeth and gingiva.');
     if(isFacial){
-      parts.push('CRITICAL: this is a full-face facial portrait. Keep the ENTIRE face pixel-faithful to the original — identical eyes, eyebrows, nose, lip shape and position, skin, hair, expression, age and facial proportions, framing and lighting. Change ONLY the teeth visible inside the mouth opening. Do NOT beautify, slim, smooth or alter the face, lips or skin in any way.');
+      parts.push(
+        'CRITICAL — FACE IDENTITY LOCK (non-negotiable): this is a full-face facial portrait. '
+        +'Every part of the face OUTSIDE the tooth surfaces must remain pixel-faithful to the original patient photograph. '
+        +'Specifically enforce ALL of the following: '
+        +'(A) COMMISSURE ANGLE — if the patient\'s lip corners (commissures) naturally point DOWNWARD, keep them pointing EXACTLY downward; do NOT lift, turn up or "correct" the corner angle in any way. '
+        +'(B) PATIENT AGE — if this is a child, the simulated result must still clearly be the SAME CHILD of the same age; if an adult, preserve that adult\'s exact age; never age-up or age-down the patient. '
+        +'(C) LOWER FACE CONTOUR — jaw line, chin shape and lower-face outline must be identical to the original; do NOT slim, widen, lengthen or reshape the chin or mandibular contour. '
+        +'(D) NOSE — nasal tip, alar width, nasal bridge and naso-labial fold: UNCHANGED. '
+        +'(E) LIP SHAPE AND THICKNESS — upper and lower lip vermilion border, lip thickness, lip-to-teeth display: UNCHANGED; do NOT thin, thicken or beautify the lips. '
+        +'(F) EYES, SKIN, HAIR, EXPRESSION, LIGHTING, FRAMING: all UNCHANGED. '
+        +'Change ONLY the TEETH visible inside the open mouth aperture. Do NOT beautify, slim, smooth, or reconstruct any facial structure outside the teeth. '
+        +'Violating any point above (especially changing the commissure direction, the patient age, or the chin outline) is an INCORRECT result.'
+      );
     }
     if(isIntraoral && isIntraoralDark){
       parts.push('CRITICAL: this is an intraoral CLOSE-UP of a single arch (anterior teeth), taken with cheek retractors against a BLACK contraster background. Keep the black background pure black and completely unchanged; keep the cheek retractors and the gingiva unchanged. Modify ONLY the enamel of the visible teeth. Do NOT invent extra teeth, lips, skin or a full smile, and do NOT change the framing, magnification or number of teeth.');
@@ -18904,16 +18916,30 @@ body[data-ui-tone="dark"]{
       let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
       let minX=1e9,maxX=-1e9; lip.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
       const mouthW=Math.max(20,maxX-minX);
-      // Inner aperture: expand 1.22× from centroid to catch teeth near the lip margin, then
-      // feather 20% of mouth-width so the transition zone spans the full lip surface and
-      // blends smoothly even when the AI face differs from the patient (e.g. adult vs child).
-      // Outer polygon fallback: wider expansion + 30% feather gives an even softer boundary.
-      const exp = lipInner ? 1.22 : 1.62;
-      const featherPx = lipInner ? Math.max(14,Math.round(mouthW*0.20)) : Math.max(20,Math.round(mouthW*0.30));
+      // Inner aperture: expand 1.16× from centroid (tighter than before to avoid touching the
+      // chin/jaw area), then feather 18% of mouth-width so the transition zone still blends
+      // across the full lip surface. The chin + nasal guards below provide an absolute hard stop.
+      // Outer polygon fallback: wider expansion + 28% feather gives a softer boundary.
+      const exp = lipInner ? 1.16 : 1.54;
+      const featherPx = lipInner ? Math.max(12,Math.round(mouthW*0.18)) : Math.max(18,Math.round(mouthW*0.28));
+      // Bounding box of the original (non-expanded) lip polygon for guard rails.
+      let minY_lip=1e9,maxY_lip=-1e9,minX_lip=1e9,maxX_lip=-1e9;
+      lip.forEach(p=>{minY_lip=Math.min(minY_lip,p.y);maxY_lip=Math.max(maxY_lip,p.y);minX_lip=Math.min(minX_lip,p.x);maxX_lip=Math.max(maxX_lip,p.x);});
+      const mouthH_lip=Math.max(1,maxY_lip-minY_lip);
+      // Chin guard: hard limit for the bottom of the composite mask. Clamp to the natural
+      // lower-lip margin + 12% of mouth height — this ensures the chin/jaw area is ALWAYS
+      // taken from the patient's original photo and never from the AI-generated face.
+      const chinGuardY=Math.round(maxY_lip + mouthH_lip*0.12);
+      // Nasal guard: don't bleed into the nose bridge either.
+      const nasalGuardY=Math.round(minY_lip - mouthH_lip*0.08);
+
       const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
       const m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
       lip.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
       m1x.closePath(); m1x.fill();
+      // Apply chin + nasal guards: clear mask pixels outside the safe zone.
+      if(chinGuardY < h) m1x.clearRect(0, chinGuardY, w, h-chinGuardY);
+      if(nasalGuardY > 0) m1x.clearRect(0, 0, w, nasalGuardY);
       const mk=document.createElement('canvas'); mk.width=w; mk.height=h;
       const mx=mk.getContext('2d'); mx.filter='blur('+featherPx+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
       // mask the AI layer, then lay it over the original
@@ -19095,7 +19121,11 @@ body[data-ui-tone="dark"]{
       // Hard negative prompt when no brackets: blocks the AI from hallucinating appliances.
       // Facial photos additionally guard against lip/smile distortion artefacts.
       payload.negative_prompt=isFacialSrc
-        ? 'braces, brackets, wires, distorted lips, unnatural smile line, metallic dental appliances, orthodontic attachments, warped mouth'
+        ? 'braces, brackets, wires, distorted lips, unnatural smile line, metallic dental appliances, orthodontic attachments, warped mouth, '
+          + 'different face, different person, age change, older appearance, younger appearance, adult face for child patient, '
+          + 'altered jaw, different chin shape, changed facial contour, reshaped nose, different ethnic features, '
+          + 'changed commissure angle, upturned corners, lifted mouth corners, changed lower face, facial reconstruction, '
+          + 'beautified skin, slimmed face, different facial proportions, changed expression'
         : 'braces, brackets, wires, archwires, metallic dental appliances, orthodontic attachments, bracket slots, metal clips, ligatures, bonded attachments';
     } else {
       // Signal to the backend that this is an inpainting/removal task.
