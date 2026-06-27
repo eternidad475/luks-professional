@@ -4456,9 +4456,32 @@ button[id="localMLDetectButton"]{
   opacity:0;transition:opacity 1.8s ease;
 }
 #cfWebGLBg.cf-ready{opacity:1}
-/* Fade out the CSS radial animation once WebGL is live (keeps it as fallback). */
+
+/* When WebGL is live:
+   (1) Suppress the CSS radial-gradient animation on body::before.
+   (2) Make the .app column transparent so the WebGL canvas behind it shows
+       through — on mobile .app fills 100vw×100dvh, which is why WebGL was
+       invisible. A 14% white tint provides a subtle frosted base so card
+       content remains readable (cards themselves are rgba(255,255,255,.78)).
+   (3) Silence .marble (both the CSS default and any inline style set by
+       applyPalette) — !important is required to win over inline style. */
 html.cf-webgl-active body::before{
   opacity:0;pointer-events:none;transition:opacity 1.8s ease;
+}
+html.cf-webgl-active .app{
+  background:rgba(251,248,255,0.14) !important;
+  transition:background 1.8s ease;
+}
+html.cf-webgl-active .marble{
+  background:transparent !important;
+  animation:none !important;
+  opacity:0;
+  transition:opacity 1.8s ease;
+}
+html.cf-webgl-active .marble::before,
+html.cf-webgl-active .marble::after{
+  animation:none !important;
+  opacity:0;
 }
 </style>
 
