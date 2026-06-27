@@ -21852,50 +21852,56 @@ body.cfPresent .cfPresentExit{display:flex!important}
 </script>
 
 <style>
-/* ===== Clione-heart: organic glowing motif on the home hero ===== */
+/* ===== Clione-heart: spectrum halation orb on the home hero ===== */
 #home .hero{ position:relative; }
 #home .clioneHeart{
-  /* --clione-r/g/b are set by JS from the "Start New Project" button text color */
-  --clione-r:255; --clione-g:105; --clione-b:180;
   position:absolute; top:33%; left:50%;
   transform:translate(-50%,-50%);
-  width:150px; height:150px; border-radius:50%;
-  background:radial-gradient(circle, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.40) 0%, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.10) 50%, transparent 70%);
-  filter:blur(8px);
+  width:180px; height:180px; border-radius:50%;
+  /* full-spectrum conic gradient — hue-rotate keyframe spins it into a shifting rainbow halation */
+  background:conic-gradient(
+    hsl(0,100%,70%), hsl(50,100%,70%), hsl(100,100%,70%),
+    hsl(150,100%,70%), hsl(200,100%,70%), hsl(250,100%,70%),
+    hsl(300,100%,70%), hsl(350,100%,70%), hsl(360,100%,70%)
+  );
   mix-blend-mode:screen;
   z-index:1;
-  /* pointer-events:none so the roaming orb never blocks the home buttons; the long-press is
-     detected on the home screen by proximity to the orb's current centre. */
   pointer-events:none;
-  /* smooth glide between the random target positions (left/top), plus the glow transitions */
-  transition:left 4.2s cubic-bezier(.45,.05,.35,1), top 4.2s cubic-bezier(.45,.05,.35,1), background .3s ease, filter .3s ease, box-shadow .3s ease;
-  animation:clioneFloat 4s ease-in-out infinite alternate;
+  opacity:.5;
+  transition:left 4.2s cubic-bezier(.45,.05,.35,1), top 4.2s cubic-bezier(.45,.05,.35,1), opacity .4s ease;
+  animation:clioneFloat 4s ease-in-out infinite alternate, clioneHue 6s linear infinite;
   -webkit-tap-highlight-color:transparent;
 }
 #home .clioneHeart.active{
-  background:radial-gradient(circle, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.80) 0%, rgba(var(--clione-r),var(--clione-g),var(--clione-b),.50) 50%, transparent 80%);
-  filter:blur(4px);
-  box-shadow:0 0 40px 20px rgba(var(--clione-r),var(--clione-g),var(--clione-b),.6);
-  animation:clioneHeartBeat .8s infinite;
+  opacity:.88;
+  animation:clioneHeartBeat .8s infinite, clioneHueFast 1.4s linear infinite;
+}
+@keyframes clioneHue{
+  from{ filter:blur(24px) hue-rotate(0deg); }
+  to  { filter:blur(24px) hue-rotate(360deg); }
+}
+@keyframes clioneHueFast{
+  from{ filter:blur(13px) hue-rotate(0deg);   box-shadow:0 0 55px 28px rgba(255,255,255,.18); }
+  to  { filter:blur(13px) hue-rotate(360deg); box-shadow:0 0 55px 28px rgba(255,255,255,.18); }
 }
 @keyframes clioneFloat{
-  0%   { transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:.6; }
-  100% { transform:translate(-50%,-45%) scale(1.05) rotate(5deg); opacity:.9; }
+  0%  { transform:translate(-50%,-50%) scale(1)    rotate(-4deg); opacity:.42; }
+  100%{ transform:translate(-50%,-44%) scale(1.10) rotate( 6deg); opacity:.68; }
 }
 @keyframes clioneHeartBeat{
-  0%   { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
-  15%  { transform:translate(-50%,-50%) scale(1.15); opacity:1; }
-  30%  { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
-  45%  { transform:translate(-50%,-50%) scale(1.1);  opacity:1; }
-  100% { transform:translate(-50%,-50%) scale(1);    opacity:.8; }
+  0%  { transform:translate(-50%,-50%) scale(1);    }
+  15% { transform:translate(-50%,-50%) scale(1.18); }
+  30% { transform:translate(-50%,-50%) scale(1);    }
+  45% { transform:translate(-50%,-50%) scale(1.12); }
+  100%{ transform:translate(-50%,-50%) scale(1);    }
 }
 @media (prefers-reduced-motion:reduce){
-  #home .clioneHeart{ animation:none; }
+  #home .clioneHeart{ animation:none; filter:blur(24px); }
   #home .clioneHeart.active{ animation:none; }
 }
 </style>
 <script>
-/* ---------- Clione-heart: long-press to glow + heartbeat (home hero) ---------- */
+/* ---------- Clione-heart: spectrum halation + positional cry sound ---------- */
 (function(){
   if(window.__clioneHeart) return; window.__clioneHeart=true;
   function init(){
@@ -21904,57 +21910,103 @@ body.cfPresent .cfPresentExit{display:flex!important}
     heart.__bound=true;
     var home=document.getElementById('home');
     var beatInterval=null, wanderTimer=null, roaming=true;
+    var audioCtx=null;
 
-    // Wander to a new random position across the screen. Paused while held (so it stays put and
-    // pulses under the finger). Bounds keep it on-screen and clear of the very bottom nav.
+    /* ---- Web Audio: shared context, lazy-created on first user gesture ---- */
+    function getAC(){
+      if(!audioCtx){
+        var A=window.AudioContext||window.webkitAudioContext;
+        if(A){ try{ audioCtx=new A(); }catch(ex){} }
+      }
+      if(audioCtx && audioCtx.state==='suspended'){ try{ audioCtx.resume(); }catch(ex){} }
+      return audioCtx;
+    }
+
+    /* ---- Positional cry chirp ----
+       xPct 0–100: left=low pitch (180 Hz) → right=high pitch (880 Hz)
+       yPct 0–100: top=short/fast (0.06 s) → bottom=long/slow (0.61 s)
+       loud: wandering chirp is quiet (0.07), heartbeat chirp is louder (0.16) */
+    function makeCry(xPct, yPct, loud){
+      var ac=getAC(); if(!ac) return;
+      try{
+        var baseFreq = 180 + (xPct/100)*700;
+        var dur      = 0.06 + (yPct/100)*0.55;
+        var vol      = loud ? 0.16 : 0.07;
+        var t=ac.currentTime;
+
+        /* main oscillator: sweeps up→down→settle for a "cry" contour */
+        var osc=ac.createOscillator(), g=ac.createGain();
+        osc.type='sine';
+        osc.frequency.setValueAtTime(baseFreq*1.18, t);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq*0.82, t+dur*0.65);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq*0.94, t+dur);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(vol, t+dur*0.10);
+        g.gain.setValueAtTime(vol, t+dur*0.72);
+        g.gain.linearRampToValueAtTime(0, t+dur);
+        osc.connect(g); g.connect(ac.destination);
+        osc.start(t); osc.stop(t+dur+0.05);
+
+        /* soft octave-up harmonic for bell-like shimmer */
+        var osc2=ac.createOscillator(), g2=ac.createGain();
+        osc2.type='sine';
+        osc2.frequency.setValueAtTime(baseFreq*2.02, t);
+        osc2.frequency.exponentialRampToValueAtTime(baseFreq*1.62, t+dur*0.65);
+        osc2.frequency.exponentialRampToValueAtTime(baseFreq*1.88, t+dur);
+        g2.gain.setValueAtTime(0, t);
+        g2.gain.linearRampToValueAtTime(vol*0.28, t+dur*0.15);
+        g2.gain.linearRampToValueAtTime(0, t+dur);
+        osc2.connect(g2); g2.connect(ac.destination);
+        osc2.start(t); osc2.stop(t+dur+0.05);
+      }catch(ex){}
+    }
+
+    function orbPos(){ return{ x:parseFloat(heart.style.left)||50, y:parseFloat(heart.style.top)||33 }; }
+
+    /* ---- Wander: soft chirp each time the orb settles at a new position ---- */
     function moveRandom(){
       if(!roaming) return;
-      var x=10+Math.random()*80;   // 10%–90% horizontally
-      var y=12+Math.random()*66;   // 12%–78% vertically
+      var x=10+Math.random()*80;
+      var y=12+Math.random()*66;
       heart.style.left=x.toFixed(1)+'%';
       heart.style.top=y.toFixed(1)+'%';
+      makeCry(x, y, false);
     }
-    function scheduleWander(){ clearTimeout(wanderTimer); wanderTimer=setTimeout(function(){ moveRandom(); scheduleWander(); }, 3600+Math.random()*1800); }
+    function scheduleWander(){
+      clearTimeout(wanderTimer);
+      wanderTimer=setTimeout(function(){ moveRandom(); scheduleWander(); }, 3600+Math.random()*1800);
+    }
 
+    /* ---- Heartbeat: louder cry on each pulse ---- */
     function startBeating(){
       if(heart.classList.contains('active')) return;
-      roaming=false;                 // hold position while pulsing
+      roaming=false;
       heart.classList.add('active');
-      if(navigator.vibrate){
-        try{ navigator.vibrate([100,50,100]); }catch(e){}
-        beatInterval=setInterval(function(){ try{ navigator.vibrate([100,50,100]); }catch(e){} }, 800);
-      }
+      getAC();   // unlock AudioContext on the user gesture
+      var p=orbPos(); makeCry(p.x, p.y, true);
+      if(navigator.vibrate){ try{ navigator.vibrate([100,50,100]); }catch(ex){} }
+      beatInterval=setInterval(function(){
+        var pp=orbPos(); makeCry(pp.x, pp.y, true);
+        if(navigator.vibrate){ try{ navigator.vibrate([100,50,100]); }catch(ex){} }
+      }, 800);
     }
     function stopBeating(){
       if(!heart.classList.contains('active') && roaming) return;
       heart.classList.remove('active');
       if(beatInterval){ clearInterval(beatInterval); beatInterval=null; }
-      if(navigator.vibrate){ try{ navigator.vibrate(0); }catch(e){} }
-      roaming=true;                  // resume wandering
+      if(navigator.vibrate){ try{ navigator.vibrate(0); }catch(ex){} }
+      roaming=true;
     }
 
-    // Long-press detection by PROXIMITY (the orb itself is pointer-events:none so it never blocks
-    // the home buttons). A press that starts within ~90px of the orb's current centre lights it up.
+    /* ---- Proximity detection (orb is pointer-events:none) ---- */
     function near(e){
       var r=heart.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
       return Math.hypot((e.clientX||0)-cx,(e.clientY||0)-cy) <= Math.max(80, r.width*0.6);
     }
     (home||document).addEventListener('pointerdown', function(e){ if(near(e)) startBeating(); }, {passive:true});
-    window.addEventListener('pointerup', stopBeating, {passive:true});
+    window.addEventListener('pointerup',     stopBeating, {passive:true});
     window.addEventListener('pointercancel', stopBeating, {passive:true});
-    window.addEventListener('touchend', stopBeating, {passive:true});
-
-    // Inherit the "Start New Project" button text colour so the orb always matches the palette.
-    (function(){
-      var btn=document.querySelector('#home .primary');
-      if(!btn) return;
-      var col=getComputedStyle(btn).color;
-      var m=col.match(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/);
-      if(!m) return;
-      heart.style.setProperty('--clione-r', m[1]);
-      heart.style.setProperty('--clione-g', m[2]);
-      heart.style.setProperty('--clione-b', m[3]);
-    })();
+    window.addEventListener('touchend',      stopBeating, {passive:true});
 
     moveRandom(); scheduleWander();
   }
