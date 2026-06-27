@@ -18837,7 +18837,7 @@ body[data-ui-tone="dark"]{
     // ③ Stronger global colour/exposure match so the AI layer's overall brightness tracks the
     // patient's own photo — the smaller the brightness gap across the mask edge, the less any
     // feathered boundary can ever read as a seam.
-    toneMatchToOriginal(aix, ox, w, h, 0.72);
+    toneMatchToOriginal(aix, ox, w, h, 0.85);
 
     const facial=(kind==='Facial');
     // Detect the mouth (teeth) via lip landmarks; on a portrait, blend the AI result ONLY inside a
@@ -18855,11 +18855,12 @@ body[data-ui-tone="dark"]{
       let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
       let minX=1e9,maxX=-1e9; lip.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
       const mouthW=Math.max(20,maxX-minX);
-      // Inner aperture → tight expansion (catch teeth at the lip margin) + a soft feather along
-      // the lip edge (a high-contrast lip/tooth boundary reads naturally). Outer fallback keeps
-      // the previous wider, more-feathered behaviour.
-      const exp = lipInner ? 1.14 : 1.5;
-      const featherPx = lipInner ? Math.max(3,Math.round(mouthW*0.045)) : Math.max(10,Math.round(mouthW*0.22));
+      // Inner aperture: expand 1.22× from centroid to catch teeth near the lip margin, then
+      // feather 20% of mouth-width so the transition zone spans the full lip surface and
+      // blends smoothly even when the AI face differs from the patient (e.g. adult vs child).
+      // Outer polygon fallback: wider expansion + 30% feather gives an even softer boundary.
+      const exp = lipInner ? 1.22 : 1.62;
+      const featherPx = lipInner ? Math.max(14,Math.round(mouthW*0.20)) : Math.max(20,Math.round(mouthW*0.30));
       const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
       const m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
       lip.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
