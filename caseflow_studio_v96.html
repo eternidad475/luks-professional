@@ -4933,6 +4933,7 @@ html.cf-webgl-active .marble::after{
   </div>
   <div class="toolbar cfResultActions">
     <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
+    <button class="tool" id="cfRefineBtn" onclick="runSecondaryRefinement()" title="上顎前歯ゴールデンプロポーション二次精密生成" style="display:none;background:linear-gradient(135deg,#7c5cff,#c47eff);color:#fff;border-color:transparent">✦ Refine<br>精密生成</button>
     <button class="tool cfLibraryBtn" onclick="go('library')" title="Library を開く（生成画像は自動保存されます）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
@@ -22176,6 +22177,335 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   boot();
+})();
+</script>
+
+<script>
+/* ── Secondary Refinement (二次生成) — Golden Proportion Upper Anterior Teeth ── */
+(function(){
+  'use strict';
+  if(window.__cfSecondaryRefinement) return;
+  window.__cfSecondaryRefinement = true;
+
+  function toast(m){ if(typeof window.toast==='function') window.toast(m); }
+
+  function loadImg(src){
+    return new Promise(function(res,rej){
+      var im=new Image(); im.crossOrigin='anonymous';
+      im.onload=function(){res(im);}; im.onerror=rej; im.src=src;
+    });
+  }
+
+  function getAiEndpoint(){
+    try{
+      return window.CASEFLOW_AI_ENDPOINT ||
+             localStorage.getItem('caseflow_ai_endpoint') ||
+             'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
+    }catch(e){ return window.CASEFLOW_AI_ENDPOINT || ''; }
+  }
+
+  async function fetchWithRetry(ep, body, maxAttempts){
+    maxAttempts = maxAttempts||4;
+    var delay = 1200;
+    for(var attempt=1; attempt<=maxAttempts; attempt++){
+      try{
+        var r = await fetch(ep, {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body: body
+        });
+        if(r.ok || !(r.status in {408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1})) return r;
+      }catch(e){ if(attempt>=maxAttempts) throw e; }
+      await new Promise(function(r){ setTimeout(r, delay); });
+      delay = Math.min(delay*2, 10000);
+    }
+    throw new Error('AIバックエンドに接続できませんでした');
+  }
+
+  function buildGoldenProportionPrompt(){
+    return [
+      'close-up dental photograph, upper anterior teeth perfectly aligned,',
+      'golden proportion smile: central incisor visible width to lateral incisor ratio 1.618:1,',
+      'lateral incisor to canine visible width ratio 1.618:1,',
+      'smile arc gently following lower lip curvature,',
+      'harmonious gingival zenith positions with slight distal lean on lateral incisors,',
+      'square-tapered central incisors 8-9mm width, bright A1-A2 natural enamel shade,',
+      'subtle incisal translucency and natural surface texture, no staining,',
+      'photorealistic ultra-detailed dental photography 8k resolution,',
+      'do NOT change lips, gingiva beyond incisal third, or any skin or background'
+    ].join(' ');
+  }
+
+  async function getLipInnerRing(img, w, h){
+    try{
+      var initFn = window.initMediaPipeLocalML;
+      var ok = (typeof initFn==='function') ? await initFn() : false;
+      if(!ok || !window.CaseFlowLocalML || !window.CaseFlowLocalML.faceLandmarker) return null;
+      var res = window.CaseFlowLocalML.faceLandmarker.detect(img);
+      if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+      var L = res.faceLandmarks[0];
+      var ring = [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
+      var pts = ring.map(function(i){ return L[i]; }).filter(Boolean).map(function(p){ return {x:p.x*w, y:p.y*h}; });
+      return pts.length>=10 ? pts : null;
+    }catch(e){ return null; }
+  }
+
+  async function cropUpperAnteriorTeeth(primaryDataUrl){
+    var img = await loadImg(primaryDataUrl);
+    var w = img.naturalWidth||img.width, h = img.naturalHeight||img.height;
+    var cropRect = null;
+
+    // Try MediaPipe inner lip ring for a precise crop
+    var pts = await getLipInnerRing(img, w, h);
+    if(pts){
+      var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+      pts.forEach(function(p){ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+      var bW = maxX-minX, bH = maxY-minY;
+      // Extend up 80% of ring height for crowns + gingival tissue; stop ~10% below center for lower-lip clearance
+      var cx = minX - bW*0.18;
+      var cy = minY - bH*0.85;
+      var cw = bW * 1.36;
+      var ch = ((minY+maxY)/2 + bH*0.12) - cy;
+      cropRect = {
+        x: Math.max(0, Math.round(cx)),
+        y: Math.max(0, Math.round(cy)),
+        w: Math.min(w-Math.max(0,Math.round(cx)), Math.round(cw)),
+        h: Math.min(h-Math.max(0,Math.round(cy)), Math.round(ch))
+      };
+    }
+
+    // Fallback: centre-upper quarter of frame where anterior teeth typically appear
+    if(!cropRect || cropRect.w < 20 || cropRect.h < 20){
+      cropRect = {
+        x: Math.round(w*0.15),
+        y: Math.round(h*0.38),
+        w: Math.round(w*0.70),
+        h: Math.round(h*0.24)
+      };
+    }
+
+    var c = document.createElement('canvas');
+    c.width = cropRect.w; c.height = cropRect.h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(img, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, cropRect.w, cropRect.h);
+    return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };
+  }
+
+  async function generateRefinedCropViaAI(croppedDataUrl){
+    var epRaw = getAiEndpoint();
+    if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
+
+    // Token gate
+    if(typeof window.cfConsumeToken==='function'){
+      var tk = await window.cfConsumeToken('generation');
+      if(tk && tk.ok===false){
+        if(tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+        var err = new Error(tk.reason==='insufficient' ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
+        err.cfNoTokens = true; throw err;
+      }
+    }
+
+    var ep = epRaw.replace(/\/+$/,'');
+    if(!/\/simulate$/.test(ep)) ep += '/simulate';
+
+    // Build payload from global buildSimulationPayload as a base where possible,
+    // then override with golden-proportion-specific fields
+    var basePayload = {};
+    if(typeof window.buildSimulationPayload==='function' && window.state && window.state.simResult && window.state.simResult.srcObj){
+      try{ basePayload = window.buildSimulationPayload(window.state.simResult.srcObj); }catch(e){}
+    }
+
+    var payload = Object.assign({}, basePayload, {
+      image: croppedDataUrl,
+      prompt: buildGoldenProportionPrompt(),
+      concept: 'prosthetic',
+      denoising_strength: 0.50,
+      control_weight: 0.70,
+      intraoral: true,
+      lips: false,
+      extraction_mode: false,
+      hybrid_mode: false,
+      negative_prompt: [
+        'blurry, low quality, artifacts, watermark, text, oversaturated,',
+        'unnatural color, brackets, braces, wires, metal, discoloration, stains,',
+        'uneven gingiva, misaligned gingival zenith, gaps, crowding, dark shadows,',
+        'deformed teeth, cartoon, painting, sketch, anime'
+      ].join(' ')
+    });
+
+    var res = await fetchWithRetry(ep, JSON.stringify(payload));
+    var j = await res.json();
+    if(j && j.error) throw new Error(String(j.error).slice(0,300));
+    var out = j.image || j.dataUrl || j.output || (Array.isArray(j.images) ? j.images[0] : null) || null;
+    if(!out) throw new Error('二次生成で画像が返りませんでした');
+    return out;
+  }
+
+  function toneMatchSimple(refCtx, srcCtx, w, h, str){
+    // Fast global mean-channel shift: match refinedCrop colour to primary at crop region
+    try{
+      var rd = refCtx.getImageData(0,0,w,h).data;
+      var sd = srcCtx.getImageData(0,0,w,h).data;
+      var rR=0,rG=0,rB=0, sR=0,sG=0,sB=0, n=0;
+      for(var i=3; i<rd.length; i+=4){
+        if(rd[i]>20 && sd[i]>20){
+          rR+=rd[i-3]; rG+=rd[i-2]; rB+=rd[i-1];
+          sR+=sd[i-3]; sG+=sd[i-2]; sB+=sd[i-1];
+          n++;
+        }
+      }
+      if(!n) return;
+      var dR=(sR-rR)/n*str, dG=(sG-rG)/n*str, dB=(sB-rB)/n*str;
+      var id=refCtx.getImageData(0,0,w,h);
+      var d=id.data;
+      for(var i=3; i<d.length; i+=4){
+        if(d[i]>20){
+          d[i-3]=Math.max(0,Math.min(255,(d[i-3]+dR)|0));
+          d[i-2]=Math.max(0,Math.min(255,(d[i-2]+dG)|0));
+          d[i-1]=Math.max(0,Math.min(255,(d[i-1]+dB)|0));
+        }
+      }
+      refCtx.putImageData(id,0,0);
+    }catch(e){}
+  }
+
+  async function compositeRefinedBack(primaryDataUrl, refinedCropUrl, cropRect){
+    var base = await loadImg(primaryDataUrl);
+    var refined = await loadImg(refinedCropUrl);
+    var w = base.naturalWidth||base.width, h = base.naturalHeight||base.height;
+    var rx=cropRect.x, ry=cropRect.y, rw=cropRect.w, rh=cropRect.h;
+
+    // Canvas with primary result as base
+    var c = document.createElement('canvas'); c.width=w; c.height=h;
+    var ctx = c.getContext('2d',{willReadFrequently:true}); ctx.imageSmoothingQuality='high';
+    ctx.drawImage(base, 0, 0, w, h);
+
+    // Tone-match: render refined crop at crop-region dimensions, match colours to primary
+    var refC = document.createElement('canvas'); refC.width=rw; refC.height=rh;
+    var refX = refC.getContext('2d',{willReadFrequently:true}); refX.imageSmoothingQuality='high';
+    refX.drawImage(refined, 0, 0, refined.naturalWidth||refined.width, refined.naturalHeight||refined.height, 0, 0, rw, rh);
+
+    // Extract the same region from primary for colour reference
+    var primC = document.createElement('canvas'); primC.width=rw; primC.height=rh;
+    var primX = primC.getContext('2d',{willReadFrequently:true});
+    primX.drawImage(base, rx, ry, rw, rh, 0, 0, rw, rh);
+
+    toneMatchSimple(refX, primX, rw, rh, 0.80);
+
+    // Feathered rectangle mask — soft edge at all four sides
+    var featherPx = Math.round(Math.min(rw, rh) * 0.14);
+    var m1 = document.createElement('canvas'); m1.width=w; m1.height=h;
+    var m1x = m1.getContext('2d');
+    m1x.fillStyle='#000'; m1x.fillRect(0,0,w,h);
+    m1x.fillStyle='#fff';
+    var inset = featherPx;
+    m1x.fillRect(rx+inset, ry+inset, Math.max(1,rw-inset*2), Math.max(1,rh-inset*2));
+
+    var mk = document.createElement('canvas'); mk.width=w; mk.height=h;
+    var mx = mk.getContext('2d');
+    mx.filter = 'blur('+featherPx+'px)';
+    mx.drawImage(m1, 0, 0);
+    mx.filter = 'none';
+
+    // Place tone-matched refined crop on a full-size canvas, then mask
+    var refFull = document.createElement('canvas'); refFull.width=w; refFull.height=h;
+    var rfx = refFull.getContext('2d');
+    rfx.drawImage(refC, 0, 0, rw, rh, rx, ry, rw, rh);
+    rfx.globalCompositeOperation = 'destination-in';
+    rfx.drawImage(mk, 0, 0);
+    rfx.globalCompositeOperation = 'source-over';
+
+    ctx.drawImage(refFull, 0, 0);
+    return c.toDataURL('image/jpeg', 0.93);
+  }
+
+  function updateRefineBtn(){
+    var btn = document.getElementById('cfRefineBtn');
+    if(!btn) return;
+    var result = window.state && window.state.simResult;
+    var isFacial = result && result.sourceKind === 'Facial';
+    if(isFacial && !result._secondaryRefined){
+      btn.style.display = '';
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.innerHTML = '✦ Refine<br>精密生成';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  window.runSecondaryRefinement = async function(){
+    var btn = document.getElementById('cfRefineBtn');
+    var result = window.state && window.state.simResult;
+    if(!result || !result.dataUrl){
+      toast('生成結果が見つかりません'); return;
+    }
+    if(!getAiEndpoint()){
+      toast('AI バックエンドが設定されていません'); return;
+    }
+
+    if(btn){ btn.disabled=true; btn.innerHTML='…<br>処理中'; }
+    toast('上顎前歯部をクロップ中…');
+    try{
+      var primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+
+      toast('上顎前歯部を精密クロップ中…');
+      var cropResult = await cropUpperAnteriorTeeth(primaryDataUrl);
+
+      toast('ゴールデンプロポーション二次生成中…');
+      var refinedCropUrl = await generateRefinedCropViaAI(cropResult.dataUrl);
+
+      toast('一次結果に精密合成中…');
+      var finalUrl = await compositeRefinedBack(primaryDataUrl, refinedCropUrl, cropResult.cropRect);
+
+      // Persist refined result back into state
+      result._primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+      result._secondaryRefined = true;
+      result.dataUrl = finalUrl;
+      // Also update in simResults array so gallery and auto-save see the new version
+      if(Array.isArray(window.state.simResults) && typeof window.state.simResultIndex==='number'){
+        var idx = window.state.simResultIndex;
+        if(window.state.simResults[idx]) window.state.simResults[idx] = result;
+      }
+
+      // Refresh result view
+      if(typeof window.renderResult==='function') window.renderResult();
+
+      if(btn){
+        btn.disabled = true;
+        btn.innerHTML = '✦ Refined<br>精密済み';
+        btn.style.opacity = '0.65';
+        btn.title = '二次生成完了 — 精密済み';
+      }
+      toast('✦ 二次生成完了 — ゴールデンプロポーション適用');
+    }catch(e){
+      console.error('Secondary refinement failed', e);
+      if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+      var msg = e.cfNoTokens ? e.message : ('二次生成エラー: '+(e.message||String(e)).slice(0,120));
+      toast(msg);
+    }
+  };
+
+  // Show/hide Refine button when result page is rendered or screen changes
+  var _origGo = window.go;
+  if(typeof _origGo==='function' && !window.__cfRefineGoWrapped){
+    window.__cfRefineGoWrapped = true;
+    window.go = function(id){
+      var r = _origGo.apply(this, arguments);
+      if(id==='result') setTimeout(updateRefineBtn, 100);
+      return r;
+    };
+  }
+  var _origRR = window.renderResult;
+  if(typeof _origRR==='function' && !window.__cfRefineRRWrapped){
+    window.__cfRefineRRWrapped = true;
+    window.renderResult = function(){
+      var r = _origRR.apply(this, arguments);
+      setTimeout(updateRefineBtn, 100);
+      return r;
+    };
+  }
+  setTimeout(updateRefineBtn, 400);
 })();
 </script>
 
