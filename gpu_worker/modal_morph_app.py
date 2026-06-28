@@ -505,25 +505,12 @@ def run_pipeline(job_id: str, frame_keys: list[str],
 
         log.info(f"[{job_id}] hold={hold_n}f  tween={trans_n}f  per segment")
 
-        # Build stage labels and sub-line from prompt data
-        stage_labels = _auto_stage_labels(n)
-        sub_line = "  ·  ".join(filter(None, [treatment_name, treatment_duration, patient_info]))
-        use_caption = bool(treatment_name or treatment_duration or patient_info)
-        log.info(f"[{job_id}] caption={'yes' if use_caption else 'no'}  sub='{sub_line[:60]}'")
-
+        # Clinical photos are shown unmodified; only the CASEFLOW watermark is applied
+        # (baked in by the browser-side canvas renderer, not here).
         all_frames = []
         for i, fr in enumerate(frames):
             status("interpolating", 36 + int(i / n * 46))
-            # Key frame hold: uncaptioned first third, captioned remaining two-thirds
-            uncap_n = max(1, hold_n // 3)
-            cap_n   = hold_n - uncap_n
-            if use_caption:
-                captioned = add_caption(fr, stage_labels[i], sub_line)
-            else:
-                captioned = fr
-            all_frames.extend([fr] * uncap_n)           # photo shown clean first
-            all_frames.extend([captioned] * cap_n)      # then caption fades in (same frame, instant)
-            # Tween frames (no caption — clean transition between key frames)
+            all_frames.extend([fr] * hold_n)
             if i < n - 1:
                 all_frames.extend(interp_segment(fr, frames[i + 1], trans_n))
 
