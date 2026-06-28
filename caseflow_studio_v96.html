@@ -21849,11 +21849,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapSaveBtn{width:100%;margin-top:8px;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer;transition:opacity .2s,transform .15s;}
 #cfCapSaveBtn:active{opacity:.78;transform:scale(.97);}
 #cfCapSaveBtn.recording{background:linear-gradient(135deg,#ff6b6b,#ff9f43);color:#fff;border-color:transparent;}
-#cfCapResultPanel{display:none;width:100%;margin-top:4px;}
-#cfCapResultPanel video{width:100%;border-radius:14px;display:block;background:#000;max-height:72vw;object-fit:contain;}
-.cfCapResultActions{display:flex;gap:8px;margin-top:8px;}
-#cfCapResultSaveBtn{flex:1;border:0;border-radius:14px;min-height:46px;background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(91,63,204,.35);}
-#cfCapResultBackBtn{flex:1;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;cursor:pointer;}
+/* ── GPU video plays inside the canvas stage — same UI as canvas preview ── */
+#cfCapGpuVid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:10;display:none;}
+#cfCapGpuVid.active{display:block;}
+#cfCapGpuBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:9.5px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;padding:5px 14px;border-radius:20px;z-index:12;display:none;white-space:nowrap;box-shadow:0 3px 12px rgba(91,63,204,.4);}
+#cfCapGpuBadge.active{display:block;}
+#cfCapGpuBack{position:absolute;top:10px;left:10px;z-index:12;border:0;border-radius:10px;padding:6px 12px;background:rgba(255,255,255,.88);color:#5b3fcc;font-size:11px;font-weight:800;cursor:pointer;display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 2px 10px rgba(0,0,0,.14);}
+#cfCapGpuBack.active{display:block;}
 /* ── Prompt Board (bottom sheet) ── */
 #cfPBOverlay{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:9998;opacity:0;pointer-events:none;transition:opacity .3s;}
 #cfPBOverlay.open{opacity:1;pointer-events:auto;}
@@ -21905,7 +21907,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   if(window.__cfCapCut) return; window.__cfCapCut=true;
   function $id(id){return document.getElementById(id);}
   function toastFn(m){ if(typeof toast==='function') toast(m); }
-  var rendering=false, pendingT=null, playing=false, playToken=0, _speedMs=2600;
+  var rendering=false, pendingT=null, playing=false, playToken=0, _speedMs=2600, _gpuVidBlob=null;
 
   function pair(){
     var ph=(window.state&&state.photos)||[];
@@ -21924,6 +21926,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
     box.innerHTML=
       '<div id="cfCapStage" style="--cfcap-ar:'+ratioAR()+'">'+
         '<canvas id="cfCapCanvas" width="1080" height="1350"></canvas>'+
+        '<video id="cfCapGpuVid" loop playsinline webkit-playsinline></video>'+
+        '<div id="cfCapGpuBadge">GPU AI 動画</div>'+
+        '<button id="cfCapGpuBack">&#8592; 戻る</button>'+
         '<span class="cfCapLbl l">BEFORE</span><span class="cfCapLbl r">AFTER</span>'+
         '<div class="cfCapEmpty" id="cfCapEmpty">Gallery で 2 枚以上の画像を選び、<br>下の帯で順番を決めてください。</div>'+
         /* GPU progress overlay */
@@ -21966,13 +21971,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま動画保存（高速）</button>'+
       '<button id="cfCapGpuBtn">&#10024;&nbsp; AI中割り生成・高品質書き出し（GPU）</button>'+
       '<div id="cfCapHint">&#9654; で往復再生。<b>プレビュー保存</b>はブラウザで即録画。<b>AI書き出し</b>はGPUで中割りフレームを自動生成します。</div>'+
-      '<div id="cfCapResultPanel">'+
-        '<video id="cfCapResultVid" controls loop playsinline webkit-playsinline></video>'+
-        '<div class="cfCapResultActions">'+
-          '<button id="cfCapResultSaveBtn">&#9660;&nbsp; 動画を保存</button>'+
-          '<button id="cfCapResultBackBtn">&#9654;&nbsp; プレビューに戻る</button>'+
-        '</div>'+
-      '</div>';
+      '';
     /* Prompt Board — injected into body so fixed positioning works correctly */
     if(!document.getElementById('cfPBOverlay')){
       var pbOverlay=document.createElement('div'); pbOverlay.id='cfPBOverlay';
@@ -22149,56 +22148,39 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var vidBlob=await vidRes.blob();
       gpuShowOverlay(false);
 
-      /* 4. Show result video in the preview panel (プレビュー画面に映す) */
-      var resultPanel=$id('cfCapResultPanel');
-      var resultVid=$id('cfCapResultVid');
-      var stage=$id('cfCapStage');
-      var transport=$id('cfCapTransport');
-      var speed=$id('cfCapSpeed');
-      var saveBtnEl=$id('cfCapSaveBtn');
-      var gpuBtnEl=$id('cfCapGpuBtn');
-      var hint=resultPanel&&resultPanel.nextElementSibling;
-
-      if(resultPanel&&resultVid){
+      /* 4. Show GPU video inside the canvas stage — same UI (speed/scrub/play all work) */
+      var gpuVid=$id('cfCapGpuVid');
+      if(gpuVid){
         var blobUrl=URL.createObjectURL(vidBlob);
-        if(resultVid._prevUrl) URL.revokeObjectURL(resultVid._prevUrl);
-        resultVid._prevUrl=blobUrl;
-        resultVid.src=blobUrl;
-        /* Hide canvas controls, show result panel */
-        if(stage)    stage.style.display='none';
-        if(transport)transport.style.display='none';
-        if(speed)    speed.style.display='none';
-        if(saveBtnEl)saveBtnEl.style.display='none';
-        if(gpuBtnEl) gpuBtnEl.style.display='none';
-        resultPanel.style.display='block';
-        resultVid.play().catch(function(){});
+        if(gpuVid._prevUrl){ URL.revokeObjectURL(gpuVid._prevUrl); }
+        gpuVid._prevUrl=blobUrl;
+        gpuVid.src=blobUrl;
+        _gpuVidBlob=vidBlob;
+        var rateMap={'3800':0.5,'2600':1.0,'1400':2.0};
+        gpuVid.playbackRate=rateMap[String(_speedMs)]||1.0;
+        gpuVid.classList.add('active');
+        var badge=$id('cfCapGpuBadge'); if(badge) badge.classList.add('active');
+        var gpuBackBtn=$id('cfCapGpuBack'); if(gpuBackBtn) gpuBackBtn.classList.add('active');
+        /* Repurpose the save button to download the GPU video */
+        var saveBtnEl=$id('cfCapSaveBtn');
+        if(saveBtnEl){
+          saveBtnEl.innerHTML='&#9660;&nbsp; AI動画を保存';
+          saveBtnEl._gpuDownload=function(){
+            if(typeof setExportBlob==='function'){
+              setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+            } else {
+              var u=URL.createObjectURL(vidBlob);
+              var a=document.createElement('a'); a.href=u; a.download='caseflow_ai_morph.mp4'; a.click();
+              setTimeout(function(){URL.revokeObjectURL(u);},5000);
+            }
+            toastFn('AI動画を保存しました ✓');
+          };
+        }
+        stop();
+        gpuVid.play().catch(function(){});
+        setPlayIcon(true);
         toastFn('AI動画を生成しました ✓ 確認して保存してください');
-
-        var saveB=$id('cfCapResultSaveBtn');
-        var backB=$id('cfCapResultBackBtn');
-        if(saveB) saveB.onclick=function(){
-          if(typeof setExportBlob==='function'){
-            setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
-          } else {
-            var u=URL.createObjectURL(vidBlob);
-            var a=document.createElement('a'); a.href=u; a.download='caseflow_ai_morph.mp4'; a.click();
-            setTimeout(function(){URL.revokeObjectURL(u);},5000);
-          }
-          toastFn('動画を保存しました ✓');
-        };
-        if(backB) backB.onclick=function(){
-          resultPanel.style.display='none';
-          resultVid.pause();
-          if(stage)    stage.style.display='';
-          if(transport)transport.style.display='';
-          if(speed)    speed.style.display='';
-          if(saveBtnEl)saveBtnEl.style.display='';
-          if(gpuBtnEl) gpuBtnEl.style.display='';
-          URL.revokeObjectURL(blobUrl);
-          resultVid._prevUrl=null;
-        };
       } else {
-        /* Fallback if panel not found */
         if(typeof setExportBlob==='function'){
           setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
         } else {
@@ -22219,13 +22201,38 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   function bind(box){
     var scrub=box.querySelector('#cfCapScrub');
-    scrub.addEventListener('input',function(){ stop(); var t=Number(scrub.value)/100; setPct(t); render(t); });
+    scrub.addEventListener('input',function(){
+      var gv=$id('cfCapGpuVid');
+      if(gv&&gv.classList.contains('active')&&gv.duration){
+        gv.currentTime=Number(scrub.value)/100*gv.duration;
+        setPct(gv.currentTime/gv.duration);
+        return;
+      }
+      stop(); var t=Number(scrub.value)/100; setPct(t); render(t);
+    });
+    /* GPU video: update scrub bar as it plays */
+    var gpuVidEl=box.querySelector('#cfCapGpuVid');
+    if(gpuVidEl){
+      gpuVidEl.addEventListener('timeupdate',function(){
+        if(!gpuVidEl.classList.contains('active')||!gpuVidEl.duration) return;
+        var s=$id('cfCapScrub');
+        if(s) s.value=String(gpuVidEl.currentTime/gpuVidEl.duration*100);
+        setPct(gpuVidEl.currentTime/gpuVidEl.duration);
+      });
+    }
     box.querySelector('#cfCapPlay').addEventListener('click',toggle);
     box.querySelectorAll('#cfCapSpeed button').forEach(function(b){
       b.addEventListener('click',function(){
         box.querySelectorAll('#cfCapSpeed button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
         var ms=Number(b.dataset.ms)||2600;
-        _speedMs=ms;   /* local speed — drives canvas animation via speedMs() */
+        _speedMs=ms;
+        /* If GPU video is active, adjust playback rate instead of canvas duration */
+        var gv=$id('cfCapGpuVid');
+        if(gv&&gv.classList.contains('active')){
+          var rMap={'3800':0.5,'2600':1.0,'1400':2.0};
+          gv.playbackRate=rMap[String(ms)]||1.0;
+          return;
+        }
         var md=$id('morphDuration'); if(md){ md.value=ms; try{ md.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
         var segCount=Math.max(1,((window.state&&window.state.photos)||[]).length-1);
         var totalSec=Math.min(10,Math.max(1.5,ms*segCount/1000));
@@ -22234,14 +22241,31 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
-    /* Browser save button */
+    /* Save button: downloads GPU video when in GPU mode, otherwise records canvas */
     var saveBtn=box.querySelector('#cfCapSaveBtn');
     if(saveBtn) saveBtn.addEventListener('click',function(){
+      if(saveBtn._gpuDownload){ saveBtn._gpuDownload(); return; }
       cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
     });
-    /* GPU export button → open Prompt Board first */
+    /* GPU back button: returns to canvas preview */
+    var gpuBackBtn=box.querySelector('#cfCapGpuBack');
+    if(gpuBackBtn) gpuBackBtn.addEventListener('click',function(){
+      var gv=$id('cfCapGpuVid');
+      if(gv){ gv.pause(); if(gv._prevUrl){ URL.revokeObjectURL(gv._prevUrl); gv._prevUrl=null; } gv.src=''; gv.classList.remove('active'); }
+      var badge=$id('cfCapGpuBadge'); if(badge) badge.classList.remove('active');
+      gpuBackBtn.classList.remove('active');
+      _gpuVidBlob=null;
+      stop();
+      if(saveBtn){ saveBtn.innerHTML='&#9660;&nbsp; プレビューをそのまま動画保存（高速）'; saveBtn._gpuDownload=null; }
+      var scrubEl=$id('cfCapScrub'); if(scrubEl){ scrubEl.value='0'; setPct(0); render(0); }
+    });
+    /* GPU export button: opens Prompt Board in normal mode; back to canvas in GPU mode */
     var gpuBtn=box.querySelector('#cfCapGpuBtn');
-    if(gpuBtn) gpuBtn.addEventListener('click',function(){ openPromptBoard(); });
+    if(gpuBtn) gpuBtn.addEventListener('click',function(){
+      var gv=$id('cfCapGpuVid');
+      if(gv&&gv.classList.contains('active')){ var gb=$id('cfCapGpuBack'); if(gb) gb.click(); return; }
+      openPromptBoard();
+    });
 
     /* Prompt Board wiring (sheet is in body, wired once) */
     if(!window.__cfPBWired){
@@ -22353,7 +22377,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   function setPlayIcon(on){ var b=$id('cfCapPlay'); if(b) b.innerHTML=on?'&#10074;&#10074;':'&#9654;'; }
   function stop(){ if(playing){ playing=false; playToken++; } setPlayIcon(false); }
-  function toggle(){ if(playing){ stop(); return; } play(); }
+  function toggle(){
+    var gv=$id('cfCapGpuVid');
+    if(gv&&gv.classList.contains('active')){
+      if(gv.paused){ gv.play(); setPlayIcon(true); } else { gv.pause(); setPlayIcon(false); }
+      return;
+    }
+    if(playing){ stop(); return; }
+    play();
+  }
   function play(){
     var ph=(window.state&&state.photos)||[]; if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     playing=true; setPlayIcon(true);
