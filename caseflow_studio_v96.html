@@ -22040,16 +22040,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
       /* 2. Poll /api/morph/status every 1.5s */
       gpuSetProgress(8,'キューに追加されました…');
-      var done=false, result=null;
+      var done=false, result=null, pollStart=Date.now();
       while(!done){
         await new Promise(function(r){setTimeout(r,1500);});
         if(controller.signal.aborted) throw new Error('cancelled');
+        if(Date.now()-pollStart > 12*60*1000) throw new Error('タイムアウト（12分経過）');
         var pollRes=await fetch(endpoint+'/api/morph/status?jobId='+encodeURIComponent(jobId),{signal:controller.signal});
         var pollJson=await pollRes.json();
         var s=pollJson.status||'';
         var p=Number(pollJson.progress)||8;
         /* Map backend status labels to JP strings */
-        var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'FILMフレーム補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！'};
+        var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'FILMフレーム補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！',unknown:'ジョブ待機中…'};
         gpuSetProgress(p, LABELS[s]||s);
         if(s==='done'){ done=true; result=pollJson.resultUrl; }
         else if(s==='error') throw new Error(pollJson.error||'GPU処理エラー');

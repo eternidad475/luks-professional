@@ -124,27 +124,42 @@ def r2_signed(r2, key: str, expires: int = 86400) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 # 4.  Upstash Redis  (REST — works from any runtime, no TCP connection needed)
 # ══════════════════════════════════════════════════════════════════════════════
+def _redis_base() -> str:
+    return os.environ["UPSTASH_REDIS_REST_URL"].strip().rstrip("/")
+
 def _redis_hdr():
-    return {"Authorization": f"Bearer {os.environ['UPSTASH_REDIS_REST_TOKEN']}"}
+    token = os.environ["UPSTASH_REDIS_REST_TOKEN"].strip()
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 def redis_set(key: str, val: dict, ttl: int = 7200):
     import httpx
-    base    = os.environ["UPSTASH_REDIS_REST_URL"]
+    base    = _redis_base()
     encoded = json.dumps(val, separators=(",", ":"))
-    r = httpx.post(f"{base}/pipeline",
-                   json=[["SET", key, encoded, "EX", ttl]],
-                   headers=_redis_hdr(), timeout=5)
-    log.debug(f"redis_set {key}: {r.status_code}")
+    try:
+        r = httpx.post(f"{base}/pipeline",
+                       json=[["SET", key, encoded, "EX", str(ttl)]],
+                       headers=_redis_hdr(), timeout=10)
+        log.info(f"redis_set {key}: HTTP {r.status_code} body={r.text[:120]}")
+        r.raise_for_status()
+    except Exception as e:
+        log.error(f"redis_set FAILED {key}: {e}")
+        raise
 
 def redis_get(key: str) -> dict | None:
     import httpx
-    base = os.environ["UPSTASH_REDIS_REST_URL"]
-    r    = httpx.post(f"{base}/pipeline",
-                      json=[["GET", key]],
-                      headers=_redis_hdr(), timeout=5)
-    results = r.json()
-    raw = results[0].get("result") if results else None
-    return json.loads(raw) if raw else None
+    base = _redis_base()
+    try:
+        r = httpx.post(f"{base}/pipeline",
+                       json=[["GET", key]],
+                       headers=_redis_hdr(), timeout=10)
+        log.info(f"redis_get {key}: HTTP {r.status_code} body={r.text[:120]}")
+        r.raise_for_status()
+        results = r.json()
+        raw = results[0].get("result") if isinstance(results, list) and results else None
+        return json.loads(raw) if raw else None
+    except Exception as e:
+        log.error(f"redis_get FAILED {key}: {e}")
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -472,7 +487,11 @@ async def submit(
         frame_keys.append(key)
         log.info(f"[{job_id}] uploaded frame {i}")
 
-    redis_set(f"job:{job_id}", {"status": "queued", "progress": 1, "resultUrl": ""})
+    try:
+        redis_set(f"job:{job_id}", {"status": "queued", "progress": 1, "resultUrl": ""})
+    except Exception as e:
+        log.error(f"[{job_id}] redis_set queued FAILED: {e}")
+        return JSONResponse({"error": f"Redis unavailable: {str(e)[:200]}"}, status_code=503)
 
     # Non-blocking spawn — returns immediately, GPU runs in background
     run_pipeline.spawn(job_id, frame_keys, durationMs, fps)
@@ -492,7 +511,36 @@ async def job_status(jobId: str = Query(...)):
 
 @web_app.get("/health")
 async def health():
-    return {"ok": True, "service": "caseflow-morph"}
+    redis_ok = False
+    redis_err = ""
+    try:
+        redis_set("__health__", {"ok": True}, ttl=60)
+        data = redis_get("__health__")
+        redis_ok = isinstance(data, dict) and data.get("ok") is True
+    except Exception as e:
+        redis_err = str(e)[:200]
+    return {"ok": True, "redis": redis_ok, "redis_err": redis_err,
+            "service": "caseflow-morph",
+            "upstash_url": _redis_base()[:40] + "…"}
+
+
+@web_app.get("/debug")
+async def debug():
+    """Browser-accessible Redis connectivity test — visit this URL to diagnose."""
+    import traceback
+    steps = []
+    try:
+        base = _redis_base()
+        steps.append(f"base_url={base[:50]}…")
+        redis_set("__debug__", {"ts": 1, "msg": "hello"}, ttl=120)
+        steps.append("SET ok")
+        val = redis_get("__debug__")
+        steps.append(f"GET ok → {val}")
+        return {"redis": "ok", "steps": steps}
+    except Exception as e:
+        steps.append(f"ERROR: {e}")
+        return {"redis": "error", "steps": steps,
+                "trace": traceback.format_exc()[-600:]}
 
 
 # ── Wire FastAPI into Modal ───────────────────────────────────────────────────
