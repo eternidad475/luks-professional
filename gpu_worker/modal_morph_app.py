@@ -53,7 +53,50 @@ def _download_weights():
         print("Downloading SAM2 weights …")
         urllib.request.urlretrieve(sam2_url, sam2_dest)
         print(f"  → {os.path.getsize(sam2_dest)//1024//1024} MB saved")
-    print("  → SAM2 ready (interpolation: eased cross-dissolve)")
+    print("  → SAM2 ready")
+
+
+def _download_rife_weights():
+    """Bake RIFE model weights into the image layer at build time."""
+    import os, urllib.request, zipfile
+    os.makedirs("/opt/rife/train_log", exist_ok=True)
+    pkl_files = ["flownet.pkl", "contextnet.pkl", "unet.pkl"]
+    already = all(os.path.exists(f"/opt/rife/train_log/{f}") for f in pkl_files)
+    if already:
+        print("  → RIFE weights already present")
+        return
+    for tag in ["model4.22", "model4.18", "model4.15"]:
+        url = f"https://github.com/hzwer/Practical-RIFE/releases/download/{tag}/train_log.zip"
+        tmp = "/tmp/rife_weights.zip"
+        try:
+            print(f"Downloading RIFE weights ({tag})…")
+            urllib.request.urlretrieve(url, tmp)
+            with zipfile.ZipFile(tmp, "r") as zf:
+                zf.extractall("/opt/rife/")
+            os.remove(tmp)
+            print(f"  → RIFE weights ready ({tag})")
+            return
+        except Exception as e:
+            print(f"  → {tag} failed: {e}")
+    # Individual file fallback
+    for tag in ["model4.22", "model4.18"]:
+        base = f"https://github.com/hzwer/Practical-RIFE/releases/download/{tag}/"
+        ok = True
+        for f in pkl_files:
+            dest = f"/opt/rife/train_log/{f}"
+            if os.path.exists(dest):
+                continue
+            try:
+                urllib.request.urlretrieve(f"{base}{f}", dest + ".tmp")
+                os.rename(dest + ".tmp", dest)
+            except Exception as e:
+                print(f"  → {f} failed: {e}")
+                ok = False
+                break
+        if ok and all(os.path.exists(f"/opt/rife/train_log/{f}") for f in pkl_files):
+            print(f"  → RIFE weights ready ({tag}, individual)")
+            return
+    print("WARNING: RIFE weights not downloaded — will fall back to RAFT/Farneback")
 
 
 GPU_IMAGE = (
@@ -85,8 +128,16 @@ GPU_IMAGE = (
     .run_commands(
         "pip install 'git+https://github.com/facebookresearch/segment-anything-2.git'"
     )
-    # Bake model weights into image layer (runs _download_weights inside container)
+    # RIFE neural frame interpolation (Phase 2 AI morphing)
+    .pip_install("huggingface_hub>=0.24.0")
+    .run_commands(
+        "git clone --depth 1 https://github.com/hzwer/Practical-RIFE /opt/rife"
+        " && pip install -r /opt/rife/requirements.txt --quiet 2>&1 | tail -3"
+        " || echo 'RIFE clone failed — RAFT fallback will be used'"
+    )
+    # Bake model weights into image layer
     .run_function(_download_weights)
+    .run_function(_download_rife_weights)
 )
 
 
@@ -185,8 +236,8 @@ def redis_expire(key: str, ttl: int):
     k = urllib.parse.quote(key, safe="")
     httpx.post(f"{base}/expire/{k}/{ttl}", headers=_redis_hdr(), timeout=10)
 
-# Maximum simultaneous pipeline jobs (CPU containers — far more headroom than GPU).
-_MAX_ACTIVE_GPU = 40
+# Maximum simultaneous GPU pipeline jobs (20 containers × safety margin).
+_MAX_ACTIVE_GPU = 16
 _ACTIVE_KEY     = "system:active_gpu_jobs"
 
 
@@ -354,21 +405,125 @@ def _pad8(img):
         return img, h, w
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
+
+# ── Phase 1: RAFT optical flow warp ──────────────────────────────────────────
+def interp_raft(a_bgr, b_bgr, n: int, *, warp_only: bool = False) -> list:
+    """Bidirectional RAFT deep-learning flow warp. Falls back to Farneback on error."""
+    import numpy as np, cv2, torch
+    import torch.nn.functional as F
+
+    model = _get_raft()
+    H, W  = a_bgr.shape[:2]
+
+    def _to_t(bgr):
+        rgb = bgr[:, :, ::-1].copy()
+        t   = torch.from_numpy(rgb).permute(2, 0, 1).float().unsqueeze(0).cuda()
+        _, _, h, w = t.shape
+        return F.pad(t, (0, (8 - w % 8) % 8, 0, (8 - h % 8) % 8)), h, w
+
+    img0, oh, ow = _to_t(a_bgr)
+    img1, _,  _  = _to_t(b_bgr)
+
+    with torch.no_grad():
+        flow_ab = model(img0, img1)[-1][0].cpu().numpy().transpose(1, 2, 0)[:oh, :ow]
+        flow_ba = model(img1, img0)[-1][0].cpu().numpy().transpose(1, 2, 0)[:oh, :ow]
+
+    gx, gy = np.meshgrid(np.arange(W, dtype=np.float32), np.arange(H, dtype=np.float32))
+    frames = []
+    for i in range(n):
+        t = _ease((i + 1) / (n + 1))
+        wa = cv2.remap(a_bgr,
+                       (gx + t       * flow_ab[..., 0]).clip(0, W - 1),
+                       (gy + t       * flow_ab[..., 1]).clip(0, H - 1),
+                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        wb = cv2.remap(b_bgr,
+                       (gx + (1 - t) * flow_ba[..., 0]).clip(0, W - 1),
+                       (gy + (1 - t) * flow_ba[..., 1]).clip(0, H - 1),
+                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        if warp_only:
+            frames.append(wa if t < 0.5 else wb)
+        else:
+            frames.append((wa.astype(np.float32) * (1 - t) +
+                           wb.astype(np.float32) * t).clip(0, 255).astype(np.uint8))
+    return frames
+
+
+# ── Phase 2: RIFE neural synthesis ───────────────────────────────────────────
+_RIFE_MODEL = None
+
+def _get_rife():
+    global _RIFE_MODEL
+    if _RIFE_MODEL is None:
+        import sys, torch
+        sys.path.insert(0, "/opt/rife")
+        try:
+            from model.RIFE_HDv3 import Model
+        except ImportError:
+            from model.RIFE_HD import Model
+        m = Model()
+        m.load_model("/opt/rife/train_log", -1)
+        m.eval()
+        m.device()
+        _RIFE_MODEL = m
+        log.info("RIFE model loaded")
+    return _RIFE_MODEL
+
+def interp_rife(a_bgr, b_bgr, n: int) -> list:
+    """Phase 2: RIFE end-to-end neural video frame synthesis."""
+    import torch, torch.nn.functional as F, numpy as np
+
+    model = _get_rife()
+    H, W  = a_bgr.shape[:2]
+    # RIFE requires padding to multiple of 32
+    ph = ((H - 1) // 32 + 1) * 32
+    pw = ((W - 1) // 32 + 1) * 32
+
+    def _to_t(bgr):
+        rgb = bgr[:, :, ::-1].copy()
+        t   = torch.from_numpy(rgb).permute(2, 0, 1).float().unsqueeze(0) / 255.
+        return F.pad(t, (0, pw - W, 0, ph - H)).cuda()
+
+    img0 = _to_t(a_bgr)
+    img1 = _to_t(b_bgr)
+
+    frames = []
+    for i in range(n):
+        ts = float(_ease((i + 1) / (n + 1)))
+        with torch.no_grad():
+            result = model.inference(img0, img1, timestep=ts)
+        mid = result[0] if isinstance(result, (list, tuple)) else result
+        mid_np  = (mid[0].permute(1, 2, 0).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+        mid_bgr = mid_np[:H, :W, ::-1].copy()
+        frames.append(mid_bgr)
+    return frames
+
+
 def interp_segment(a_bgr, b_bgr, n: int, *,
                    warp_only: bool = False,
                    motion_smooth: str = "normal",
-                   dental_pres: str = "high") -> list:
-    """Bidirectional Farneback flow morph — configurable quality and dissolve mode.
+                   dental_pres: str = "high",
+                   ai_morph: bool = False) -> list:
+    """Smart dispatcher: RIFE (ai_morph=True) → RAFT → Farneback fallback."""
+    if ai_morph:
+        try:
+            return interp_rife(a_bgr, b_bgr, n)
+        except Exception as e:
+            log.warning(f"RIFE failed ({e}) — falling back to RAFT")
+    try:
+        return interp_raft(a_bgr, b_bgr, n, warp_only=warp_only)
+    except Exception as e:
+        log.warning(f"RAFT failed ({e}) — falling back to Farneback")
+    return interp_farneback(a_bgr, b_bgr, n,
+                            warp_only=warp_only,
+                            motion_smooth=motion_smooth,
+                            dental_pres=dental_pres)
 
-    warp_only=True   : pure mesh-warp cutover at midpoint; no alpha blending.
-                       Eliminates cross-dissolve and ghosting entirely.
-    warp_only=False  : warped frames are cross-faded for a softer transition.
-    motion_smooth    : "low" / "normal" / "high" — controls Farneback window size
-                       and iteration count.
-    dental_pres      : "low" / "normal" / "high" — clamps max flow displacement
-                       as a fraction of image width, limiting over-warping of
-                       dental structures.
-    """
+
+def interp_farneback(a_bgr, b_bgr, n: int, *,
+                     warp_only: bool = False,
+                     motion_smooth: str = "normal",
+                     dental_pres: str = "high") -> list:
+    """CPU fallback: bidirectional Farneback flow morph."""
     import numpy as np
     import cv2
 
@@ -545,11 +700,11 @@ def _apply_output_ratio(frames: list, ratio_str: str) -> tuple:
 
 @app.function(
     image          = GPU_IMAGE,
-    cpu            = 4,
-    memory         = 8192,
+    gpu            = "A10G",
     secrets        = [SECRETS],
-    timeout        = 300,
-    max_containers = 50,
+    timeout        = 600,
+    memory         = 32768,
+    max_containers = 20,
 )
 def run_pipeline(job_id: str, frame_keys: list[str],
                  duration_ms: int, fps: int,
@@ -633,7 +788,8 @@ def run_pipeline(job_id: str, frame_keys: list[str],
                 all_frames.extend(interp_segment(fr, frames[i + 1], trans_n,
                                                  warp_only=eff_warp_only,
                                                  motion_smooth=eff_smooth,
-                                                 dental_pres=eff_dental))
+                                                 dental_pres=eff_dental,
+                                                 ai_morph=seamless_mode))
 
         log.info(f"[{job_id}] {len(all_frames)} total frames → {len(all_frames)/fps:.1f}s")
 
