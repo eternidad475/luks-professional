@@ -22020,7 +22020,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       fd.append('durationMs', String(Math.round(totalSec*1000)));
       fd.append('fps','30');
       for(var i=0;i<ph.length;i++){
-        var src=ph[i].src||ph[i].dataURL||ph[i]||'';
+        var src=(typeof ph[i]==='string'?ph[i]:(ph[i].src||ph[i].dataUrl||ph[i].dataURL||''));
         var blob;
         if(src.startsWith('data:')){
           // data URL — convert directly without Image load
