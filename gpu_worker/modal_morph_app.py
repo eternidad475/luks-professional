@@ -41,7 +41,7 @@ SECRETS = modal.Secret.from_name("caseflow-secrets")
 #     no shell-escaping issues, model weights are baked into the layer cache.
 # ══════════════════════════════════════════════════════════════════════════════
 def _download_weights():
-    """Download SAM2-Small and RAFT weights into the image (build-time only)."""
+    """Download SAM2-Small weights into the image (build-time only)."""
     import os, urllib.request
     os.makedirs("/opt/checkpoints", exist_ok=True)
 
@@ -53,12 +53,7 @@ def _download_weights():
         print("Downloading SAM2 weights …")
         urllib.request.urlretrieve(sam2_url, sam2_dest)
         print(f"  → {os.path.getsize(sam2_dest)//1024//1024} MB saved")
-
-    # RAFT-Large  (torchvision built-in — caches to ~/.cache/torch/hub)
-    print("Caching RAFT weights …")
-    from torchvision.models.optical_flow import raft_large, Raft_Large_Weights
-    raft_large(weights=Raft_Large_Weights.DEFAULT)
-    print("  → RAFT ready")
+    print("  → SAM2 ready (interpolation: eased cross-dissolve)")
 
 
 GPU_IMAGE = (
@@ -329,32 +324,21 @@ def _pad8(img):
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
 def interp_segment(a_bgr, b_bgr, n: int) -> list:
-    import torch, numpy as np
-    from torchvision.transforms.functional import to_tensor
+    """Eased cross-dissolve between two composited frames.
 
-    raft = _get_raft()
-
-    # Pad to multiples of 8 (RAFT requirement) then crop result back
-    a_pad, oh, ow = _pad8(a_bgr)
-    b_pad, _,  _  = _pad8(b_bgr)
-
-    def prep(img):
-        t = to_tensor(img[..., ::-1].copy()).unsqueeze(0).cuda()
-        return t * 255.0
-
-    ta, tb = prep(a_pad), prep(b_pad)
-    with torch.no_grad():
-        flow_ab = raft(ta, tb)[-1][0].cpu().numpy()
-        flow_ba = raft(tb, ta)[-1][0].cpu().numpy()
-
+    RAFT optical flow warps the full frame which tears hair/skin at mask
+    boundaries and distorts regions that should be static. Since the pipeline
+    already composites every frame onto the same master background (step B),
+    the ONLY difference between frames is the dental region — a clean dissolve
+    is both faster and higher quality for this appearance-change use case.
+    """
+    import numpy as np
+    a = a_bgr.astype(np.float32)
+    b = b_bgr.astype(np.float32)
     frames = []
     for i in range(n):
-        t  = _ease((i + 1) / (n + 1))
-        wa = _warp(a_pad, flow_ab *  t)
-        wb = _warp(b_pad, flow_ba * (1 - t))
-        blend = (wa.astype(np.float32) * (1 - t) +
-                 wb.astype(np.float32) *  t).clip(0, 255).astype(np.uint8)
-        frames.append(blend[:oh, :ow])   # crop padding off
+        t = _ease((i + 1) / (n + 1))
+        frames.append((a * (1 - t) + b * t).clip(0, 255).astype(np.uint8))
     return frames
 
 
@@ -413,11 +397,12 @@ def run_pipeline(job_id: str, frame_keys: list[str],
                 log.warning(f"[{job_id}] frame {i} fallback: {e}")
                 composited.append(cv2.resize(src, (W, H)))
 
-        # C ── RAFT interpolation ──────────────────────────────────────────
+        # C ── Eased cross-dissolve interpolation ─────────────────────────
         status("interpolating", 36)
         n_seg   = len(composited) - 1
         seg_ms  = duration_ms / max(1, n_seg)
-        f_per_s = max(1, round(seg_ms / 1000 * fps) - 1)
+        # Cross-dissolve is fast so use full frame budget (no -1 headroom needed)
+        f_per_s = max(1, round(seg_ms / 1000 * fps))
 
         all_frames = [composited[0]]
         for si, (fa, fb) in enumerate(zip(composited[:-1], composited[1:])):

@@ -4750,7 +4750,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="align">
-  <div class="topbar"><button class="iconbtn" onclick="go('upload')">‹</button><div><h2 class="title">Morphing Video Studio™︎</h2><p class="subtitle">Landmark Morph / 手動ランドマーク編集</p></div><button class="linkbtn" id="alignExportBtn" onclick="cfMorphExport()">書き出し</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('upload')">‹</button><div><h2 class="title">Morphing Video Studio™︎</h2><p class="subtitle">Landmark Morph / 手動ランドマーク編集</p></div><button class="linkbtn" id="alignExportBtn" onclick="cfMorphExport()" style="display:none">書き出し</button></div>
   <div class="stepbar"><div class="stepitem">1<span>Gallery</span></div><div class="stepitem on">2<span>Edit</span></div><div class="stepitem" onclick="cfMorphExport()" style="cursor:pointer">3<span>Export</span></div></div>
   <div class="stage align" id="alignStage">
     <div class="emptyState" id="alignEmpty"><div class="big"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="opacity:.4;display:block;margin:0 auto"><path d="M12 3c-2.2 0-4 1.8-4 4 0 1.3.4 2.5.9 3.7.8 2.4 1.1 4.9 1.1 7.3 0 .6.4 1 1 1h2c.6 0 1-.4 1-1 0-2.4.3-4.9 1.1-7.3.5-1.2.9-2.4.9-3.7 0-2.2-1.8-4-4-4z"/></svg></div><b>写真がありません</b><span>写真を追加してください。</span></div>
@@ -4823,7 +4823,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="preview">
-  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morph Preview</h2><p class="subtitle">Landmark-aware Preview / プレビュー</p></div><button class="iconbtn" onclick="if(typeof renderPreview==='function') renderPreview();" title="更新 / Refresh">↻</button><button class="linkbtn" onclick="exportPreview()">書き出し</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morph Preview</h2><p class="subtitle">Landmark-aware Preview / プレビュー</p></div><button class="iconbtn" onclick="if(typeof renderPreview==='function') renderPreview();" title="更新 / Refresh">↻</button><button class="linkbtn" onclick="exportPreview()" style="display:none">書き出し</button></div>
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem on">2<span>Preview</span></div><div class="stepitem">3<span>Export</span></div></div>
   <div class="seg"><button class="on" onclick="setRatio('9:16',this)">9:16</button><button onclick="setRatio('4:5',this)">4:5</button><button onclick="setRatio('1:1',this)">1:1</button><button onclick="setRatio('16:9',this)">16:9</button></div>
   <div class="stage">
