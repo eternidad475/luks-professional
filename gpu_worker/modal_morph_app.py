@@ -318,17 +318,31 @@ def _warp(img, flow):
 def _ease(t: float) -> float:
     return 4 * t**3 if t < 0.5 else 1 - (-2*t + 2)**3 / 2
 
+def _pad8(img):
+    """Pad image so H and W are divisible by 8 (RAFT requirement). Returns (padded, orig_h, orig_w)."""
+    import numpy as np
+    h, w = img.shape[:2]
+    ph = (8 - h % 8) % 8
+    pw = (8 - w % 8) % 8
+    if ph == 0 and pw == 0:
+        return img, h, w
+    return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
+
 def interp_segment(a_bgr, b_bgr, n: int) -> list:
     import torch, numpy as np
     from torchvision.transforms.functional import to_tensor
 
     raft = _get_raft()
 
+    # Pad to multiples of 8 (RAFT requirement) then crop result back
+    a_pad, oh, ow = _pad8(a_bgr)
+    b_pad, _,  _  = _pad8(b_bgr)
+
     def prep(img):
         t = to_tensor(img[..., ::-1].copy()).unsqueeze(0).cuda()
         return t * 255.0
 
-    ta, tb = prep(a_bgr), prep(b_bgr)
+    ta, tb = prep(a_pad), prep(b_pad)
     with torch.no_grad():
         flow_ab = raft(ta, tb)[-1][0].cpu().numpy()
         flow_ba = raft(tb, ta)[-1][0].cpu().numpy()
@@ -336,11 +350,11 @@ def interp_segment(a_bgr, b_bgr, n: int) -> list:
     frames = []
     for i in range(n):
         t  = _ease((i + 1) / (n + 1))
-        wa = _warp(a_bgr, flow_ab *  t)
-        wb = _warp(b_bgr, flow_ba * (1 - t))
+        wa = _warp(a_pad, flow_ab *  t)
+        wb = _warp(b_pad, flow_ba * (1 - t))
         blend = (wa.astype(np.float32) * (1 - t) +
                  wb.astype(np.float32) *  t).clip(0, 255).astype(np.uint8)
-        frames.append(blend)
+        frames.append(blend[:oh, :ow])   # crop padding off
     return frames
 
 
