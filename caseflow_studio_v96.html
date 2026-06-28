@@ -22020,13 +22020,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
       fd.append('durationMs', String(Math.round(totalSec*1000)));
       fd.append('fps','30');
       for(var i=0;i<ph.length;i++){
-        var imgEl=new window.Image();
-        imgEl.crossOrigin='anonymous';
-        await new Promise(function(res,rej){ imgEl.onload=res; imgEl.onerror=rej; imgEl.src=ph[i].src||ph[i].dataURL||ph[i]; });
-        var tmp=document.createElement('canvas');
-        tmp.width=imgEl.naturalWidth; tmp.height=imgEl.naturalHeight;
-        tmp.getContext('2d').drawImage(imgEl,0,0);
-        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.92); });
+        var src=ph[i].src||ph[i].dataURL||ph[i]||'';
+        var blob;
+        if(src.startsWith('data:')){
+          // data URL — convert directly without Image load
+          var res2=await fetch(src);
+          blob=await res2.blob();
+        } else {
+          var imgEl=new window.Image();
+          if(src.startsWith('http')) imgEl.crossOrigin='anonymous';
+          var ii=i;
+          await new Promise(function(res,rej){
+            imgEl.onload=res;
+            imgEl.onerror=function(){ rej(new Error('写真'+(ii+1)+'の読み込みに失敗しました')); };
+            imgEl.src=src;
+          });
+          var tmp=document.createElement('canvas');
+          tmp.width=imgEl.naturalWidth; tmp.height=imgEl.naturalHeight;
+          tmp.getContext('2d').drawImage(imgEl,0,0);
+          blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.92); });
+        }
         fd.append('frame', blob, 'frame_'+i+'.jpg');
       }
 
