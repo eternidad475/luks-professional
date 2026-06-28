@@ -325,21 +325,67 @@ def _pad8(img):
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
 def interp_segment(a_bgr, b_bgr, n: int) -> list:
-    """Pure eased cross-dissolve between two frames — no additional effects.
+    """Bidirectional flow morph: pixels warp to their destinations then cross-fade.
 
-    The clinical photos are the key frames (held on screen); this function
-    generates only the in-between frames, blending pixel-by-pixel with an
-    ease-in-out-cubic curve. No zoom, no warp, no colour shift — the
-    uploaded images are preserved exactly as-is throughout. Works identically
-    for both facial and focus (dental close-up) photo sets.
+    Computes Farneback dense optical flow in both directions (A→B and B→A),
+    warps each frame toward the midpoint, then blends the two warped results.
+    This produces the characteristic smooth "clay animation" pixel-movement
+    morphing effect — distinct from a plain dissolve — with no zoom or colour
+    shift.  Works identically for facial and dental-focus photo sets.
     """
     import numpy as np
-    a = a_bgr.astype(np.float32)
-    b = b_bgr.astype(np.float32)
+    import cv2
+
+    H, W = a_bgr.shape[:2]
+    # Compute flow on a downscaled copy for speed; scale vectors back up
+    scale = min(1.0, 512 / max(H, W))
+    if scale < 1.0:
+        a_small = cv2.resize(a_bgr, (int(W * scale), int(H * scale)), interpolation=cv2.INTER_AREA)
+        b_small = cv2.resize(b_bgr, (int(W * scale), int(H * scale)), interpolation=cv2.INTER_AREA)
+    else:
+        a_small, b_small = a_bgr, b_bgr
+
+    a_gray = cv2.cvtColor(a_small, cv2.COLOR_BGR2GRAY)
+    b_gray = cv2.cvtColor(b_small, cv2.COLOR_BGR2GRAY)
+
+    flow_ab = cv2.calcOpticalFlowFarneback(
+        a_gray, b_gray, None,
+        pyr_scale=0.5, levels=5, winsize=21, iterations=5,
+        poly_n=7, poly_sigma=1.5, flags=0
+    )
+    flow_ba = cv2.calcOpticalFlowFarneback(
+        b_gray, a_gray, None,
+        pyr_scale=0.5, levels=5, winsize=21, iterations=5,
+        poly_n=7, poly_sigma=1.5, flags=0
+    )
+
+    if scale < 1.0:
+        flow_ab = cv2.resize(flow_ab, (W, H), interpolation=cv2.INTER_LINEAR) / scale
+        flow_ba = cv2.resize(flow_ba, (W, H), interpolation=cv2.INTER_LINEAR) / scale
+
+    grid_x, grid_y = np.meshgrid(np.arange(W, dtype=np.float32),
+                                  np.arange(H, dtype=np.float32))
+
     frames = []
     for i in range(n):
         t = _ease((i + 1) / (n + 1))
-        frames.append((a * (1 - t) + b * t).clip(0, 255).astype(np.uint8))
+
+        # Warp A forward by t * flow_ab
+        map_xa = (grid_x + t * flow_ab[..., 0]).clip(0, W - 1)
+        map_ya = (grid_y + t * flow_ab[..., 1]).clip(0, H - 1)
+        warped_a = cv2.remap(a_bgr, map_xa, map_ya,
+                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+        # Warp B backward by (1-t) * flow_ba
+        map_xb = (grid_x + (1 - t) * flow_ba[..., 0]).clip(0, W - 1)
+        map_yb = (grid_y + (1 - t) * flow_ba[..., 1]).clip(0, H - 1)
+        warped_b = cv2.remap(b_bgr, map_xb, map_yb,
+                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+        blended = (warped_a.astype(np.float32) * (1 - t) +
+                   warped_b.astype(np.float32) * t).clip(0, 255).astype(np.uint8)
+        frames.append(blended)
+
     return frames
 
 
