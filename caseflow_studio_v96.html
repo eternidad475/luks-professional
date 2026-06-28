@@ -2500,10 +2500,7 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
   font-weight:780;
 }
 .layerWorkbench{
-  margin:12px 0 14px;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
+  display:none;
 }
 .layerCard{
   border:0;
@@ -2534,11 +2531,7 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
   color:rgba(255,255,255,.72);
 }
 .layerTransformPanel{
-  margin-top:10px;
-  padding:12px;
-  border-radius:20px;
-  background:rgba(255,255,255,.72);
-  box-shadow:0 10px 26px rgba(32,27,53,.06);
+  display:none;
 }
 .layerTransformPanel .pmSliderRow{
   grid-template-columns:92px 1fr 44px;
@@ -7013,10 +7006,7 @@ attachPaletteEvents();
   font-weight:780;
 }
 .layerWorkbench{
-  margin:12px 0 14px;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
+  display:none;
 }
 .layerCard{
   border:0;
@@ -7047,11 +7037,7 @@ attachPaletteEvents();
   color:rgba(255,255,255,.72);
 }
 .layerTransformPanel{
-  margin-top:10px;
-  padding:12px;
-  border-radius:20px;
-  background:rgba(255,255,255,.72);
-  box-shadow:0 10px 26px rgba(32,27,53,.06);
+  display:none;
 }
 .layerTransformPanel .pmSliderRow{
   grid-template-columns:92px 1fr 44px;
@@ -13668,7 +13654,7 @@ window.addEventListener('DOMContentLoaded', () => {
       ${isFacial(activePhoto()) ? `<button class="v75AiStdTop" onclick="caseflowV75Standardize()" style="display:flex;align-items:center;justify-content:center;width:100%;border:0;border-radius:15px;margin:2px 0 10px;min-height:46px;padding:12px;cursor:pointer;background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;font-size:13.5px;font-weight:950;box-shadow:0 4px 16px rgba(124,92,255,.32)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AIで傾き・トリミングを自動補正</button>` : ''}
       <div class="v73SourceStrip">${cards}</div>
       <div class="v73PointTools">
-        ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
+        ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="flex:1.5;background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
         <button onclick="caseflowV75PrevPoint()">Prev</button>
         <button onclick="caseflowV75NextPoint()">Next</button>
         <button onclick="caseflowV75UndoPoint()">Undo</button>
