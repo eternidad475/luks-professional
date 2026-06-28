@@ -377,35 +377,56 @@ def run_pipeline(job_id: str, frame_keys: list[str],
 
         # B ── Composite each earlier frame onto master ────────────────────
         status("segmenting", 8)
-        composited = []
+        # B ── Face-align every frame to master canvas ────────────────────
+        # Strategy: align each photo so the face sits in the same position as
+        # master, then cross-dissolve the full aligned frames.  Previous
+        # approach (dental_mask + composite onto master) silently produced
+        # near-zero masks → all composited frames ≡ master → static video.
+        status("segmenting", 8)
+        aligned = []
         for i, src in enumerate(raw):
-            if i == len(raw) - 1:
-                composited.append(master)
-                continue
             pct = 8 + int(i / len(raw) * 28)
             status("segmenting", pct)
+            if i == len(raw) - 1:
+                aligned.append(master)
+                continue
             try:
                 warped = align_to_master(src, master)
-                msk    = dental_mask(warped)
-                harm   = color_match(warped, master, msk)
-                a      = msk[:, :, None]
-                comp   = (harm.astype(np.float32) * a +
-                          master.astype(np.float32) * (1 - a)
-                          ).clip(0, 255).astype(np.uint8)
-                composited.append(comp)
+
+                # Optional SAM2 dental composite: improves result when mask is
+                # large enough, otherwise falls back to full aligned frame so
+                # we always get visible dental change.
+                try:
+                    msk = dental_mask(warped)
+                    coverage = float(msk.mean())
+                    log.info(f"[{job_id}] frame {i} mask coverage={coverage:.4f}")
+                    if coverage >= 0.004:          # ≥0.4% of pixels = usable mask
+                        harm = color_match(warped, master, msk)
+                        a    = msk[:, :, None]
+                        comp = (harm.astype(np.float32) * a +
+                                master.astype(np.float32) * (1 - a)
+                                ).clip(0, 255).astype(np.uint8)
+                        aligned.append(comp)
+                        log.info(f"[{job_id}] frame {i}: dental composite OK")
+                    else:
+                        log.warning(f"[{job_id}] frame {i}: mask too small → full aligned frame")
+                        aligned.append(warped)
+                except Exception as me:
+                    log.warning(f"[{job_id}] frame {i}: dental_mask failed ({me}) → full aligned frame")
+                    aligned.append(warped)
+
             except Exception as e:
-                log.warning(f"[{job_id}] frame {i} fallback: {e}")
-                composited.append(cv2.resize(src, (W, H)))
+                log.warning(f"[{job_id}] frame {i} align fallback: {e}")
+                aligned.append(cv2.resize(src, (W, H)))
 
         # C ── Eased cross-dissolve interpolation ─────────────────────────
         status("interpolating", 36)
-        n_seg   = len(composited) - 1
+        n_seg   = len(aligned) - 1
         seg_ms  = duration_ms / max(1, n_seg)
-        # Cross-dissolve is fast so use full frame budget (no -1 headroom needed)
         f_per_s = max(1, round(seg_ms / 1000 * fps))
 
-        all_frames = [composited[0]]
-        for si, (fa, fb) in enumerate(zip(composited[:-1], composited[1:])):
+        all_frames = [aligned[0]]
+        for si, (fa, fb) in enumerate(zip(aligned[:-1], aligned[1:])):
             status("interpolating", 36 + int(si / n_seg * 46))
             all_frames.extend(interp_segment(fa, fb, f_per_s))
             all_frames.append(fb)
