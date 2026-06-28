@@ -132,12 +132,13 @@ def _redis_hdr():
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 def redis_set(key: str, val: dict, ttl: int = 7200):
-    """POST /set with body-array format — avoids pipeline command-level errors."""
-    import httpx
+    """URL-path format: POST /set/{key}/{value}?ex={ttl}  (most reliable Upstash API form)."""
+    import httpx, urllib.parse
     base    = _redis_base()
     encoded = json.dumps(val, separators=(",", ":"))
-    r = httpx.post(f"{base}/set",
-                   json=[key, encoded, "EX", str(ttl)],
+    k = urllib.parse.quote(key,     safe="")
+    v = urllib.parse.quote(encoded, safe="")
+    r = httpx.post(f"{base}/set/{k}/{v}?ex={ttl}",
                    headers=_redis_hdr(), timeout=10)
     log.info(f"redis_set {key}: HTTP {r.status_code} body={r.text[:200]}")
     r.raise_for_status()
@@ -146,13 +147,13 @@ def redis_set(key: str, val: dict, ttl: int = 7200):
         raise RuntimeError(f"redis SET not OK: {resp}")
 
 def redis_get(key: str) -> dict | None:
-    """POST /get with body-array format — avoids URL-encoding issues."""
-    import httpx
+    """URL-path format: GET /get/{key}"""
+    import httpx, urllib.parse
     base = _redis_base()
     try:
-        r = httpx.post(f"{base}/get",
-                       json=[key],
-                       headers=_redis_hdr(), timeout=10)
+        k = urllib.parse.quote(key, safe="")
+        r = httpx.get(f"{base}/get/{k}",
+                      headers=_redis_hdr(), timeout=10)
         log.info(f"redis_get {key}: HTTP {r.status_code} body={r.text[:200]}")
         r.raise_for_status()
         resp = r.json()
@@ -528,20 +529,20 @@ async def health():
 @web_app.get("/debug")
 async def debug():
     """Browser-accessible Redis connectivity test — shows raw Upstash responses."""
-    import httpx, traceback
+    import httpx, urllib.parse, traceback
     steps = []
     try:
         base = _redis_base()
         hdr  = _redis_hdr()
         steps.append(f"url={base[:55]}…")
 
-        r1 = httpx.post(f"{base}/set", json=["__dbg__", "hello123", "EX", "120"],
-                        headers=hdr, timeout=10)
-        steps.append(f"SET HTTP {r1.status_code}: {r1.text[:120]}")
+        k = urllib.parse.quote("__dbg__", safe="")
+        v = urllib.parse.quote("hello123", safe="")
+        r1 = httpx.post(f"{base}/set/{k}/{v}?ex=120", headers=hdr, timeout=10)
+        steps.append(f"SET HTTP {r1.status_code}: {r1.text[:150]}")
 
-        r2 = httpx.post(f"{base}/get", json=["__dbg__"],
-                        headers=hdr, timeout=10)
-        steps.append(f"GET HTTP {r2.status_code}: {r2.text[:120]}")
+        r2 = httpx.get(f"{base}/get/{k}", headers=hdr, timeout=10)
+        steps.append(f"GET HTTP {r2.status_code}: {r2.text[:150]}")
 
         ok = r2.json().get("result") == "hello123"
         return {"redis": "ok" if ok else "mismatch", "steps": steps}
