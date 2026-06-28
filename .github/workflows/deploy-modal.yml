@@ -1,0 +1,70 @@
+name: Deploy GPU Worker to Modal
+
+on:
+  # ① プッシュ時に gpu_worker/ が変更されたら自動デプロイ
+  push:
+    branches: [claude/image-morphing-video-3kujgb]
+    paths: ['gpu_worker/**']
+  # ② GitHub Actions 画面から手動トリガー可
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Modal (A10G)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30      # イメージビルド込みで最大30分
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Modal CLI
+        run: pip install modal
+
+      - name: Register Modal secrets (R2 + Upstash)
+        env:
+          MODAL_TOKEN_ID:            ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET:        ${{ secrets.MODAL_TOKEN_SECRET }}
+          R2_ENDPOINT:               ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID:          ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY:      ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET:                 ${{ secrets.R2_BUCKET }}
+          UPSTASH_REDIS_REST_URL:    ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN:  ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          modal secret create caseflow-secrets \
+            "R2_ENDPOINT=$R2_ENDPOINT" \
+            "R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID" \
+            "R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY" \
+            "R2_BUCKET=$R2_BUCKET" \
+            "UPSTASH_REDIS_REST_URL=$UPSTASH_REDIS_REST_URL" \
+            "UPSTASH_REDIS_REST_TOKEN=$UPSTASH_REDIS_REST_TOKEN" \
+            --force
+
+      - name: Deploy Modal app
+        env:
+          MODAL_TOKEN_ID:    ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          cd gpu_worker
+          modal deploy modal_morph_app.py 2>&1 | tee /tmp/modal_deploy.log
+          echo "--- Deploy log ---"
+          cat /tmp/modal_deploy.log
+          # エンドポイントURLを抽出してサマリーに出力
+          URL=$(grep -oP 'https://[a-z0-9-]+--caseflow-morph-web\.modal\.run' /tmp/modal_deploy.log | head -1)
+          if [ -n "$URL" ]; then
+            echo "## ✅ Deploy Complete" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Endpoint URL:** \`$URL\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Set in browser console:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`js" >> $GITHUB_STEP_SUMMARY
+            echo "localStorage.setItem('cfGpuEndpoint', '$URL')" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
