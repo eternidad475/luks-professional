@@ -15,7 +15,8 @@
 <title>CaseFlow Studio v9.6</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>/* hide consent gate before first paint if already agreed (prevents flash) */
-try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentElement.classList.add('cf-consented'); }catch(e){}</script>
+try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentElement.classList.add('cf-consented'); }catch(e){}
+window.CASEFLOW_GPU_ENDPOINT='https://eternidad475--caseflow-morph-web.modal.run';</script>
 <style>
 :root{
   --c1:#7c5cff; --c2:#ff9fd6; --ink:#201b35; --muted:rgba(32,27,53,.58);
