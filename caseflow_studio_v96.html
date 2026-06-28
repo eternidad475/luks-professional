@@ -21995,7 +21995,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
   async function cfCapGpuExport(){
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
-    var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'').replace(/\/$/,'');
+    // Endpoint resolution order: window global → localStorage → fallback to local export
+    var endpoint=(
+      (window.CASEFLOW_GPU_ENDPOINT||'') ||
+      (typeof localStorage!=='undefined' && localStorage.getItem('cfGpuEndpoint')) ||
+      ''
+    ).replace(/\/$/,'');
     if(!endpoint){
       // GPU backend not yet configured — fall back to local high-quality export
       return cfCapDoExport();
