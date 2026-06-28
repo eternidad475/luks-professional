@@ -24,8 +24,8 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Modal CLI
-        run: pip install modal
+      - name: Install Modal CLI and dependencies
+        run: pip install modal fastapi python-multipart
 
       - name: Register Modal secrets (R2 + Upstash)
         env:
@@ -52,6 +52,7 @@ jobs:
           MODAL_TOKEN_ID:    ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
         run: |
+          set -o pipefail
           cd gpu_worker
           modal deploy modal_morph_app.py 2>&1 | tee /tmp/modal_deploy.log
           echo "--- Deploy log ---"
