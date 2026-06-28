@@ -21997,8 +21997,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'').replace(/\/$/,'');
     if(!endpoint){
-      toastFn('GPU_ENDPOINTが未設定です（CASEFLOW_GPU_ENDPOINTを設定してください）');
-      return;
+      // GPU backend not yet configured — fall back to local high-quality export
+      return cfCapDoExport();
     }
     stop();
     gpuShowOverlay(true);
