@@ -364,73 +364,58 @@ def run_pipeline(job_id: str, frame_keys: list[str],
         log.info(f"[{job_id}] {s} {p}%")
 
     try:
-        # A ── Download frames from R2 ─────────────────────────────────────
+        # A ── Download clinical photos from R2 (must stay unmodified) ────
         status("downloading", 2)
         raw = []
         for key in frame_keys:
             arr = np.frombuffer(r2_get(r2, key), np.uint8)
             raw.append(cv2.imdecode(arr, cv2.IMREAD_COLOR))
 
-        master = raw[-1].copy()   # After photo = immutable canvas
-        H, W   = master.shape[:2]
-        log.info(f"[{job_id}] {len(raw)} frames · canvas {W}×{H}")
+        H, W = raw[-1].shape[:2]
+        log.info(f"[{job_id}] {len(raw)} clinical photos · canvas {W}×{H}")
 
-        # B ── Composite each earlier frame onto master ────────────────────
-        status("segmenting", 8)
-        # B ── Face-align every frame to master canvas ────────────────────
-        # Strategy: align each photo so the face sits in the same position as
-        # master, then cross-dissolve the full aligned frames.  Previous
-        # approach (dental_mask + composite onto master) silently produced
-        # near-zero masks → all composited frames ≡ master → static video.
-        status("segmenting", 8)
-        aligned = []
-        for i, src in enumerate(raw):
-            pct = 8 + int(i / len(raw) * 28)
-            status("segmenting", pct)
-            if i == len(raw) - 1:
-                aligned.append(master)
-                continue
-            try:
-                warped = align_to_master(src, master)
+        # B ── Letterbox-fit each photo to a common canvas ────────────────
+        # Clinical record rule: every photo is displayed exactly as captured.
+        # We only resize to share a common canvas size for the video encoder.
+        # Letterboxing (black bars) keeps the full image visible.
+        status("segmenting", 10)
 
-                # Optional SAM2 dental composite: improves result when mask is
-                # large enough, otherwise falls back to full aligned frame so
-                # we always get visible dental change.
-                try:
-                    msk = dental_mask(warped)
-                    coverage = float(msk.mean())
-                    log.info(f"[{job_id}] frame {i} mask coverage={coverage:.4f}")
-                    if coverage >= 0.004:          # ≥0.4% of pixels = usable mask
-                        harm = color_match(warped, master, msk)
-                        a    = msk[:, :, None]
-                        comp = (harm.astype(np.float32) * a +
-                                master.astype(np.float32) * (1 - a)
-                                ).clip(0, 255).astype(np.uint8)
-                        aligned.append(comp)
-                        log.info(f"[{job_id}] frame {i}: dental composite OK")
-                    else:
-                        log.warning(f"[{job_id}] frame {i}: mask too small → full aligned frame")
-                        aligned.append(warped)
-                except Exception as me:
-                    log.warning(f"[{job_id}] frame {i}: dental_mask failed ({me}) → full aligned frame")
-                    aligned.append(warped)
+        def letterbox(img):
+            ih, iw = img.shape[:2]
+            if iw == W and ih == H:
+                return img.copy()
+            scale = min(W / iw, H / ih)
+            nw, nh = round(iw * scale), round(ih * scale)
+            res = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LANCZOS4)
+            canvas = np.zeros((H, W, 3), dtype=np.uint8)
+            x0, y0 = (W - nw) // 2, (H - nh) // 2
+            canvas[y0:y0+nh, x0:x0+nw] = res
+            return canvas
 
-            except Exception as e:
-                log.warning(f"[{job_id}] frame {i} align fallback: {e}")
-                aligned.append(cv2.resize(src, (W, H)))
+        frames = [letterbox(fr) for fr in raw]
+        log.info(f"[{job_id}] {len(frames)} frames letterboxed to {W}×{H}")
 
-        # C ── Eased cross-dissolve interpolation ─────────────────────────
+        # C ── Build video: hold each key frame + GPU-generated tween frames
+        # Like clay-animation: the actual clinical photos are the key frames,
+        # held on screen; the GPU generates smooth in-between frames only for
+        # the transitions between consecutive photos.
         status("interpolating", 36)
-        n_seg   = len(aligned) - 1
-        seg_ms  = duration_ms / max(1, n_seg)
-        f_per_s = max(1, round(seg_ms / 1000 * fps))
 
-        all_frames = [aligned[0]]
-        for si, (fa, fb) in enumerate(zip(aligned[:-1], aligned[1:])):
-            status("interpolating", 36 + int(si / n_seg * 46))
-            all_frames.extend(interp_segment(fa, fb, f_per_s))
-            all_frames.append(fb)
-        log.info(f"[{job_id}] {len(all_frames)} total frames")
+        n        = len(frames)
+        seg_ms   = duration_ms / max(1, n - 1)   # time per segment
+        hold_n   = max(2, round(seg_ms * 0.65 / 1000 * fps))   # 65% = hold key frame
+        trans_n  = max(1, round(seg_ms * 0.35 / 1000 * fps))   # 35% = tween frames
+
+        log.info(f"[{job_id}] hold={hold_n}f  tween={trans_n}f  per segment")
+
+        all_frames = []
+        for i, fr in enumerate(frames):
+            status("interpolating", 36 + int(i / n * 46))
+            all_frames.extend([fr] * hold_n)          # hold the clinical photo
+            if i < n - 1:
+                all_frames.extend(interp_segment(fr, frames[i + 1], trans_n))
+
+        log.info(f"[{job_id}] {len(all_frames)} total frames → {len(all_frames)/fps:.1f}s")
 
         # D ── Encode MP4 ──────────────────────────────────────────────────
         status("encoding", 82)

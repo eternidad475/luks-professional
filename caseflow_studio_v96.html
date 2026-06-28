@@ -21849,6 +21849,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapSaveBtn{width:100%;margin-top:8px;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer;transition:opacity .2s,transform .15s;}
 #cfCapSaveBtn:active{opacity:.78;transform:scale(.97);}
 #cfCapSaveBtn.recording{background:linear-gradient(135deg,#ff6b6b,#ff9f43);color:#fff;border-color:transparent;}
+#cfCapResultPanel{display:none;width:100%;margin-top:4px;}
+#cfCapResultPanel video{width:100%;border-radius:14px;display:block;background:#000;max-height:72vw;object-fit:contain;}
+.cfCapResultActions{display:flex;gap:8px;margin-top:8px;}
+#cfCapResultSaveBtn{flex:1;border:0;border-radius:14px;min-height:46px;background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(91,63,204,.35);}
+#cfCapResultBackBtn{flex:1;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;cursor:pointer;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
    Remove every legacy manual-adjustment panel from the align screen.
    The cfCap scrub/speed editor and AI-auto-correction replace them all. */
@@ -21914,11 +21919,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
           '</div>'+
           '<div id="cfCapGpuStatus">処理を準備中…</div>'+
           '<div class="cfCapStepList">'+
-            '<div class="cfCapStepRow cfActive" data-step="0"><span class="cfDot"></span>マスターフレーム確定</div>'+
-            '<div class="cfCapStepRow" data-step="1"><span class="cfDot"></span>口腔内セグメンテーション</div>'+
-            '<div class="cfCapStepRow" data-step="2"><span class="cfDot"></span>カラーマッチング合成</div>'+
-            '<div class="cfCapStepRow" data-step="3"><span class="cfDot"></span>FILM フレーム補間</div>'+
-            '<div class="cfCapStepRow" data-step="4"><span class="cfDot"></span>MP4 エンコード</div>'+
+            '<div class="cfCapStepRow cfActive" data-step="0"><span class="cfDot"></span>臨床写真を取得中</div>'+
+            '<div class="cfCapStepRow" data-step="1"><span class="cfDot"></span>フレームサイズ統一</div>'+
+            '<div class="cfCapStepRow" data-step="2"><span class="cfDot"></span>中割りフレーム生成中</div>'+
+            '<div class="cfCapStepRow" data-step="3"><span class="cfDot"></span>MP4 エンコード</div>'+
+            '<div class="cfCapStepRow" data-step="4"><span class="cfDot"></span>アップロード完了</div>'+
           '</div>'+
           '<button id="cfCapGpuCancel">キャンセル</button>'+
         '</div>'+
@@ -21936,8 +21941,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="1400">Fast</button>'+
       '</div>'+
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま動画保存（高速）</button>'+
-      '<button id="cfCapGpuBtn">&#10024;&nbsp; AI高品質書き出し（GPU）</button>'+
-      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビュー保存</b>はブラウザで即録画（数秒）。GPU書き出しは高画質だが数分かかります。</div>';
+      '<button id="cfCapGpuBtn">&#10024;&nbsp; AI中割り生成・高品質書き出し（GPU）</button>'+
+      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビュー保存</b>はブラウザで即録画。<b>AI書き出し</b>はGPUで中割りフレームを自動生成します。</div>'+
+      '<div id="cfCapResultPanel">'+
+        '<video id="cfCapResultVid" controls loop playsinline webkit-playsinline></video>'+
+        '<div class="cfCapResultActions">'+
+          '<button id="cfCapResultSaveBtn">&#9660;&nbsp; 動画を保存</button>'+
+          '<button id="cfCapResultBackBtn">&#9654;&nbsp; プレビューに戻る</button>'+
+        '</div>'+
+      '</div>';
     var step=align.querySelector('.stepbar');
     if(step && step.nextSibling) align.insertBefore(box, step.nextSibling);
     else align.insertBefore(box, align.querySelector('.stage.align')||align.firstChild);
@@ -22066,14 +22078,66 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(!vidRes.ok) throw new Error('ダウンロード失敗: '+vidRes.status);
       var vidBlob=await vidRes.blob();
       gpuShowOverlay(false);
-      if(typeof setExportBlob==='function'){
-        setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+
+      /* 4. Show result video in the preview panel (プレビュー画面に映す) */
+      var resultPanel=$id('cfCapResultPanel');
+      var resultVid=$id('cfCapResultVid');
+      var stage=$id('cfCapStage');
+      var transport=$id('cfCapTransport');
+      var speed=$id('cfCapSpeed');
+      var saveBtnEl=$id('cfCapSaveBtn');
+      var gpuBtnEl=$id('cfCapGpuBtn');
+      var hint=resultPanel&&resultPanel.nextElementSibling;
+
+      if(resultPanel&&resultVid){
+        var blobUrl=URL.createObjectURL(vidBlob);
+        if(resultVid._prevUrl) URL.revokeObjectURL(resultVid._prevUrl);
+        resultVid._prevUrl=blobUrl;
+        resultVid.src=blobUrl;
+        /* Hide canvas controls, show result panel */
+        if(stage)    stage.style.display='none';
+        if(transport)transport.style.display='none';
+        if(speed)    speed.style.display='none';
+        if(saveBtnEl)saveBtnEl.style.display='none';
+        if(gpuBtnEl) gpuBtnEl.style.display='none';
+        resultPanel.style.display='block';
+        resultVid.play().catch(function(){});
+        toastFn('AI動画を生成しました ✓ 確認して保存してください');
+
+        var saveB=$id('cfCapResultSaveBtn');
+        var backB=$id('cfCapResultBackBtn');
+        if(saveB) saveB.onclick=function(){
+          if(typeof setExportBlob==='function'){
+            setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+          } else {
+            var u=URL.createObjectURL(vidBlob);
+            var a=document.createElement('a'); a.href=u; a.download='caseflow_ai_morph.mp4'; a.click();
+            setTimeout(function(){URL.revokeObjectURL(u);},5000);
+          }
+          toastFn('動画を保存しました ✓');
+        };
+        if(backB) backB.onclick=function(){
+          resultPanel.style.display='none';
+          resultVid.pause();
+          if(stage)    stage.style.display='';
+          if(transport)transport.style.display='';
+          if(speed)    speed.style.display='';
+          if(saveBtnEl)saveBtnEl.style.display='';
+          if(gpuBtnEl) gpuBtnEl.style.display='';
+          URL.revokeObjectURL(blobUrl);
+          resultVid._prevUrl=null;
+        };
       } else {
-        var url=URL.createObjectURL(vidBlob);
-        var a=document.createElement('a'); a.href=url; a.download='caseflow_ai_morph.mp4'; a.click();
-        setTimeout(function(){URL.revokeObjectURL(url);},5000);
+        /* Fallback if panel not found */
+        if(typeof setExportBlob==='function'){
+          setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+        } else {
+          var u2=URL.createObjectURL(vidBlob);
+          var a2=document.createElement('a'); a2.href=u2; a2.download='caseflow_ai_morph.mp4'; a2.click();
+          setTimeout(function(){URL.revokeObjectURL(u2);},5000);
+        }
+        toastFn('AI動画を書き出しました ✓');
       }
-      toastFn('AI高品質動画を書き出しました ✓');
 
     }catch(e){
       gpuShowOverlay(false);
