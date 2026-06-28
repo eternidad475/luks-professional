@@ -4838,7 +4838,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="preview">
-  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morph Preview</h2><p class="subtitle">Landmark-aware Preview / プレビュー</p></div><button class="iconbtn" onclick="if(typeof renderPreview==='function') renderPreview();" title="更新 / Refresh">↻</button><button class="linkbtn" onclick="exportPreview()" style="display:none">書き出し</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morph Preview</h2><p class="subtitle">Clinical Warp Morph / プレビュー</p></div><button class="iconbtn" onclick="if(typeof renderPreview==='function') renderPreview();" title="更新 / Refresh">↻</button></div>
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem on">2<span>Preview</span></div><div class="stepitem">3<span>Export</span></div></div>
   <div class="seg"><button class="on" onclick="setRatio('9:16',this)">9:16</button><button onclick="setRatio('4:5',this)">4:5</button><button onclick="setRatio('1:1',this)">1:1</button><button onclick="setRatio('16:9',this)">16:9</button></div>
   <div class="stage">
@@ -13666,15 +13666,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }).join('');
     const pts=lm(activePhoto())||[];
     const sel=state.v75SelectedIndex;
+    const srcCount=photos.filter(function(p){return !p.aiGenerated;}).length;
+    /* Add-photo button: triggers hidden file input */
+    const addBtn=`<button class="v73SrcAddBtn" onclick="(function(){var fi=document.getElementById('cfSrcAddInput');if(!fi){fi=document.createElement('input');fi.type='file';fi.id='cfSrcAddInput';fi.accept='image/*';fi.multiple=true;fi.style.display='none';document.body.appendChild(fi);fi.addEventListener('change',async function(e){var files=Array.prototype.slice.call(e.target.files||[]);if(!files.length)return;var st=window.state;if(!st||!Array.isArray(st.photos))return;if(typeof toast==='function')toast('写真を読み込み中…');for(var k=0;k<files.length;k++){try{var dataUrl=await new Promise(function(res,rej){var r=new FileReader();r.onload=function(ev){res(ev.target.result);};r.onerror=rej;r.readAsDataURL(files[k]);});st.photos.push({dataUrl:dataUrl,label:'Image '+(st.photos.length+1),name:files[k].name});}catch(_){}}if(typeof window.caseflowV75Refresh==='function')window.caseflowV75Refresh();if(typeof window.cfCapRefresh==='function')window.cfCapRefresh();if(typeof toast==='function')toast('写真を追加しました');e.target.value='';});}fi.click();})()"><span>＋</span><span>追加</span></button>`;
     panel.innerHTML=`
-      <div class="v73StudioHead">
-        <div>
-          <b>Source images</b>
-          <span>下のサムネイルをタップすると、上のプレビューにその画像を表示します。並び順がそのままモーフィング順になります。</span>
-        </div>
+      <div class="v73SrcHeader">
+        <b>Source Images</b>
+        <span class="v73SrcCount">${srcCount} 枚 → モーフィング順</span>
       </div>
       ${isFacial(activePhoto()) ? `<button class="v75AiStdTop" onclick="caseflowV75Standardize()" style="display:flex;align-items:center;justify-content:center;width:100%;border:0;border-radius:15px;margin:2px 0 10px;min-height:46px;padding:12px;cursor:pointer;background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;font-size:13.5px;font-weight:950;box-shadow:0 4px 16px rgba(124,92,255,.32)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AIで傾き・トリミングを自動補正</button>` : ''}
-      <div class="v73SourceStrip">${cards}</div>
+      <div class="v73SourceStrip">${cards}${addBtn}</div>
       <div class="v73PointTools">
         ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="flex:1.5;background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
         <button onclick="caseflowV75PrevPoint()">Prev</button>
@@ -13682,7 +13683,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <button onclick="caseflowV75UndoPoint()">Undo</button>
         <button class="danger" onclick="caseflowV75DeletePoint()">Delete</button>
       </div>
-      <div class="v73Hint">${sel==null ? 'プレビュー上をタップしてポイントを追加。ポイントはドラッグで微調整、<b>ダブルタップで削除</b>できます。' : `Selected point ${sel+1} / ${pts.length}。<b>ダブルタップ</b>または Delete で削除、Prev/Next で選択移動。`}</div>
+      <div class="v73Hint">${sel==null ? 'タップしてポイントを追加。ドラッグで微調整、<b>ダブルタップで削除</b>。サムネイルをドラッグしてモーフィング順を入れ替えられます。' : `Point ${sel+1} / ${pts.length} を選択中。<b>ダブルタップ</b>または Delete で削除。`}</div>
       <div class="v74Guide">${currentGuide()}</div>
     `;
     bindSourceReorder(panel);
@@ -13965,6 +13966,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Delete a source image from the set
   window.caseflowV75DeleteSource=function(i){
     const arr=list(); if(!arr[i]) return;
+    const p=arr[i];
+    const label=p.label||p.name||('Image '+(i+1));
+    if(!window.confirm('「'+label+'」を削除しますか？\nこの操作は元に戻せません。')) return;
     arr.splice(i,1);
     state.v75ActiveIndex=clamp(state.v75ActiveIndex>i?state.v75ActiveIndex-1:state.v75ActiveIndex,0,Math.max(0,arr.length-1));
     if(typeof window.renderUpload==='function') window.renderUpload();
@@ -22009,19 +22013,41 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #align > .toolbar { display:none !important; }
 /* Guide rails are unnecessary noise when AI handles registration */
 #align .guide { display:none !important; }
-/* clean, slider-like source strip (drag thumbnails to reorder; small × to delete) */
-#align .v73SourceStrip{gap:8px;padding:4px 2px 10px;touch-action:pan-x}
-#align .v73SourceCard{flex:0 0 76px;height:76px;padding:0;border-radius:14px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:pan-x;will-change:transform}
-/* ── AI-generated keyframe cards (2/3 size, delete-only, no drag) ── */
-#align .v73AICard{flex:0 0 52px !important;height:52px !important;cursor:default !important;opacity:.88;outline:1.5px dashed rgba(124,92,255,.5);background:rgba(124,92,255,.08);touch-action:auto !important;}
+/* Clinical Warp Morph — Source Images strip */
+#align .v73SourceStrip{gap:10px;padding:6px 2px 12px;touch-action:pan-x}
+#align .v73SourceCard{flex:0 0 96px;height:96px;padding:0;border-radius:16px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:pan-x;will-change:transform}
+/* ── AI-generated keyframe cards (smaller, delete-only, no drag) ── */
+#align .v73AICard{flex:0 0 64px !important;height:64px !important;cursor:default !important;opacity:.88;outline:1.5px dashed rgba(124,92,255,.5);background:rgba(124,92,255,.08);touch-action:auto !important;}
 #align .v73AICard img{height:100% !important;object-fit:cover}
 #align .v73AICard .v73SourceNo{font-size:7px !important;padding:1px 4px !important;background:rgba(124,92,255,.75) !important;letter-spacing:.03em}
 #align .v73SourceCard:active{cursor:grabbing}
-#align .v73SourceCard img{width:100%;height:100%;object-fit:cover;border-radius:14px}
-#align .v73SourceCard.active{outline:2.5px solid var(--c1,#7c5cff);outline-offset:-1px}
-#align .v73SourceCard .v73SourceNo{top:5px;left:5px;min-width:20px;height:20px;font-size:10px;background:rgba(8,6,16,.55);color:#fff}
-#align .v73SourceCard .v73SourceDel{position:absolute;top:4px;right:4px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(8,6,16,.5);color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;backdrop-filter:blur(4px)}
+#align .v73SourceCard img{width:100%;height:100%;object-fit:cover;border-radius:16px}
+#align .v73SourceCard.active{outline:3px solid var(--c1,#7c5cff);outline-offset:-1px;box-shadow:0 0 0 3px rgba(124,92,255,.22)}
+#align .v73SourceCard .v73SourceNo{top:6px;left:6px;min-width:22px;height:22px;font-size:11px;font-weight:900;background:rgba(8,6,16,.62);color:#fff;border-radius:7px;}
+#align .v73SourceCard .v73SourceDel{position:absolute;top:5px;right:5px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(8,6,16,.55);color:#fff;font-size:14px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;backdrop-filter:blur(6px)}
 #align .v73SourceCard .v73SourceName,#align .v73SourceCard .v73SourceMeta,#align .v73SourceCard .v73SourceActions{display:none}
+/* Add-photo button in source strip */
+.v73SrcAddBtn{flex:0 0 96px;height:96px;border:2px dashed rgba(124,92,255,.35);border-radius:16px;background:rgba(124,92,255,.07);color:#7c5cff;font-size:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0;transition:background .15s,border-color .15s;}
+.v73SrcAddBtn:active{background:rgba(124,92,255,.14);}
+.v73SrcAddBtn span{font-size:9.5px;font-weight:700;letter-spacing:.05em;color:#7c5cff;}
+/* Pattern selector */
+#cfCapPatternRow{display:flex;gap:7px;margin:10px 0 4px;}
+.cfCapPat{flex:1;border:1.5px solid rgba(124,92,255,.22);border-radius:13px;padding:8px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:10px;font-weight:700;cursor:pointer;text-align:center;line-height:1.3;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
+.cfCapPat b{display:block;font-size:11px;font-weight:800;}
+.cfCapPat span{display:block;font-size:8.5px;font-weight:500;opacity:.7;margin-top:2px;letter-spacing:.04em;}
+.cfCapPat.on{border-color:#7c5cff;background:rgba(124,92,255,.13);color:#7c5cff;}
+.cfCapPat.on span{opacity:1;}
+/* Clinical Warp waiting overlay */
+#cfCWWait{display:none;position:absolute;inset:0;z-index:25;background:rgba(8,6,16,.82);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);flex-direction:column;align-items:center;justify-content:center;gap:18px;border-radius:inherit;text-align:center;padding:24px;}
+#cfCWWait.active{display:flex;}
+.cfCWSpinner{width:44px;height:44px;border:3.5px solid rgba(255,255,255,.12);border-top-color:#7c5cff;border-radius:50%;animation:cfCWSpin .85s linear infinite;}
+@keyframes cfCWSpin{to{transform:rotate(360deg);}}
+.cfCWMsg{font-size:13.5px;font-weight:700;color:#fff;line-height:1.6;}
+.cfCWMsg span{display:block;font-size:11px;font-weight:500;color:rgba(255,255,255,.58);margin-top:5px;}
+/* Source Images section header */
+.v73SrcHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.v73SrcHeader b{font-size:12px;font-weight:800;color:#1a1040;}
+.v73SrcHeader .v73SrcCount{font-size:10px;font-weight:600;color:#8878bb;background:rgba(124,92,255,.09);border-radius:8px;padding:3px 8px;}
 </style>
 <script>
 /* ---------- CapCut-style live morphing editor (beginner-friendly) ---------- */
@@ -22048,36 +22074,21 @@ body.cfPresent .cfPresentExit{display:flex!important}
     box.innerHTML=
       '<div id="cfCapStage" style="--cfcap-ar:'+ratioAR()+'">'+
         '<canvas id="cfCapCanvas" width="1080" height="1350"></canvas>'+
-        '<video id="cfCapGpuVid" loop playsinline webkit-playsinline></video>'+
-        '<div id="cfCapGpuBadge">&#10022;</div>'+
-        '<button id="cfCapGpuBack">&#8592; 戻る</button>'+
         '<span class="cfCapLbl l">BEFORE</span><span class="cfCapLbl r">AFTER</span>'+
-        '<div class="cfCapEmpty" id="cfCapEmpty">Gallery で 2 枚以上の画像を選び、<br>下の帯で順番を決めてください。</div>'+
-        /* GPU progress overlay */
-        '<div id="cfCapGpuOverlay">'+
-          '<svg width="0" height="0" style="position:absolute"><defs>'+
-            '<linearGradient id="cfCapGradient" x1="0%" y1="0%" x2="100%" y2="100%">'+
-              '<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#ff9fd6"/>'+
-            '</linearGradient>'+
-          '</defs></svg>'+
-          '<div class="cfCapProgressRing">'+
-            '<svg width="84" height="84" viewBox="0 0 84 84">'+
-              '<circle class="cfTrack" cx="42" cy="42" r="35"/>'+
-              '<circle class="cfFill" id="cfCapFillCircle" cx="42" cy="42" r="35"/>'+
-            '</svg>'+
-            '<div class="cfPct" id="cfCapGpuPct">0%</div>'+
-          '</div>'+
-          '<div id="cfCapGpuStatus">処理を準備中…</div>'+
-          '<div class="cfCapStepList">'+
-            '<div class="cfCapStepRow cfActive" data-step="0"><span class="cfDot"></span>画像を準備中</div>'+
-            '<div class="cfCapStepRow" data-step="1"><span class="cfDot"></span>AIサーバーに送信中</div>'+
-            '<div class="cfCapStepRow" data-step="2"><span class="cfDot"></span>中割り画像を生成中</div>'+
-            '<div class="cfCapStepRow" data-step="3"><span class="cfDot"></span>ギャラリーに配置中</div>'+
-            '<div class="cfCapStepRow" data-step="4"><span class="cfDot"></span>プレビューを更新中</div>'+
-          '</div>'+
-          '<button id="cfCapGpuCancel">キャンセル</button>'+
+        '<div class="cfCapEmpty" id="cfCapEmpty">Source Images で 2 枚以上の画像を追加してください。</div>'+
+        /* Clinical Warp — preview generation waiting overlay */
+        '<div id="cfCWWait">'+
+          '<div class="cfCWSpinner"></div>'+
+          '<div class="cfCWMsg">プレビューを作成しています。<br><span>口元・歯列・表情の位置を整えています。</span></div>'+
         '</div>'+
       '</div>'+
+      /* Clinical Warp pattern selector (3 presets, pure client-side, no API) */
+      '<div id="cfCapPatternRow">'+
+        '<button class="cfCapPat on" data-pat="clinical" data-warp="2" data-ms="2800"><b>純粋な臨床</b><span>Pure Clinical</span></button>'+
+        '<button class="cfCapPat" data-pat="oral" data-warp="10" data-ms="2200"><b>口元重点</b><span>Oral Focus</span></button>'+
+        '<button class="cfCapPat" data-pat="stable" data-warp="5" data-ms="3400"><b>安定性重視</b><span>Stability</span></button>'+
+      '</div>'+
+      /* Playback transport */
       '<div id="cfCapTransport">'+
         '<button id="cfCapPlay" aria-label="再生">&#9654;</button>'+
         '<div id="cfCapScrubWrap">'+
@@ -22091,38 +22102,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="1400">Fast</button>'+
       '</div>'+
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま保存</button>'+
-      '<button id="cfCapGpuBtn">&#9998;&nbsp; プレビューの編集</button>'+
-      '<div id="cfCapWarpRow">'+
-        '<span id="cfCapWarpLabel">ワープ強度</span>'+
-        '<div id="cfCapWarpBtns">'+
-          '<button class="cfWarpPre on" data-warp="0">なし</button>'+
-          '<button class="cfWarpPre" data-warp="4">弱</button>'+
-          '<button class="cfWarpPre" data-warp="10">中</button>'+
-          '<button class="cfWarpPre" data-warp="18">強</button>'+
-        '</div>'+
-      '</div>'+
-      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビューの編集</b>でAI中割り・書き出し設定を変更できます。</div>'+
+      '<div id="cfCapHint">&#9654; で往復再生。3つのプレビューパターンを切り替えて、最適なものを保存してください。</div>'+
       '';
-    /* Prompt Board — injected into body so fixed positioning works correctly */
-    if(!document.getElementById('cfPBOverlay')){
-      var pbOverlay=document.createElement('div'); pbOverlay.id='cfPBOverlay';
-      var pbSheet=document.createElement('div'); pbSheet.id='cfPBSheet';
-      pbSheet.innerHTML=
-        '<div class="cfPBHandle"></div>'+
-        '<div class="cfPBAISep"><span class="cfPBAISepLabel">AI IN-BETWEEN KEYFRAMES</span></div>'+
-        '<p class="cfPBAIDesc">AIで中割り画像を生成し、フレーム間のモーフィングをよりなめらかにします。生成された画像はギャラリーに自動挿入されます。</p>'+
-        '<div class="cfPBField">'+
-          '<label class="cfPBLabel">枚数（各ペア間）</label>'+
-          '<div class="cfPBSegRow" id="cfPBKFRow">'+
-            '<button class="cfPBSeg on" data-kf="1">1</button>'+
-            '<button class="cfPBSeg" data-kf="2">2</button>'+
-            '<button class="cfPBSeg" data-kf="3">3</button>'+
-          '</div>'+
-        '</div>'+
-        '<button id="cfPBStart">✦&nbsp; 中割り画像を生成</button>';
-      document.body.appendChild(pbOverlay);
-      document.body.appendChild(pbSheet);
-    }
     /* Resize popup — injected once */
     if(!document.getElementById('cfResizeOverlay')){
       var resOv=document.createElement('div'); resOv.id='cfResizeOverlay';
@@ -22413,156 +22394,29 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
-    /* Save button: shows resize popup first, then records canvas */
+    /* Save button: shows resize popup for aspect ratio selection, then records canvas */
     var saveBtn=box.querySelector('#cfCapSaveBtn');
-    if(saveBtn) saveBtn.addEventListener('click',function(){
-      if(saveBtn._gpuDownload){ saveBtn._gpuDownload(); return; }
-      openResizePopup();
-    });
-    /* GPU back button: returns to canvas preview */
-    var gpuBackBtn=box.querySelector('#cfCapGpuBack');
-    if(gpuBackBtn) gpuBackBtn.addEventListener('click',function(){
-      var gv=$id('cfCapGpuVid');
-      if(gv){ gv.pause(); if(gv._prevUrl){ URL.revokeObjectURL(gv._prevUrl); gv._prevUrl=null; } gv.src=''; gv.classList.remove('active'); }
-      var badge=$id('cfCapGpuBadge'); if(badge) badge.classList.remove('active');
-      gpuBackBtn.classList.remove('active');
-      _gpuVidBlob=null;
-      stop();
-      if(saveBtn){ saveBtn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; saveBtn._gpuDownload=null; }
-      var scrubEl=$id('cfCapScrub'); if(scrubEl){ scrubEl.value='0'; setPct(0); render(0); }
-    });
-    /* Warp preset buttons in preview box */
-    box.querySelectorAll('.cfWarpPre').forEach(function(btn){
+    if(saveBtn) saveBtn.addEventListener('click',function(){ openResizePopup(); });
+    /* ── Clinical Warp pattern switcher (3 presets, pure client-side, no API) ── */
+    box.querySelectorAll('.cfCapPat').forEach(function(btn){
       btn.addEventListener('click',function(){
-        var v=btn.dataset.warp;
-        var el=document.getElementById('morphWarp');
-        if(el){ el.value=v; el.dispatchEvent(new Event('input',{bubbles:true})); }
-        box.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on');});
+        box.querySelectorAll('.cfCapPat').forEach(function(b){b.classList.remove('on');});
         btn.classList.add('on');
-        if(typeof window.cfCapRefresh==='function') try{window.cfCapRefresh();}catch(e){}
+        var warp=Number(btn.dataset.warp||0);
+        var ms=Number(btn.dataset.ms||2600);
+        /* Apply warp strength */
+        var morphWarpEl=document.getElementById('morphWarp');
+        if(morphWarpEl){ morphWarpEl.value=warp; try{ morphWarpEl.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+        /* Apply speed (sync speed buttons) */
+        _speedMs=ms;
+        box.querySelectorAll('#cfCapSpeed button').forEach(function(b){ b.classList.remove('on'); });
+        var morphDurEl=document.getElementById('morphDuration');
+        if(morphDurEl){ morphDurEl.value=ms; try{ morphDurEl.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+        /* Refresh canvas with new settings */
+        try{ render(Number((document.getElementById('cfCapScrub')||{}).value||0)/100); }catch(e){}
       });
     });
 
-    /* GPU export button: opens Prompt Board in normal mode; back to canvas in GPU mode */
-    var gpuBtn=box.querySelector('#cfCapGpuBtn');
-    if(gpuBtn) gpuBtn.addEventListener('click',function(){
-      var gv=$id('cfCapGpuVid');
-      if(gv&&gv.classList.contains('active')){ var gb=$id('cfCapGpuBack'); if(gb) gb.click(); return; }
-      if(window.openPromptBoard) window.openPromptBoard();
-    });
-
-    /* Prompt Board open/close helpers — defined on window so they persist across bind() calls */
-    if(!window.openPromptBoard){
-      window.openPromptBoard=function(){
-        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
-        if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
-      };
-    }
-    if(!window.closePromptBoard){
-      window.closePromptBoard=function(){
-        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
-        if(sh) sh.classList.remove('open'); if(ov) ov.classList.remove('open');
-      };
-    }
-
-    /* Prompt Board wiring (sheet is in body, wired once) */
-    if(!window.__cfPBWired){
-      window.__cfPBWired=true;
-      /* ── AI keyframe count segment ───────────────────────────────────── */
-      document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(btn){
-        btn.addEventListener('click',function(){
-          document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(b){b.classList.remove('on');});
-          btn.classList.add('on');
-        });
-      });
-      function _resizeB64(dataUrl, maxPx){
-        return new Promise(function(resolve){
-          var img=new Image();
-          img.onload=function(){
-            var w=img.naturalWidth, h=img.naturalHeight;
-            if(w<=maxPx && h<=maxPx){ resolve(dataUrl); return; }
-            var s=maxPx/Math.max(w,h);
-            var cv=document.createElement('canvas');
-            cv.width=Math.round(w*s); cv.height=Math.round(h*s);
-            cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-            resolve(cv.toDataURL('image/jpeg',0.88));
-          };
-          img.src=dataUrl;
-        });
-      }
-      async function startGpuWithPrompt(){
-        var selKF=document.querySelector('.cfPBSeg[data-kf].on');
-        var count=selKF?Number(selKF.dataset.kf):1;
-
-        var ph=(window.state&&state.photos)||[];
-        var srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
-        if(srcPhotos.length<2){ toastFn('写真を2枚以上追加してください'); return; }
-
-        /* Use the same Google AI endpoint as Visual Simulation Studio */
-        var endpoint=window.CASEFLOW_AI_ENDPOINT||
-          (typeof localStorage!=='undefined'&&localStorage.getItem('caseflow_ai_endpoint'))||
-          'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
-        var ep=endpoint.replace(/\/+$/,'');
-        if(!/\/simulate$/.test(ep)) ep+='/simulate';
-
-        if(window.closePromptBoard) window.closePromptBoard();
-
-        /* Remove previously inserted AI frames */
-        for(var i=ph.length-1;i>=0;i--){ if(ph[i]&&ph[i].aiGenerated) ph.splice(i,1); }
-        srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
-
-        gpuShowOverlay(true);
-        gpuSetProgress(5,'画像を準備中…');
-        try{
-          var newPhotos=[];
-          var totalPairs=srcPhotos.length-1;
-          for(var j=0;j<srcPhotos.length;j++){
-            newPhotos.push(srcPhotos[j]);
-            if(j<totalPairs){
-              var aImg=await _resizeB64(srcPhotos[j].dataUrl,1024);
-              gpuSetProgress(10+Math.round(j/totalPairs*20),'画像を準備中… ('+(j+1)+'/'+totalPairs+')');
-              for(var k=0;k<count;k++){
-                /* Generate in-between via Google AI (same backend as Visual Simulation Studio) */
-                var strength=0.35+k*(0.25/Math.max(count,1));
-                var payload={
-                  image:aImg,
-                  prompt:'歯科治療の中間段階を表す自然な移行画像。治療前から治療後へのスムーズな段階的変化。',
-                  concept:'ortho',
-                  denoising_strength:strength,
-                  intraoral:true,
-                  lips:false,
-                  negative_prompt:'braces, brackets, wires, distorted, unnatural, blur'
-                };
-                gpuSetProgress(30+Math.round((j*count+k)/(totalPairs*count)*55),'AIで中割り生成中… ('+(j*count+k+1)+'/'+(totalPairs*count)+')');
-                var res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-                var frameUrl=null;
-                if(res.ok){
-                  var jj=await res.json();
-                  frameUrl=jj.image||jj.dataUrl||jj.output||(Array.isArray(jj.images)?jj.images[0]:null);
-                }
-                if(frameUrl){
-                  newPhotos.push({dataUrl:frameUrl,label:'AI '+(j+1)+'-'+(k+1),name:'AI Frame',aiGenerated:true});
-                }
-              }
-            }
-          }
-          ph.length=0; newPhotos.forEach(function(p){ ph.push(p); });
-          var total=newPhotos.filter(function(p){return p.aiGenerated;}).length;
-          gpuSetProgress(100,'完了');
-          gpuShowOverlay(false);
-          if(typeof window.caseflowV75Refresh==='function') try{ window.caseflowV75Refresh(); }catch(e){}
-          if(typeof window.cfCapRefresh==='function') try{ window.cfCapRefresh(); }catch(e){}
-          toastFn('AI中割り画像を'+total+'枚生成しました ✓');
-        } catch(err){
-          gpuShowOverlay(false);
-          toastFn('エラー: '+(err&&err.message||String(err)).slice(0,60));
-        }
-      }
-      var pbStart=document.getElementById('cfPBStart');
-      if(pbStart) pbStart.addEventListener('click',startGpuWithPrompt);
-      var pbOv=document.getElementById('cfPBOverlay');
-      if(pbOv) pbOv.addEventListener('click',function(){ if(window.closePromptBoard) window.closePromptBoard(); });
-    }
     /* Resize popup wiring (once) */
     if(!window.__cfResizeWired){
       window.__cfResizeWired=true;
@@ -22583,9 +22437,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var resOvEl=document.getElementById('cfResizeOverlay');
       if(resOvEl) resOvEl.addEventListener('click',closeResizePopup);
     }
-    /* Cancel button */
-    var cancelBtn=box.querySelector('#cfCapGpuCancel');
-    if(cancelBtn) cancelBtn.addEventListener('click',function(){ if(_gpuAbort) _gpuAbort.abort(); gpuShowOverlay(false); });
+    /* (GPU cancel — no-op in standard Clinical Warp mode) */
   }
   function setPct(t){ var e=$id('cfCapPct'); if(e) e.textContent=Math.round(t*100)+'%'; }
   function speedMs(){ return _speedMs; }
@@ -22705,11 +22557,16 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function refresh(){
     var box=ensureUI(); if(!box) return;
     var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
+    /* Show Clinical Warp waiting overlay while canvas initialises */
+    var ph=(window.state&&state.photos)||[];
+    var wait=$id('cfCWWait');
+    if(wait && ph.length>=2){
+      wait.classList.add('active');
+      setTimeout(function(){ if(wait) wait.classList.remove('active'); }, 1400);
+    }
     window.cfCapRender();
-    // Background: auto-detect a dense face mesh for every photo so morphs WARP (not crossfade)
-    // with no manual plotting, then re-render once detection completes.
+    /* Background: auto-detect face mesh so morphs WARP (not crossfade), re-render on complete */
     try{
-      var ph=(window.state&&state.photos)||[];
       if(window.cfEnsureFaceMesh && ph.length>=2){
         Promise.all(ph.map(function(p){ return window.cfEnsureFaceMesh(p); }))
           .then(function(){ window.cfCapRender(); }).catch(function(){});
