@@ -22101,6 +22101,25 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function setPct(t){ var e=$id('cfCapPct'); if(e) e.textContent=Math.round(t*100)+'%'; }
   function speedMs(){ var md=$id('morphDuration'); return Math.max(700, Number(md&&md.value)||2600); }
 
+  // ── CASEFLOW STUDIO™ watermark — drawn on preview canvas AND export frames ──
+  function drawWatermark(ctx, w, h){
+    var fs=Math.round(w*0.032);               // ~35px at 1080w; scales with canvas
+    ctx.save();
+    // Bottom veil gradient so text reads on any photo
+    var veil=ctx.createLinearGradient(0, h*0.86, 0, h);
+    veil.addColorStop(0,'rgba(0,0,0,0)');
+    veil.addColorStop(1,'rgba(0,0,0,0.52)');
+    ctx.fillStyle=veil;
+    ctx.fillRect(0, Math.round(h*0.86), w, Math.round(h*0.14));
+    // Wordmark
+    ctx.font='800 '+fs+'px -apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    ctx.fillText('CASEFLOW STUDIO™', w/2, h-Math.round(h*0.022));
+    ctx.restore();
+  }
+
   async function render(t){
     var cv=$id('cfCapCanvas'); if(!cv || typeof window.cfDrawMorphFrame!=='function') return;
     var ph=(window.state&&state.photos)||[], empty=$id('cfCapEmpty');
@@ -22116,7 +22135,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(rendering){ pendingT=t; return; }
     rendering=true;
     // trueMesh ON (warping), overlay OFF (no triangle grid baked into the preview/output).
-    try{ if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; } await window.cfDrawMorphFrame(cv,localT,{aIndex:seg,bIndex:seg+1}); }catch(e){}
+    try{
+      if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; }
+      await window.cfDrawMorphFrame(cv,localT,{aIndex:seg,bIndex:seg+1});
+      drawWatermark(cv.getContext('2d'), cv.width, cv.height);
+    }catch(e){}
     rendering=false;
     if(pendingT!=null){ var nt=pendingT; pendingT=null; render(nt); }
   }
@@ -22202,13 +22225,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(seg>=segCount){seg=segCount-1;localT=1;}
         await window.cfDrawMorphFrame(tmp,localT,{aIndex:seg,bIndex:seg+1});
         // Watermark (replaces suppressed debug badge)
-        tc.save();
-        tc.font='bold 17px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
-        tc.fillStyle='rgba(255,255,255,.80)';
-        tc.textAlign='right';
-        tc.fillText('CaseFlow Studio™',w-18,h-20);
-        tc.textAlign='left';
-        tc.restore();
+        drawWatermark(tc, w, h);
         var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.88); });
         blobs.push(blob);
       }
