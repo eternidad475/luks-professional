@@ -21838,8 +21838,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapSpeed button.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.32)}
 #cfCapHint{margin-top:9px;font-size:10.5px;line-height:1.55;color:rgba(32,27,53,.55);font-weight:600}
 #cfCapHint b{color:#6a3de8;font-weight:900}
-/* declutter: the new editor replaces the old preview panel + guide rails */
-#align .pairPreviewPanel,#align .rangePanel,#align .gestureHint{display:none!important}
+/* ── Cinematic UI declutter ──────────────────────────────────────────────
+   Remove every legacy manual-adjustment panel from the align screen.
+   The cfCap scrub/speed editor and AI-auto-correction replace them all. */
+#align .pairPreviewPanel,
+#align .rangePanel,
+#align .gestureHint,
+#align #pairPanel,
+#align .landmarkPanel,
+#align > .note,
+#align > .toolbar { display:none !important; }
+/* Guide rails are unnecessary noise when AI handles registration */
+#align .guide { display:none !important; }
 /* clean, slider-like source strip (drag thumbnails to reorder; small × to delete) */
 #align .v73SourceStrip{gap:8px;padding:4px 2px 10px;touch-action:pan-x}
 #align .v73SourceCard{flex:0 0 76px;height:76px;padding:0;border-radius:14px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:pan-x;will-change:transform}
