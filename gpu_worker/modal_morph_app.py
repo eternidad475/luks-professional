@@ -159,6 +159,37 @@ def redis_get(key: str) -> dict | None:
         log.error(f"redis_get FAILED {key}: {e}")
         return None
 
+def redis_incr(key: str) -> int:
+    """POST /incr/{key} — atomic increment, returns new value."""
+    import httpx, urllib.parse
+    base = _redis_base()
+    k = urllib.parse.quote(key, safe="")
+    r = httpx.post(f"{base}/incr/{k}", headers=_redis_hdr(), timeout=10)
+    r.raise_for_status()
+    return int(r.json().get("result", 0))
+
+def redis_decr(key: str) -> int:
+    """POST /decr/{key} — atomic decrement, clamps to 0."""
+    import httpx, urllib.parse
+    base = _redis_base()
+    k = urllib.parse.quote(key, safe="")
+    r = httpx.post(f"{base}/decr/{k}", headers=_redis_hdr(), timeout=10)
+    r.raise_for_status()
+    val = int(r.json().get("result", 0))
+    return max(0, val)
+
+def redis_expire(key: str, ttl: int):
+    """POST /expire/{key}/{seconds} — set TTL on existing key."""
+    import httpx, urllib.parse
+    base = _redis_base()
+    k = urllib.parse.quote(key, safe="")
+    httpx.post(f"{base}/expire/{k}/{ttl}", headers=_redis_hdr(), timeout=10)
+
+# Maximum simultaneous GPU pipeline jobs.
+# Each job uses one A10G container. Keep headroom for burst bursts.
+_MAX_ACTIVE_GPU = 8
+_ACTIVE_KEY     = "system:active_gpu_jobs"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 5.  Dental segmentation
@@ -514,11 +545,12 @@ def _apply_output_ratio(frames: list, ratio_str: str) -> tuple:
 
 
 @app.function(
-    image   = GPU_IMAGE,
-    gpu     = "A10G",
-    secrets = [SECRETS],
-    timeout = 600,      # 10 min ceiling per job
-    memory  = 32768,
+    image          = GPU_IMAGE,
+    gpu            = "A10G",
+    secrets        = [SECRETS],
+    timeout        = 600,       # 10 min ceiling per job
+    memory         = 32768,
+    max_containers = 10,        # cap GPU spend; jobs beyond this queue inside Modal
 )
 def run_pipeline(job_id: str, frame_keys: list[str],
                  duration_ms: int, fps: int,
@@ -648,6 +680,13 @@ def run_pipeline(job_id: str, frame_keys: list[str],
             "resultUrl": "", "error": str(e)[:400],
         })
 
+    finally:
+        # Always release the active-job slot so capacity is never leaked
+        try:
+            redis_decr(_ACTIVE_KEY)
+        except Exception as ex:
+            log.warning(f"[{job_id}] failed to decrement active counter: {ex}")
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 10. FastAPI web endpoints  (served by Modal's ASGI runner)
@@ -691,6 +730,27 @@ async def submit(
     job_id = str(uuid.uuid4())
     r2     = _r2()
 
+    # ── Capacity gate: reject early if too many GPU jobs are active ──────────
+    # This prevents Modal from returning its own 429/500 under load and gives
+    # the client a clean 503 + Retry-After header it can handle gracefully.
+    try:
+        active = redis_incr(_ACTIVE_KEY)
+        redis_expire(_ACTIVE_KEY, 3600)   # safety TTL in case of crash
+        log.info(f"[{job_id}] active GPU jobs after incr: {active}")
+        if active > _MAX_ACTIVE_GPU:
+            redis_decr(_ACTIVE_KEY)
+            retry_after = 30
+            log.warning(f"[{job_id}] capacity exceeded ({active} > {_MAX_ACTIVE_GPU}) — 503")
+            return JSONResponse(
+                {"error": "サーバーが混雑しています。しばらくお待ちください。",
+                 "retry_after": retry_after,
+                 "active": active, "max": _MAX_ACTIVE_GPU},
+                status_code=503,
+                headers={"Retry-After": str(retry_after)},
+            )
+    except Exception as cap_err:
+        log.warning(f"[{job_id}] capacity check failed ({cap_err}) — proceeding anyway")
+
     frame_keys = []
     for i, f in enumerate(frame):
         data = await f.read()
@@ -702,6 +762,9 @@ async def submit(
     try:
         redis_set(f"job:{job_id}", {"status": "queued", "progress": 1, "resultUrl": ""})
     except Exception as e:
+        # Decrement counter since we're not spawning
+        try: redis_decr(_ACTIVE_KEY)
+        except: pass
         log.error(f"[{job_id}] redis_set queued FAILED: {e}")
         return JSONResponse({"error": f"Redis unavailable: {str(e)[:200]}"}, status_code=503)
 
@@ -800,7 +863,7 @@ async def debug():
     image                  = GPU_IMAGE,
     secrets                = [SECRETS],
     min_containers         = 1,    # 1 warm instance — eliminates cold start
-    allow_concurrent_inputs= 20,   # FastAPI is async; allow up to 20 simultaneous HTTP requests
+    allow_concurrent_inputs= 50,   # async FastAPI handles 50 concurrent HTTP requests per container
 )
 @modal.asgi_app()
 def web():

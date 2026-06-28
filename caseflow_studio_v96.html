@@ -22137,11 +22137,42 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(!show){ gpuSetProgress(0,'処理を準備中…'); }
   }
 
+  // ── Fetch with auto-retry on 429 / 503 (exponential back-off) ───────────
+  async function _gpuFetchRetry(url, options, maxRetries, progressMsg){
+    maxRetries=maxRetries||5;
+    for(var attempt=0; attempt<maxRetries; attempt++){
+      var res;
+      try{ res=await fetch(url, options); }
+      catch(netErr){
+        if(options&&options.signal&&options.signal.aborted) throw netErr;
+        if(attempt===maxRetries-1) throw netErr;
+        var nd=Math.min(Math.pow(2,attempt)*1000,16000);
+        gpuSetProgress(5,'ネットワークエラー — '+Math.round(nd/1000)+'秒後に再試行…');
+        await new Promise(function(r){setTimeout(r,nd);});
+        continue;
+      }
+      if(res.status===429||res.status===503){
+        if(attempt===maxRetries-1)
+          throw new Error('サーバーが混雑しています。しばらく待ってから再試行してください ('+res.status+')');
+        var ra=res.headers.get('Retry-After');
+        var delay=ra?parseInt(ra)*1000:Math.min(Math.pow(2,attempt)*2000,30000);
+        var secs=Math.round(delay/1000);
+        gpuSetProgress(5,'サーバー混雑中 — '+secs+'秒後に自動再試行 ('+(attempt+1)+'/'+maxRetries+')…');
+        await new Promise(function(r){setTimeout(r,delay);});
+        if(options&&options.signal&&options.signal.aborted) throw new Error('cancelled');
+        continue;
+      }
+      return res;
+    }
+  }
+
   // ── GPU async export (submits to /api/morph/submit, polls /api/morph/status) ──
   async function cfCapGpuExport(opts){
     opts=opts||{};
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+    /* Prevent duplicate submission while a job is already in flight */
+    if(_gpuAbort){ toastFn('すでにAI生成中です。完了後に再試行してください'); return; }
     // Endpoint resolution order: window global → localStorage → fallback to local export
     var endpoint=(
       (window.CASEFLOW_GPU_ENDPOINT||'') ||
@@ -22201,28 +22232,36 @@ body.cfPresent .cfPresentExit{display:flex!important}
         fd.append('frame', blob, 'frame_'+i+'.jpg');
       }
 
+      /* 1b. Submit with up to 5 retries (handles 429 / 503 gracefully) */
       gpuSetProgress(5,'GPUに送信中…');
-      var submitRes=await fetch(endpoint+'/api/morph/submit',{
-        method:'POST', body:fd, signal:controller.signal
-      });
+      var submitRes=await _gpuFetchRetry(
+        endpoint+'/api/morph/submit',
+        {method:'POST', body:fd, signal:controller.signal},
+        5
+      );
       if(!submitRes.ok) throw new Error('Submit failed: '+submitRes.status);
       var submitJson=await submitRes.json();
       var jobId=submitJson.jobId;
       if(!jobId) throw new Error('jobId未取得');
 
-      /* 2. Poll /api/morph/status every 1.5s */
+      /* 2. Poll /api/morph/status — 2s base + ±400ms jitter to spread server load */
       gpuSetProgress(8,'キューに追加されました…');
       var done=false, result=null, pollStart=Date.now();
       while(!done){
-        await new Promise(function(r){setTimeout(r,1500);});
+        var jitter=(Math.random()-0.5)*800;
+        await new Promise(function(r){setTimeout(r,2000+jitter);});
         if(controller.signal.aborted) throw new Error('cancelled');
         if(Date.now()-pollStart > 12*60*1000) throw new Error('タイムアウト（12分経過）');
-        var pollRes=await fetch(endpoint+'/api/morph/status?jobId='+encodeURIComponent(jobId),{signal:controller.signal});
+        var pollRes=await _gpuFetchRetry(
+          endpoint+'/api/morph/status?jobId='+encodeURIComponent(jobId),
+          {signal:controller.signal},
+          3
+        );
         var pollJson=await pollRes.json();
         var s=pollJson.status||'';
         var p=Number(pollJson.progress)||8;
         /* Map backend status labels to JP strings */
-        var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'FILMフレーム補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！',unknown:'ジョブ待機中…'};
+        var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'フロー補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！',unknown:'ジョブ待機中…'};
         gpuSetProgress(p, LABELS[s]||s);
         if(s==='done'){ done=true; result=pollJson.resultUrl; }
         else if(s==='error') throw new Error(pollJson.error||'GPU処理エラー');
