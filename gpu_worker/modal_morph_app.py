@@ -23,6 +23,7 @@ import modal
 from fastapi import FastAPI, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 log = logging.getLogger("caseflow_worker")
 logging.basicConfig(level=logging.INFO,
@@ -809,6 +810,68 @@ async def download(jobId: str):
         media_type="video/mp4",
         headers={"Content-Disposition": 'attachment; filename="caseflow_ai_morph.mp4"'},
     )
+
+
+class _KFPair(BaseModel):
+    a: str  # base64 JPEG/PNG (data-URI prefix stripped by caller)
+    b: str
+
+class _KFReq(BaseModel):
+    pairs: list[_KFPair]
+    count: int = 1   # 1, 2, or 3 intermediate frames per pair
+
+@web_app.post("/api/morph/keyframes")
+def morph_keyframes(req: _KFReq):
+    """Generate AI keyframes via SD-VAE latent interpolation (CPU, synchronous).
+
+    FastAPI runs non-async route functions in a thread pool, so blocking
+    torch/cv2 calls here are fine and will not stall other requests.
+    """
+    import base64, cv2
+    import numpy as np
+    import torch
+
+    count = max(1, min(3, req.count))
+    t_map = {1: [0.5], 2: [1/3, 2/3], 3: [0.25, 0.5, 0.75]}
+    positions = t_map[count]
+    SIZE = 512
+
+    vae = _get_vae()
+
+    def _to_t(bgr):
+        rgb = cv2.resize(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), (SIZE, SIZE))
+        return torch.from_numpy(rgb).float().permute(2, 0, 1).unsqueeze(0) / 127.5 - 1.0
+
+    all_frames: list[list[str]] = []
+
+    for pair in req.pairs:
+        try:
+            a_bgr = cv2.imdecode(np.frombuffer(base64.b64decode(pair.a), np.uint8), cv2.IMREAD_COLOR)
+            b_bgr = cv2.imdecode(np.frombuffer(base64.b64decode(pair.b), np.uint8), cv2.IMREAD_COLOR)
+            H, W = a_bgr.shape[:2]
+
+            with torch.no_grad():
+                lat_a = vae.encode(_to_t(a_bgr)).latent_dist.sample()
+                lat_b = vae.encode(_to_t(b_bgr)).latent_dist.sample()
+
+            pair_frames: list[str] = []
+            for t in positions:
+                with torch.no_grad():
+                    lat_t = lat_a * (1.0 - t) + lat_b * t
+                    raw = vae.decode(lat_t).sample
+                    arr = ((raw[0].permute(1, 2, 0).numpy() + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+                frame_bgr = cv2.resize(cv2.cvtColor(arr, cv2.COLOR_RGB2BGR), (W, H),
+                                       interpolation=cv2.INTER_LANCZOS4)
+                _, jpeg = cv2.imencode('.jpg', frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 88])
+                pair_frames.append(base64.b64encode(jpeg.tobytes()).decode())
+
+            all_frames.append(pair_frames)
+            log.info(f"[keyframes] pair → {len(pair_frames)} AI frame(s)")
+        except Exception as e:
+            log.error(f"[keyframes] pair failed: {e}")
+            all_frames.append([])
+
+    return JSONResponse({"frames": all_frames})
 
 
 @web_app.get("/health")
