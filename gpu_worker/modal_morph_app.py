@@ -494,7 +494,7 @@ async def health():
 @app.function(
     image      = GPU_IMAGE,
     secrets    = [SECRETS],
-    keep_warm  = 1,          # 1 warm instance — eliminates cold start for web requests
+    min_containers = 1,      # 1 warm instance — eliminates cold start for web requests
 )
 @modal.asgi_app()
 def web():
