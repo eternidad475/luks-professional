@@ -40,104 +40,53 @@ SECRETS = modal.Secret.from_name("caseflow-secrets")
 #     .run_function() executes Python inside the image at build time —
 #     no shell-escaping issues, model weights are baked into the layer cache.
 # ══════════════════════════════════════════════════════════════════════════════
-def _download_weights():
-    """Download SAM2-Small weights into the image (build-time only)."""
-    import os, urllib.request
-    os.makedirs("/opt/checkpoints", exist_ok=True)
-
-    # SAM 2.1 Small  (~184 MB)
-    sam2_url  = ("https://dl.fbaipublicfiles.com/segment_anything_2"
-                 "/092824/sam2.1_hiera_small.pt")
-    sam2_dest = "/opt/checkpoints/sam2.1_hiera_small.pt"
-    if not os.path.exists(sam2_dest):
-        print("Downloading SAM2 weights …")
-        urllib.request.urlretrieve(sam2_url, sam2_dest)
-        print(f"  → {os.path.getsize(sam2_dest)//1024//1024} MB saved")
-    print("  → SAM2 ready")
-
-
-def _download_rife_weights():
-    """Bake RIFE model weights into the image layer at build time."""
-    import os, urllib.request, zipfile
-    os.makedirs("/opt/rife/train_log", exist_ok=True)
-    pkl_files = ["flownet.pkl", "contextnet.pkl", "unet.pkl"]
-    already = all(os.path.exists(f"/opt/rife/train_log/{f}") for f in pkl_files)
-    if already:
-        print("  → RIFE weights already present")
-        return
-    for tag in ["model4.22", "model4.18", "model4.15"]:
-        url = f"https://github.com/hzwer/Practical-RIFE/releases/download/{tag}/train_log.zip"
-        tmp = "/tmp/rife_weights.zip"
-        try:
-            print(f"Downloading RIFE weights ({tag})…")
-            urllib.request.urlretrieve(url, tmp)
-            with zipfile.ZipFile(tmp, "r") as zf:
-                zf.extractall("/opt/rife/")
-            os.remove(tmp)
-            print(f"  → RIFE weights ready ({tag})")
-            return
-        except Exception as e:
-            print(f"  → {tag} failed: {e}")
-    # Individual file fallback
-    for tag in ["model4.22", "model4.18"]:
-        base = f"https://github.com/hzwer/Practical-RIFE/releases/download/{tag}/"
-        ok = True
-        for f in pkl_files:
-            dest = f"/opt/rife/train_log/{f}"
-            if os.path.exists(dest):
-                continue
-            try:
-                urllib.request.urlretrieve(f"{base}{f}", dest + ".tmp")
-                os.rename(dest + ".tmp", dest)
-            except Exception as e:
-                print(f"  → {f} failed: {e}")
-                ok = False
-                break
-        if ok and all(os.path.exists(f"/opt/rife/train_log/{f}") for f in pkl_files):
-            print(f"  → RIFE weights ready ({tag}, individual)")
-            return
-    print("WARNING: RIFE weights not downloaded — will fall back to RAFT/Farneback")
+def _download_vae():
+    """Bake Stable Diffusion VAE weights into image for CPU latent interpolation."""
+    from huggingface_hub import hf_hub_download
+    import os, shutil
+    os.makedirs("/opt/vae", exist_ok=True)
+    for fname in ["config.json", "diffusion_pytorch_model.safetensors"]:
+        dest = f"/opt/vae/{fname}"
+        if os.path.exists(dest):
+            print(f"  → {fname} already present")
+            continue
+        print(f"Downloading VAE: {fname} …")
+        path = hf_hub_download(repo_id="stabilityai/sd-vae-ft-ema", filename=fname)
+        shutil.copy(path, dest)
+        print(f"  → {os.path.getsize(dest) // 1024 // 1024} MB")
+    print("SD VAE ready")
 
 
-GPU_IMAGE = (
+# CPU-only image — no CUDA, no SAM2, no RIFE.
+# torch CPU wheel: ~200 MB vs 2.5 GB for CUDA build → fits Modal Free tier.
+MORPH_IMAGE = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install(
         "ffmpeg", "libgl1-mesa-glx", "libglib2.0-0",
-        "libsm6", "libxext6", "libxrender-dev", "git",
-        "fonts-noto-cjk",   # Japanese text rendering in PIL
+        "libsm6", "libxext6", "libxrender-dev",
+        "fonts-noto-cjk",
     )
-    # PyTorch (CUDA 12.1 build)
     .pip_install(
         "torch==2.3.1", "torchvision==0.18.1",
-        index_url="https://download.pytorch.org/whl/cu121",
+        index_url="https://download.pytorch.org/whl/cpu",
     )
-    # Inference + serving dependencies
     .pip_install(
         "numpy==1.26.4",
         "opencv-python-headless==4.10.0.84",
         "mediapipe==0.10.14",
         "Pillow==10.4.0",
-        "scikit-image==0.24.0",
         "ffmpeg-python==0.2.0",
         "boto3==1.35.0",
         "httpx==0.27.0",
         "fastapi[standard]==0.111.1",
         "python-multipart==0.0.9",
+        "diffusers>=0.27.0",
+        "transformers>=4.38.0",
+        "huggingface_hub>=0.24.0",
+        "accelerate>=0.30.0",
+        "safetensors>=0.4.0",
     )
-    # SAM 2 (pip from GitHub — registers Hydra configs automatically)
-    .run_commands(
-        "pip install 'git+https://github.com/facebookresearch/segment-anything-2.git'"
-    )
-    # RIFE neural frame interpolation (Phase 2 AI morphing)
-    .pip_install("huggingface_hub>=0.24.0")
-    .run_commands(
-        "git clone --depth 1 https://github.com/hzwer/Practical-RIFE /opt/rife"
-        " && pip install -r /opt/rife/requirements.txt --quiet 2>&1 | tail -3"
-        " || echo 'RIFE clone failed — RAFT fallback will be used'"
-    )
-    # Bake model weights into image layer
-    .run_function(_download_weights)
-    .run_function(_download_rife_weights)
+    .run_function(_download_vae)
 )
 
 
@@ -236,9 +185,9 @@ def redis_expire(key: str, ttl: int):
     k = urllib.parse.quote(key, safe="")
     httpx.post(f"{base}/expire/{k}/{ttl}", headers=_redis_hdr(), timeout=10)
 
-# Maximum simultaneous GPU pipeline jobs (20 containers × safety margin).
-_MAX_ACTIVE_GPU = 16
-_ACTIVE_KEY     = "system:active_gpu_jobs"
+# Max simultaneous CPU pipeline jobs. New key = reset any stuck counter from old deploys.
+_MAX_ACTIVE_GPU = 40
+_ACTIVE_KEY     = "system:active_jobs_v2"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -254,11 +203,11 @@ _MOUTH_RING = [
 ]
 
 def dental_mask(img_bgr) -> "np.ndarray":
-    """Float32 soft mask [H,W] ∈ [0,1] covering the dental region."""
+    """Float32 soft mask [H,W] ∈ [0,1] covering the dental region (MediaPipe only)."""
     import cv2, numpy as np, mediapipe as mp
 
     h, w = img_bgr.shape[:2]
-    rgb   = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    rgb  = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
     with mp.solutions.face_mesh.FaceMesh(
         static_image_mode=True, max_num_faces=1,
@@ -268,45 +217,11 @@ def dental_mask(img_bgr) -> "np.ndarray":
     if not res.multi_face_landmarks:
         raise ValueError("No face detected")
 
-    lms  = res.multi_face_landmarks[0].landmark
-    pts  = np.array([[int(lms[i].x * w), int(lms[i].y * h)]
-                     for i in _MOUTH_RING], dtype=np.int32)
-    cent = pts.mean(axis=0)
-
-    try:
-        import torch
-        from sam2.build_sam import build_sam2
-        from sam2.sam2_image_predictor import SAM2ImagePredictor
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        # Config file is registered by the sam2 package via Hydra
-        model = build_sam2(
-            "sam2.1_hiera_s.yaml",
-            "/opt/checkpoints/sam2.1_hiera_small.pt",
-            device=device,
-        )
-        pred = SAM2ImagePredictor(model)
-        pred.set_image(rgb)
-
-        x0, y0 = (pts.min(axis=0) - 28).clip(0)
-        x1, y1 = pts.max(axis=0) + 28
-        x1, y1 = min(x1, w), min(y1, h)
-        box    = np.array([x0, y0, x1, y1], dtype=float)
-
-        masks, _, _ = pred.predict(
-            point_coords=cent[None], point_labels=np.array([1]),
-            box=box[None], multimask_output=False,
-        )
-        mask = masks[0].astype(np.float32)
-        del model, pred
-        torch.cuda.empty_cache()
-        log.info("SAM2 mask OK")
-
-    except Exception as e:
-        log.warning(f"SAM2 fallback ({e})")
-        mask = np.zeros((h, w), np.float32)
-        cv2.fillPoly(mask, [pts], 1.0)
-
+    lms = res.multi_face_landmarks[0].landmark
+    pts = np.array([[int(lms[i].x * w), int(lms[i].y * h)]
+                    for i in _MOUTH_RING], dtype=np.int32)
+    mask = np.zeros((h, w), np.float32)
+    cv2.fillPoly(mask, [pts], 1.0)
     u8 = (mask * 255).astype(np.uint8)
     return cv2.GaussianBlur(u8, (0, 0), sigmaX=10).astype(np.float32) / 255.0
 
@@ -370,132 +285,50 @@ def align_to_master(src, master) -> "np.ndarray":
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 8.  Frame interpolation  (RAFT optical flow → forward+backward warp + blend)
+# 8.  Frame interpolation — VAE latent mid-frame + bidirectional Farneback warp
 # ══════════════════════════════════════════════════════════════════════════════
-_RAFT = None
-
-def _get_raft():
-    global _RAFT
-    if _RAFT is None:
-        import torch
-        from torchvision.models.optical_flow import raft_large, Raft_Large_Weights
-        _RAFT = raft_large(weights=Raft_Large_Weights.DEFAULT).cuda().eval()
-        log.info("RAFT loaded")
-    return _RAFT
-
-def _warp(img, flow):
-    import cv2, numpy as np
-    h, w   = img.shape[:2]
-    gy, gx = np.mgrid[0:h, 0:w].astype(np.float32)
-    return cv2.remap(img,
-                     np.clip(gx + flow[0], 0, w - 1),
-                     np.clip(gy + flow[1], 0, h - 1),
-                     cv2.INTER_LANCZOS4)
-
 def _ease(t: float) -> float:
     return 4 * t**3 if t < 0.5 else 1 - (-2*t + 2)**3 / 2
 
-def _pad8(img):
-    """Pad image so H and W are divisible by 8 (RAFT requirement). Returns (padded, orig_h, orig_w)."""
-    import numpy as np
-    h, w = img.shape[:2]
-    ph = (8 - h % 8) % 8
-    pw = (8 - w % 8) % 8
-    if ph == 0 and pw == 0:
-        return img, h, w
-    return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
+# ── VAE latent interpolation (AI mid-frame) ───────────────────────────────────
+_VAE = None
 
+def _get_vae():
+    global _VAE
+    if _VAE is None:
+        import torch
+        from diffusers import AutoencoderKL
+        _VAE = AutoencoderKL.from_pretrained("/opt/vae", torch_dtype=torch.float32)
+        _VAE.eval()
+        log.info("SD VAE loaded for CPU latent interpolation")
+    return _VAE
 
-# ── Phase 1: RAFT optical flow warp ──────────────────────────────────────────
-def interp_raft(a_bgr, b_bgr, n: int, *, warp_only: bool = False) -> list:
-    """Bidirectional RAFT deep-learning flow warp. Falls back to Farneback on error."""
-    import numpy as np, cv2, torch
-    import torch.nn.functional as F
+def vae_interpolate(a_bgr, b_bgr) -> "np.ndarray":
+    """Generate a realistic midpoint image by interpolating in SD-VAE latent space.
 
-    model = _get_raft()
-    H, W  = a_bgr.shape[:2]
+    Encodes both images at 512×512, blends latent vectors at the midpoint,
+    then decodes to produce a perceptually plausible intermediate dental state.
+    The result is used as an anchor keyframe so each Farneback pass covers
+    only half the total displacement — reducing warp distortion significantly.
+    """
+    import torch, numpy as np, cv2
+
+    vae = _get_vae()
+    H, W = a_bgr.shape[:2]
+    SIZE = 512
 
     def _to_t(bgr):
-        rgb = bgr[:, :, ::-1].copy()
-        t   = torch.from_numpy(rgb).permute(2, 0, 1).float().unsqueeze(0).cuda()
-        _, _, h, w = t.shape
-        return F.pad(t, (0, (8 - w % 8) % 8, 0, (8 - h % 8) % 8)), h, w
-
-    img0, oh, ow = _to_t(a_bgr)
-    img1, _,  _  = _to_t(b_bgr)
+        rgb = cv2.resize(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), (SIZE, SIZE))
+        return torch.from_numpy(rgb).float().permute(2, 0, 1).unsqueeze(0) / 127.5 - 1.0
 
     with torch.no_grad():
-        flow_ab = model(img0, img1)[-1][0].cpu().numpy().transpose(1, 2, 0)[:oh, :ow]
-        flow_ba = model(img1, img0)[-1][0].cpu().numpy().transpose(1, 2, 0)[:oh, :ow]
+        lat_a   = vae.encode(_to_t(a_bgr)).latent_dist.sample()
+        lat_b   = vae.encode(_to_t(b_bgr)).latent_dist.sample()
+        decoded = vae.decode((lat_a + lat_b) / 2).sample
 
-    gx, gy = np.meshgrid(np.arange(W, dtype=np.float32), np.arange(H, dtype=np.float32))
-    frames = []
-    for i in range(n):
-        t = _ease((i + 1) / (n + 1))
-        wa = cv2.remap(a_bgr,
-                       (gx + t       * flow_ab[..., 0]).clip(0, W - 1),
-                       (gy + t       * flow_ab[..., 1]).clip(0, H - 1),
-                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        wb = cv2.remap(b_bgr,
-                       (gx + (1 - t) * flow_ba[..., 0]).clip(0, W - 1),
-                       (gy + (1 - t) * flow_ba[..., 1]).clip(0, H - 1),
-                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        if warp_only:
-            frames.append(wa if t < 0.5 else wb)
-        else:
-            frames.append((wa.astype(np.float32) * (1 - t) +
-                           wb.astype(np.float32) * t).clip(0, 255).astype(np.uint8))
-    return frames
-
-
-# ── Phase 2: RIFE neural synthesis ───────────────────────────────────────────
-_RIFE_MODEL = None
-
-def _get_rife():
-    global _RIFE_MODEL
-    if _RIFE_MODEL is None:
-        import sys, torch
-        sys.path.insert(0, "/opt/rife")
-        try:
-            from model.RIFE_HDv3 import Model
-        except ImportError:
-            from model.RIFE_HD import Model
-        m = Model()
-        m.load_model("/opt/rife/train_log", -1)
-        m.eval()
-        m.device()
-        _RIFE_MODEL = m
-        log.info("RIFE model loaded")
-    return _RIFE_MODEL
-
-def interp_rife(a_bgr, b_bgr, n: int) -> list:
-    """Phase 2: RIFE end-to-end neural video frame synthesis."""
-    import torch, torch.nn.functional as F, numpy as np
-
-    model = _get_rife()
-    H, W  = a_bgr.shape[:2]
-    # RIFE requires padding to multiple of 32
-    ph = ((H - 1) // 32 + 1) * 32
-    pw = ((W - 1) // 32 + 1) * 32
-
-    def _to_t(bgr):
-        rgb = bgr[:, :, ::-1].copy()
-        t   = torch.from_numpy(rgb).permute(2, 0, 1).float().unsqueeze(0) / 255.
-        return F.pad(t, (0, pw - W, 0, ph - H)).cuda()
-
-    img0 = _to_t(a_bgr)
-    img1 = _to_t(b_bgr)
-
-    frames = []
-    for i in range(n):
-        ts = float(_ease((i + 1) / (n + 1)))
-        with torch.no_grad():
-            result = model.inference(img0, img1, timestep=ts)
-        mid = result[0] if isinstance(result, (list, tuple)) else result
-        mid_np  = (mid[0].permute(1, 2, 0).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-        mid_bgr = mid_np[:H, :W, ::-1].copy()
-        frames.append(mid_bgr)
-    return frames
+    mid_np = ((decoded[0].permute(1, 2, 0).numpy() + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+    return cv2.resize(cv2.cvtColor(mid_np, cv2.COLOR_RGB2BGR), (W, H),
+                      interpolation=cv2.INTER_LANCZOS4)
 
 
 def interp_segment(a_bgr, b_bgr, n: int, *,
@@ -503,16 +336,22 @@ def interp_segment(a_bgr, b_bgr, n: int, *,
                    motion_smooth: str = "normal",
                    dental_pres: str = "high",
                    ai_morph: bool = False) -> list:
-    """Smart dispatcher: RIFE (ai_morph=True) → RAFT → Farneback fallback."""
-    if ai_morph:
+    """
+    ai_morph=True : VAE generates 1 AI mid-frame → two-pass Farneback A→mid→B.
+                    Each pass warps over half the motion → far less distortion.
+    ai_morph=False: Single-pass Farneback A→B (fast, no VAE).
+    """
+    if ai_morph and n >= 2:
         try:
-            return interp_rife(a_bgr, b_bgr, n)
+            mid  = vae_interpolate(a_bgr, b_bgr)
+            half = max(1, n // 2)
+            rest = max(1, n - half)
+            return (interp_farneback(a_bgr, mid,  half, warp_only=warp_only,
+                                     motion_smooth=motion_smooth, dental_pres=dental_pres) +
+                    interp_farneback(mid,  b_bgr, rest, warp_only=warp_only,
+                                     motion_smooth=motion_smooth, dental_pres=dental_pres))
         except Exception as e:
-            log.warning(f"RIFE failed ({e}) — falling back to RAFT")
-    try:
-        return interp_raft(a_bgr, b_bgr, n, warp_only=warp_only)
-    except Exception as e:
-        log.warning(f"RAFT failed ({e}) — falling back to Farneback")
+            log.warning(f"VAE mid-frame failed ({e}) — using single-pass Farneback")
     return interp_farneback(a_bgr, b_bgr, n,
                             warp_only=warp_only,
                             motion_smooth=motion_smooth,
@@ -699,12 +538,12 @@ def _apply_output_ratio(frames: list, ratio_str: str) -> tuple:
 
 
 @app.function(
-    image          = GPU_IMAGE,
-    gpu            = "A10G",
+    image          = MORPH_IMAGE,
+    cpu            = 4,
+    memory         = 8192,
     secrets        = [SECRETS],
-    timeout        = 600,
-    memory         = 32768,
-    max_containers = 20,
+    timeout        = 300,
+    max_containers = 50,
 )
 def run_pipeline(job_id: str, frame_keys: list[str],
                  duration_ms: int, fps: int,
@@ -1015,7 +854,7 @@ async def debug():
 
 # ── Wire FastAPI into Modal ───────────────────────────────────────────────────
 @app.function(
-    image          = GPU_IMAGE,
+    image          = MORPH_IMAGE,
     secrets        = [SECRETS],
     min_containers = 1,
 )
