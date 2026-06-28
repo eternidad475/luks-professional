@@ -132,30 +132,31 @@ def _redis_hdr():
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 def redis_set(key: str, val: dict, ttl: int = 7200):
+    """POST /set with body-array format — avoids pipeline command-level errors."""
     import httpx
     base    = _redis_base()
     encoded = json.dumps(val, separators=(",", ":"))
-    try:
-        r = httpx.post(f"{base}/pipeline",
-                       json=[["SET", key, encoded, "EX", str(ttl)]],
-                       headers=_redis_hdr(), timeout=10)
-        log.info(f"redis_set {key}: HTTP {r.status_code} body={r.text[:120]}")
-        r.raise_for_status()
-    except Exception as e:
-        log.error(f"redis_set FAILED {key}: {e}")
-        raise
+    r = httpx.post(f"{base}/set",
+                   json=[key, encoded, "EX", str(ttl)],
+                   headers=_redis_hdr(), timeout=10)
+    log.info(f"redis_set {key}: HTTP {r.status_code} body={r.text[:200]}")
+    r.raise_for_status()
+    resp = r.json()
+    if not isinstance(resp, dict) or resp.get("result") != "OK":
+        raise RuntimeError(f"redis SET not OK: {resp}")
 
 def redis_get(key: str) -> dict | None:
+    """POST /get with body-array format — avoids URL-encoding issues."""
     import httpx
     base = _redis_base()
     try:
-        r = httpx.post(f"{base}/pipeline",
-                       json=[["GET", key]],
+        r = httpx.post(f"{base}/get",
+                       json=[key],
                        headers=_redis_hdr(), timeout=10)
-        log.info(f"redis_get {key}: HTTP {r.status_code} body={r.text[:120]}")
+        log.info(f"redis_get {key}: HTTP {r.status_code} body={r.text[:200]}")
         r.raise_for_status()
-        results = r.json()
-        raw = results[0].get("result") if isinstance(results, list) and results else None
+        resp = r.json()
+        raw  = resp.get("result") if isinstance(resp, dict) else None
         return json.loads(raw) if raw else None
     except Exception as e:
         log.error(f"redis_get FAILED {key}: {e}")
@@ -526,17 +527,24 @@ async def health():
 
 @web_app.get("/debug")
 async def debug():
-    """Browser-accessible Redis connectivity test — visit this URL to diagnose."""
-    import traceback
+    """Browser-accessible Redis connectivity test — shows raw Upstash responses."""
+    import httpx, traceback
     steps = []
     try:
         base = _redis_base()
-        steps.append(f"base_url={base[:50]}…")
-        redis_set("__debug__", {"ts": 1, "msg": "hello"}, ttl=120)
-        steps.append("SET ok")
-        val = redis_get("__debug__")
-        steps.append(f"GET ok → {val}")
-        return {"redis": "ok", "steps": steps}
+        hdr  = _redis_hdr()
+        steps.append(f"url={base[:55]}…")
+
+        r1 = httpx.post(f"{base}/set", json=["__dbg__", "hello123", "EX", "120"],
+                        headers=hdr, timeout=10)
+        steps.append(f"SET HTTP {r1.status_code}: {r1.text[:120]}")
+
+        r2 = httpx.post(f"{base}/get", json=["__dbg__"],
+                        headers=hdr, timeout=10)
+        steps.append(f"GET HTTP {r2.status_code}: {r2.text[:120]}")
+
+        ok = r2.json().get("result") == "hello123"
+        return {"redis": "ok" if ok else "mismatch", "steps": steps}
     except Exception as e:
         steps.append(f"ERROR: {e}")
         return {"redis": "error", "steps": steps,
