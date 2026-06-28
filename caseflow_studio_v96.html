@@ -21894,7 +21894,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfPBSeg{flex:1;border:1.5px solid rgba(124,92,255,.18);border-radius:10px;padding:8px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:12px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
 .cfPBSeg.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
 #cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
-#cfPBSkip{width:100%;border:1.5px solid rgba(124,92,255,.25);border-radius:16px;min-height:44px;background:transparent;color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;}
+/* ── Resize popup (save button) ── */
+#cfResizeOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;opacity:0;pointer-events:none;transition:opacity .25s;}
+#cfResizeOverlay.open{opacity:1;pointer-events:auto;}
+#cfResizeCard{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;padding:20px 20px 40px;z-index:10001;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+#cfResizeCard.open{transform:translateY(0);}
+.cfResizeHandle{width:38px;height:4px;border-radius:2px;background:#e0dff7;margin:0 auto 16px;}
+.cfResizeTitle{font-size:16px;font-weight:800;color:#1a1040;text-align:center;margin-bottom:4px;}
+.cfResizeSub{font-size:11.5px;color:#8878bb;text-align:center;margin-bottom:20px;}
+#cfResizeBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.cfResizeRatio{border:1.5px solid rgba(124,92,255,.25);border-radius:16px;background:rgba(255,255,255,.9);color:#5b3fcc;font-size:20px;font-weight:800;padding:18px 8px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .18s,border-color .18s;}
+.cfResizeRatio span{font-size:11px;font-weight:600;color:#8878bb;letter-spacing:.04em;}
+.cfResizeRatio:active{background:rgba(124,92,255,.12);border-color:#7c5cff;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
    Remove every legacy manual-adjustment panel from the align screen.
    The cfCap scrub/speed editor and AI-auto-correction replace them all. */
@@ -21984,9 +21995,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="2600" class="on">Normal</button>'+
         '<button data-ms="1400">Fast</button>'+
       '</div>'+
-      '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま動画保存（高速）</button>'+
-      '<button id="cfCapGpuBtn">&#10024;&nbsp; AI中割り生成・高品質書き出し（GPU）</button>'+
-      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビュー保存</b>はブラウザで即録画。<b>AI書き出し</b>はGPUで中割りフレームを自動生成します。</div>'+
+      '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま保存</button>'+
+      '<button id="cfCapGpuBtn">&#9998;&nbsp; プレビューの編集</button>'+
+      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビューの編集</b>でAI中割り・書き出し設定を変更できます。</div>'+
       '';
     /* Prompt Board — injected into body so fixed positioning works correctly */
     if(!document.getElementById('cfPBOverlay')){
@@ -21995,27 +22006,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
       pbSheet.innerHTML=
         '<div class="cfPBHandle"></div>'+
         '<div class="cfPBTitle">書き出し設定</div>'+
-        /* SNS ratio selector */
-        '<div class="cfPBField">'+
-          '<label class="cfPBLabel">動画サイズ・SNS用途</label>'+
-          '<div id="cfPBRatioRow">'+
-            '<button class="cfPBRatio on" data-ratio="9:16" data-label="ストーリー">9:16<span>ストーリー</span></button>'+
-            '<button class="cfPBRatio" data-ratio="4:5" data-label="フィード">4:5<span>フィード</span></button>'+
-            '<button class="cfPBRatio" data-ratio="1:1" data-label="正方形">1:1<span>正方形</span></button>'+
-            '<button class="cfPBRatio" data-ratio="16:9" data-label="横動画">16:9<span>横動画</span></button>'+
-          '</div>'+
-        '</div>'+
-        '<div class="cfPBField">'+
-          '<label class="cfPBLabel">アニメーション速度</label>'+
-          '<div id="cfPBSpeedRow">'+
-            '<button class="cfPBSpeed" data-ms="3800">Slow</button>'+
-            '<button class="cfPBSpeed on" data-ms="2600">Normal</button>'+
-            '<button class="cfPBSpeed" data-ms="1400">Fast</button>'+
-          '</div>'+
-        '</div>'+
         /* ── AI In-between Keyframes section ─────────────────────────────── */
-        '<div class="cfPBAISep"><span class="cfPBAISepLabel">AI中割り生成 · AI In-between Keyframes</span></div>'+
-        '<p class="cfPBAIDesc">AIで少数の中割りキーフレームを生成し、GPUメッシュワープでシームレスに接続します。クロスディゾルブや残像を避け、歯・口唇・スマイルラインの自然な動きに重点を置きます。</p>'+
+        '<div class="cfPBAISep"><span class="cfPBAISepLabel">AI IN-BETWEEN KEYFRAMES</span></div>'+
+        '<p class="cfPBAIDesc">AIで少数の中割りキーフレームを生成し、メッシュワープでシームレスに接続します。クロスディゾルブや残像を避け、歯・口唇・スマイルラインの自然な動きに重点を置きます。</p>'+
         '<div class="cfPBToggleRow">'+
           '<label class="cfPBToggle">'+
             '<input type="checkbox" id="cfPBSeamless">'+
@@ -22074,10 +22067,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
           '<input type="text" id="cfPBTreatment" placeholder="例：ブラケット矯正・インビザライン・ホワイトニング">'+
         '</div>'+
         '<div class="cfPBField">'+
-          '<label class="cfPBLabel">治療期間</label>'+
-          '<input type="text" id="cfPBPeriod" placeholder="例：18ヶ月">'+
-        '</div>'+
-        '<div class="cfPBField">'+
           '<label class="cfPBLabel">患者背景・ストーリー（任意）</label>'+
           '<textarea id="cfPBStory" rows="3" placeholder="例：25歳・叢生の改善・審美目的。初診から完了まで。"></textarea>'+
         '</div>'+
@@ -22088,10 +22077,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
             '<span class="cfPBToggleLabel">治療情報をキャプションとして動画に表示する</span>'+
           '</label>'+
         '</div>'+
-        '<button id="cfPBStart">書き出し開始</button>'+
-        '<button id="cfPBSkip">スキップ（テキスト・サイズ設定なし）</button>';
+        '<button id="cfPBStart">書き出し開始</button>';
       document.body.appendChild(pbOverlay);
       document.body.appendChild(pbSheet);
+    }
+    /* Resize popup — injected once */
+    if(!document.getElementById('cfResizeOverlay')){
+      var resOv=document.createElement('div'); resOv.id='cfResizeOverlay';
+      var resCard=document.createElement('div'); resCard.id='cfResizeCard';
+      resCard.innerHTML=
+        '<div class="cfResizeHandle"></div>'+
+        '<div class="cfResizeTitle">保存サイズを選択</div>'+
+        '<div class="cfResizeSub">アスペクト比を選んで書き出し</div>'+
+        '<div id="cfResizeBtns">'+
+          '<button class="cfResizeRatio" data-ratio="9:16">9:16<span>ストーリー</span></button>'+
+          '<button class="cfResizeRatio" data-ratio="4:5">4:5<span>フィード</span></button>'+
+          '<button class="cfResizeRatio" data-ratio="1:1">1:1<span>正方形</span></button>'+
+          '<button class="cfResizeRatio" data-ratio="16:9">16:9<span>横動画</span></button>'+
+        '</div>';
+      document.body.appendChild(resOv);
+      document.body.appendChild(resCard);
     }
     var step=align.querySelector('.stepbar');
     if(step && step.nextSibling) align.insertBefore(box, step.nextSibling);
@@ -22367,11 +22372,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
-    /* Save button: downloads GPU video when in GPU mode, otherwise records canvas */
+    /* Save button: shows resize popup first, then records canvas */
     var saveBtn=box.querySelector('#cfCapSaveBtn');
     if(saveBtn) saveBtn.addEventListener('click',function(){
       if(saveBtn._gpuDownload){ saveBtn._gpuDownload(); return; }
-      cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
+      openResizePopup();
     });
     /* GPU back button: returns to canvas preview */
     var gpuBackBtn=box.querySelector('#cfCapGpuBack');
@@ -22382,7 +22387,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       gpuBackBtn.classList.remove('active');
       _gpuVidBlob=null;
       stop();
-      if(saveBtn){ saveBtn.innerHTML='&#9660;&nbsp; プレビューをそのまま動画保存（高速）'; saveBtn._gpuDownload=null; }
+      if(saveBtn){ saveBtn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; saveBtn._gpuDownload=null; }
       var scrubEl=$id('cfCapScrub'); if(scrubEl){ scrubEl.value='0'; setPct(0); render(0); }
     });
     /* GPU export button: opens Prompt Board in normal mode; back to canvas in GPU mode */
@@ -22498,13 +22503,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
       var pbStart=document.getElementById('cfPBStart');
       if(pbStart) pbStart.addEventListener('click',startGpuWithPrompt);
-      var pbSkip=document.getElementById('cfPBSkip');
-      if(pbSkip) pbSkip.addEventListener('click',function(){
-        closePromptBoard();
-        cfCapGpuExport({}).catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
-      });
       var pbOv=document.getElementById('cfPBOverlay');
       if(pbOv) pbOv.addEventListener('click',closePromptBoard);
+    }
+    /* Resize popup wiring (once) */
+    if(!window.__cfResizeWired){
+      window.__cfResizeWired=true;
+      function openResizePopup(){
+        var o=document.getElementById('cfResizeOverlay'),c=document.getElementById('cfResizeCard');
+        if(o) o.classList.add('open'); if(c) c.classList.add('open');
+      }
+      function closeResizePopup(){
+        var o=document.getElementById('cfResizeOverlay'),c=document.getElementById('cfResizeCard');
+        if(o) o.classList.remove('open'); if(c) c.classList.remove('open');
+      }
+      document.querySelectorAll('.cfResizeRatio').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          closeResizePopup();
+          cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
+        });
+      });
+      var resOvEl=document.getElementById('cfResizeOverlay');
+      if(resOvEl) resOvEl.addEventListener('click',closeResizePopup);
     }
     /* Cancel button */
     var cancelBtn=box.querySelector('#cfCapGpuCancel');
@@ -22603,7 +22623,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(typeof setExportBlob==='function'){ setExportBlob(blob,'caseflow_preview.'+ext,mime); if(typeof go==='function') go('export'); }
       else { var u=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=u; a.download='caseflow_preview.'+ext; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
       toastFn('動画を保存しました ✓');
-      if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビューをそのまま動画保存（高速）'; }
+      if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; }
     };
     rec.start(100);
     toastFn('プレビューを録画中…');
