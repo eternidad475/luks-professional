@@ -185,9 +185,8 @@ def redis_expire(key: str, ttl: int):
     k = urllib.parse.quote(key, safe="")
     httpx.post(f"{base}/expire/{k}/{ttl}", headers=_redis_hdr(), timeout=10)
 
-# Maximum simultaneous GPU pipeline jobs.
-# Each job uses one A10G container. Keep headroom for burst bursts.
-_MAX_ACTIVE_GPU = 8
+# Maximum simultaneous pipeline jobs (CPU containers — far more headroom than GPU).
+_MAX_ACTIVE_GPU = 40
 _ACTIVE_KEY     = "system:active_gpu_jobs"
 
 
@@ -546,11 +545,11 @@ def _apply_output_ratio(frames: list, ratio_str: str) -> tuple:
 
 @app.function(
     image          = GPU_IMAGE,
-    gpu            = "A10G",
+    cpu            = 4,
+    memory         = 8192,
     secrets        = [SECRETS],
-    timeout        = 600,       # 10 min ceiling per job
-    memory         = 32768,
-    max_containers = 10,        # cap GPU spend; jobs beyond this queue inside Modal
+    timeout        = 300,
+    max_containers = 50,
 )
 def run_pipeline(job_id: str, frame_keys: list[str],
                  duration_ms: int, fps: int,
@@ -736,7 +735,7 @@ async def submit(
     try:
         active = redis_incr(_ACTIVE_KEY)
         redis_expire(_ACTIVE_KEY, 3600)   # safety TTL in case of crash
-        log.info(f"[{job_id}] active GPU jobs after incr: {active}")
+        log.info(f"[{job_id}] active jobs after incr: {active}")
         if active > _MAX_ACTIVE_GPU:
             redis_decr(_ACTIVE_KEY)
             retry_after = 30
