@@ -324,19 +324,38 @@ def _pad8(img):
         return img, h, w
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
-def interp_segment(a_bgr, b_bgr, n: int) -> list:
-    """Bidirectional flow morph: pixels warp to their destinations then cross-fade.
+def interp_segment(a_bgr, b_bgr, n: int, *,
+                   warp_only: bool = False,
+                   motion_smooth: str = "normal",
+                   dental_pres: str = "high") -> list:
+    """Bidirectional Farneback flow morph — configurable quality and dissolve mode.
 
-    Computes Farneback dense optical flow in both directions (A→B and B→A),
-    warps each frame toward the midpoint, then blends the two warped results.
-    This produces the characteristic smooth "clay animation" pixel-movement
-    morphing effect — distinct from a plain dissolve — with no zoom or colour
-    shift.  Works identically for facial and dental-focus photo sets.
+    warp_only=True   : pure mesh-warp cutover at midpoint; no alpha blending.
+                       Eliminates cross-dissolve and ghosting entirely.
+    warp_only=False  : warped frames are cross-faded for a softer transition.
+    motion_smooth    : "low" / "normal" / "high" — controls Farneback window size
+                       and iteration count.
+    dental_pres      : "low" / "normal" / "high" — clamps max flow displacement
+                       as a fraction of image width, limiting over-warping of
+                       dental structures.
     """
     import numpy as np
     import cv2
 
     H, W = a_bgr.shape[:2]
+
+    # Farneback parameter sets
+    _FB = {
+        "low":    dict(pyr_scale=0.5, levels=3, winsize=11, iterations=3, poly_n=5, poly_sigma=1.1),
+        "normal": dict(pyr_scale=0.5, levels=5, winsize=21, iterations=5, poly_n=7, poly_sigma=1.5),
+        "high":   dict(pyr_scale=0.5, levels=6, winsize=31, iterations=7, poly_n=7, poly_sigma=1.5),
+    }
+    fb = _FB.get(motion_smooth, _FB["normal"])
+
+    # Max flow displacement as fraction of image width (dental preservation)
+    _MAX_DISP = {"low": 0.6, "normal": 0.4, "high": 0.25}
+    max_disp = _MAX_DISP.get(dental_pres, 0.25) * W
+
     # Compute flow on a downscaled copy for speed; scale vectors back up
     scale = min(1.0, 512 / max(H, W))
     if scale < 1.0:
@@ -348,20 +367,18 @@ def interp_segment(a_bgr, b_bgr, n: int) -> list:
     a_gray = cv2.cvtColor(a_small, cv2.COLOR_BGR2GRAY)
     b_gray = cv2.cvtColor(b_small, cv2.COLOR_BGR2GRAY)
 
-    flow_ab = cv2.calcOpticalFlowFarneback(
-        a_gray, b_gray, None,
-        pyr_scale=0.5, levels=5, winsize=21, iterations=5,
-        poly_n=7, poly_sigma=1.5, flags=0
-    )
-    flow_ba = cv2.calcOpticalFlowFarneback(
-        b_gray, a_gray, None,
-        pyr_scale=0.5, levels=5, winsize=21, iterations=5,
-        poly_n=7, poly_sigma=1.5, flags=0
-    )
+    flow_ab = cv2.calcOpticalFlowFarneback(a_gray, b_gray, None, flags=0, **fb)
+    flow_ba = cv2.calcOpticalFlowFarneback(b_gray, a_gray, None, flags=0, **fb)
 
     if scale < 1.0:
         flow_ab = cv2.resize(flow_ab, (W, H), interpolation=cv2.INTER_LINEAR) / scale
         flow_ba = cv2.resize(flow_ba, (W, H), interpolation=cv2.INTER_LINEAR) / scale
+
+    # Clamp flow magnitude to preserve dental/lip structures from over-warping
+    for flow in (flow_ab, flow_ba):
+        mag = np.linalg.norm(flow, axis=-1, keepdims=True)
+        scale_vec = np.where(mag > max_disp, max_disp / (mag + 1e-6), 1.0)
+        flow[...] *= scale_vec
 
     grid_x, grid_y = np.meshgrid(np.arange(W, dtype=np.float32),
                                   np.arange(H, dtype=np.float32))
@@ -382,9 +399,14 @@ def interp_segment(a_bgr, b_bgr, n: int) -> list:
         warped_b = cv2.remap(b_bgr, map_xb, map_yb,
                              cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
-        blended = (warped_a.astype(np.float32) * (1 - t) +
-                   warped_b.astype(np.float32) * t).clip(0, 255).astype(np.uint8)
-        frames.append(blended)
+        if warp_only:
+            # Pure warp: sharp cutover at midpoint — no alpha blend, no ghosting
+            frame = warped_a if t < 0.5 else warped_b
+        else:
+            frame = (warped_a.astype(np.float32) * (1 - t) +
+                     warped_b.astype(np.float32) * t).clip(0, 255).astype(np.uint8)
+
+        frames.append(frame)
 
     return frames
 
@@ -504,7 +526,13 @@ def run_pipeline(job_id: str, frame_keys: list[str],
                  treatment_duration: str = "",
                  patient_info: str = "",
                  output_ratio: str = "9:16",
-                 show_caption: bool = False):
+                 show_caption: bool = False,
+                 seamless_mode: bool = False,
+                 warp_only: bool = False,
+                 no_dissolve: bool = False,
+                 motion_smooth: str = "normal",
+                 dental_pres: str = "high",
+                 keyframe_count: int = 3):
     import cv2, numpy as np
     import ffmpeg as ff
 
@@ -558,13 +586,23 @@ def run_pipeline(job_id: str, frame_keys: list[str],
         use_caption = show_caption and bool(treatment_name or treatment_duration or patient_info)
         log.info(f"[{job_id}] caption={'on' if use_caption else 'off'}  sub='{sub_line[:60]}'")
 
+        # Resolve effective rendering flags (seamless_mode enables all strict modes)
+        eff_warp_only  = seamless_mode or warp_only or no_dissolve
+        eff_smooth     = motion_smooth if motion_smooth in ("low", "normal", "high") else "normal"
+        eff_dental     = dental_pres   if dental_pres   in ("low", "normal", "high") else "high"
+        log.info(f"[{job_id}] seamless={seamless_mode} warp_only={eff_warp_only} "
+                 f"smooth={eff_smooth} dental={eff_dental} kf_count={keyframe_count}")
+
         all_frames = []
         for i, fr in enumerate(frames):
             status("interpolating", 36 + int(i / n * 46))
             fr_display = add_caption(fr, stage_labels[i], sub_line) if use_caption else fr
             all_frames.extend([fr_display] * hold_n)
             if i < n - 1:
-                all_frames.extend(interp_segment(fr, frames[i + 1], trans_n))
+                all_frames.extend(interp_segment(fr, frames[i + 1], trans_n,
+                                                 warp_only=eff_warp_only,
+                                                 motion_smooth=eff_smooth,
+                                                 dental_pres=eff_dental))
 
         log.info(f"[{job_id}] {len(all_frames)} total frames → {len(all_frames)/fps:.1f}s")
 
@@ -642,6 +680,13 @@ async def submit(
     patientInfo       : str              = Form(""),
     outputRatio       : str              = Form("9:16"),
     showCaption       : str              = Form("0"),
+    seamlessMode      : str              = Form("0"),
+    aiKeyframes       : str              = Form("0"),
+    keyframeCount     : int              = Form(3),
+    warpOnly          : str              = Form("0"),
+    noDissolve        : str              = Form("0"),
+    motionSmooth      : str              = Form("normal"),
+    dentalPres        : str              = Form("high"),
 ):
     job_id = str(uuid.uuid4())
     r2     = _r2()
@@ -661,9 +706,17 @@ async def submit(
         return JSONResponse({"error": f"Redis unavailable: {str(e)[:200]}"}, status_code=503)
 
     # Non-blocking spawn — returns immediately, GPU runs in background
-    run_pipeline.spawn(job_id, frame_keys, durationMs, fps,
-                       treatmentName, treatmentDuration, patientInfo, outputRatio,
-                       showCaption == "1")
+    run_pipeline.spawn(
+        job_id, frame_keys, durationMs, fps,
+        treatmentName, treatmentDuration, patientInfo, outputRatio,
+        showCaption  == "1",
+        seamlessMode == "1",
+        warpOnly     == "1",
+        noDissolve   == "1",
+        motionSmooth,
+        dentalPres,
+        keyframeCount,
+    )
 
     return JSONResponse({"jobId": job_id})
 

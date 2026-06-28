@@ -21886,6 +21886,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfPBSpeedRow{display:flex;gap:8px;margin-top:4px;}
 .cfPBSpeed{flex:1;border:1.5px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
 .cfPBSpeed.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
+.cfPBAISep{margin:18px 0 12px;display:flex;align-items:center;gap:10px;}
+.cfPBAISep::before,.cfPBAISep::after{content:'';flex:1;height:1px;background:rgba(124,92,255,.2);}
+.cfPBAISepLabel{font-size:10px;font-weight:800;color:#7c5cff;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;}
+.cfPBAIDesc{font-size:11.5px;color:#8878bb;line-height:1.6;margin-bottom:12px;background:rgba(124,92,255,.06);border-radius:10px;padding:10px 12px;}
+.cfPBSegRow{display:flex;gap:6px;margin-top:4px;}
+.cfPBSeg{flex:1;border:1.5px solid rgba(124,92,255,.18);border-radius:10px;padding:8px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:12px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
+.cfPBSeg.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
 #cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
 #cfPBSkip{width:100%;border:1.5px solid rgba(124,92,255,.25);border-radius:16px;min-height:44px;background:transparent;color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
@@ -22006,6 +22013,62 @@ body.cfPresent .cfPresentExit{display:flex!important}
             '<button class="cfPBSpeed" data-ms="1400">Fast</button>'+
           '</div>'+
         '</div>'+
+        /* ── AI In-between Keyframes section ─────────────────────────────── */
+        '<div class="cfPBAISep"><span class="cfPBAISepLabel">AI中割り生成 · AI In-between Keyframes</span></div>'+
+        '<p class="cfPBAIDesc">AIで少数の中割りキーフレームを生成し、GPUメッシュワープでシームレスに接続します。クロスディゾルブや残像を避け、歯・口唇・スマイルラインの自然な動きに重点を置きます。</p>'+
+        '<div class="cfPBToggleRow">'+
+          '<label class="cfPBToggle">'+
+            '<input type="checkbox" id="cfPBSeamless">'+
+            '<span class="cfPBToggleSlider"></span>'+
+            '<span class="cfPBToggleLabel">Seamless Morph</span>'+
+          '</label>'+
+        '</div>'+
+        '<div class="cfPBToggleRow">'+
+          '<label class="cfPBToggle">'+
+            '<input type="checkbox" id="cfPBAIKF">'+
+            '<span class="cfPBToggleSlider"></span>'+
+            '<span class="cfPBToggleLabel">AI in-between keyframes</span>'+
+          '</label>'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">Keyframe count</label>'+
+          '<div class="cfPBSegRow" id="cfPBKFRow">'+
+            '<button class="cfPBSeg on" data-kf="3">3</button>'+
+            '<button class="cfPBSeg" data-kf="5">5</button>'+
+            '<button class="cfPBSeg" data-kf="7">7</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="cfPBToggleRow">'+
+          '<label class="cfPBToggle">'+
+            '<input type="checkbox" id="cfPBWarpOnly">'+
+            '<span class="cfPBToggleSlider"></span>'+
+            '<span class="cfPBToggleLabel">Warp-only rendering</span>'+
+          '</label>'+
+        '</div>'+
+        '<div class="cfPBToggleRow">'+
+          '<label class="cfPBToggle">'+
+            '<input type="checkbox" id="cfPBNoDissolve">'+
+            '<span class="cfPBToggleSlider"></span>'+
+            '<span class="cfPBToggleLabel">Disable dissolve / ghosting</span>'+
+          '</label>'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">Motion smoothness</label>'+
+          '<div class="cfPBSegRow" id="cfPBSmoothRow">'+
+            '<button class="cfPBSeg" data-smooth="low">Low</button>'+
+            '<button class="cfPBSeg on" data-smooth="normal">Normal</button>'+
+            '<button class="cfPBSeg" data-smooth="high">High</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">Dental structure preservation</label>'+
+          '<div class="cfPBSegRow" id="cfPBDentalRow">'+
+            '<button class="cfPBSeg" data-dental="low">Low</button>'+
+            '<button class="cfPBSeg" data-dental="normal">Normal</button>'+
+            '<button class="cfPBSeg on" data-dental="high">High</button>'+
+          '</div>'+
+        '</div>'+
+        /* ── end AI section ──────────────────────────────────────────────── */
         '<div class="cfPBField">'+
           '<label class="cfPBLabel">治療方法</label>'+
           '<input type="text" id="cfPBTreatment" placeholder="例：ブラケット矯正・インビザライン・ホワイトニング">'+
@@ -22106,7 +22169,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(opts.period)    fd.append('treatmentDuration', opts.period);
       if(opts.story)     fd.append('patientInfo', opts.story);
       if(opts.ratio)     fd.append('outputRatio', opts.ratio);
-      fd.append('showCaption', opts.showCaption ? '1' : '0');
+      fd.append('showCaption',    opts.showCaption  ? '1' : '0');
+      fd.append('seamlessMode',   opts.seamless     ? '1' : '0');
+      fd.append('aiKeyframes',    opts.aiKeyframes  ? '1' : '0');
+      fd.append('keyframeCount',  String(opts.keyframeCount||3));
+      fd.append('warpOnly',       opts.warpOnly     ? '1' : '0');
+      fd.append('noDissolve',     opts.noDissolve   ? '1' : '0');
+      fd.append('motionSmooth',   opts.motionSmooth ||'normal');
+      fd.append('dentalPres',     opts.dentalPres   ||'high');
       for(var i=0;i<ph.length;i++){
         var src=(typeof ph[i]==='string'?ph[i]:(ph[i].src||ph[i].dataUrl||ph[i].dataURL||''));
         var blob;
@@ -22312,9 +22382,49 @@ body.cfPresent .cfPresentExit{display:flex!important}
           btn.classList.add('on');
         });
       });
+      /* ── AI section: segment selectors ──────────────────────────────── */
+      document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(b){b.classList.remove('on');});
+          btn.classList.add('on');
+        });
+      });
+      document.querySelectorAll('.cfPBSeg[data-smooth]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          document.querySelectorAll('.cfPBSeg[data-smooth]').forEach(function(b){b.classList.remove('on');});
+          btn.classList.add('on');
+        });
+      });
+      document.querySelectorAll('.cfPBSeg[data-dental]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          document.querySelectorAll('.cfPBSeg[data-dental]').forEach(function(b){b.classList.remove('on');});
+          btn.classList.add('on');
+        });
+      });
+      /* ── Seamless Clay Morph master toggle → auto-set children ───────── */
+      var seamlessChk=document.getElementById('cfPBSeamless');
+      if(seamlessChk) seamlessChk.addEventListener('change',function(){
+        var on=seamlessChk.checked;
+        var aiKfEl     =document.getElementById('cfPBAIKF');
+        var warpOnlyEl =document.getElementById('cfPBWarpOnly');
+        var noDissolveEl=document.getElementById('cfPBNoDissolve');
+        if(aiKfEl)       aiKfEl.checked=on;
+        if(warpOnlyEl)   warpOnlyEl.checked=on;
+        if(noDissolveEl) noDissolveEl.checked=on;
+        if(on){
+          /* Dental preservation → High */
+          document.querySelectorAll('.cfPBSeg[data-dental]').forEach(function(b){b.classList.remove('on');});
+          var dh=document.querySelector('.cfPBSeg[data-dental="high"]');
+          if(dh) dh.classList.add('on');
+          /* Motion smoothness → Normal */
+          document.querySelectorAll('.cfPBSeg[data-smooth]').forEach(function(b){b.classList.remove('on');});
+          var sn=document.querySelector('.cfPBSeg[data-smooth="normal"]');
+          if(sn) sn.classList.add('on');
+        }
+      });
       function startGpuWithPrompt(){
-        var selRatio=document.querySelector('.cfPBRatio.on');
-        var selSpeed=document.querySelector('.cfPBSpeed.on');
+        var selRatio  =document.querySelector('.cfPBRatio.on');
+        var selSpeed  =document.querySelector('.cfPBSpeed.on');
         /* Apply selected speed immediately so canvas preview also updates */
         if(selSpeed){
           _speedMs=Number(selSpeed.dataset.ms)||2600;
@@ -22322,13 +22432,27 @@ body.cfPresent .cfPresentExit{display:flex!important}
             b.classList.toggle('on', Number(b.dataset.ms)===_speedMs);
           });
         }
-        var captionEl=document.getElementById('cfPBCaption');
+        var captionEl    =document.getElementById('cfPBCaption');
+        var seamlessEl   =document.getElementById('cfPBSeamless');
+        var aiKfEl       =document.getElementById('cfPBAIKF');
+        var warpOnlyEl   =document.getElementById('cfPBWarpOnly');
+        var noDissolveEl =document.getElementById('cfPBNoDissolve');
+        var selKF        =document.querySelector('.cfPBSeg[data-kf].on');
+        var selSmooth    =document.querySelector('.cfPBSeg[data-smooth].on');
+        var selDental    =document.querySelector('.cfPBSeg[data-dental].on');
         var opts={
-          treatment:($id('cfPBTreatment')||{}).value||'',
-          period:   ($id('cfPBPeriod')||{}).value||'',
-          story:    ($id('cfPBStory')||{}).value||'',
-          ratio:    selRatio?selRatio.dataset.ratio:'9:16',
-          showCaption: captionEl&&captionEl.checked
+          treatment:    ($id('cfPBTreatment')||{}).value||'',
+          period:       ($id('cfPBPeriod')||{}).value||'',
+          story:        ($id('cfPBStory')||{}).value||'',
+          ratio:        selRatio?selRatio.dataset.ratio:'9:16',
+          showCaption:  captionEl&&captionEl.checked,
+          seamless:     !!(seamlessEl&&seamlessEl.checked),
+          aiKeyframes:  !!(aiKfEl&&aiKfEl.checked),
+          keyframeCount:selKF?Number(selKF.dataset.kf):3,
+          warpOnly:     !!(warpOnlyEl&&warpOnlyEl.checked),
+          noDissolve:   !!(noDissolveEl&&noDissolveEl.checked),
+          motionSmooth: selSmooth?selSmooth.dataset.smooth:'normal',
+          dentalPres:   selDental?selDental.dataset.dental:'high'
         };
         closePromptBoard();
         cfCapGpuExport(opts).catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
