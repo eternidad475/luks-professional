@@ -21846,6 +21846,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapGpuCancel:hover{border-color:rgba(255,255,255,.45);color:rgba(255,255,255,.9);}
 #cfCapGpuBtn{width:100%;margin-top:10px;border:0;border-radius:14px;min-height:46px;background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:11.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.4);transition:opacity .2s,transform .15s;}
 #cfCapGpuBtn:active{opacity:.82;transform:scale(.97);}
+#cfCapSaveBtn{width:100%;margin-top:8px;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer;transition:opacity .2s,transform .15s;}
+#cfCapSaveBtn:active{opacity:.78;transform:scale(.97);}
+#cfCapSaveBtn.recording{background:linear-gradient(135deg,#ff6b6b,#ff9f43);color:#fff;border-color:transparent;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
    Remove every legacy manual-adjustment panel from the align screen.
    The cfCap scrub/speed editor and AI-auto-correction replace them all. */
@@ -21932,8 +21935,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="2600" class="on">Normal</button>'+
         '<button data-ms="1400">Fast</button>'+
       '</div>'+
+      '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま動画保存（高速）</button>'+
       '<button id="cfCapGpuBtn">&#10024;&nbsp; AI高品質書き出し（GPU）</button>'+
-      '<div id="cfCapHint">スライダーを左右に<b>こする</b>と、変化の途中がリアルタイムで見られます。&#9654; で再生、右上の<b>書き出し</b>で動画を作成。</div>';
+      '<div id="cfCapHint">&#9654; で往復再生。<b>プレビュー保存</b>はブラウザで即録画（数秒）。GPU書き出しは高画質だが数分かかります。</div>';
     var step=align.querySelector('.stepbar');
     if(step && step.nextSibling) align.insertBefore(box, step.nextSibling);
     else align.insertBefore(box, align.querySelector('.stage.align')||align.firstChild);
@@ -22056,9 +22060,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
         else if(s==='error') throw new Error(pollJson.error||'GPU処理エラー');
       }
 
-      /* 3. Download result and hand off to existing export handler */
+      /* 3. Download result via Modal proxy (avoids R2 CORS on Safari) */
       gpuSetProgress(100,'ダウンロード中…');
-      var vidRes=await fetch(result,{signal:controller.signal});
+      var vidRes=await fetch(endpoint+'/api/morph/download?jobId='+encodeURIComponent(jobId),{signal:controller.signal});
+      if(!vidRes.ok) throw new Error('ダウンロード失敗: '+vidRes.status);
       var vidBlob=await vidRes.blob();
       gpuShowOverlay(false);
       if(typeof setExportBlob==='function'){
@@ -22094,6 +22099,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var v75dur=$id('v75Duration'), v75durVal=$id('v75DurationVal');
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
+    });
+    /* Browser save button */
+    var saveBtn=box.querySelector('#cfCapSaveBtn');
+    if(saveBtn) saveBtn.addEventListener('click',function(){
+      cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
     });
     /* GPU export button */
     var gpuBtn=box.querySelector('#cfCapGpuBtn');
@@ -22160,11 +22170,55 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var token=++playToken, segCount=Math.max(1,ph.length-1), dur=speedMs()*segCount, start=performance.now(), scrub=$id('cfCapScrub');
     (function loop(now){
       if(!playing||token!==playToken) return;
-      var t=((now-start)%dur)/dur;
+      /* Oscillate 0→1→0→1… so before/after comparison is obvious */
+      var cycle=(now-start)%(dur*2);
+      var t=cycle<dur ? cycle/dur : 2-(cycle/dur);
       if(scrub) scrub.value=String(Math.round(t*100)); setPct(t);
       render(t);
       requestAnimationFrame(loop);
     })(performance.now());
+  }
+
+  /* ── Browser-based video save: records cfCapCanvas directly (fast, no GPU) ── */
+  async function cfCapBrowserExport(){
+    var ph=(window.state&&state.photos)||[];
+    if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+    if(typeof MediaRecorder==='undefined'){ toastFn('このブラウザは動画録画に対応していません'); return; }
+    var cv=$id('cfCapCanvas'); if(!cv) return;
+    var btn=$id('cfCapSaveBtn'); if(btn){ btn.classList.add('recording'); btn.textContent='録画中…'; }
+    stop();
+    var mimeChoices=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
+    var mime=mimeChoices.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
+    var stream=cv.captureStream(30);
+    var chunks=[];
+    var rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+    rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+    rec.onstop=function(){
+      var blob=new Blob(chunks,{type:mime});
+      var ext=mime.includes('mp4')?'mp4':'webm';
+      if(typeof setExportBlob==='function'){ setExportBlob(blob,'caseflow_preview.'+ext,mime); if(typeof go==='function') go('export'); }
+      else { var u=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=u; a.download='caseflow_preview.'+ext; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
+      toastFn('動画を保存しました ✓');
+      if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビューをそのまま動画保存（高速）'; }
+    };
+    rec.start(100);
+    toastFn('プレビューを録画中…');
+    /* Play one full oscillation (0→1→0) then stop */
+    var segCount=Math.max(1,ph.length-1), durMs=speedMs()*segCount;
+    var totalMs=durMs*2, startT=performance.now(), scrub=$id('cfCapScrub');
+    var tok=++playToken;
+    await new Promise(function(resolve){
+      (function loop(now){
+        if(tok!==playToken){ resolve(); return; }
+        var elapsed=now-startT;
+        if(elapsed>=totalMs){ render(0); setTimeout(resolve,300); return; }
+        var t=elapsed<durMs ? elapsed/durMs : 2-(elapsed/durMs);
+        if(scrub) scrub.value=String(Math.round(t*100)); setPct(t);
+        render(t);
+        requestAnimationFrame(loop);
+      })(performance.now());
+    });
+    rec.stop();
   }
 
   function refresh(){

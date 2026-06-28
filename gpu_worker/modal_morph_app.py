@@ -525,6 +525,29 @@ async def job_status(jobId: str = Query(...)):
     return JSONResponse(data)
 
 
+@web_app.get("/api/morph/download")
+async def download(jobId: str):
+    """Proxy the finished MP4 through Modal so browsers avoid R2 CORS restrictions."""
+    import httpx
+    from fastapi.responses import StreamingResponse
+    data = redis_get(f"job:{jobId}")
+    if data is None:
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    if data.get("status") != "done" or not data.get("resultUrl"):
+        return JSONResponse({"error": "job not ready", "status": data.get("status")}, status_code=409)
+    url = data["resultUrl"]
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.get(url)
+        if r.status_code != 200:
+            return JSONResponse({"error": f"R2 fetch failed: {r.status_code}"}, status_code=502)
+        video_bytes = r.content
+    return StreamingResponse(
+        iter([video_bytes]),
+        media_type="video/mp4",
+        headers={"Content-Disposition": 'attachment; filename="caseflow_ai_morph.mp4"'},
+    )
+
+
 @web_app.get("/health")
 async def health():
     redis_ok = False
