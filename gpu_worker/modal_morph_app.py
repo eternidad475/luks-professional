@@ -860,11 +860,11 @@ async def debug():
 
 # ── Wire FastAPI into Modal ───────────────────────────────────────────────────
 @app.function(
-    image                  = GPU_IMAGE,
-    secrets                = [SECRETS],
-    min_containers         = 1,    # 1 warm instance — eliminates cold start
-    allow_concurrent_inputs= 50,   # async FastAPI handles 50 concurrent HTTP requests per container
+    image          = GPU_IMAGE,
+    secrets        = [SECRETS],
+    min_containers = 1,
 )
+@modal.concurrent(max_inputs=50)
 @modal.asgi_app()
 def web():
     return web_app
