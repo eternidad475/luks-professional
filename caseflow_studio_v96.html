@@ -4852,7 +4852,16 @@ button[id="localMLDetectButton"]{
   </div>
   <div class="rangePanel">
     <div class="row"><span>なめらかさ</span><input type="range" min="900" max="4200" value="2600" id="morphDuration"><b id="durationVal">2.6s</b></div>
-    <div class="row"><span>口元の変化</span><input type="range" min="0" max="20" value="10" id="morphWarp"><b id="warpVal">10</b></div>
+    <div class="row"><span>口元の変化</span><input type="range" min="0" max="20" value="0" id="morphWarp"><b id="warpVal">0</b></div>
+    <div class="row" style="align-items:center;gap:6px;margin-top:2px">
+      <span style="white-space:nowrap">ワープ強度</span>
+      <div style="display:flex;gap:5px;flex:1">
+        <button class="cfWarpPre on" data-warp="0" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'0')">なし</button>
+        <button class="cfWarpPre" data-warp="4" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'4')">弱</button>
+        <button class="cfWarpPre" data-warp="10" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'10')">中</button>
+        <button class="cfWarpPre" data-warp="18" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'18')">強</button>
+      </div>
+    </div>
   </div>
   <div class="toolbar"><button class="tool" onclick="playPreview()">再生<br>Play</button><button class="tool" onclick="pausePreview()">停止<br>Pause</button><button class="tool" onclick="exportPreview()">動画作成<br>Create Video</button></div>
 
@@ -21979,6 +21988,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfPBSegRow{display:flex;gap:6px;margin-top:4px;}
 .cfPBSeg{flex:1;border:1.5px solid rgba(124,92,255,.18);border-radius:10px;padding:8px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:12px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
 .cfPBSeg.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
+.cfWarpPre{flex:1;border:1.5px solid rgba(124,92,255,.2);border-radius:8px;padding:5px 2px;background:rgba(255,255,255,.5);color:#8878bb;font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;}
+.cfWarpPre.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
 #cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
 /* ── Resize popup (save button) ── */
 #cfResizeOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;opacity:0;pointer-events:none;transition:opacity .25s;}
@@ -22095,29 +22106,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var pbSheet=document.createElement('div'); pbSheet.id='cfPBSheet';
       pbSheet.innerHTML=
         '<div class="cfPBHandle"></div>'+
-        '<div class="cfPBTitle">エフェクト設定</div>'+
-        /* ── Mesh Warp section ───────────────────────────────────────────── */
-        '<div class="cfPBAISep"><span class="cfPBAISepLabel">MESH WARP</span></div>'+
-        '<p class="cfPBAIDesc">メッシュワープの強度を調整します。設定はプレビューにもリアルタイムで反映されます。</p>'+
-        '<div class="cfPBField">'+
-          '<label class="cfPBLabel">ワープ強度</label>'+
-          '<div class="cfPBSegRow" id="cfPBWarpRow">'+
-            '<button class="cfPBSeg" data-warp="4">やわらか</button>'+
-            '<button class="cfPBSeg on" data-warp="10">普通</button>'+
-            '<button class="cfPBSeg" data-warp="18">つよい</button>'+
-          '</div>'+
-        '</div>'+
-        /* ── AI In-between Keyframes section ─────────────────────────────── */
         '<div class="cfPBAISep"><span class="cfPBAISepLabel">AI IN-BETWEEN KEYFRAMES</span></div>'+
-        '<p class="cfPBAIDesc">AIで中割り画像を生成し、フレーム間のモーフィングをよりなめらかにします。</p>'+
-        '<div class="cfPBToggleRow">'+
-          '<label class="cfPBToggle">'+
-            '<input type="checkbox" id="cfPBAIKF">'+
-            '<span class="cfPBToggleSlider"></span>'+
-            '<span class="cfPBToggleLabel">AI 中割りを生成する</span>'+
-          '</label>'+
-        '</div>'+
-        '<div class="cfPBField" id="cfPBKFWrap" style="display:none">'+
+        '<p class="cfPBAIDesc">AIで中割り画像を生成し、フレーム間のモーフィングをよりなめらかにします。生成された画像はギャラリーに自動挿入されます。</p>'+
+        '<div class="cfPBField">'+
           '<label class="cfPBLabel">枚数（各ペア間）</label>'+
           '<div class="cfPBSegRow" id="cfPBKFRow">'+
             '<button class="cfPBSeg on" data-kf="1">1</button>'+
@@ -22125,8 +22116,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
             '<button class="cfPBSeg" data-kf="3">3</button>'+
           '</div>'+
         '</div>'+
-        /* ── end sections ────────────────────────────────────────────────── */
-        '<button id="cfPBStart">書き出し開始</button>';
+        '<button id="cfPBStart">✦&nbsp; 中割り画像を生成</button>';
       document.body.appendChild(pbOverlay);
       document.body.appendChild(pbSheet);
     }
@@ -22450,15 +22440,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(!window.__cfPBWired){
       window.__cfPBWired=true;
       function openPromptBoard(){
-        /* Sync current morphWarp value to warp segment buttons */
-        var curWarp=Number(document.getElementById('morphWarp')?.value||10);
-        var warpBtns=document.querySelectorAll('.cfPBSeg[data-warp]');
-        if(warpBtns.length){
-          var closest=null, minDist=Infinity;
-          warpBtns.forEach(function(b){ var d=Math.abs(Number(b.dataset.warp)-curWarp); if(d<minDist){minDist=d;closest=b;} });
-          warpBtns.forEach(function(b){ b.classList.remove('on'); });
-          if(closest) closest.classList.add('on');
-        }
         var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
         if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
       }
@@ -22466,29 +22447,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
         if(sh) sh.classList.remove('open'); if(ov) ov.classList.remove('open');
       }
-      /* ── Warp strength segment ───────────────────────────────────────── */
-      document.querySelectorAll('.cfPBSeg[data-warp]').forEach(function(btn){
-        btn.addEventListener('click',function(){
-          document.querySelectorAll('.cfPBSeg[data-warp]').forEach(function(b){b.classList.remove('on');});
-          btn.classList.add('on');
-          /* Live-preview: update morphWarp slider immediately */
-          var warpEl=document.getElementById('morphWarp');
-          if(warpEl){ warpEl.value=btn.dataset.warp; if(typeof updateSliders==='function') updateSliders(); }
-          if(typeof window.cfCapRender==='function') window.cfCapRender();
-        });
-      });
       /* ── AI keyframe count segment ───────────────────────────────────── */
       document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(btn){
         btn.addEventListener('click',function(){
           document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(b){b.classList.remove('on');});
           btn.classList.add('on');
         });
-      });
-      /* ── AI toggle: show/hide count field ────────────────────────────── */
-      var aiKfChk=document.getElementById('cfPBAIKF');
-      var kfWrap=document.getElementById('cfPBKFWrap');
-      if(aiKfChk) aiKfChk.addEventListener('change',function(){
-        if(kfWrap) kfWrap.style.display=aiKfChk.checked?'':'none';
       });
       function _resizeB64(dataUrl, maxPx){
         return new Promise(function(resolve){
@@ -22506,75 +22470,63 @@ body.cfPresent .cfPresentExit{display:flex!important}
         });
       }
       async function startGpuWithPrompt(){
-        var selWarp=document.querySelector('.cfPBSeg[data-warp].on');
         var selKF=document.querySelector('.cfPBSeg[data-kf].on');
-        var aiEnabled=!!(document.getElementById('cfPBAIKF')&&document.getElementById('cfPBAIKF').checked);
         var count=selKF?Number(selKF.dataset.kf):1;
 
-        /* Apply warp strength immediately */
-        if(selWarp){
-          var warpEl=document.getElementById('morphWarp');
-          if(warpEl){ warpEl.value=selWarp.dataset.warp; if(typeof updateSliders==='function') updateSliders(); }
-        }
+        var ph=(window.state&&state.photos)||[];
+        var srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
+        if(srcPhotos.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+
+        var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'')
+          ||(typeof localStorage!=='undefined'&&localStorage.getItem('cfGpuEndpoint'))||'';
+        if(!endpoint){ toastFn('AIサーバーが設定されていません'); return; }
 
         closePromptBoard();
 
-        var ph=(window.state&&state.photos)||[];
-        if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+        /* Remove previously inserted AI frames */
+        for(var i=ph.length-1;i>=0;i--){ if(ph[i]&&ph[i].aiGenerated) ph.splice(i,1); }
+        srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
 
-        /* AI keyframe generation — optional, only when toggle ON and endpoint configured */
-        var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'')
-          ||(typeof localStorage!=='undefined'&&localStorage.getItem('cfGpuEndpoint'))||'';
-
-        if(aiEnabled && endpoint){
-          /* Remove any previously inserted AI frames */
-          for(var i=ph.length-1;i>=0;i--){ if(ph[i]&&ph[i].aiGenerated) ph.splice(i,1); }
-          var srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
-          if(srcPhotos.length>=2){
-            gpuShowOverlay(true);
-            gpuSetProgress(5,'AI中割り画像を生成中…');
-            try{
-              var pairs=[];
-              for(var j=0;j<srcPhotos.length-1;j++){
-                var a64=(await _resizeB64(srcPhotos[j].dataUrl,1280)).split(',')[1];
-                var b64=(await _resizeB64(srcPhotos[j+1].dataUrl,1280)).split(',')[1];
-                pairs.push({a:a64,b:b64});
-                gpuSetProgress(5+Math.round((j+1)/(srcPhotos.length-1)*20),'画像を準備中…');
-              }
-              gpuSetProgress(30,'AIサーバーにリクエスト中…');
-              var res=await fetch(endpoint+'/api/morph/keyframes',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({pairs:pairs,count:count})
-              });
-              if(!res.ok) throw new Error('サーバーエラー: '+res.status);
-              var data=await res.json();
-              var frames=data.frames||[];
-              gpuSetProgress(88,'ギャラリーに配置中…');
-              var newPhotos=[];
-              for(var k=0;k<srcPhotos.length;k++){
-                newPhotos.push(srcPhotos[k]);
-                if(k<srcPhotos.length-1 && frames[k] && frames[k].length){
-                  frames[k].forEach(function(b64,fi){
-                    newPhotos.push({dataUrl:'data:image/jpeg;base64,'+b64,label:'AI '+(k+1)+'-'+(fi+1),name:'AI Frame',aiGenerated:true});
-                  });
-                }
-              }
-              ph.length=0; newPhotos.forEach(function(p){ ph.push(p); });
-              var total=frames.reduce(function(s,f){ return s+(f?f.length:0); },0);
-              gpuSetProgress(100,'完了');
-              if(typeof window.caseflowV75Refresh==='function') try{ window.caseflowV75Refresh(); }catch(e){}
-              if(typeof window.cfCapRefresh==='function') try{ window.cfCapRefresh(); }catch(e){}
-              toastFn('AI中割り画像を'+total+'枚生成しました ✓');
-            } catch(err){
-              toastFn('AI生成をスキップしました');
-            }
-            gpuShowOverlay(false);
+        gpuShowOverlay(true);
+        gpuSetProgress(5,'画像を準備中…');
+        try{
+          var pairs=[];
+          for(var j=0;j<srcPhotos.length-1;j++){
+            var a64=(await _resizeB64(srcPhotos[j].dataUrl,1280)).split(',')[1];
+            var b64=(await _resizeB64(srcPhotos[j+1].dataUrl,1280)).split(',')[1];
+            pairs.push({a:a64,b:b64});
+            gpuSetProgress(5+Math.round((j+1)/(srcPhotos.length-1)*20),'画像を準備中…');
           }
+          gpuSetProgress(30,'AIサーバーにリクエスト中…');
+          var res=await fetch(endpoint+'/api/morph/keyframes',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({pairs:pairs,count:count})
+          });
+          if(!res.ok) throw new Error('サーバーエラー: '+res.status);
+          var data=await res.json();
+          var frames=data.frames||[];
+          gpuSetProgress(88,'ギャラリーに配置中…');
+          var newPhotos=[];
+          for(var k=0;k<srcPhotos.length;k++){
+            newPhotos.push(srcPhotos[k]);
+            if(k<srcPhotos.length-1 && frames[k] && frames[k].length){
+              frames[k].forEach(function(b64,fi){
+                newPhotos.push({dataUrl:'data:image/jpeg;base64,'+b64,label:'AI '+(k+1)+'-'+(fi+1),name:'AI Frame',aiGenerated:true});
+              });
+            }
+          }
+          ph.length=0; newPhotos.forEach(function(p){ ph.push(p); });
+          var total=frames.reduce(function(s,f){ return s+(f?f.length:0); },0);
+          gpuSetProgress(100,'完了');
+          gpuShowOverlay(false);
+          if(typeof window.caseflowV75Refresh==='function') try{ window.caseflowV75Refresh(); }catch(e){}
+          if(typeof window.cfCapRefresh==='function') try{ window.cfCapRefresh(); }catch(e){}
+          toastFn('AI中割り画像を'+total+'枚生成しました ✓');
+        } catch(err){
+          gpuShowOverlay(false);
+          toastFn('エラー: '+(err&&err.message||String(err)).slice(0,60));
         }
-
-        /* Always record & export using the mesh warp engine */
-        cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
       }
       var pbStart=document.getElementById('cfPBStart');
       if(pbStart) pbStart.addEventListener('click',startGpuWithPrompt);
