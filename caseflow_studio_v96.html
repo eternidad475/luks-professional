@@ -21838,6 +21838,27 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapSpeed button.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.32)}
 #cfCapHint{margin-top:9px;font-size:10.5px;line-height:1.55;color:rgba(32,27,53,.55);font-weight:600}
 #cfCapHint b{color:#6a3de8;font-weight:900}
+/* ── GPU job progress overlay ─────────────────────────────────────────────── */
+#cfCapGpuOverlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(8,6,16,.84);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);flex-direction:column;align-items:center;justify-content:center;gap:18px;border-radius:inherit;}
+#cfCapGpuOverlay.active{display:flex;}
+.cfCapProgressRing{position:relative;width:84px;height:84px;}
+.cfCapProgressRing svg{transform:rotate(-90deg);}
+.cfCapProgressRing circle{fill:none;stroke-width:5;}
+.cfCapProgressRing .cfTrack{stroke:rgba(255,255,255,.1);}
+.cfCapProgressRing .cfFill{stroke:url(#cfCapGradient);stroke-linecap:round;stroke-dasharray:219.9;stroke-dashoffset:219.9;transition:stroke-dashoffset .7s cubic-bezier(.4,0,.2,1);}
+.cfCapProgressRing .cfPct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:17px;font-weight:900;color:#fff;letter-spacing:-.02em;}
+#cfCapGpuStatus{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.65);text-align:center;line-height:1.7;max-width:210px;}
+.cfCapStepList{display:flex;flex-direction:column;gap:7px;align-items:flex-start;width:200px;}
+.cfCapStepRow{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:600;color:rgba(255,255,255,.35);transition:color .35s,transform .25s;}
+.cfCapStepRow.cfDone{color:rgba(255,255,255,.85);}
+.cfCapStepRow.cfActive{color:#fff;transform:translateX(3px);}
+.cfCapStepRow .cfDot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.18);flex:0 0 auto;transition:background .35s,box-shadow .35s;}
+.cfCapStepRow.cfDone .cfDot{background:#4ade80;}
+.cfCapStepRow.cfActive .cfDot{background:#7c5cff;box-shadow:0 0 8px rgba(124,92,255,.9);}
+#cfCapGpuCancel{border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.55);border-radius:10px;padding:8px 24px;font-size:11px;font-weight:700;letter-spacing:.1em;cursor:pointer;transition:border-color .2s,color .2s;}
+#cfCapGpuCancel:hover{border-color:rgba(255,255,255,.45);color:rgba(255,255,255,.9);}
+#cfCapGpuBtn{width:100%;margin-top:10px;border:0;border-radius:14px;min-height:46px;background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:11.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.4);transition:opacity .2s,transform .15s;}
+#cfCapGpuBtn:active{opacity:.82;transform:scale(.97);}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
    Remove every legacy manual-adjustment panel from the align screen.
    The cfCap scrub/speed editor and AI-auto-correction replace them all. */
@@ -21887,6 +21908,30 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<canvas id="cfCapCanvas" width="1080" height="1350"></canvas>'+
         '<span class="cfCapLbl l">BEFORE</span><span class="cfCapLbl r">AFTER</span>'+
         '<div class="cfCapEmpty" id="cfCapEmpty">Gallery で 2 枚以上の画像を選び、<br>下の帯で順番を決めてください。</div>'+
+        /* GPU progress overlay */
+        '<div id="cfCapGpuOverlay">'+
+          '<svg width="0" height="0" style="position:absolute"><defs>'+
+            '<linearGradient id="cfCapGradient" x1="0%" y1="0%" x2="100%" y2="100%">'+
+              '<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#ff9fd6"/>'+
+            '</linearGradient>'+
+          '</defs></svg>'+
+          '<div class="cfCapProgressRing">'+
+            '<svg width="84" height="84" viewBox="0 0 84 84">'+
+              '<circle class="cfTrack" cx="42" cy="42" r="35"/>'+
+              '<circle class="cfFill" id="cfCapFillCircle" cx="42" cy="42" r="35"/>'+
+            '</svg>'+
+            '<div class="cfPct" id="cfCapGpuPct">0%</div>'+
+          '</div>'+
+          '<div id="cfCapGpuStatus">処理を準備中…</div>'+
+          '<div class="cfCapStepList">'+
+            '<div class="cfCapStepRow cfActive" data-step="0"><span class="cfDot"></span>マスターフレーム確定</div>'+
+            '<div class="cfCapStepRow" data-step="1"><span class="cfDot"></span>口腔内セグメンテーション</div>'+
+            '<div class="cfCapStepRow" data-step="2"><span class="cfDot"></span>カラーマッチング合成</div>'+
+            '<div class="cfCapStepRow" data-step="3"><span class="cfDot"></span>FILM フレーム補間</div>'+
+            '<div class="cfCapStepRow" data-step="4"><span class="cfDot"></span>MP4 エンコード</div>'+
+          '</div>'+
+          '<button id="cfCapGpuCancel">キャンセル</button>'+
+        '</div>'+
       '</div>'+
       '<div id="cfCapTransport">'+
         '<button id="cfCapPlay" aria-label="再生">&#9654;</button>'+
@@ -21900,13 +21945,133 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="2600" class="on">Normal</button>'+
         '<button data-ms="1400">Fast</button>'+
       '</div>'+
-      '<div id="cfCapHint">スライダーを左右に<b>こする</b>と、変化の途中がリアルタイムで見られます。&#9654; で再生、右上の<b>書き出し</b>で動画を作成。下のプレビューでポイント追加／<b>ダブルタップで削除</b>。</div>';
+      '<button id="cfCapGpuBtn">&#10024;&nbsp; AI高品質書き出し（GPU）</button>'+
+      '<div id="cfCapHint">スライダーを左右に<b>こする</b>と、変化の途中がリアルタイムで見られます。&#9654; で再生、右上の<b>書き出し</b>で動画を作成。</div>';
     var step=align.querySelector('.stepbar');
     if(step && step.nextSibling) align.insertBefore(box, step.nextSibling);
     else align.insertBefore(box, align.querySelector('.stage.align')||align.firstChild);
     bind(box);
     return box;
   }
+  // ── GPU progress overlay helpers ───────────────────────────────────────────
+  var _gpuAbort=null;
+
+  var STEP_THRESHOLDS=[
+    {p:0,  label:'マスターフレーム確定', step:0},
+    {p:10, label:'口腔内セグメンテーション中…', step:1},
+    {p:45, label:'カラーマッチング合成中…', step:2},
+    {p:55, label:'FILMフレーム補間中…', step:3},
+    {p:90, label:'MP4エンコード中…', step:4},
+    {p:97, label:'アップロード中…', step:4},
+  ];
+
+  function gpuSetProgress(pct, statusText){
+    var fill=$id('cfCapFillCircle'), pctEl=$id('cfCapGpuPct'), statusEl=$id('cfCapGpuStatus');
+    var p=Math.max(0,Math.min(100,pct));
+    if(fill){
+      var offset=219.9*(1-p/100);
+      fill.style.strokeDashoffset=offset.toFixed(1);
+    }
+    if(pctEl) pctEl.textContent=Math.round(p)+'%';
+    if(statusEl && statusText) statusEl.textContent=statusText;
+    /* step highlights */
+    var activeStep=0;
+    for(var i=STEP_THRESHOLDS.length-1;i>=0;i--){ if(p>=STEP_THRESHOLDS[i].p){ activeStep=STEP_THRESHOLDS[i].step; break; } }
+    var rows=document.querySelectorAll('.cfCapStepRow');
+    rows.forEach(function(r){
+      var s=Number(r.dataset.step);
+      r.classList.toggle('cfDone', s<activeStep);
+      r.classList.toggle('cfActive', s===activeStep);
+    });
+  }
+
+  function gpuShowOverlay(show){
+    var ov=$id('cfCapGpuOverlay');
+    if(ov) ov.classList.toggle('active',!!show);
+    if(!show){ gpuSetProgress(0,'処理を準備中…'); }
+  }
+
+  // ── GPU async export (submits to /api/morph/submit, polls /api/morph/status) ──
+  async function cfCapGpuExport(){
+    var ph=(window.state&&state.photos)||[];
+    if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+    var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'').replace(/\/$/,'');
+    if(!endpoint){
+      toastFn('GPU_ENDPOINTが未設定です（CASEFLOW_GPU_ENDPOINTを設定してください）');
+      return;
+    }
+    stop();
+    gpuShowOverlay(true);
+    gpuSetProgress(2,'画像を準備中…');
+    var controller=new AbortController();
+    _gpuAbort=controller;
+
+    try{
+      /* 1. Convert each photo to blob and build FormData */
+      var fd=new FormData();
+      var segCount=Math.max(1,ph.length-1);
+      var totalSec=Math.min(10,Math.max(1.5,speedMs()*segCount/1000));
+      fd.append('durationMs', String(Math.round(totalSec*1000)));
+      fd.append('fps','30');
+      for(var i=0;i<ph.length;i++){
+        var imgEl=new window.Image();
+        imgEl.crossOrigin='anonymous';
+        await new Promise(function(res,rej){ imgEl.onload=res; imgEl.onerror=rej; imgEl.src=ph[i].src||ph[i].dataURL||ph[i]; });
+        var tmp=document.createElement('canvas');
+        tmp.width=imgEl.naturalWidth; tmp.height=imgEl.naturalHeight;
+        tmp.getContext('2d').drawImage(imgEl,0,0);
+        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.92); });
+        fd.append('frame', blob, 'frame_'+i+'.jpg');
+      }
+
+      gpuSetProgress(5,'GPUに送信中…');
+      var submitRes=await fetch(endpoint+'/api/morph/submit',{
+        method:'POST', body:fd, signal:controller.signal
+      });
+      if(!submitRes.ok) throw new Error('Submit failed: '+submitRes.status);
+      var submitJson=await submitRes.json();
+      var jobId=submitJson.jobId;
+      if(!jobId) throw new Error('jobId未取得');
+
+      /* 2. Poll /api/morph/status every 1.5s */
+      gpuSetProgress(8,'キューに追加されました…');
+      var done=false, result=null;
+      while(!done){
+        await new Promise(function(r){setTimeout(r,1500);});
+        if(controller.signal.aborted) throw new Error('cancelled');
+        var pollRes=await fetch(endpoint+'/api/morph/status?jobId='+encodeURIComponent(jobId),{signal:controller.signal});
+        var pollJson=await pollRes.json();
+        var s=pollJson.status||'';
+        var p=Number(pollJson.progress)||8;
+        /* Map backend status labels to JP strings */
+        var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'FILMフレーム補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！'};
+        gpuSetProgress(p, LABELS[s]||s);
+        if(s==='done'){ done=true; result=pollJson.resultUrl; }
+        else if(s==='error') throw new Error(pollJson.error||'GPU処理エラー');
+      }
+
+      /* 3. Download result and hand off to existing export handler */
+      gpuSetProgress(100,'ダウンロード中…');
+      var vidRes=await fetch(result,{signal:controller.signal});
+      var vidBlob=await vidRes.blob();
+      gpuShowOverlay(false);
+      if(typeof setExportBlob==='function'){
+        setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+      } else {
+        var url=URL.createObjectURL(vidBlob);
+        var a=document.createElement('a'); a.href=url; a.download='caseflow_ai_morph.mp4'; a.click();
+        setTimeout(function(){URL.revokeObjectURL(url);},5000);
+      }
+      toastFn('AI高品質動画を書き出しました ✓');
+
+    }catch(e){
+      gpuShowOverlay(false);
+      if(e&&e.message!=='cancelled') toastFn('GPUエラー: '+(e.message||String(e)).slice(0,80));
+    } finally {
+      _gpuAbort=null;
+    }
+  }
+
   function bind(box){
     var scrub=box.querySelector('#cfCapScrub');
     scrub.addEventListener('input',function(){ stop(); var t=Number(scrub.value)/100; setPct(t); render(t); });
@@ -21924,6 +22089,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
+    /* GPU export button */
+    var gpuBtn=box.querySelector('#cfCapGpuBtn');
+    if(gpuBtn) gpuBtn.addEventListener('click',function(){
+      cfCapGpuExport().catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
+    });
+    /* Cancel button */
+    var cancelBtn=box.querySelector('#cfCapGpuCancel');
+    if(cancelBtn) cancelBtn.addEventListener('click',function(){ if(_gpuAbort) _gpuAbort.abort(); gpuShowOverlay(false); });
   }
   function setPct(t){ var e=$id('cfCapPct'); if(e) e.textContent=Math.round(t*100)+'%'; }
   function speedMs(){ var md=$id('morphDuration'); return Math.max(700, Number(md&&md.value)||2600); }
