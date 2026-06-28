@@ -131,14 +131,19 @@ def redis_set(key: str, val: dict, ttl: int = 7200):
     import httpx
     base    = os.environ["UPSTASH_REDIS_REST_URL"]
     encoded = json.dumps(val, separators=(",", ":"))
-    httpx.post(f"{base}/set/{key}/{encoded}/ex/{ttl}",
-               headers=_redis_hdr(), timeout=5)
+    r = httpx.post(f"{base}/pipeline",
+                   json=[["SET", key, encoded, "EX", ttl]],
+                   headers=_redis_hdr(), timeout=5)
+    log.debug(f"redis_set {key}: {r.status_code}")
 
 def redis_get(key: str) -> dict | None:
     import httpx
     base = os.environ["UPSTASH_REDIS_REST_URL"]
-    r    = httpx.get(f"{base}/get/{key}", headers=_redis_hdr(), timeout=5)
-    raw  = r.json().get("result")
+    r    = httpx.post(f"{base}/pipeline",
+                      json=[["GET", key]],
+                      headers=_redis_hdr(), timeout=5)
+    results = r.json()
+    raw = results[0].get("result") if results else None
     return json.loads(raw) if raw else None
 
 
