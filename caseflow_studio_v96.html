@@ -21872,6 +21872,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfPBRatio span{display:block;font-size:10px;font-weight:500;opacity:.75;margin-top:2px;}
 .cfPBRatio.on{border-color:#7c5cff;background:#f0edff;color:#7c5cff;}
 .cfPBRatio.on span{opacity:1;}
+#cfPBSpeedRow{display:flex;gap:8px;margin-top:4px;}
+.cfPBSpeed{flex:1;border:1.5px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
+.cfPBSpeed.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
 #cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
 #cfPBSkip{width:100%;border:1.5px solid rgba(124,92,255,.25);border-radius:16px;min-height:44px;background:transparent;color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
@@ -21985,6 +21988,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
             '<button class="cfPBRatio" data-ratio="4:5" data-label="フィード">4:5<span>フィード</span></button>'+
             '<button class="cfPBRatio" data-ratio="1:1" data-label="正方形">1:1<span>正方形</span></button>'+
             '<button class="cfPBRatio" data-ratio="16:9" data-label="横動画">16:9<span>横動画</span></button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">アニメーション速度</label>'+
+          '<div id="cfPBSpeedRow">'+
+            '<button class="cfPBSpeed" data-ms="3800">Slow</button>'+
+            '<button class="cfPBSpeed on" data-ms="2600">Normal</button>'+
+            '<button class="cfPBSpeed" data-ms="1400">Fast</button>'+
           '</div>'+
         '</div>'+
         '<div class="cfPBField">'+
@@ -22236,6 +22247,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(!window.__cfPBWired){
       window.__cfPBWired=true;
       function openPromptBoard(){
+        /* Sync current _speedMs to the prompt board speed buttons */
+        var cur=_speedMs;
+        document.querySelectorAll('.cfPBSpeed').forEach(function(b){
+          b.classList.toggle('on', Number(b.dataset.ms)===cur);
+        });
         var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
         if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
       }
@@ -22249,8 +22265,22 @@ body.cfPresent .cfPresentExit{display:flex!important}
           btn.classList.add('on');
         });
       });
+      document.querySelectorAll('.cfPBSpeed').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          document.querySelectorAll('.cfPBSpeed').forEach(function(b){b.classList.remove('on');});
+          btn.classList.add('on');
+        });
+      });
       function startGpuWithPrompt(){
         var selRatio=document.querySelector('.cfPBRatio.on');
+        var selSpeed=document.querySelector('.cfPBSpeed.on');
+        /* Apply selected speed immediately so canvas preview also updates */
+        if(selSpeed){
+          _speedMs=Number(selSpeed.dataset.ms)||2600;
+          document.querySelectorAll('#cfCapSpeed button').forEach(function(b){
+            b.classList.toggle('on', Number(b.dataset.ms)===_speedMs);
+          });
+        }
         var opts={
           treatment:($id('cfPBTreatment')||{}).value||'',
           period:   ($id('cfPBPeriod')||{}).value||'',

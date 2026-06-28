@@ -325,21 +325,31 @@ def _pad8(img):
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
 def interp_segment(a_bgr, b_bgr, n: int) -> list:
-    """Eased cross-dissolve between two composited frames.
+    """Eased cross-dissolve with a zoom-pulse at the transition midpoint.
 
-    RAFT optical flow warps the full frame which tears hair/skin at mask
-    boundaries and distorts regions that should be static. Since the pipeline
-    already composites every frame onto the same master background (step B),
-    the ONLY difference between frames is the dental region — a clean dissolve
-    is both faster and higher quality for this appearance-change use case.
+    A subtle centre-zoom peaks at t=0.5 (max 5.5% scale-up), giving a
+    dynamic "morphing" feel without the artefacts of optical-flow warping.
+    The zoom returns symmetrically to 1.0 by the end of the segment so the
+    next key frame hold starts at the correct scale.
     """
-    import numpy as np
+    import numpy as np, cv2
     a = a_bgr.astype(np.float32)
     b = b_bgr.astype(np.float32)
+    H, W = a_bgr.shape[:2]
     frames = []
     for i in range(n):
         t = _ease((i + 1) / (n + 1))
-        frames.append((a * (1 - t) + b * t).clip(0, 255).astype(np.uint8))
+        blended = (a * (1 - t) + b * t).clip(0, 255).astype(np.uint8)
+        # Zoom-pulse: peaks at t=0.5, returns to 1.0 at t=0 and t=1
+        zoom = 1.0 + 0.055 * (1.0 - abs(2.0 * t - 1.0))
+        if zoom > 1.002:
+            cw = max(1, int(W / zoom))
+            ch = max(1, int(H / zoom))
+            x0 = (W - cw) // 2
+            y0 = (H - ch) // 2
+            blended = cv2.resize(blended[y0:y0+ch, x0:x0+cw], (W, H),
+                                 interpolation=cv2.INTER_LINEAR)
+        frames.append(blended)
     return frames
 
 
@@ -500,8 +510,8 @@ def run_pipeline(job_id: str, frame_keys: list[str],
 
         n        = len(frames)
         seg_ms   = duration_ms / max(1, n - 1)   # time per segment
-        hold_n   = max(2, round(seg_ms * 0.65 / 1000 * fps))   # 65% = hold key frame
-        trans_n  = max(1, round(seg_ms * 0.35 / 1000 * fps))   # 35% = tween frames
+        hold_n   = max(2, round(seg_ms * 0.55 / 1000 * fps))   # 55% = hold key frame
+        trans_n  = max(1, round(seg_ms * 0.45 / 1000 * fps))   # 45% = tween (zoom-dissolve)
 
         log.info(f"[{job_id}] hold={hold_n}f  tween={trans_n}f  per segment")
 
