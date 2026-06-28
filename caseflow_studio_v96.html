@@ -4040,13 +4040,28 @@ button[id="localMLDetectButton"]{
   background:rgba(255,255,255,.92);
   box-shadow:0 0 0 2px color-mix(in srgb,var(--c1) 42%,#fff);
 }
-.libraryEditHint{
-  display:block;
-  margin-top:5px;
-  color:rgba(32,27,53,.48);
-  font-size:10px;
+.cfLibTimer{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-top:6px;
+  font-size:10.5px;
   font-weight:800;
+  color:rgba(32,27,53,.52);
+  background:rgba(32,27,53,.055);
+  border-radius:8px;
+  padding:4px 9px;
+  letter-spacing:.01em;
 }
+.cfLibTimer.cfLibExpiring{color:#c45500;}
+.cfLibTimer.cfLibExpired{color:#912d2d;}
+.libraryTitle[data-id]{
+  cursor:default;
+  -webkit-user-select:none;
+  user-select:none;
+  transition:opacity .15s;
+}
+.libraryTitle[data-id].cfLPressing{opacity:.55;}
 
 
 /* ---------- v8.0 Morphing Video Sample popup ---------- */
@@ -16000,6 +16015,64 @@ body[data-ui-tone="dark"]{
     toastFn('タイトルを更新しました');
   };
 
+  /* ── Timer helpers ───────────────────────────────────────────────────── */
+  function cfLibRemainingTime(createdAt){
+    if(!createdAt) return '';
+    const d=new Date(String(createdAt).replace(/\//g,'-'));
+    if(isNaN(d.getTime())) return '';
+    const rem=d.getTime()+48*3600*1000-Date.now();
+    if(rem<=0) return '期限切れ';
+    const h=Math.floor(rem/3600000);
+    const m=Math.floor((rem%3600000)/60000);
+    return h>=24 ? `残り ${Math.floor(h/24)}日 ${h%24}時間` : `残り ${h}時間 ${m}分`;
+  }
+  function cfLibExpClass(createdAt){
+    if(!createdAt) return '';
+    const d=new Date(String(createdAt).replace(/\//g,'-'));
+    if(isNaN(d.getTime())) return '';
+    const rem=d.getTime()+48*3600*1000-Date.now();
+    if(rem<=0) return ' cfLibExpired';
+    if(rem<6*3600*1000) return ' cfLibExpiring';
+    return '';
+  }
+
+  /* ── Long-press title edit ───────────────────────────────────────────── */
+  function cfLibBindLongPress(root){
+    root.querySelectorAll('.libraryTitle[data-id]').forEach(el=>{
+      let timer=null;
+      const start=()=>{
+        el.classList.add('cfLPressing');
+        timer=setTimeout(()=>{
+          el.classList.remove('cfLPressing');
+          const id=el.dataset.id;
+          const inp=document.createElement('input');
+          inp.className='libraryTitleEdit';
+          inp.value=el.textContent;
+          inp.style.display='block';
+          el.after(inp);
+          el.style.display='none';
+          requestAnimationFrame(()=>{ inp.focus(); inp.select(); });
+          const commit=()=>{
+            const val=inp.value.trim()||'Untitled';
+            window.caseflowV85CommitLibraryTitle(id,val);
+            el.textContent=val;
+            el.style.display='';
+            inp.remove();
+          };
+          inp.addEventListener('blur',commit);
+          inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } });
+        },600);
+      };
+      const cancel=()=>{ clearTimeout(timer); timer=null; el.classList.remove('cfLPressing'); };
+      el.addEventListener('touchstart',start,{passive:true});
+      el.addEventListener('touchend',cancel);
+      el.addEventListener('touchmove',cancel);
+      el.addEventListener('mousedown',start);
+      el.addEventListener('mouseup',cancel);
+      el.addEventListener('mouseleave',cancel);
+    });
+  }
+
   window.renderLibrary=function(){
     const root=$id('libraryList');
     if(!root) return;
@@ -16012,8 +16085,10 @@ body[data-ui-tone="dark"]{
       const disabled = isVideo(r) && !hasVideoUrl(r);
       const title=esc(r.title||'Untitled');
       const meta=`${esc(r.kind||'project')}<br>${esc(r.createdAt||'')}${badgeFor(r)}<span class="libraryOpenHint">${esc(openHint(r))}</span>`;
-      return `<article class="libraryCard">${mediaFor(r)}<div><div class="libraryTitle">${title}</div><input class="libraryTitleEdit" value="${title}" oninput="caseflowV85UpdateLibraryTitle('${esc(r.id)}',this.value)" onchange="caseflowV85CommitLibraryTitle('${esc(r.id)}',this.value)"><span class="libraryEditHint">タイトルを直接編集できます</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button ${disabled?'disabled':''} onclick="openLibraryDocument('${esc(r.id)}')">Open</button><button onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
+      const timerCls=`cfLibTimer${cfLibExpClass(r.createdAt)}`;
+      return `<article class="libraryCard">${mediaFor(r)}<div><div class="libraryTitle" data-id="${esc(r.id)}">${title}</div><span class="${timerCls}" data-created="${esc(r.createdAt||'')}">&#128337;&nbsp;${cfLibRemainingTime(r.createdAt)}</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button ${disabled?'disabled':''} onclick="openLibraryDocument('${esc(r.id)}')">Open</button><button onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
     }).join('');
+    cfLibBindLongPress(root);
   };
 
   window.deleteLibraryProject=function(id){
