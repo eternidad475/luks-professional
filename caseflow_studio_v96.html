@@ -4853,15 +4853,6 @@ button[id="localMLDetectButton"]{
   <div class="rangePanel">
     <div class="row"><span>なめらかさ</span><input type="range" min="900" max="4200" value="2600" id="morphDuration"><b id="durationVal">2.6s</b></div>
     <div class="row"><span>口元の変化</span><input type="range" min="0" max="20" value="0" id="morphWarp"><b id="warpVal">0</b></div>
-    <div class="row" style="align-items:center;gap:6px;margin-top:2px">
-      <span style="white-space:nowrap">ワープ強度</span>
-      <div style="display:flex;gap:5px;flex:1">
-        <button class="cfWarpPre on" data-warp="0" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'0')">なし</button>
-        <button class="cfWarpPre" data-warp="4" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'4')">弱</button>
-        <button class="cfWarpPre" data-warp="10" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'10')">中</button>
-        <button class="cfWarpPre" data-warp="18" onclick="(function(v){var el=document.getElementById('morphWarp');if(el){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}document.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on')});this.classList.add('on')}).call(this,'18')">強</button>
-      </div>
-    </div>
   </div>
   <div class="toolbar"><button class="tool" onclick="playPreview()">再生<br>Play</button><button class="tool" onclick="pausePreview()">停止<br>Pause</button><button class="tool" onclick="exportPreview()">動画作成<br>Create Video</button></div>
 
@@ -21990,6 +21981,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfPBSeg.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
 .cfWarpPre{flex:1;border:1.5px solid rgba(124,92,255,.2);border-radius:8px;padding:5px 2px;background:rgba(255,255,255,.5);color:#8878bb;font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:border-color .15s,background .15s,color .15s;}
 .cfWarpPre.on{border-color:#7c5cff;background:rgba(124,92,255,.12);color:#7c5cff;}
+#cfCapWarpRow{display:flex;align-items:center;gap:8px;margin:8px 0 2px;}
+#cfCapWarpLabel{font-size:11px;font-weight:700;color:#8878bb;white-space:nowrap;min-width:52px;}
+#cfCapWarpBtns{display:flex;gap:5px;flex:1;}
 #cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
 /* ── Resize popup (save button) ── */
 #cfResizeOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;opacity:0;pointer-events:none;transition:opacity .25s;}
@@ -22098,6 +22092,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
       '</div>'+
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま保存</button>'+
       '<button id="cfCapGpuBtn">&#9998;&nbsp; プレビューの編集</button>'+
+      '<div id="cfCapWarpRow">'+
+        '<span id="cfCapWarpLabel">ワープ強度</span>'+
+        '<div id="cfCapWarpBtns">'+
+          '<button class="cfWarpPre on" data-warp="0">なし</button>'+
+          '<button class="cfWarpPre" data-warp="4">弱</button>'+
+          '<button class="cfWarpPre" data-warp="10">中</button>'+
+          '<button class="cfWarpPre" data-warp="18">強</button>'+
+        '</div>'+
+      '</div>'+
       '<div id="cfCapHint">&#9654; で往復再生。<b>プレビューの編集</b>でAI中割り・書き出し設定を変更できます。</div>'+
       '';
     /* Prompt Board — injected into body so fixed positioning works correctly */
@@ -22428,25 +22431,43 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(saveBtn){ saveBtn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; saveBtn._gpuDownload=null; }
       var scrubEl=$id('cfCapScrub'); if(scrubEl){ scrubEl.value='0'; setPct(0); render(0); }
     });
+    /* Warp preset buttons in preview box */
+    box.querySelectorAll('.cfWarpPre').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var v=btn.dataset.warp;
+        var el=document.getElementById('morphWarp');
+        if(el){ el.value=v; el.dispatchEvent(new Event('input',{bubbles:true})); }
+        box.querySelectorAll('.cfWarpPre').forEach(function(b){b.classList.remove('on');});
+        btn.classList.add('on');
+        if(typeof window.cfCapRefresh==='function') try{window.cfCapRefresh();}catch(e){}
+      });
+    });
+
     /* GPU export button: opens Prompt Board in normal mode; back to canvas in GPU mode */
     var gpuBtn=box.querySelector('#cfCapGpuBtn');
     if(gpuBtn) gpuBtn.addEventListener('click',function(){
       var gv=$id('cfCapGpuVid');
       if(gv&&gv.classList.contains('active')){ var gb=$id('cfCapGpuBack'); if(gb) gb.click(); return; }
-      openPromptBoard();
+      if(window.openPromptBoard) window.openPromptBoard();
     });
+
+    /* Prompt Board open/close helpers — defined on window so they persist across bind() calls */
+    if(!window.openPromptBoard){
+      window.openPromptBoard=function(){
+        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
+        if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
+      };
+    }
+    if(!window.closePromptBoard){
+      window.closePromptBoard=function(){
+        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
+        if(sh) sh.classList.remove('open'); if(ov) ov.classList.remove('open');
+      };
+    }
 
     /* Prompt Board wiring (sheet is in body, wired once) */
     if(!window.__cfPBWired){
       window.__cfPBWired=true;
-      function openPromptBoard(){
-        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
-        if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
-      }
-      function closePromptBoard(){
-        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
-        if(sh) sh.classList.remove('open'); if(ov) ov.classList.remove('open');
-      }
       /* ── AI keyframe count segment ───────────────────────────────────── */
       document.querySelectorAll('.cfPBSeg[data-kf]').forEach(function(btn){
         btn.addEventListener('click',function(){
@@ -22477,11 +22498,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var srcPhotos=ph.filter(function(p){return !p.aiGenerated;});
         if(srcPhotos.length<2){ toastFn('写真を2枚以上追加してください'); return; }
 
-        var endpoint=(window.CASEFLOW_GPU_ENDPOINT||'')
-          ||(typeof localStorage!=='undefined'&&localStorage.getItem('cfGpuEndpoint'))||'';
-        if(!endpoint){ toastFn('AIサーバーが設定されていません'); return; }
+        /* Use the same Google AI endpoint as Visual Simulation Studio */
+        var endpoint=window.CASEFLOW_AI_ENDPOINT||
+          (typeof localStorage!=='undefined'&&localStorage.getItem('caseflow_ai_endpoint'))||
+          'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
+        var ep=endpoint.replace(/\/+$/,'');
+        if(!/\/simulate$/.test(ep)) ep+='/simulate';
 
-        closePromptBoard();
+        if(window.closePromptBoard) window.closePromptBoard();
 
         /* Remove previously inserted AI frames */
         for(var i=ph.length-1;i>=0;i--){ if(ph[i]&&ph[i].aiGenerated) ph.splice(i,1); }
@@ -22490,34 +22514,40 @@ body.cfPresent .cfPresentExit{display:flex!important}
         gpuShowOverlay(true);
         gpuSetProgress(5,'画像を準備中…');
         try{
-          var pairs=[];
-          for(var j=0;j<srcPhotos.length-1;j++){
-            var a64=(await _resizeB64(srcPhotos[j].dataUrl,1280)).split(',')[1];
-            var b64=(await _resizeB64(srcPhotos[j+1].dataUrl,1280)).split(',')[1];
-            pairs.push({a:a64,b:b64});
-            gpuSetProgress(5+Math.round((j+1)/(srcPhotos.length-1)*20),'画像を準備中…');
-          }
-          gpuSetProgress(30,'AIサーバーにリクエスト中…');
-          var res=await fetch(endpoint+'/api/morph/keyframes',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({pairs:pairs,count:count})
-          });
-          if(!res.ok) throw new Error('サーバーエラー: '+res.status);
-          var data=await res.json();
-          var frames=data.frames||[];
-          gpuSetProgress(88,'ギャラリーに配置中…');
           var newPhotos=[];
-          for(var k=0;k<srcPhotos.length;k++){
-            newPhotos.push(srcPhotos[k]);
-            if(k<srcPhotos.length-1 && frames[k] && frames[k].length){
-              frames[k].forEach(function(b64,fi){
-                newPhotos.push({dataUrl:'data:image/jpeg;base64,'+b64,label:'AI '+(k+1)+'-'+(fi+1),name:'AI Frame',aiGenerated:true});
-              });
+          var totalPairs=srcPhotos.length-1;
+          for(var j=0;j<srcPhotos.length;j++){
+            newPhotos.push(srcPhotos[j]);
+            if(j<totalPairs){
+              var aImg=await _resizeB64(srcPhotos[j].dataUrl,1024);
+              gpuSetProgress(10+Math.round(j/totalPairs*20),'画像を準備中… ('+(j+1)+'/'+totalPairs+')');
+              for(var k=0;k<count;k++){
+                /* Generate in-between via Google AI (same backend as Visual Simulation Studio) */
+                var strength=0.35+k*(0.25/Math.max(count,1));
+                var payload={
+                  image:aImg,
+                  prompt:'歯科治療の中間段階を表す自然な移行画像。治療前から治療後へのスムーズな段階的変化。',
+                  concept:'ortho',
+                  denoising_strength:strength,
+                  intraoral:true,
+                  lips:false,
+                  negative_prompt:'braces, brackets, wires, distorted, unnatural, blur'
+                };
+                gpuSetProgress(30+Math.round((j*count+k)/(totalPairs*count)*55),'AIで中割り生成中… ('+(j*count+k+1)+'/'+(totalPairs*count)+')');
+                var res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+                var frameUrl=null;
+                if(res.ok){
+                  var jj=await res.json();
+                  frameUrl=jj.image||jj.dataUrl||jj.output||(Array.isArray(jj.images)?jj.images[0]:null);
+                }
+                if(frameUrl){
+                  newPhotos.push({dataUrl:frameUrl,label:'AI '+(j+1)+'-'+(k+1),name:'AI Frame',aiGenerated:true});
+                }
+              }
             }
           }
           ph.length=0; newPhotos.forEach(function(p){ ph.push(p); });
-          var total=frames.reduce(function(s,f){ return s+(f?f.length:0); },0);
+          var total=newPhotos.filter(function(p){return p.aiGenerated;}).length;
           gpuSetProgress(100,'完了');
           gpuShowOverlay(false);
           if(typeof window.caseflowV75Refresh==='function') try{ window.caseflowV75Refresh(); }catch(e){}
@@ -22531,7 +22561,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var pbStart=document.getElementById('cfPBStart');
       if(pbStart) pbStart.addEventListener('click',startGpuWithPrompt);
       var pbOv=document.getElementById('cfPBOverlay');
-      if(pbOv) pbOv.addEventListener('click',closePromptBoard);
+      if(pbOv) pbOv.addEventListener('click',function(){ if(window.closePromptBoard) window.closePromptBoard(); });
     }
     /* Resize popup wiring (once) */
     if(!window.__cfResizeWired){
