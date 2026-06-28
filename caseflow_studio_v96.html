@@ -16054,7 +16054,8 @@ body[data-ui-tone="dark"]{
           requestAnimationFrame(()=>{ inp.focus(); inp.select(); });
           const commit=()=>{
             const val=inp.value.trim()||'Untitled';
-            window.caseflowV85CommitLibraryTitle(id,val);
+            const fn=window.caseflowV90CommitLibraryTitle||window.caseflowV85CommitLibraryTitle;
+            if(fn) fn(id,val);
             el.textContent=val;
             el.style.display='';
             inp.remove();
@@ -16919,8 +16920,10 @@ body[data-ui-tone="dark"]{
       const media=isVideo(r)&&videoSourceOf(r)
         ? `<video src="${esc(videoSourceOf(r))}" muted playsinline loop></video>`
         : `<img src="${esc(thumbOf(r))}" alt="${title}">`;
-      return `<article class="libraryCard" data-id="${esc(r.id)}">${media}<div><div class="libraryTitle">${title}</div><input class="libraryTitleEdit" value="${title}" oninput="caseflowV90UpdateLibraryTitle('${esc(r.id)}',this.value)" onchange="caseflowV90CommitLibraryTitle('${esc(r.id)}',this.value)"><span class="libraryEditHint">タイトルを直接編集できます</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
+      const timerCls=`cfLibTimer${cfLibExpClass(r.createdAt)}`;
+      return `<article class="libraryCard" data-id="${esc(r.id)}">${media}<div><div class="libraryTitle" data-id="${esc(r.id)}">${title}</div><span class="${timerCls}" data-created="${esc(r.createdAt||'')}">&#128337;&nbsp;${cfLibRemainingTime(r.createdAt)}</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
     }).join('');
+    cfLibBindLongPress(root);
   };
 
   const oldDelete=window.deleteLibraryProject;
