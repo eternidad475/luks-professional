@@ -12407,17 +12407,6 @@ window.addEventListener('DOMContentLoaded', () => {
       ctx.restore();
     }
     if(!state.cfExportMode){
-      ctx.save();
-      ctx.fillStyle='rgba(255,255,255,.88)';
-      roundRectLocal(ctx,20,20,310,58,24);
-      ctx.fill();
-      ctx.fillStyle='#201b35';
-      ctx.font='850 20px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
-      ctx.fillText('True Mesh Morph',38,51);
-      ctx.fillStyle='rgba(32,27,53,.46)';
-      ctx.font='750 13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
-      ctx.fillText(`Frame ${Math.round(e*100)}% · ${tris.length} triangles`,38,73);
-      ctx.restore();
     }
     return {triangles:tris.length,points:pairs.length,userCount:collected.userCount,fallback:false};
   }
