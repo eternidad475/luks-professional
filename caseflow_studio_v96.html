@@ -21852,8 +21852,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
 /* ── GPU video plays inside the canvas stage — same UI as canvas preview ── */
 #cfCapGpuVid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:10;display:none;}
 #cfCapGpuVid.active{display:block;}
-#cfCapGpuBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:9.5px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;padding:5px 14px;border-radius:20px;z-index:12;display:none;white-space:nowrap;box-shadow:0 3px 12px rgba(91,63,204,.4);}
+#cfCapGpuBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:18px;padding:6px 16px;border-radius:20px;z-index:12;display:none;white-space:nowrap;box-shadow:0 3px 12px rgba(91,63,204,.4);line-height:1;}
 #cfCapGpuBadge.active{display:block;}
+/* ── Prompt Board caption toggle ── */
+.cfPBToggleRow{display:flex;align-items:center;margin-bottom:16px;}
+.cfPBToggle{display:flex;align-items:center;gap:10px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+.cfPBToggle input[type="checkbox"]{display:none;}
+.cfPBToggleSlider{width:40px;height:24px;border-radius:12px;background:#ddd8f4;position:relative;flex:0 0 auto;transition:background .2s;}
+.cfPBToggle input:checked+.cfPBToggleSlider{background:#7c5cff;}
+.cfPBToggleSlider:after{content:'';position:absolute;top:4px;left:4px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.22);}
+.cfPBToggle input:checked+.cfPBToggleSlider:after{transform:translateX(16px);}
+.cfPBToggleLabel{font-size:13px;color:#4a3875;font-weight:600;line-height:1.3;}
 #cfCapGpuBack{position:absolute;top:10px;left:10px;z-index:12;border:0;border-radius:10px;padding:6px 12px;background:rgba(255,255,255,.88);color:#5b3fcc;font-size:11px;font-weight:800;cursor:pointer;display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 2px 10px rgba(0,0,0,.14);}
 #cfCapGpuBack.active{display:block;}
 /* ── Prompt Board (bottom sheet) ── */
@@ -21927,7 +21936,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       '<div id="cfCapStage" style="--cfcap-ar:'+ratioAR()+'">'+
         '<canvas id="cfCapCanvas" width="1080" height="1350"></canvas>'+
         '<video id="cfCapGpuVid" loop playsinline webkit-playsinline></video>'+
-        '<div id="cfCapGpuBadge">GPU AI 動画</div>'+
+        '<div id="cfCapGpuBadge">&#10022;</div>'+
         '<button id="cfCapGpuBack">&#8592; 戻る</button>'+
         '<span class="cfCapLbl l">BEFORE</span><span class="cfCapLbl r">AFTER</span>'+
         '<div class="cfCapEmpty" id="cfCapEmpty">Gallery で 2 枚以上の画像を選び、<br>下の帯で順番を決めてください。</div>'+
@@ -22008,6 +22017,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<div class="cfPBField">'+
           '<label class="cfPBLabel">患者背景・ストーリー（任意）</label>'+
           '<textarea id="cfPBStory" rows="3" placeholder="例：25歳・叢生の改善・審美目的。初診から完了まで。"></textarea>'+
+        '</div>'+
+        '<div class="cfPBToggleRow">'+
+          '<label class="cfPBToggle">'+
+            '<input type="checkbox" id="cfPBCaption">'+
+            '<span class="cfPBToggleSlider"></span>'+
+            '<span class="cfPBToggleLabel">治療情報をキャプションとして動画に表示する</span>'+
+          '</label>'+
         '</div>'+
         '<button id="cfPBStart">書き出し開始</button>'+
         '<button id="cfPBSkip">スキップ（テキスト・サイズ設定なし）</button>';
@@ -22090,6 +22106,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(opts.period)    fd.append('treatmentDuration', opts.period);
       if(opts.story)     fd.append('patientInfo', opts.story);
       if(opts.ratio)     fd.append('outputRatio', opts.ratio);
+      fd.append('showCaption', opts.showCaption ? '1' : '0');
       for(var i=0;i<ph.length;i++){
         var src=(typeof ph[i]==='string'?ph[i]:(ph[i].src||ph[i].dataUrl||ph[i].dataURL||''));
         var blob;
@@ -22305,11 +22322,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
             b.classList.toggle('on', Number(b.dataset.ms)===_speedMs);
           });
         }
+        var captionEl=document.getElementById('cfPBCaption');
         var opts={
           treatment:($id('cfPBTreatment')||{}).value||'',
           period:   ($id('cfPBPeriod')||{}).value||'',
           story:    ($id('cfPBStory')||{}).value||'',
-          ratio:    selRatio?selRatio.dataset.ratio:'9:16'
+          ratio:    selRatio?selRatio.dataset.ratio:'9:16',
+          showCaption: captionEl&&captionEl.checked
         };
         closePromptBoard();
         cfCapGpuExport(opts).catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });

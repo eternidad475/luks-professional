@@ -467,7 +467,8 @@ def run_pipeline(job_id: str, frame_keys: list[str],
                  treatment_name: str = "",
                  treatment_duration: str = "",
                  patient_info: str = "",
-                 output_ratio: str = "9:16"):
+                 output_ratio: str = "9:16",
+                 show_caption: bool = False):
     import cv2, numpy as np
     import ffmpeg as ff
 
@@ -515,12 +516,17 @@ def run_pipeline(job_id: str, frame_keys: list[str],
 
         log.info(f"[{job_id}] hold={hold_n}f  tween={trans_n}f  per segment")
 
-        # Clinical photos are shown unmodified; only the CASEFLOW watermark is applied
-        # (baked in by the browser-side canvas renderer, not here).
+        # Caption overlay — only when user explicitly enables the toggle in the Prompt Board
+        stage_labels = _auto_stage_labels(n)
+        sub_line = "  ·  ".join(filter(None, [treatment_name, treatment_duration, patient_info]))
+        use_caption = show_caption and bool(treatment_name or treatment_duration or patient_info)
+        log.info(f"[{job_id}] caption={'on' if use_caption else 'off'}  sub='{sub_line[:60]}'")
+
         all_frames = []
         for i, fr in enumerate(frames):
             status("interpolating", 36 + int(i / n * 46))
-            all_frames.extend([fr] * hold_n)
+            fr_display = add_caption(fr, stage_labels[i], sub_line) if use_caption else fr
+            all_frames.extend([fr_display] * hold_n)
             if i < n - 1:
                 all_frames.extend(interp_segment(fr, frames[i + 1], trans_n))
 
@@ -599,6 +605,7 @@ async def submit(
     treatmentDuration : str              = Form(""),
     patientInfo       : str              = Form(""),
     outputRatio       : str              = Form("9:16"),
+    showCaption       : str              = Form("0"),
 ):
     job_id = str(uuid.uuid4())
     r2     = _r2()
@@ -619,7 +626,8 @@ async def submit(
 
     # Non-blocking spawn — returns immediately, GPU runs in background
     run_pipeline.spawn(job_id, frame_keys, durationMs, fps,
-                       treatmentName, treatmentDuration, patientInfo, outputRatio)
+                       treatmentName, treatmentDuration, patientInfo, outputRatio,
+                       showCaption == "1")
 
     return JSONResponse({"jobId": job_id})
 
