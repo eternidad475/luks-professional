@@ -325,31 +325,21 @@ def _pad8(img):
     return np.pad(img, ((0, ph), (0, pw), (0, 0)), mode="reflect"), h, w
 
 def interp_segment(a_bgr, b_bgr, n: int) -> list:
-    """Eased cross-dissolve with a zoom-pulse at the transition midpoint.
+    """Pure eased cross-dissolve between two frames — no additional effects.
 
-    A subtle centre-zoom peaks at t=0.5 (max 5.5% scale-up), giving a
-    dynamic "morphing" feel without the artefacts of optical-flow warping.
-    The zoom returns symmetrically to 1.0 by the end of the segment so the
-    next key frame hold starts at the correct scale.
+    The clinical photos are the key frames (held on screen); this function
+    generates only the in-between frames, blending pixel-by-pixel with an
+    ease-in-out-cubic curve. No zoom, no warp, no colour shift — the
+    uploaded images are preserved exactly as-is throughout. Works identically
+    for both facial and focus (dental close-up) photo sets.
     """
-    import numpy as np, cv2
+    import numpy as np
     a = a_bgr.astype(np.float32)
     b = b_bgr.astype(np.float32)
-    H, W = a_bgr.shape[:2]
     frames = []
     for i in range(n):
         t = _ease((i + 1) / (n + 1))
-        blended = (a * (1 - t) + b * t).clip(0, 255).astype(np.uint8)
-        # Zoom-pulse: peaks at t=0.5, returns to 1.0 at t=0 and t=1
-        zoom = 1.0 + 0.055 * (1.0 - abs(2.0 * t - 1.0))
-        if zoom > 1.002:
-            cw = max(1, int(W / zoom))
-            ch = max(1, int(H / zoom))
-            x0 = (W - cw) // 2
-            y0 = (H - ch) // 2
-            blended = cv2.resize(blended[y0:y0+ch, x0:x0+cw], (W, H),
-                                 interpolation=cv2.INTER_LINEAR)
-        frames.append(blended)
+        frames.append((a * (1 - t) + b * t).clip(0, 255).astype(np.uint8))
     return frames
 
 
