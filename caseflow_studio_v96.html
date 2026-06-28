@@ -21854,6 +21854,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
 .cfCapResultActions{display:flex;gap:8px;margin-top:8px;}
 #cfCapResultSaveBtn{flex:1;border:0;border-radius:14px;min-height:46px;background:linear-gradient(135deg,#5b3fcc,#c76be0);color:#fff;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(91,63,204,.35);}
 #cfCapResultBackBtn{flex:1;border:1.5px solid rgba(124,92,255,.3);border-radius:14px;min-height:46px;background:rgba(255,255,255,.82);color:#5b3fcc;font-size:12px;font-weight:800;cursor:pointer;}
+/* ── Prompt Board (bottom sheet) ── */
+#cfPBOverlay{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:9998;opacity:0;pointer-events:none;transition:opacity .3s;}
+#cfPBOverlay.open{opacity:1;pointer-events:auto;}
+#cfPBSheet{position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;padding:18px 20px 40px;z-index:9999;box-shadow:0 -8px 40px rgba(0,0,0,.18);transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);max-height:88vh;overflow-y:auto;}
+#cfPBSheet.open{transform:translateY(0);}
+.cfPBHandle{width:38px;height:4px;border-radius:2px;background:#e0dff7;margin:0 auto 16px;}
+.cfPBTitle{font-size:16px;font-weight:800;color:#1a1040;text-align:center;margin-bottom:3px;}
+.cfPBSub{font-size:11.5px;color:#8878bb;text-align:center;margin-bottom:18px;}
+.cfPBField{margin-bottom:14px;}
+.cfPBLabel{display:block;font-size:11px;font-weight:700;color:#7c5cff;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;}
+.cfPBField input,.cfPBField textarea{width:100%;box-sizing:border-box;border:1.5px solid #e8e4ff;border-radius:12px;padding:10px 13px;font-size:14px;color:#1a1040;background:#faf9ff;outline:none;font-family:inherit;transition:border-color .18s;}
+.cfPBField input:focus,.cfPBField textarea:focus{border-color:#7c5cff;}
+.cfPBField textarea{resize:none;line-height:1.55;}
+#cfPBRatioRow{display:flex;gap:8px;margin-top:4px;}
+.cfPBRatio{flex:1;border:1.5px solid #e8e4ff;border-radius:12px;padding:8px 4px;background:#faf9ff;color:#8878bb;font-size:12px;font-weight:700;cursor:pointer;text-align:center;line-height:1.2;transition:border-color .15s,background .15s,color .15s;}
+.cfPBRatio span{display:block;font-size:10px;font-weight:500;opacity:.75;margin-top:2px;}
+.cfPBRatio.on{border-color:#7c5cff;background:#f0edff;color:#7c5cff;}
+.cfPBRatio.on span{opacity:1;}
+#cfPBStart{width:100%;border:0;border-radius:16px;min-height:50px;background:linear-gradient(135deg,#7c5cff,#c76be0);color:#fff;font-size:14px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 6px 22px rgba(91,63,204,.38);margin-bottom:10px;}
+#cfPBSkip{width:100%;border:1.5px solid rgba(124,92,255,.25);border-radius:16px;min-height:44px;background:transparent;color:#8878bb;font-size:13px;font-weight:700;cursor:pointer;}
 /* ── Cinematic UI declutter ──────────────────────────────────────────────
    Remove every legacy manual-adjustment panel from the align screen.
    The cfCap scrub/speed editor and AI-auto-correction replace them all. */
@@ -21882,7 +21902,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   if(window.__cfCapCut) return; window.__cfCapCut=true;
   function $id(id){return document.getElementById(id);}
   function toastFn(m){ if(typeof toast==='function') toast(m); }
-  var rendering=false, pendingT=null, playing=false, playToken=0;
+  var rendering=false, pendingT=null, playing=false, playToken=0, _speedMs=2600;
 
   function pair(){
     var ph=(window.state&&state.photos)||[];
@@ -21950,6 +21970,41 @@ body.cfPresent .cfPresentExit{display:flex!important}
           '<button id="cfCapResultBackBtn">&#9654;&nbsp; プレビューに戻る</button>'+
         '</div>'+
       '</div>';
+    /* Prompt Board — injected into body so fixed positioning works correctly */
+    if(!document.getElementById('cfPBOverlay')){
+      var pbOverlay=document.createElement('div'); pbOverlay.id='cfPBOverlay';
+      var pbSheet=document.createElement('div'); pbSheet.id='cfPBSheet';
+      pbSheet.innerHTML=
+        '<div class="cfPBHandle"></div>'+
+        '<div class="cfPBTitle">書き出し設定</div>'+
+        '<div class="cfPBSub">治療情報は動画の各写真にテキスト表示されます</div>'+
+        /* SNS ratio selector */
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">動画サイズ・SNS用途</label>'+
+          '<div id="cfPBRatioRow">'+
+            '<button class="cfPBRatio on" data-ratio="9:16" data-label="ストーリー">9:16<span>ストーリー</span></button>'+
+            '<button class="cfPBRatio" data-ratio="4:5" data-label="フィード">4:5<span>フィード</span></button>'+
+            '<button class="cfPBRatio" data-ratio="1:1" data-label="正方形">1:1<span>正方形</span></button>'+
+            '<button class="cfPBRatio" data-ratio="16:9" data-label="横動画">16:9<span>横動画</span></button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">治療方法</label>'+
+          '<input type="text" id="cfPBTreatment" placeholder="例：ブラケット矯正・インビザライン・ホワイトニング">'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">治療期間</label>'+
+          '<input type="text" id="cfPBPeriod" placeholder="例：18ヶ月">'+
+        '</div>'+
+        '<div class="cfPBField">'+
+          '<label class="cfPBLabel">患者背景・ストーリー（任意）</label>'+
+          '<textarea id="cfPBStory" rows="3" placeholder="例：25歳・叢生の改善・審美目的。初診から完了まで。"></textarea>'+
+        '</div>'+
+        '<button id="cfPBStart">書き出し開始</button>'+
+        '<button id="cfPBSkip">スキップ（テキスト・サイズ設定なし）</button>';
+      document.body.appendChild(pbOverlay);
+      document.body.appendChild(pbSheet);
+    }
     var step=align.querySelector('.stepbar');
     if(step && step.nextSibling) align.insertBefore(box, step.nextSibling);
     else align.insertBefore(box, align.querySelector('.stage.align')||align.firstChild);
@@ -21995,7 +22050,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   // ── GPU async export (submits to /api/morph/submit, polls /api/morph/status) ──
-  async function cfCapGpuExport(){
+  async function cfCapGpuExport(opts){
+    opts=opts||{};
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     // Endpoint resolution order: window global → localStorage → fallback to local export
@@ -22021,6 +22077,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var totalSec=Math.min(10,Math.max(1.5,speedMs()*segCount/1000));
       fd.append('durationMs', String(Math.round(totalSec*1000)));
       fd.append('fps','30');
+      if(opts.treatment) fd.append('treatmentName', opts.treatment);
+      if(opts.period)    fd.append('treatmentDuration', opts.period);
+      if(opts.story)     fd.append('patientInfo', opts.story);
+      if(opts.ratio)     fd.append('outputRatio', opts.ratio);
       for(var i=0;i<ph.length;i++){
         var src=(typeof ph[i]==='string'?ph[i]:(ph[i].src||ph[i].dataUrl||ph[i].dataURL||''));
         var blob;
@@ -22155,8 +22215,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
       b.addEventListener('click',function(){
         box.querySelectorAll('#cfCapSpeed button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
         var ms=Number(b.dataset.ms)||2600;
+        _speedMs=ms;   /* local speed — drives canvas animation via speedMs() */
         var md=$id('morphDuration'); if(md){ md.value=ms; try{ md.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-        // Sync to v75Settings so export duration matches preview speed
         var segCount=Math.max(1,((window.state&&window.state.photos)||[]).length-1);
         var totalSec=Math.min(10,Math.max(1.5,ms*segCount/1000));
         if(window.state&&window.state.v75Settings) window.state.v75Settings.duration=totalSec;
@@ -22169,17 +22229,54 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(saveBtn) saveBtn.addEventListener('click',function(){
       cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
     });
-    /* GPU export button */
+    /* GPU export button → open Prompt Board first */
     var gpuBtn=box.querySelector('#cfCapGpuBtn');
-    if(gpuBtn) gpuBtn.addEventListener('click',function(){
-      cfCapGpuExport().catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
-    });
+    if(gpuBtn) gpuBtn.addEventListener('click',function(){ openPromptBoard(); });
+
+    /* Prompt Board wiring (sheet is in body, wired once) */
+    if(!window.__cfPBWired){
+      window.__cfPBWired=true;
+      function openPromptBoard(){
+        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
+        if(sh) sh.classList.add('open'); if(ov) ov.classList.add('open');
+      }
+      function closePromptBoard(){
+        var sh=document.getElementById('cfPBSheet'),ov=document.getElementById('cfPBOverlay');
+        if(sh) sh.classList.remove('open'); if(ov) ov.classList.remove('open');
+      }
+      document.querySelectorAll('.cfPBRatio').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          document.querySelectorAll('.cfPBRatio').forEach(function(b){b.classList.remove('on');});
+          btn.classList.add('on');
+        });
+      });
+      function startGpuWithPrompt(){
+        var selRatio=document.querySelector('.cfPBRatio.on');
+        var opts={
+          treatment:($id('cfPBTreatment')||{}).value||'',
+          period:   ($id('cfPBPeriod')||{}).value||'',
+          story:    ($id('cfPBStory')||{}).value||'',
+          ratio:    selRatio?selRatio.dataset.ratio:'9:16'
+        };
+        closePromptBoard();
+        cfCapGpuExport(opts).catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
+      }
+      var pbStart=document.getElementById('cfPBStart');
+      if(pbStart) pbStart.addEventListener('click',startGpuWithPrompt);
+      var pbSkip=document.getElementById('cfPBSkip');
+      if(pbSkip) pbSkip.addEventListener('click',function(){
+        closePromptBoard();
+        cfCapGpuExport({}).catch(function(e){ toastFn('GPUエラー: '+(e&&e.message||String(e)).slice(0,80)); });
+      });
+      var pbOv=document.getElementById('cfPBOverlay');
+      if(pbOv) pbOv.addEventListener('click',closePromptBoard);
+    }
     /* Cancel button */
     var cancelBtn=box.querySelector('#cfCapGpuCancel');
     if(cancelBtn) cancelBtn.addEventListener('click',function(){ if(_gpuAbort) _gpuAbort.abort(); gpuShowOverlay(false); });
   }
   function setPct(t){ var e=$id('cfCapPct'); if(e) e.textContent=Math.round(t*100)+'%'; }
-  function speedMs(){ var md=$id('morphDuration'); return Math.max(700, Number(md&&md.value)||2600); }
+  function speedMs(){ return _speedMs; }
 
   // ── CASEFLOW STUDIO™ watermark — drawn on preview canvas AND export frames ──
   function drawWatermark(ctx, w, h){

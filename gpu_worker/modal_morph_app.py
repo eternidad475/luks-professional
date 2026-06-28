@@ -61,6 +61,7 @@ GPU_IMAGE = (
     .apt_install(
         "ffmpeg", "libgl1-mesa-glx", "libglib2.0-0",
         "libsm6", "libxext6", "libxrender-dev", "git",
+        "fonts-noto-cjk",   # Japanese text rendering in PIL
     )
     # PyTorch (CUDA 12.1 build)
     .pip_install(
@@ -343,8 +344,107 @@ def interp_segment(a_bgr, b_bgr, n: int) -> list:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 9.  GPU Function  —  the full "Static Canvas" pipeline
+# 9.  Caption helper  — clinical stage labels + treatment overlay using PIL
 # ══════════════════════════════════════════════════════════════════════════════
+_FONT_PATHS = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJKjp-Regular.otf",
+]
+
+def add_caption(frame_bgr, stage: str, sub: str = "") -> "np.ndarray":
+    """Overlay a stage label and optional sub-line at the bottom of a frame."""
+    import numpy as np, cv2
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)).convert("RGBA")
+    W, H = img.size
+    bar_h = max(60, int(H * 0.11))
+
+    # Semi-transparent black bottom bar
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    from PIL import ImageDraw as ID
+    od = ID.Draw(overlay)
+    od.rectangle([(0, H - bar_h), (W, H)], fill=(0, 0, 0, 160))
+    img = Image.alpha_composite(img, overlay)
+    draw = ImageDraw.Draw(img)
+
+    # Font sizes proportional to frame width
+    sz_main = max(28, W // 26)
+    sz_sub  = max(20, W // 38)
+    font_main = font_sub = ImageFont.load_default()
+    for fp in _FONT_PATHS:
+        try:
+            font_main = ImageFont.truetype(fp, sz_main)
+            font_sub  = ImageFont.truetype(fp, sz_sub)
+            break
+        except Exception:
+            pass
+
+    cx = W // 2
+    if sub:
+        draw.text((cx, H - bar_h + bar_h // 3), stage, font=font_main,
+                  fill=(255, 255, 255, 255), anchor="mm")
+        draw.text((cx, H - bar_h // 5), sub, font=font_sub,
+                  fill=(210, 210, 210, 255), anchor="mm")
+    else:
+        draw.text((cx, H - bar_h // 2), stage, font=font_main,
+                  fill=(255, 255, 255, 255), anchor="mm")
+
+    result = cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2BGR)
+    return result
+
+
+def _auto_stage_labels(n: int) -> list[str]:
+    if n == 1:  return ["治療記録"]
+    if n == 2:  return ["治療前", "治療後"]
+    if n == 3:  return ["治療前", "経過観察", "治療後"]
+    return ["治療前"] + [f"治療中 {chr(0x2460 + i)}" for i in range(n - 2)] + ["治療後"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 10. GPU Function  —  the clinical-record video pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+def _apply_output_ratio(frames: list, ratio_str: str) -> tuple:
+    """Center-crop all frames to the requested aspect ratio (w:h).
+
+    Returns (cropped_frames, out_w, out_h). Dimensions are forced even for H.264.
+    If ratio_str is empty or 'original', frames are returned unchanged.
+    """
+    import cv2, numpy as np
+    if not frames or not ratio_str or ratio_str == "original":
+        h0, w0 = frames[0].shape[:2]
+        return frames, w0 - (w0 % 2), h0 - (h0 % 2)
+
+    parts = ratio_str.split(":")
+    if len(parts) != 2:
+        h0, w0 = frames[0].shape[:2]
+        return frames, w0 - (w0 % 2), h0 - (h0 % 2)
+
+    rw, rh = float(parts[0]), float(parts[1])
+    target_ar = rw / rh
+    H, W = frames[0].shape[:2]
+    src_ar = W / H
+
+    if abs(src_ar - target_ar) < 0.005:
+        return frames, W - (W % 2), H - (H % 2)
+
+    if src_ar > target_ar:
+        # source wider than target — crop left/right edges
+        new_w = int(round(H * target_ar))
+        new_w = new_w - (new_w % 2)
+        x0 = (W - new_w) // 2
+        out = [fr[:, x0:x0 + new_w] for fr in frames]
+        return out, new_w, H - (H % 2)
+    else:
+        # source taller than target — crop top/bottom edges
+        new_h = int(round(W / target_ar))
+        new_h = new_h - (new_h % 2)
+        y0 = (H - new_h) // 2
+        out = [fr[y0:y0 + new_h, :] for fr in frames]
+        return out, W - (W % 2), new_h
+
+
 @app.function(
     image   = GPU_IMAGE,
     gpu     = "A10G",
@@ -353,7 +453,11 @@ def interp_segment(a_bgr, b_bgr, n: int) -> list:
     memory  = 32768,
 )
 def run_pipeline(job_id: str, frame_keys: list[str],
-                 duration_ms: int, fps: int):
+                 duration_ms: int, fps: int,
+                 treatment_name: str = "",
+                 treatment_duration: str = "",
+                 patient_info: str = "",
+                 output_ratio: str = "9:16"):
     import cv2, numpy as np
     import ffmpeg as ff
 
@@ -374,26 +478,19 @@ def run_pipeline(job_id: str, frame_keys: list[str],
         H, W = raw[-1].shape[:2]
         log.info(f"[{job_id}] {len(raw)} clinical photos · canvas {W}×{H}")
 
-        # B ── Letterbox-fit each photo to a common canvas ────────────────
-        # Clinical record rule: every photo is displayed exactly as captured.
-        # We only resize to share a common canvas size for the video encoder.
-        # Letterboxing (black bars) keeps the full image visible.
+        # B ── Scale all photos to match the last photo's dimensions ─────
+        # We scale (not letterbox) to keep the full-bleed look.
+        # The last photo's dimensions define the canvas; all others are
+        # resized to match so the video encoder gets consistent frame sizes.
         status("segmenting", 10)
 
-        def letterbox(img):
-            ih, iw = img.shape[:2]
-            if iw == W and ih == H:
-                return img.copy()
-            scale = min(W / iw, H / ih)
-            nw, nh = round(iw * scale), round(ih * scale)
-            res = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LANCZOS4)
-            canvas = np.zeros((H, W, 3), dtype=np.uint8)
-            x0, y0 = (W - nw) // 2, (H - nh) // 2
-            canvas[y0:y0+nh, x0:x0+nw] = res
-            return canvas
-
-        frames = [letterbox(fr) for fr in raw]
-        log.info(f"[{job_id}] {len(frames)} frames letterboxed to {W}×{H}")
+        frames = []
+        for fr in raw:
+            if fr.shape[:2] == (H, W):
+                frames.append(fr.copy())
+            else:
+                frames.append(cv2.resize(fr, (W, H), interpolation=cv2.INTER_LANCZOS4))
+        log.info(f"[{job_id}] {len(frames)} frames scaled to {W}×{H}")
 
         # C ── Build video: hold each key frame + GPU-generated tween frames
         # Like clay-animation: the actual clinical photos are the key frames,
@@ -408,14 +505,33 @@ def run_pipeline(job_id: str, frame_keys: list[str],
 
         log.info(f"[{job_id}] hold={hold_n}f  tween={trans_n}f  per segment")
 
+        # Build stage labels and sub-line from prompt data
+        stage_labels = _auto_stage_labels(n)
+        sub_line = "  ·  ".join(filter(None, [treatment_name, treatment_duration, patient_info]))
+        use_caption = bool(treatment_name or treatment_duration or patient_info)
+        log.info(f"[{job_id}] caption={'yes' if use_caption else 'no'}  sub='{sub_line[:60]}'")
+
         all_frames = []
         for i, fr in enumerate(frames):
             status("interpolating", 36 + int(i / n * 46))
-            all_frames.extend([fr] * hold_n)          # hold the clinical photo
+            # Key frame hold: uncaptioned first third, captioned remaining two-thirds
+            uncap_n = max(1, hold_n // 3)
+            cap_n   = hold_n - uncap_n
+            if use_caption:
+                captioned = add_caption(fr, stage_labels[i], sub_line)
+            else:
+                captioned = fr
+            all_frames.extend([fr] * uncap_n)           # photo shown clean first
+            all_frames.extend([captioned] * cap_n)      # then caption fades in (same frame, instant)
+            # Tween frames (no caption — clean transition between key frames)
             if i < n - 1:
                 all_frames.extend(interp_segment(fr, frames[i + 1], trans_n))
 
         log.info(f"[{job_id}] {len(all_frames)} total frames → {len(all_frames)/fps:.1f}s")
+
+        # C.5 ── Crop frames to requested SNS output ratio ─────────────────
+        all_frames, W, H = _apply_output_ratio(all_frames, output_ratio)
+        log.info(f"[{job_id}] output ratio '{output_ratio}' → {W}×{H}")
 
         # D ── Encode MP4 ──────────────────────────────────────────────────
         status("encoding", 82)
@@ -479,9 +595,13 @@ web_app.add_middleware(
 
 @web_app.post("/api/morph/submit", status_code=202)
 async def submit(
-    frame      : list[UploadFile] = File(...),
-    durationMs : int              = Form(4000),
-    fps        : int              = Form(30),
+    frame             : list[UploadFile] = File(...),
+    durationMs        : int              = Form(4000),
+    fps               : int              = Form(30),
+    treatmentName     : str              = Form(""),
+    treatmentDuration : str              = Form(""),
+    patientInfo       : str              = Form(""),
+    outputRatio       : str              = Form("9:16"),
 ):
     job_id = str(uuid.uuid4())
     r2     = _r2()
@@ -501,7 +621,8 @@ async def submit(
         return JSONResponse({"error": f"Redis unavailable: {str(e)[:200]}"}, status_code=503)
 
     # Non-blocking spawn — returns immediately, GPU runs in background
-    run_pipeline.spawn(job_id, frame_keys, durationMs, fps)
+    run_pipeline.spawn(job_id, frame_keys, durationMs, fps,
+                       treatmentName, treatmentDuration, patientInfo, outputRatio)
 
     return JSONResponse({"jobId": job_id})
 
