@@ -23079,6 +23079,42 @@ body.cfPresent .cfPresentExit{display:flex!important}
   // cfGetOutputSizeForRatio — canonical output-size getter (wraps ratioWH).
   function cfGetOutputSizeForRatio(r){ return ratioWH(r); }
 
+  // cfBuildMorphTimeline — canonical frame schedule for preview and export.
+  // speedMs = per-segment duration; fps = output frame rate.
+  // Returns {segmentCount, totalDurationMs, frameMs, totalIntervals, totalFrames}.
+  function cfBuildMorphTimeline(photos, speedMs, fps){
+    var segmentCount=Math.max(1, photos.length-1);
+    var totalDurationMs=speedMs*segmentCount;
+    var frameMs=1000/fps;
+    // Number of inter-frame intervals; +1 to include both t=0 and t=1 endpoints.
+    var totalIntervals=Math.max(1, Math.round(totalDurationMs/frameMs));
+    var totalFrames=totalIntervals+1;
+    return {segmentCount:segmentCount, totalDurationMs:totalDurationMs, frameMs:frameMs, totalIntervals:totalIntervals, totalFrames:totalFrames};
+  }
+
+  // cfGetTimelinePosition — maps a frame index to morph position.
+  // Returns {timeMs, globalT, pairIndex, localT}.
+  function cfGetTimelinePosition(timeline, frameIndex){
+    var timeMs=Math.min(frameIndex*timeline.frameMs, timeline.totalDurationMs);
+    var globalT=timeline.totalDurationMs<=0 ? 1 : timeMs/timeline.totalDurationMs;
+    var raw=globalT*timeline.segmentCount;
+    var pairIndex=Math.min(timeline.segmentCount-1, Math.floor(raw));
+    var localT=raw-pairIndex;
+    // Last frame guarantee: always land exactly on t=1
+    if(frameIndex>=timeline.totalFrames-1){
+      pairIndex=timeline.segmentCount-1; localT=1; globalT=1;
+    }
+    return {timeMs:timeMs, globalT:globalT, pairIndex:pairIndex, localT:Math.max(0,Math.min(1,localT))};
+  }
+
+  // cfWaitUntil — sleep until an absolute performance.now() timestamp.
+  // Returns immediately if the time has already passed.
+  function cfWaitUntil(targetTime){
+    var delay=targetTime-performance.now();
+    if(delay<=0) return Promise.resolve();
+    return new Promise(function(resolve){ setTimeout(resolve, delay); });
+  }
+
   // ── CASEFLOW STUDIO™ watermark — drawn on preview canvas AND export frames ──
   function drawWatermark(ctx, w, h){
     var fs=Math.round(w*0.032);               // ~35px at 1080w; scales with canvas
@@ -23365,53 +23401,34 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
       var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine);
 
-      // Phase 1: Render all frames synchronously to JPEG blobs (no async race conditions)
+      // Build canonical timeline — same definition as preview play loop
+      var timeline=cfBuildMorphTimeline(ph, activeSpeedMs, fps);
+      console.log('[CaseFlow Export] speedMs', activeSpeedMs,
+        '| segmentCount', timeline.segmentCount,
+        '| expectedDurationMs', timeline.totalDurationMs,
+        '| fps', fps,
+        '| totalFrames', timeline.totalFrames,
+        '| frameMs', timeline.frameMs.toFixed(2));
+
+      if(waitEl){
+        var msg2=waitEl.querySelector&&waitEl.querySelector('.cfCWMsg');
+        if(msg2) msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…';
+      }
+
+      // Export canvas: CPU render target (never displayed)
       var exportCanvas=document.createElement('canvas');
       exportCanvas.width=w; exportCanvas.height=h;
       var exportCtx=exportCanvas.getContext('2d',{alpha:false});
-      exportCtx.imageSmoothingEnabled=true;
-      exportCtx.imageSmoothingQuality='high';
+      exportCtx.imageSmoothingEnabled=true; exportCtx.imageSmoothingQuality='high';
 
-      var blobs=[];
-      var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
-
-      for(var f=0;f<totalFrames;f++){
-        var globalT=totalFrames<=1?1:f/(totalFrames-1);
-        var raw=globalT*plan.segCount;
-        var pairIdx=Math.min(plan.segCount-1,Math.floor(raw));
-        var localT=raw-pairIdx;
-        if(pairIdx>=plan.segCount){ pairIdx=plan.segCount-1; localT=1; }
-
-        // Synchronous render — no IO, no async, no duplicate frames
-        renderExportFrame(exportCtx, plan, plan.pairPlans[pairIdx], localT);
-        drawWatermark(exportCtx, w, h);
-
-        var fp=computeFrameFingerprint(exportCtx, w, h);
-        if(lastFp!==null && fp===lastFp){
-          dupCount++;
-          curDupRun++;
-          if(curDupRun>maxDupRun) maxDupRun=curDupRun;
-        }else{ curDupRun=0; }
-        lastFp=fp;
-
-        var blob=await new Promise(function(res){ exportCanvas.toBlob(res,'image/jpeg',0.93); });
-        blobs.push(blob);
-
-        if(btn) btn.textContent='レンダリング '+Math.round((f+1)/totalFrames*100)+'%';
-        if((f+1)%8===0) await new Promise(function(r){ setTimeout(r,0); }); // yield to UI
-      }
-
-      // Phase 2: Replay pre-rendered JPEG blobs into MediaRecorder at exact wall-clock fps
-      if(btn) btn.textContent='エンコード中…';
-      toastFn('動画エンコード中…');
-
+      // Replay canvas: MediaRecorder source
       var replayCanvas=document.createElement('canvas');
       replayCanvas.width=w; replayCanvas.height=h;
       var replayCtx=replayCanvas.getContext('2d');
 
+      // Set up MediaRecorder
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
-
       var stream, track, manual=false;
       try{
         stream=replayCanvas.captureStream(0);
@@ -23422,21 +23439,40 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000});
       var parts=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) parts.push(e.data); };
-      rec.start();
 
-      var replayStart=performance.now();
-      for(var f2=0;f2<totalFrames;f2++){
-        var bmp=await createImageBitmap(blobs[f2]);
-        replayCtx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
-        // Let browser composite canvas before requestFrame so encoder sees the new pixels
-        await new Promise(requestAnimationFrame);
+      // Pre-render frame 0 before rec.start() — prevents leading black frame
+      var pos0=cfGetTimelinePosition(timeline, 0);
+      renderExportFrame(exportCtx, plan, plan.pairPlans[pos0.pairIndex], pos0.localT);
+      drawWatermark(exportCtx, w, h);
+      replayCtx.drawImage(exportCanvas, 0, 0);
+      await new Promise(requestAnimationFrame); // let browser composite first frame
+
+      rec.start();
+      var recordStart=performance.now();
+      var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
+      if(btn) btn.textContent='エンコード中…';
+      toastFn('動画エンコード中…');
+
+      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
+      for(var f=0;f<timeline.totalFrames;f++){
+        var pos=cfGetTimelinePosition(timeline, f);
+        // Sleep until this frame's target wall-clock time
+        await cfWaitUntil(recordStart+pos.timeMs);
+        // Render frame and push to encoder
+        renderExportFrame(exportCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
+        drawWatermark(exportCtx, w, h);
+        var fp=computeFrameFingerprint(exportCtx, w, h);
+        if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+        lastFp=fp;
+        replayCtx.drawImage(exportCanvas, 0, 0);
         if(manual&&track) track.requestFrame();
-        // Wall-clock pacing: each frame lands at its exact target time
-        var targetMs=replayStart+(f2+1)*frameMs;
-        var delay=Math.max(0,targetMs-performance.now());
-        if(delay>0) await new Promise(function(r){ setTimeout(r,delay); });
+        if(btn) btn.textContent='エンコード '+Math.round((f+1)/timeline.totalFrames*100)+'%';
       }
       await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
+
+      var actualElapsedMs=performance.now()-recordStart;
+      console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
+        '| durationRatio', (actualElapsedMs/timeline.totalDurationMs).toFixed(3));
 
       var result=await new Promise(function(resolve){
         rec.onstop=function(){
@@ -23446,21 +23482,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
         rec.stop();
       });
 
-      // Persist stats for console inspection: window._cfLastExportStats
-      var dupRate=totalFrames>1?(dupCount/(totalFrames-1)*100).toFixed(1):'0.0';
+      var dupRate=timeline.totalFrames>1?(dupCount/(timeline.totalFrames-1)*100).toFixed(1):'0.0';
       window._cfLastExportStats={
-        totalFrames:totalFrames, dupCount:dupCount, dupRate:parseFloat(dupRate),
+        totalFrames:timeline.totalFrames, dupCount:dupCount, dupRate:parseFloat(dupRate),
         maxDupRun:maxDupRun, segCount:plan.segCount,
-        framesPerSegment:Math.round(totalFrames/plan.segCount),
-        fps:fps, bitrateMbps:12, width:w, height:h, durationSec:durationMs/1000
+        framesPerSegment:Math.round(timeline.totalFrames/plan.segCount),
+        fps:fps, bitrateMbps:12, width:w, height:h,
+        durationSec:timeline.totalDurationMs/1000,
+        actualElapsedMs:Math.round(actualElapsedMs),
+        durationRatio:parseFloat((actualElapsedMs/timeline.totalDurationMs).toFixed(3))
       };
-      if(window.CASEFLOW_DEBUG) console.log('[CF Export]', JSON.stringify(window._cfLastExportStats));
+      console.log('[CF Export stats]', JSON.stringify(window._cfLastExportStats));
 
       if(result){
         if(typeof setExportBlob==='function'){ setExportBlob(result.blob,result.name,result.mime); if(typeof go==='function') go('export'); }
         else{ var u=URL.createObjectURL(result.blob); var a=document.createElement('a'); a.href=u; a.download=result.name; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
       }
-      toastFn('動画を書き出しました ✓ ('+Math.round(durationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+      toastFn('動画を書き出しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
 
     }catch(err){
       toastFn('書き出しエラー: '+(err&&err.message||String(err)).slice(0,80));
@@ -23530,81 +23568,93 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var waitOvEl=$id('cfCWWait');
     if(waitOvEl){
       var _msg=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg');
-      if(_msg) _msg.textContent='書き出し中… ('+totalFrames+'フレーム)';
+      if(_msg) _msg.textContent='書き出し準備中…';
       waitOvEl.classList.add('active');
     }
-    toastFn('書き出し準備中… ('+totalFrames+'フレーム)');
+    toastFn('書き出し準備中…');
     stop();
     window._cfExportInProgress=true;
     var prevMesh=(window.state&&state.trueMeshEnabled);
     var prevOverlay=(window.state&&state.meshOverlayEnabled);
     var prevExportMode=(window.state&&!!state.cfExportMode);
     if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
-    var blobs=[];
     try{
-      // Phase 0: precompute — no async IO inside the render loop
+      // Phase 0: precompute mesh/image data — no async IO inside the recording loop
       var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine2);
-      // Phase 1: deterministic frame render
-      var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
-      var tc=tmp.getContext('2d',{alpha:false});
-      tc.imageSmoothingEnabled=true; tc.imageSmoothingQuality='high';
+
+      // Build canonical timeline — same definition as preview
+      var timeline=cfBuildMorphTimeline(ph, activeSpeedMs2, fps);
+      console.log('[CaseFlow Export] speedMs', activeSpeedMs2,
+        '| segmentCount', timeline.segmentCount,
+        '| expectedDurationMs', timeline.totalDurationMs,
+        '| fps', fps,
+        '| totalFrames', timeline.totalFrames,
+        '| frameMs', timeline.frameMs.toFixed(2));
+
+      // Export canvas (render) + replay canvas (captureStream)
+      var expCv=document.createElement('canvas'); expCv.width=w; expCv.height=h;
+      var expCtx=expCv.getContext('2d',{alpha:false});
+      expCtx.imageSmoothingEnabled=true; expCtx.imageSmoothingQuality='high';
+      var repCv=document.createElement('canvas'); repCv.width=w; repCv.height=h;
+      var repCtx=repCv.getContext('2d');
+
+      var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
+      var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
+      var stream,track,manual=false;
+      try{
+        stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
+      }catch(e){ stream=repCv.captureStream(fps); }
+      var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
+      rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
+
+      // Pre-render frame 0 before rec.start() — prevents leading black frame
+      var p0=cfGetTimelinePosition(timeline,0);
+      renderExportFrame(expCtx, plan, plan.pairPlans[p0.pairIndex], p0.localT);
+      drawWatermark(expCtx, w, h);
+      repCtx.drawImage(expCv, 0, 0);
+      await new Promise(requestAnimationFrame);
+
+      rec.start();
+      var recordStart=performance.now();
       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
-      for(var f=0;f<totalFrames;f++){
-        var globalT=totalFrames<=1?1:f/(totalFrames-1);
-        var raw=globalT*plan.segCount;
-        var pairIdx=Math.min(plan.segCount-1,Math.floor(raw));
-        var localT=raw-pairIdx;
-        if(pairIdx>=plan.segCount){ pairIdx=plan.segCount-1; localT=1; }
-        renderExportFrame(tc, plan, plan.pairPlans[pairIdx], localT);
-        drawWatermark(tc, w, h);
-        var fp=computeFrameFingerprint(tc, w, h);
+      toastFn('動画エンコード中…');
+      if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
+
+      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
+      for(var f=0;f<timeline.totalFrames;f++){
+        var pos=cfGetTimelinePosition(timeline, f);
+        await cfWaitUntil(recordStart+pos.timeMs);
+        renderExportFrame(expCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
+        drawWatermark(expCtx, w, h);
+        var fp=computeFrameFingerprint(expCtx, w, h);
         if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
         lastFp=fp;
-        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.93); });
-        blobs.push(blob);
-        if((f+1)%8===0) await new Promise(function(r){ setTimeout(r,0); });
+        repCtx.drawImage(expCv, 0, 0);
+        if(manual&&track) track.requestFrame();
       }
-      var dupRate=totalFrames>1?(dupCount/(totalFrames-1)*100).toFixed(1):'0.0';
-      window._cfLastExportStats={totalFrames:totalFrames,dupCount:dupCount,dupRate:parseFloat(dupRate),maxDupRun:maxDupRun,segCount:plan.segCount,framesPerSegment:Math.round(totalFrames/plan.segCount),fps:fps,bitrateMbps:12,width:w,height:h,durationSec:durationMs/1000};
-      if(window.CASEFLOW_DEBUG) console.log('[CF Export]', JSON.stringify(window._cfLastExportStats));
+      await new Promise(function(r){setTimeout(r,250);});
+
+      var actualElapsedMs=performance.now()-recordStart;
+      console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
+        '| durationRatio', (actualElapsedMs/timeline.totalDurationMs).toFixed(3));
+
+      var dupRate=timeline.totalFrames>1?(dupCount/(timeline.totalFrames-1)*100).toFixed(1):'0.0';
+      window._cfLastExportStats={totalFrames:timeline.totalFrames,dupCount:dupCount,dupRate:parseFloat(dupRate),maxDupRun:maxDupRun,segCount:plan.segCount,framesPerSegment:Math.round(timeline.totalFrames/plan.segCount),fps:fps,bitrateMbps:12,width:w,height:h,durationSec:timeline.totalDurationMs/1000,actualElapsedMs:Math.round(actualElapsedMs),durationRatio:parseFloat((actualElapsedMs/timeline.totalDurationMs).toFixed(3))};
+      console.log('[CF Export stats]', JSON.stringify(window._cfLastExportStats));
+
+      var result=await new Promise(function(resolve){
+        rec.onstop=function(){ resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')}); };
+        rec.stop();
+      });
+      if(waitOvEl) waitOvEl.classList.remove('active');
+      if(result){
+        if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
+        toastFn('動画を書き出しました（'+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+'）');
+      }
     }finally{
       if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
       window._cfExportInProgress=false;
-    }
-    toastFn('動画エンコード中…');
-    // Phase 2: replay pre-rendered frames at controlled wall-clock fps
-    var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-    var ctx=canvas.getContext('2d');
-    var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
-    var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
-    var stream,track,manual=false;
-    try{
-      stream=canvas.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-      if(track&&typeof track.requestFrame==='function') manual=true; else stream=canvas.captureStream(fps);
-    }catch(e){ stream=canvas.captureStream(fps); }
-    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
-    rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
-    rec.start();
-    var replayStart=performance.now();
-    for(var f2=0;f2<totalFrames;f2++){
-      var bmp=await createImageBitmap(blobs[f2]);
-      ctx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
-      await new Promise(requestAnimationFrame); // let browser composite before requestFrame
-      if(manual&&track) track.requestFrame();
-      var targetMs=replayStart+(f2+1)*frameMs;
-      var delay=Math.max(0,targetMs-performance.now());
-      if(delay>0) await new Promise(function(r){setTimeout(r,delay);});
-    }
-    await new Promise(function(r){setTimeout(r,250);});
-    var result=await new Promise(function(resolve){
-      rec.onstop=function(){ resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')}); };
-      rec.stop();
-    });
-    var waitOvEl2=$id('cfCWWait');
-    if(waitOvEl2) waitOvEl2.classList.remove('active');
-    if(result){
-      if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
-      toastFn('動画を書き出しました（'+Math.round(durationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+'）');
     }
   }
 
