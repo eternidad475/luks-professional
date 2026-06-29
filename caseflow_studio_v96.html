@@ -19519,54 +19519,132 @@ body[data-ui-tone="dark"]{
     ctx.putImageData(id, 0, 0);
   }
 
-  // ── Sim Studio 3-layer ROI soft matte system ─────────────────────────────────
-  // Maps treatment concept + active chief complaint cards → Core/Support/Context
-  // scale multipliers.  All scales multiply the base (rx, ry) of the detected
-  // oral region.  Larger scale = wider zone = more area is edited/blended.
+  // ── Sim Studio landmark-aware multi-zone ROI + distance-based soft matte ──────
+  // Maps treatment concept + active chief complaint cards → not just Support/Context
+  // *extent* but also the directional *shape* of the ROI (horizontal widening toward
+  // the commissures, vertical extension toward the gingiva or the incisal edge).
+  // This is what makes each card change the ROI's FORM, not only a magnitude value.
   function cfSimROIConfig(concept, targets){
-    let support=1.55, context=2.10;
-    if(concept==='prosthetic'){ support=1.80; context=2.40; }
-    if(concept==='hybrid'){     support=2.00; context=2.80; }
+    // radial extent multipliers — context defines the outermost falloff radius
+    let support=1.55, context=2.15;
+    // directional shape bias (neutral = 1.0 / 0.0)
+    let biasX=1.0;     // horizontal widening toward the mouth corners
+    let biasUp=0.0;    // upward (gingival) extension, as a fraction of ry
+    let biasDown=0.0;  // downward (incisal / lower-lip) extension, fraction of ry
+    // ---- treatment concept shapes the base ROI ----
+    if(concept==='prosthetic'){ support=1.75; context=2.35; biasUp=0.10; }        // target tooth unit + gingival emergence
+    else if(concept==='hybrid'){ support=2.00; context=2.85; biasX=1.14; biasUp=0.12; biasDown=0.10; } // widest multi-zone
+    else { support=1.60; context=2.20; biasX=1.18; biasDown=0.06; }               // ortho: arch / smile-line → widen toward corners
     const t=targets||{};
-    if(t.harmony){ support=Math.max(support,2.20); context=Math.max(context,3.00); }
-    if(t.missing){ support=Math.max(support,2.00); context=Math.max(context,2.80); }
-    if(t.space){   support=Math.max(support,1.90); context=Math.max(context,2.60); }
-    if(t.scallop){ support=Math.max(support,1.90); context=Math.max(context,2.50); }
-    if(t.incisal){ support=Math.max(support,1.70); context=Math.max(context,2.30); }
-    // 'shade' is the tightest card — no upward override
-    return {core:1.0, support:support, context:context};
+    // ---- chief-complaint cards reshape the ROI (form, not just value) ----
+    if(t.shade){   support=Math.max(support,1.45); }                              // tightest: teeth-centred, thin gingiva/lip support
+    if(t.space){   support=Math.max(support,1.85); context=Math.max(context,2.55); biasX=Math.max(biasX,1.16); } // interproximal units, wider
+    if(t.scallop){ support=Math.max(support,1.90); context=Math.max(context,2.55); biasUp=Math.max(biasUp,0.24); }  // gingiva → extend upward
+    if(t.incisal){ support=Math.max(support,1.70); context=Math.max(context,2.40); biasDown=Math.max(biasDown,0.24); } // incisal + lower-lip → downward
+    if(t.missing){ support=Math.max(support,2.00); context=Math.max(context,2.80); biasX=Math.max(biasX,1.16); biasUp=Math.max(biasUp,0.12); } // edentulous + adjacent + gingiva
+    if(t.harmony){ support=Math.max(support,2.25); context=Math.max(context,3.05); biasX=Math.max(biasX,1.22); biasDown=Math.max(biasDown,0.10); } // widest perioral context
+    return {core:1.0, support:support, context:context, biasX:biasX, biasUp:biasUp, biasDown:biasDown};
   }
 
-  // Builds a 3-zone elliptical alpha matte for destination-in compositing.
-  // Matte alpha encodes edit contribution per zone:
-  //   Core  (rx×core,    ry×core)    → alpha ≈ 1.00  dental crowns / incisal
-  //   Support (rx×support, ry×support) → alpha ≈ 0.75  gingiva / lip edges
-  //   Context (rx×context, ry×context) → alpha ≈ 0.22  perioral / lower-face
-  // Zones are separated by Gaussian blur so transitions are smooth, never hard.
-  function cfBuildSoftMatte(w, h, cx, cy, rx, ry, scales, baseFeatherPx){
+  // Continuous distance-based soft matte (NO banding).  A multi-stop radial gradient
+  // encodes the Core→Support→Context edit contribution as a SMOOTH falloff from the
+  // ROI centre (the radial coordinate is the distance, so the decay is continuous —
+  // unlike stacked discrete-alpha ellipses which leave visible bands).  An anisotropic
+  // transform + directional bias give the ROI its per-card SHAPE; an optional feathered
+  // landmark polygon clips the matte to the real mouth contour (facial) so the result
+  // follows anatomy instead of a bare symmetric ellipse.
+  //   Core      → alpha ≈ 1.00  dental crowns / incisal / spaces / restoration
+  //   Inner Sup → alpha ≈ 0.70  papilla / gingival margin / inner lip
+  //   Outer Sup → alpha ≈ 0.40  gingiva / lip surface / commissure
+  //   Context   → alpha ≈ 0.20  perioral skin / sub-nasal / chin shadow → 0
+  function cfBuildSoftMatte(w, h, cx, cy, rx, ry, scales, featherPx, shapePoly){
     const off=document.createElement('canvas'); off.width=w; off.height=h;
     const ox=off.getContext('2d');
-    const feath=Math.max(2, baseFeatherPx||0);
-    const addLayer=function(erx, ery, fillAlpha, blurPx){
-      const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
-      const tx=tmp.getContext('2d');
-      tx.fillStyle='rgba(255,255,255,'+fillAlpha+')';
-      tx.beginPath(); tx.ellipse(cx, cy, Math.max(1,erx), Math.max(1,ery), 0, 0, Math.PI*2); tx.fill();
-      if(blurPx>0.5){
-        const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
-        const fbx=fb.getContext('2d');
-        fbx.filter='blur('+Math.round(blurPx)+'px)'; fbx.drawImage(tmp,0,0); fbx.filter='none';
-        return fb;
-      }
-      return tmp;
-    };
-    // Context layer: widest, faintest (≈0.22), heaviest blur — perioral zone
-    ox.drawImage(addLayer(rx*scales.context, ry*scales.context, 0.22, feath*2.2), 0, 0);
-    // Support layer: mid width (≈0.75 cumulative), moderate blur — gingiva/lip edges
-    ox.drawImage(addLayer(rx*scales.support, ry*scales.support, 0.72, feath*1.0), 0, 0);
-    // Core layer: tightest (≈1.0 cumulative), light blur — dental crowns / incisal
-    ox.drawImage(addLayer(rx*scales.core,    ry*scales.core,    1.00, Math.max(1,feath*0.4)), 0, 0);
+    const biasX=scales.biasX||1.0;
+    const upPx=(scales.biasUp||0)*ry;     // gingival extension (pixels)
+    const downPx=(scales.biasDown||0)*ry; // incisal extension (pixels)
+    // Outermost extent = the context ring → the gradient's unit radius (=1).
+    const Rx=Math.max(2, rx*scales.context*biasX);
+    const Ry=Math.max(2, ry*scales.context);
+    // Vertical centre shift toward the card's anatomical target (gingiva ↑ / incisal ↓).
+    const cyShift=(downPx-upPx)*0.5;
+    // Core / support boundaries expressed as fractions of the context radius → gradient stops.
+    const coreFrac =Math.max(0.12, Math.min(0.55, scales.core/scales.context));
+    const supInFr  =Math.max(coreFrac+0.06, Math.min(0.74, (scales.support/scales.context)*0.74));
+    const supOutFr =Math.max(supInFr+0.06,  Math.min(0.90, scales.support/scales.context));
+    ox.save();
+    ox.translate(cx, cy+cyShift);
+    ox.scale(Rx, Ry);                       // unit circle → ROI ellipse (anisotropic + biased)
+    const g=ox.createRadialGradient(0,0,0, 0,0,1);
+    g.addColorStop(0,          'rgba(255,255,255,1)');
+    g.addColorStop(coreFrac,   'rgba(255,255,255,1)');     // Core plateau
+    g.addColorStop(supInFr,    'rgba(255,255,255,0.70)');  // Inner Support
+    g.addColorStop(supOutFr,   'rgba(255,255,255,0.40)');  // Outer Support
+    g.addColorStop(0.92,       'rgba(255,255,255,0.18)');  // Context
+    g.addColorStop(1,          'rgba(255,255,255,0)');      // continuous fade to zero
+    ox.fillStyle=g;
+    ox.beginPath(); ox.arc(0,0,1,0,Math.PI*2); ox.fill();
+    ox.restore();
+    // Light global feather to erase any gradient quantisation steps.
+    if(featherPx>0.5){
+      const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
+      const fbx=fb.getContext('2d');
+      fbx.filter='blur('+Math.max(1,Math.round(featherPx*0.5))+'px)';
+      fbx.drawImage(off,0,0); fbx.filter='none';
+      ox.clearRect(0,0,w,h); ox.drawImage(fb,0,0);
+    }
+    // FACIAL: clip the radial matte to a generously-expanded, heavily-feathered lip
+    // polygon so the ROI follows the real mouth contour (structural, landmark-based)
+    // rather than a symmetric ellipse.  Both edges (gradient falloff ∧ polygon feather)
+    // are soft, so their intersection stays soft — no hard outline.
+    if(shapePoly && shapePoly.length>=6){
+      let pcx=0,pcy=0; shapePoly.forEach(p=>{pcx+=p.x;pcy+=p.y;}); pcx/=shapePoly.length; pcy/=shapePoly.length;
+      const expand=1.95;  // expand polygon to cover the support+context band, not only the core
+      const sc=document.createElement('canvas'); sc.width=w; sc.height=h;
+      const scx=sc.getContext('2d'); scx.fillStyle='#fff'; scx.beginPath();
+      shapePoly.forEach((p,i)=>{
+        const x=pcx+(p.x-pcx)*expand;
+        const y=pcy+(p.y-pcy)*expand - upPx*0.4 + downPx*0.4;
+        i?scx.lineTo(x,y):scx.moveTo(x,y);
+      });
+      scx.closePath(); scx.fill();
+      const scF=document.createElement('canvas'); scF.width=w; scF.height=h;
+      const scFx=scF.getContext('2d');
+      scFx.filter='blur('+Math.max(6,Math.round((featherPx||10)*1.6))+'px)'; scFx.drawImage(sc,0,0); scFx.filter='none';
+      ox.globalCompositeOperation='destination-in'; ox.drawImage(scF,0,0); ox.globalCompositeOperation='source-over';
+    }
     return off;
+  }
+
+  // なじみ補正: ring-anchored tone/white-balance match.  Samples the mean colour of the
+  // SUPPORT ring (matte alpha ∈ [lo,hi] — gingiva / lip / perioral skin, content that
+  // should be identical in both images) and shifts the whole AI layer so its perioral
+  // exposure & white balance track the patient's own photo.  This removes the "different
+  // layer" look at the boundary without flattening the intended whitening inside the core.
+  function cfRingToneMatch(aix, ox, matteCanvas, w, h, lo, hi){
+    try{
+      const md=matteCanvas.getContext('2d').getImageData(0,0,w,h).data;
+      const od=ox.getImageData(0,0,w,h).data;
+      const ai=aix.getImageData(0,0,w,h), ad=ai.data;
+      const L=Math.round((lo==null?0.10:lo)*255), H=Math.round((hi==null?0.55:hi)*255);
+      let mo=[0,0,0], ma=[0,0,0], n=0;
+      const stride=4*4; // sample every 4th pixel for speed
+      for(let i=0;i<ad.length;i+=stride){
+        const a=md[i]; if(a<L||a>H) continue;
+        mo[0]+=od[i];mo[1]+=od[i+1];mo[2]+=od[i+2];
+        ma[0]+=ad[i];ma[1]+=ad[i+1];ma[2]+=ad[i+2]; n++;
+      }
+      if(n<40) return; // not enough ring pixels — skip
+      for(let k=0;k<3;k++){ mo[k]/=n; ma[k]/=n; }
+      // Clamp the correction so a mis-sampled ring can never tint the result.
+      const sh=[ (mo[0]-ma[0]), (mo[1]-ma[1]), (mo[2]-ma[2]) ].map(function(v){ return Math.max(-22,Math.min(22,v))*0.7; });
+      for(let i=0;i<ad.length;i+=4){
+        ad[i]  =Math.min(255,Math.max(0,ad[i]+sh[0]));
+        ad[i+1]=Math.min(255,Math.max(0,ad[i+1]+sh[1]));
+        ad[i+2]=Math.min(255,Math.max(0,ad[i+2]+sh[2]));
+      }
+      aix.putImageData(ai,0,0);
+    }catch(e){}
   }
 
   // Unified landmark/region detector shared across Sim Studio compositing paths.
@@ -19595,6 +19673,7 @@ body[data-ui-tone="dark"]{
   if(window.CaseFlowMorphEngine){
     window.CaseFlowMorphEngine.cfSimROIConfig=cfSimROIConfig;
     window.CaseFlowMorphEngine.cfBuildSoftMatte=cfBuildSoftMatte;
+    window.CaseFlowMorphEngine.cfRingToneMatch=cfRingToneMatch;
     window.CaseFlowMorphEngine.cfDetectCaseflowLandmarks=cfDetectCaseflowLandmarks;
   }
   window.cfDetectCaseflowLandmarks=cfDetectCaseflowLandmarks;
@@ -19638,24 +19717,36 @@ body[data-ui-tone="dark"]{
       });
       const mouthW=Math.max(20,maxX-minX);
       const mouthH_lip=Math.max(1,maxY_lip-minY_lip);
-      // Chin / nasal guards: absolute hard stops to prevent identity alteration
-      const chinGuardY=Math.round(maxY_lip + mouthH_lip*0.12);
-      const nasalGuardY=Math.round(minY_lip - mouthH_lip*0.08);
+      // Chin / nasal guards: absolute hard stops to prevent identity alteration. These now
+      // FEATHER off (gradient) rather than a hard rectangle cut, so the matte never shows a
+      // straight horizontal seam at the guard line.
+      const chinGuardY=Math.round(maxY_lip + mouthH_lip*0.40);
+      const nasalGuardY=Math.round(minY_lip - mouthH_lip*0.30);
       // Core ROI base: slightly wider than lip aperture (gingival margin + lip edges)
       const lipRx=mouthW*0.56, lipRy=mouthH_lip*0.62;
-      // 3-layer ROI config: concept + active cards drive Support/Context zone widths
+      // landmark-aware ROI config: concept + active cards drive both extent AND shape
       const _v82f=state.simV82||{};
       const roiScalesF=cfSimROIConfig(_v82f.concept||'ortho', _v82f.targets||{});
       const featherPxF=Math.max(8, Math.round(mouthW*0.10));
-      // Build 3-layer soft matte — Core full / Support ~0.75 / Context ~0.22
-      const mk=cfBuildSoftMatte(w, h, cx, cy, lipRx, lipRy, roiScalesF, featherPxF);
-      // Apply chin + nasal guards: erase matte pixels outside the anatomical safe zone
+      // Distance-based soft matte clipped to the actual lip polygon (structural, not elliptical)
+      const mk=cfBuildSoftMatte(w, h, cx, cy, lipRx, lipRy, roiScalesF, featherPxF, lip);
+      // Apply chin + nasal guards with a feathered gradient (no hard horizontal cut)
       const mkGuard=mk.getContext('2d');
-      mkGuard.globalCompositeOperation='destination-out'; mkGuard.fillStyle='#fff';
-      if(chinGuardY<h) mkGuard.fillRect(0, chinGuardY, w, h-chinGuardY);
-      if(nasalGuardY>0) mkGuard.fillRect(0, 0, w, nasalGuardY);
+      mkGuard.globalCompositeOperation='destination-out';
+      if(chinGuardY<h){
+        const cg=mkGuard.createLinearGradient(0,chinGuardY,0,Math.min(h,chinGuardY+mouthH_lip*0.6));
+        cg.addColorStop(0,'rgba(255,255,255,0)'); cg.addColorStop(1,'rgba(255,255,255,1)');
+        mkGuard.fillStyle=cg; mkGuard.fillRect(0,chinGuardY,w,h-chinGuardY);
+      }
+      if(nasalGuardY>0){
+        const ng=mkGuard.createLinearGradient(0,nasalGuardY,0,Math.max(0,nasalGuardY-mouthH_lip*0.5));
+        ng.addColorStop(0,'rgba(255,255,255,0)'); ng.addColorStop(1,'rgba(255,255,255,1)');
+        mkGuard.fillStyle=ng; mkGuard.fillRect(0,0,w,nasalGuardY);
+      }
       mkGuard.globalCompositeOperation='source-over';
-      // Composite: AI layer masked by 3-layer soft matte → over original
+      // なじみ補正: match perioral exposure/WB of the AI layer to the original before masking
+      cfRingToneMatch(aix, ox, mk, w, h, 0.10, 0.55);
+      // Composite: AI layer masked by the distance-based soft matte → over original
       const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
       const maskedx=masked.getContext('2d'); maskedx.drawImage(aic,0,0);
       maskedx.globalCompositeOperation='destination-in'; maskedx.drawImage(mk,0,0); maskedx.globalCompositeOperation='source-over';
@@ -19672,27 +19763,34 @@ body[data-ui-tone="dark"]{
         // Concept + card config applies to focus/fallback paths too
         const _v82foc=state.simV82||{};
         const roiScalesFoc=cfSimROIConfig(_v82foc.concept||'ortho', _v82foc.targets||{});
+        let usedSoftMatte=false;
         if(!mask && opts && opts.lips===false){
-          // No-lips close-up (retracted focus / 口唇なし): use detectBand for the tooth-zone
-          // center, then apply 3-layer soft matte so concept/card widths are respected.
-          // Core = dental crowns/arches, Support = gingiva, Context = retractor/frame edges.
+          // FOCUS branch — distinct dental logic (NOT the facial lip path): use detectBand to
+          // find the dental bounding box (≈ 前歯部 bounding box / 切縁ライン / 歯列外形), then build
+          // the continuous distance-based matte around it.  Core = crowns/arches, Support =
+          // gingival line, Context = retractor/frame edge.
           const band=(typeof detectBand==='function')?detectBand(ox,w,h):null;
           const bx0=band?band.x0:w*0.10, by0=band?band.y0:h*0.18, bx1=band?band.x1:w*0.90, by1=band?band.y1:h*0.82;
           const cxb=(bx0+bx1)/2, cyb=(by0+by1)/2;
           const rxb=Math.max(20,(bx1-bx0)/2), ryb=Math.max(16,(by1-by0)/2);
           const featherFoc=Math.max(8,Math.round(Math.min(w,h)*0.025));
           mask=cfBuildSoftMatte(w, h, cxb, cyb, rxb, ryb, roiScalesFoc, featherFoc);
+          usedSoftMatte=true;
         }
         if(!mask && facial){
-          // Facial portrait — lip landmarks not found: 3-layer soft matte centred on
-          // heuristic mouth position.  Support zone now includes gingiva and full lip
-          // surface; Context zone extends into perioral tissue so the seam is invisible.
+          // Facial portrait — lip landmarks not found: continuous distance-based matte centred
+          // on the heuristic mouth position.  Support covers gingiva + full lip surface; Context
+          // extends into perioral tissue so the boundary is invisible.
           const cxFb=w*0.5, cyFb=h*0.66, rxFb=w*0.26, ryFb=h*0.16;
           const featherFb=Math.max(10,Math.round(w*0.045));
           mask=cfBuildSoftMatte(w, h, cxFb, cyFb, rxFb, ryFb, roiScalesFoc, featherFb);
+          usedSoftMatte=true;
         }
         if(mask){
-          // Apply 3-layer soft matte: Core→full edit, Support→partial, Context→light touch
+          // なじみ補正 for the soft-matte paths (band / facial fallback). Skipped for the intraoral
+          // enamel mask, whose black-contraster surround would bias the ring sample.
+          if(usedSoftMatte) cfRingToneMatch(aix, ox, mask, w, h, 0.10, 0.55);
+          // Composite the AI through the matte: Core→full edit, Support→partial, Context→light touch
           const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
           const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
           mkx.globalCompositeOperation='destination-in'; mkx.drawImage(mask,0,0); mkx.globalCompositeOperation='source-over';
