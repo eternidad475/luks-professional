@@ -13652,16 +13652,14 @@ window.addEventListener('DOMContentLoaded', () => {
       const pts=lm(p)||[];
       const name=p.metaId || p.name || `Image ${i+1}`;
       if(p.aiGenerated){
-        return `<div class="v73SourceCard v73AICard" data-idx="${i}" data-ai="1" role="img" aria-label="AI中割り${esc(name)}">
-          <img src="${p.dataUrl}" alt="" draggable="false">
+        return `<div class="v73SourceCard v73AICard" data-idx="${i}" data-ai="1" oncontextmenu="event.preventDefault();return false;" role="img" aria-label="AI中割り${esc(name)}">
+          <div class="v73SrcThumb" style="background-image:url('${p.dataUrl}')"></div>
           <span class="v73SourceNo">✦</span>
-          <button class="v73SourceDel" title="削除" onclick="event.stopPropagation();caseflowV75DeleteSource(${i})">×</button>
         </div>`;
       }
-      return `<div class="v73SourceCard ${i===active?'active':''}" data-idx="${i}" role="button" tabindex="0" aria-label="${esc(name)}" onclick="caseflowV75SelectSource(${i})">
-        <img src="${p.dataUrl}" alt="" draggable="false">
+      return `<div class="v73SourceCard ${i===active?'active':''}" data-idx="${i}" oncontextmenu="event.preventDefault();return false;" role="button" tabindex="0" aria-label="${esc(name)}">
+        <div class="v73SrcThumb" style="background-image:url('${p.dataUrl}')"></div>
         <span class="v73SourceNo">${i+1}</span>
-        <button class="v73SourceDel" title="削除" onclick="event.stopPropagation();caseflowV75DeleteSource(${i})">×</button>
       </div>`;
     }).join('');
     const pts=lm(activePhoto())||[];
@@ -13704,34 +13702,115 @@ window.addEventListener('DOMContentLoaded', () => {
   function bindSourceReorder(panel){
     const strip=panel.querySelector('.v73SourceStrip'); if(!strip || strip.dataset.reorderBound==='1') return;
     strip.dataset.reorderBound='1';
-    let drag=null;
-    strip.addEventListener('pointerdown', ev=>{
-      const card=ev.target.closest && ev.target.closest('.v73SourceCard'); if(!card) return;
-      if(ev.target.closest('.v73SourceDel')) return;
-      if(card.dataset.ai) return;  // AI frames: delete-only, no drag
-      drag={ idx:Number(card.dataset.idx), startX:ev.clientX, card:card, moved:false };
-    });
-    strip.addEventListener('pointermove', ev=>{
-      if(!drag) return;
-      const dx=ev.clientX-drag.startX;
-      if(!drag.moved && Math.abs(dx)<8) return;
-      drag.moved=true; ev.preventDefault();
-      drag.card.style.transform='translateX('+dx+'px) scale(1.04)';
-      drag.card.style.zIndex='6'; drag.card.style.opacity='.9';
-    }, {passive:false});
-    function end(ev){
-      if(!drag) return;
-      const moved=drag.moved, from=drag.idx, card=drag.card;
-      card.style.transform=''; card.style.zIndex=''; card.style.opacity='';
-      if(moved){
-        const x=ev.clientX, cards=Array.prototype.slice.call(strip.querySelectorAll('.v73SourceCard'));
-        let to=0; cards.forEach((c,k)=>{ const r=c.getBoundingClientRect(); if(x > r.left + r.width/2) to=k; });
-        reorderPhotos(from, to);
+    // Block iOS Safari long-press image context menu on the whole strip
+    strip.addEventListener('contextmenu',function(ev){ev.preventDefault();},{passive:false});
+    let ps=null;              // active pointer state
+    let tapState={idx:-1,time:0};  // double-tap detection
+    strip.addEventListener('pointerdown',function(ev){
+      const card=ev.target.closest && ev.target.closest('.v73SourceCard');
+      if(!card) return;
+      if(ps) return; // ignore extra pointers
+      ev.preventDefault(); // suppress callout / text-select on iOS
+      const idx=Number(card.dataset.idx);
+      const isAI=!!card.dataset.ai;
+      const longTimer=isAI ? null : setTimeout(function(){
+        if(!ps) return;
+        ps.longPressTimer=null;
+        // Enter drag mode — create ghost + placeholder
+        const rect=card.getBoundingClientRect();
+        const ghost=card.cloneNode(true);
+        ghost.className='v73SrcDragGhost';
+        ghost.style.cssText='position:fixed;top:'+rect.top+'px;left:'+rect.left+'px;width:'+rect.width+'px;height:'+rect.height+'px;';
+        document.body.appendChild(ghost);
+        const ph=document.createElement('div');
+        ph.className='v73SrcPlaceholder';
+        ph.style.cssText='flex:0 0 '+rect.width+'px;height:'+rect.height+'px;';
+        strip.insertBefore(ph,card);
+        card.style.opacity='0.12';
+        ps.dragActive=true;
+        ps.ghost=ghost;
+        ps.placeholder=ph;
+        ps.ghostOffX=ev.clientX-rect.left;
+        ps.ghostOffY=ev.clientY-rect.top;
+        if(navigator.vibrate) try{navigator.vibrate(28);}catch(e){}
+      },300);
+      ps={idx:idx,card:card,isAI:isAI,startX:ev.clientX,startY:ev.clientY,pointerId:ev.pointerId,moved:false,vertCancel:false,longPressTimer:longTimer,dragActive:false,ghost:null,placeholder:null,ghostOffX:0,ghostOffY:0};
+      try{strip.setPointerCapture(ev.pointerId);}catch(e){}
+    },{passive:false});
+    strip.addEventListener('pointermove',function(ev){
+      if(!ps || ev.pointerId!==ps.pointerId) return;
+      const dx=ev.clientX-ps.startX;
+      const dy=ev.clientY-ps.startY;
+      if(!ps.moved && (Math.abs(dx)>6||Math.abs(dy)>6)){
+        ps.moved=true;
+        // Vertical dominance → cancel long-press, let scroll take over
+        if(Math.abs(dy)>Math.abs(dx)+4){
+          ps.vertCancel=true;
+          if(ps.longPressTimer){clearTimeout(ps.longPressTimer);ps.longPressTimer=null;}
+        }
       }
-      drag=null;
+      if(!ps.dragActive) return;
+      ev.preventDefault();
+      if(ps.ghost){
+        ps.ghost.style.left=(ev.clientX-ps.ghostOffX)+'px';
+        ps.ghost.style.top=(ev.clientY-ps.ghostOffY)+'px';
+      }
+      // Move placeholder to insertion point based on cursor X
+      if(ps.placeholder){
+        const x=ev.clientX;
+        const allCards=Array.prototype.slice.call(strip.querySelectorAll('.v73SourceCard'));
+        let insertBefore=null;
+        for(let k=0;k<allCards.length;k++){
+          const c=allCards[k]; if(c===ps.card) continue;
+          const r=c.getBoundingClientRect();
+          if(x<r.left+r.width/2){insertBefore=c;break;}
+        }
+        if(insertBefore) strip.insertBefore(ps.placeholder,insertBefore);
+        else{ const addBtn=strip.querySelector('.v73SrcAddBtn'); strip.insertBefore(ps.placeholder,addBtn||null); }
+      }
+    },{passive:false});
+    function endPointer(ev){
+      if(!ps) return;
+      if(ps.longPressTimer){clearTimeout(ps.longPressTimer);ps.longPressTimer=null;}
+      const {idx,card,dragActive,moved,ghost,placeholder,isAI,vertCancel,startX,startY}=ps;
+      if(ghost){try{document.body.removeChild(ghost);}catch(e){}}
+      card.style.opacity='';
+      if(dragActive && placeholder){
+        // Count non-placeholder, non-hidden cards before the placeholder
+        let to=0;
+        const children=Array.prototype.slice.call(strip.children);
+        for(let k=0;k<children.length;k++){
+          if(children[k]===placeholder) break;
+          if(children[k].classList&&children[k].classList.contains('v73SourceCard')) to++;
+        }
+        try{strip.removeChild(placeholder);}catch(e){}
+        reorderPhotos(idx,to);
+      } else if(!moved || (!vertCancel && Math.abs(ev.clientX-startX)<8 && Math.abs(ev.clientY-startY)<8)){
+        // Tap / double-tap (only for real source cards, not AI frames)
+        if(!isAI){
+          const now=Date.now();
+          if(tapState.idx===idx && now-tapState.time<380){
+            tapState={idx:-1,time:0};
+            if(typeof window.caseflowV75ShowSrcMenu==='function') window.caseflowV75ShowSrcMenu(idx);
+          } else {
+            tapState={idx:idx,time:now};
+            if(typeof window.caseflowV75SelectSource==='function') window.caseflowV75SelectSource(idx);
+          }
+        }
+      }
+      try{strip.releasePointerCapture(ps.pointerId);}catch(e){}
+      ps=null;
     }
-    strip.addEventListener('pointerup', end);
-    strip.addEventListener('pointercancel', end);
+    strip.addEventListener('pointerup',endPointer);
+    strip.addEventListener('pointercancel',function(ev){
+      if(!ps) return;
+      if(ps.longPressTimer){clearTimeout(ps.longPressTimer);ps.longPressTimer=null;}
+      if(ps.ghost){try{document.body.removeChild(ps.ghost);}catch(e){}}
+      if(ps.placeholder){try{strip.removeChild(ps.placeholder);}catch(e){}}
+      ps.card.style.opacity='';
+      try{strip.releasePointerCapture(ps.pointerId);}catch(e){}
+      ps=null;
+    });
   }
 
   function showActiveImage(){
@@ -13974,6 +14053,54 @@ window.addEventListener('DOMContentLoaded', () => {
     if(typeof window.renderUpload==='function') window.renderUpload();
     if(typeof window.renderSimulator==='function') window.renderSimulator();
     v75Refresh(); toastFn('画像を削除しました');
+  };
+  // Double-tap action menu for source image cards
+  window.caseflowV75ShowSrcMenu=function(i){
+    const arr=list(); if(!arr||!arr[i]) return;
+    const p=arr[i];
+    const esc2=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+    const name=esc2(p.label||p.name||('Image '+(i+1)));
+    var existing=document.getElementById('v75SrcMenuWrap');
+    if(existing) existing.remove();
+    var wrap=document.createElement('div');
+    wrap.id='v75SrcMenuWrap';
+    wrap.innerHTML='<div class="v75SrcMenuOverlay"></div>'
+      +'<div class="v75SrcMenu">'
+      +'<div class="v75SrcMenuTitle">'+name+'</div>'
+      +'<button class="v75SrcMenuItem" id="v75SrcReplace">画像を差し替え</button>'
+      +'<button class="v75SrcMenuItem danger" id="v75SrcDelete">この画像を削除</button>'
+      +'<button class="v75SrcMenuCancel" id="v75SrcCancel">キャンセル</button>'
+      +'</div>';
+    document.body.appendChild(wrap);
+    var menu=wrap.querySelector('.v75SrcMenu');
+    menu.style.transform='translateY(100%)';
+    menu.style.transition='transform 0.24s cubic-bezier(.32,.72,0,1)';
+    requestAnimationFrame(function(){requestAnimationFrame(function(){menu.style.transform='translateY(0)';});});
+    function close(){
+      menu.style.transition='transform 0.18s ease-in';
+      menu.style.transform='translateY(100%)';
+      setTimeout(function(){if(wrap.parentNode) wrap.remove();},200);
+    }
+    wrap.querySelector('.v75SrcMenuOverlay').addEventListener('click',close);
+    wrap.querySelector('#v75SrcCancel').addEventListener('click',close);
+    wrap.querySelector('#v75SrcReplace').addEventListener('click',function(){
+      close();
+      setTimeout(function(){ if(typeof window.caseflowV75ReplaceSource==='function') window.caseflowV75ReplaceSource(i); },220);
+    });
+    wrap.querySelector('#v75SrcDelete').addEventListener('click',function(){
+      close();
+      setTimeout(function(){
+        var arr2=list(); if(!arr2[i]) return;
+        var p2=arr2[i];
+        var label=p2.label||p2.name||('Image '+(i+1));
+        if(!window.confirm('この画像を削除しますか？\nこの操作は元に戻せません。')) return;
+        arr2.splice(i,1);
+        state.v75ActiveIndex=clamp(state.v75ActiveIndex>i?state.v75ActiveIndex-1:state.v75ActiveIndex,0,Math.max(0,arr2.length-1));
+        if(typeof window.renderUpload==='function') window.renderUpload();
+        if(typeof window.renderSimulator==='function') window.renderSimulator();
+        v75Refresh(); if(typeof toastFn==='function') toastFn('画像を削除しました');
+      },220);
+    });
   };
   // When the gallery editor closes after a studio edit, refresh the studio view.
   (function(){
@@ -22015,17 +22142,31 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #align .guide { display:none !important; }
 /* Clinical Warp Morph — Source Images strip */
 #align .v73SourceStrip{gap:10px;padding:6px 2px 12px;touch-action:pan-x}
-#align .v73SourceCard{flex:0 0 96px;height:96px;padding:0;border-radius:16px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:pan-x;will-change:transform}
-/* ── AI-generated keyframe cards (smaller, delete-only, no drag) ── */
+#align .v73SourceCard{flex:0 0 96px;height:96px;padding:0;border-radius:16px;overflow:hidden;cursor:grab;transition:transform .12s,opacity .12s,box-shadow .12s;touch-action:manipulation;will-change:transform;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;}
+/* ── AI-generated keyframe cards (smaller, no drag) ── */
 #align .v73AICard{flex:0 0 64px !important;height:64px !important;cursor:default !important;opacity:.88;outline:1.5px dashed rgba(124,92,255,.5);background:rgba(124,92,255,.08);touch-action:auto !important;}
-#align .v73AICard img{height:100% !important;object-fit:cover}
 #align .v73AICard .v73SourceNo{font-size:7px !important;padding:1px 4px !important;background:rgba(124,92,255,.75) !important;letter-spacing:.03em}
 #align .v73SourceCard:active{cursor:grabbing}
-#align .v73SourceCard img{width:100%;height:100%;object-fit:cover;border-radius:16px}
+/* Thumbnail as div background-image (prevents iOS Safari long-press image menu) */
+#align .v73SrcThumb{display:block;width:100%;height:100%;background-size:cover;background-position:center top;background-repeat:no-repeat;border-radius:16px;pointer-events:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;}
 #align .v73SourceCard.active{outline:3px solid var(--c1,#7c5cff);outline-offset:-1px;box-shadow:0 0 0 3px rgba(124,92,255,.22)}
 #align .v73SourceCard .v73SourceNo{top:6px;left:6px;min-width:22px;height:22px;font-size:11px;font-weight:900;background:rgba(8,6,16,.62);color:#fff;border-radius:7px;}
-#align .v73SourceCard .v73SourceDel{position:absolute;top:5px;right:5px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(8,6,16,.55);color:#fff;font-size:14px;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;backdrop-filter:blur(6px)}
+/* × delete button hidden — deletion via double-tap menu only */
+#align .v73SourceCard .v73SourceDel{display:none !important;}
 #align .v73SourceCard .v73SourceName,#align .v73SourceCard .v73SourceMeta,#align .v73SourceCard .v73SourceActions{display:none}
+/* Drag ghost */
+.v73SrcDragGhost{pointer-events:none;z-index:9999;border-radius:16px;overflow:hidden;box-shadow:0 10px 36px rgba(0,0,0,.38);transform:scale(1.08);opacity:.92;transition:none;-webkit-touch-callout:none;user-select:none;}
+/* Drop placeholder shown during drag */
+.v73SrcPlaceholder{flex-shrink:0;border-radius:16px;background:rgba(124,92,255,.15);border:2px dashed rgba(124,92,255,.50);transition:none;}
+/* Action menu (iOS sheet style) */
+#v75SrcMenuWrap{position:fixed;inset:0;z-index:10000;}
+.v75SrcMenuOverlay{position:absolute;inset:0;background:rgba(0,0,0,.38);}
+.v75SrcMenu{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:6px 0 0;box-shadow:0 -4px 32px rgba(0,0,0,.15);will-change:transform;}
+.v75SrcMenuTitle{text-align:center;padding:12px 24px 10px;font-size:12px;font-weight:700;color:rgba(32,27,53,.45);border-bottom:1px solid rgba(0,0,0,.07);margin-bottom:4px;}
+.v75SrcMenuItem{display:block;width:100%;padding:15px 24px;border:0;background:none;text-align:left;font-size:16px;font-weight:500;color:#201b35;cursor:pointer;-webkit-appearance:none;}
+.v75SrcMenuItem.danger{color:#e53e3e;}
+.v75SrcMenuItem:active{background:rgba(0,0,0,.05);}
+.v75SrcMenuCancel{display:block;width:calc(100% - 32px);margin:8px 16px 20px;padding:14px;border:0;border-radius:13px;background:rgba(0,0,0,.07);font-size:16px;font-weight:700;color:#201b35;cursor:pointer;text-align:center;-webkit-appearance:none;}
 /* Add-photo button in source strip */
 .v73SrcAddBtn{flex:0 0 96px;height:96px;border:2px dashed rgba(124,92,255,.35);border-radius:16px;background:rgba(124,92,255,.07);color:#7c5cff;font-size:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0;transition:background .15s,border-color .15s;}
 .v73SrcAddBtn:active{background:rgba(124,92,255,.14);}
