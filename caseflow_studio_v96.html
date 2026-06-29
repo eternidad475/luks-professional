@@ -12148,6 +12148,52 @@ window.addEventListener('DOMContentLoaded', () => {
   function normToRect(p, r){
     return {x:r.x + r.w*(p.x/100), y:r.y + r.h*(p.y/100)};
   }
+  // ── Clinical Warp Morph — mode variant definitions ────────────────────────
+  // Each mode defines a config object. drawMeshMorphFrame reads from here so
+  // future expansions (mouthEmphasis, stabilityBias, dentalBlend, etc.) only
+  // require adding params here — not touching the render pipeline each time.
+  //
+  // Parameter reference:
+  //   warpScale      – global multiplier on eased displacement (lower = safer)
+  //   dentalBlend    – enable cfApplyDentalROIFull composite (DISABLED in all
+  //                    modes until a patch-free implementation exists)
+  //   mouthEmphasis  – (future) extra weight on smile-line / lip landmarks
+  //   stabilityBias  – (future) temporal smoothing / head-jitter suppression
+  //   riskReduction  – reduce warpScale for high-diff pairs (bracket↔no-bracket)
+  window.cfMorphVariantDefs = window.cfMorphVariantDefs || {
+    clinical: {
+      // Pure Clinical — maximum safety. Respects source images above all else.
+      // Minimal displacement; never uses dental compositing.
+      warpScale: 0.60,
+      dentalBlend: false,
+      mouthEmphasis: 0,
+      stabilityBias: 0,
+      riskReduction: true
+    },
+    oral: {
+      // Oral Focus — smile-line / lip alignment priority.
+      // Slightly stronger warp near mouth landmarks; no dental compositing.
+      warpScale: 0.72,
+      dentalBlend: false,
+      mouthEmphasis: 1,   // reserved for future lip-landmark weighting
+      stabilityBias: 0,
+      riskReduction: true
+    },
+    stable: {
+      // Stability — suppresses head-position drift and background wobble.
+      // Most conservative warp; mouth corrections kept minimal.
+      warpScale: 0.48,
+      dentalBlend: false,
+      mouthEmphasis: 0,
+      stabilityBias: 1,   // reserved for future temporal smoothing
+      riskReduction: true
+    }
+  };
+  function cfGetVariantDef(v){
+    return (window.cfMorphVariantDefs||{})[v||'clinical']
+        || window.cfMorphVariantDefs.clinical;
+  }
+
   function drawCaseflowGradientBg(ctx, w, h){
     var cs=getComputedStyle(document.documentElement);
     var c1=(cs.getPropertyValue('--c1')||'#7c5cff').trim();
@@ -12382,22 +12428,22 @@ window.addEventListener('DOMContentLoaded', () => {
     const collected=collectMorphPairs(a,b,rectA,rectB,w,h);
     const pairs=dedupePairs(collected.pairs);
     const e=ease(Math.max(0,Math.min(1,t)));
-    // Mode-based warp scale:
-    //   clinical = safe minimum warp (default, no dental compositing)
-    //   oral     = slightly stronger smile-line alignment only
-    //   stable   = conservative, suppresses position jitter
-    const warpScale=window.cfMorphVariant==='oral'?0.72:window.cfMorphVariant==='stable'?0.48:0.60;
-    // Internal pair quality risk — cached dental brightness diff; no UI display yet
+    // Read mode config — all behaviour is driven from cfMorphVariantDefs so future
+    // expansions only require changing the config object, not this render loop.
+    const _vdef=cfGetVariantDef(window.cfMorphVariant);
+    const warpScale=_vdef.warpScale;
+    const _dentalBlendEnabled=_vdef.dentalBlend||!!window.CASEFLOW_DEBUG_DENTAL_BLEND;
+    // Internal pair quality risk — brightness diff cached per pair; no UI yet
     var _cfPairRisk='low';
     try{
       var _qroi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
       var _qdiff=_qroi?cfComputeDentalDiff(baseA,baseB,_qroi,a,b):0;
       _cfPairRisk=_qdiff>=0.22?'high':_qdiff>=0.11?'medium':'low';
       window._cfLastPairQualityRisk=_cfPairRisk;
-      if(window.CASEFLOW_DEBUG) console.log('[CW] pairQualityRisk:',_cfPairRisk,'diff:',_qdiff.toFixed(3));
+      if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','pairRisk:',_cfPairRisk,'diff:',_qdiff.toFixed(3));
     }catch(e2){}
-    // For high-risk pairs (large clinical difference), reduce warp further to prevent breakdown
-    const riskMult=_cfPairRisk==='high'?0.70:1.0;
+    // High-risk pairs get additional warp reduction (only when mode opts in)
+    const riskMult=(_vdef.riskReduction&&_cfPairRisk==='high')?0.70:1.0;
     const eW=Math.max(0,Math.min(1.2,e*warpScale*riskMult));
     const mid=pairs.map(p=>({x:p.p1.x*(1-eW)+p.p2.x*eW,y:p.p1.y*(1-eW)+p.p2.y*eW}));
     const p1=pairs.map(p=>p.p1), p2=pairs.map(p=>p.p2);
@@ -12416,11 +12462,12 @@ window.addEventListener('DOMContentLoaded', () => {
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],e);
       });
-      // ── Dental ROI alpha blend — DISABLED in standard mode ────────────────
-      // Enabled only under debug flag: window.CASEFLOW_DEBUG_DENTAL_BLEND = true
-      // In standard mode this compositing caused patch-like artifacts around the
-      // mouth, lower lip, and chin. Safe mesh warp above handles all normal cases.
-      if(window.CASEFLOW_DEBUG_DENTAL_BLEND){
+      // ── Dental ROI alpha blend ─────────────────────────────────────────────
+      // Controlled by variant config (dentalBlend) or debug override.
+      // Currently false in all 3 modes — the composite caused patch artifacts
+      // around the lower lip and chin. Re-enable per mode via cfMorphVariantDefs
+      // once a patch-free implementation is developed.
+      if(_dentalBlendEnabled){
         const _droi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
         if(_droi && _droi.detected) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
       }
@@ -12646,8 +12693,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Override preview handlers.
   window.drawPairPreviewAtCurrentT = drawCurrentMeshPreview;
-  window.cfDrawMorphFrame = drawMeshMorphFrame;   // exposed for the CapCut-style live editor
+  window.cfDrawMorphFrame = drawMeshMorphFrame;       // exposed for the CapCut-style live editor
   window.drawCaseflowGradientBg = drawCaseflowGradientBg; // shared gradient helper
+  window.cfGetVariantDef = cfGetVariantDef;          // read-only access to mode config
   window.stopPairPreview = function(){
     state.v70MeshPlaying=false;
     state.v70MeshToken++;
@@ -22792,12 +22840,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         box.querySelectorAll('.cfCapPat').forEach(function(b){b.classList.remove('on');});
         btn.classList.add('on');
         window.cfMorphVariant=btn.dataset.pat||'clinical';
-        var warp=Number(btn.dataset.warp||0);
         var ms=Number(btn.dataset.ms||2600);
-        /* Apply warp strength */
-        var morphWarpEl=document.getElementById('morphWarp');
-        if(morphWarpEl){ morphWarpEl.value=warp; try{ morphWarpEl.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-        /* Apply speed (sync speed buttons) */
+        /* Speed (data-ms drives animation duration; warpScale comes from cfMorphVariantDefs) */
         _speedMs=ms;
         box.querySelectorAll('#cfCapSpeed button').forEach(function(b){ b.classList.remove('on'); });
         var morphDurEl=document.getElementById('morphDuration');
