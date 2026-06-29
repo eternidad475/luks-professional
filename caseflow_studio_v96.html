@@ -22961,6 +22961,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         box.querySelectorAll('#cfCapSpeed button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
         var ms=Number(b.dataset.ms)||2600;
         _speedMs=ms;
+        if(window.state){ state.v75Settings=state.v75Settings||{}; state.v75Settings.speedMs=ms; }
+        console.log('[CaseFlow] speed changed', ms);
         /* If GPU video is active, adjust playback rate instead of canvas duration */
         var gv=$id('cfCapGpuVid');
         if(gv&&gv.classList.contains('active')){
@@ -22981,13 +22983,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
     box.querySelectorAll('.cfCapRat').forEach(function(btn){
       btn.classList.toggle('on',btn.dataset.ratio===initRatio);
       btn.addEventListener('click',function(){
-        if(window.state) state.ratio=btn.dataset.ratio;
+        if(window.state){
+          state.ratio=btn.dataset.ratio;
+          state.v75Settings=state.v75Settings||{};
+          state.v75Settings.size=btn.dataset.ratio;
+        }
         box.querySelectorAll('.cfCapRat').forEach(function(b){b.classList.toggle('on',b===btn);});
         var stage=$id('cfCapStage'); if(stage) stage.style.setProperty('--cfcap-ar',ratioAR());
         // Resize canvas intrinsic dimensions to match so export captures the right shape
         var cv=$id('cfCapCanvas');
         if(cv){ var rd=ratioWH(btn.dataset.ratio); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
         try{render(Number(($id('cfCapScrub')||{}).value||0)/100);}catch(e){}
+        console.log('[CaseFlow] aspect ratio changed', btn.dataset.ratio);
       });
     });
     /* Save button: export at the aspect ratio already selected on screen */
@@ -23039,22 +23046,55 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function setPct(t){ var e=$id('cfCapPct'); if(e) e.textContent=Math.round(t*100)+'%'; }
   function speedMs(){ return _speedMs; }
 
+  // cfGetActiveSpeedMs — canonical speed getter for export.
+  // Priority: active UI button → state.v75Settings.speedMs → _speedMs → 2600ms default.
+  function cfGetActiveSpeedMs(){
+    var activeBtn=document.querySelector('#cfCapSpeed button.on');
+    if(activeBtn){
+      var ms=Number(activeBtn.dataset.ms);
+      if(Number.isFinite(ms)&&ms>0) return ms;
+    }
+    if(window.state&&state.v75Settings&&Number(state.v75Settings.speedMs)>0){
+      return Number(state.v75Settings.speedMs);
+    }
+    if(Number(_speedMs)>0) return _speedMs;
+    return 2600;
+  }
+
+  // cfGetActiveAspectRatio — canonical ratio getter for export.
+  // Priority: active UI button (.cfCapRat.on) → state.v75Settings.size → state.ratio → '9:16'.
+  function cfGetActiveAspectRatio(){
+    var activeBtn=document.querySelector('.cfCapRat.on');
+    if(activeBtn){
+      var r=activeBtn.dataset.ratio;
+      if(r==='9:16'||r==='4:5'||r==='1:1'||r==='16:9') return r;
+    }
+    if(window.state&&state.v75Settings&&state.v75Settings.size){
+      return state.v75Settings.size;
+    }
+    if(window.state&&state.ratio) return state.ratio;
+    return '9:16';
+  }
+
+  // cfGetOutputSizeForRatio — canonical output-size getter (wraps ratioWH).
+  function cfGetOutputSizeForRatio(r){ return ratioWH(r); }
+
   // ── CASEFLOW STUDIO™ watermark — drawn on preview canvas AND export frames ──
   function drawWatermark(ctx, w, h){
     var fs=Math.round(w*0.032);               // ~35px at 1080w; scales with canvas
     ctx.save();
-    // Bottom veil gradient so text reads on any photo
-    var veil=ctx.createLinearGradient(0, h*0.86, 0, h);
+    // Bottom veil: spans h*0.78→h so it covers the text at h*0.885 with breathing room
+    var veil=ctx.createLinearGradient(0, h*0.78, 0, h);
     veil.addColorStop(0,'rgba(0,0,0,0)');
     veil.addColorStop(1,'rgba(0,0,0,0.52)');
     ctx.fillStyle=veil;
-    ctx.fillRect(0, Math.round(h*0.86), w, Math.round(h*0.14));
-    // Wordmark
+    ctx.fillRect(0, Math.round(h*0.78), w, Math.round(h*0.22));
+    // Wordmark — ~221px from bottom at 9:16 (1920h), never clips on any ratio
     ctx.font='800 '+fs+'px -apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif';
     ctx.fillStyle='rgba(255,255,255,0.92)';
     ctx.textAlign='center';
     ctx.textBaseline='bottom';
-    ctx.fillText('CASEFLOW STUDIO™', w/2, h-Math.round(h*0.022));
+    ctx.fillText('CASEFLOW STUDIO™', w/2, h-Math.round(h*0.115));
     ctx.restore();
   }
 
@@ -23301,16 +23341,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(btn){ btn.classList.add('recording'); btn.textContent='準備中…'; }
     var waitEl=$id('cfCWWait');
 
-    // Export canvas is always full output resolution — independent of preview canvas size
-    var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
-    var rDims=ratioWH(r);
+    // Export canvas always uses the UI-selected ratio and speed (re-fetched from DOM at export time)
+    var activeRatio=cfGetActiveAspectRatio();
+    var rDims=cfGetOutputSizeForRatio(activeRatio);
     var w=rDims.w, h=rDims.h;
 
     var fps=30;
     var segCount=Math.max(1,ph.length-1);
-    var durationMs=speedMs()*segCount;
+    var activeSpeedMs=cfGetActiveSpeedMs();
+    var durationMs=activeSpeedMs*segCount;
     var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
     var frameMs=1000/fps;
+    console.log('[CaseFlow Export] active ratio', activeRatio, 'size', w, h, 'speed ms', activeSpeedMs, 'duration ms', durationMs, 'totalFrames', totalFrames);
 
     try{
       // Phase 0: Precompute plan — load images, build baseCanvas, compute oralROI/pairRisk/morphPairs
@@ -23475,14 +23517,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }
     var _engine2; try{ _engine2=cfValidateExportDependencies(); }catch(depErr){ console.error('[CaseFlow Export] dependency error',depErr); toastFn('書き出しエラー: '+depErr.message); return; }
     var segCount=Math.max(1,ph.length-1);
-    var durationMs=speedMs()*segCount;
+    var activeRatio2=cfGetActiveAspectRatio();
+    var rDims2=cfGetOutputSizeForRatio(activeRatio2);
+    var w=rDims2.w, h=rDims2.h;
+    var activeSpeedMs2=cfGetActiveSpeedMs();
+    var durationMs=activeSpeedMs2*segCount;
     var fps=30;
     var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
     var frameMs=1000/fps;
-    // Output resolution from ratio setting
-    var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
-    var rDims=ratioWH(r);
-    var w=rDims.w, h=rDims.h;
+    console.log('[CaseFlow Export] active ratio', activeRatio2, 'size', w, h, 'speed ms', activeSpeedMs2, 'duration ms', durationMs, 'totalFrames', totalFrames);
     // Show waiting overlay
     var waitOvEl=$id('cfCWWait');
     if(waitOvEl){
