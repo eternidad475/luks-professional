@@ -3748,6 +3748,11 @@ button[id="localMLDetectButton"]{
   background:rgba(181,54,54,.12);
   color:#912d2d;
 }
+.v73PointTools button:disabled{
+  opacity:.35;
+  cursor:default;
+  pointer-events:none;
+}
 .v73Hint{
   margin-top:10px;
   padding:10px 12px;
@@ -5010,8 +5015,7 @@ button[id="localMLDetectButton"]{
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem">2<span>Preview</span></div><div class="stepitem on">3<span>Export</span></div></div>
   <div class="card export"><img id="exportImage"><video id="exportVideo" controls playsinline loop style="display:none;width:100%;border-radius:18px;background:#000"></video></div>
   <div class="smallcaps">Share / 共有</div>
-  <button class="secondary" onclick="savePhotos()">写真アプリへ共有 / Share to Photos</button>
-  <button class="secondary" onclick="shareSNS()">SNSに共有 / Share to SNS</button>
+  <button class="secondary" onclick="shareSNS()">動画を保存 / Save Video</button>
 </section>
 
 
@@ -8268,6 +8272,11 @@ button[id="localMLDetectButton"]{
 .v73PointTools button.danger{
   background:rgba(181,54,54,.12);
   color:#912d2d;
+}
+.v73PointTools button:disabled{
+  opacity:.35;
+  cursor:default;
+  pointer-events:none;
 }
 .v73Hint{
   margin-top:10px;
@@ -12350,8 +12359,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const w=canvas.width, h=canvas.height;
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle='#fff';
-    ctx.fillRect(0,0,w,h);
+    (function drawMeshBg(){
+      var cs=getComputedStyle(document.documentElement);
+      var c1=(cs.getPropertyValue('--c1')||'#7c5cff').trim();
+      var c2=(cs.getPropertyValue('--c2')||'#ff9fd6').trim();
+      var gr=ctx.createLinearGradient(0,0,w,h);
+      gr.addColorStop(0,c1); gr.addColorStop(1,c2);
+      ctx.fillStyle=gr; ctx.fillRect(0,0,w,h);
+    })();
     if(!a || !b){
       ctx.fillStyle='rgba(32,27,53,.62)';
       ctx.font='800 30px -apple-system,BlinkMacSystemFont,sans-serif';
@@ -14234,8 +14249,9 @@ window.addEventListener('DOMContentLoaded', () => {
     wrap.innerHTML='<div class="v75SrcMenuOverlay"></div>'
       +'<div class="v75SrcMenu">'
       +'<div class="v75SrcMenuTitle">'+name+'</div>'
-      +'<button class="v75SrcMenuItem" id="v75SrcReplace">画像を差し替え</button>'
-      +'<button class="v75SrcMenuItem danger" id="v75SrcDelete">この画像を削除</button>'
+      +'<button class="v75SrcMenuItem" id="v75SrcEdit">編集 / Edit</button>'
+      +'<button class="v75SrcMenuItem" id="v75SrcReplace">差し替え / Replace</button>'
+      +'<button class="v75SrcMenuItem danger" id="v75SrcDelete">削除 / Delete</button>'
       +'<button class="v75SrcMenuCancel" id="v75SrcCancel">キャンセル</button>'
       +'</div>';
     document.body.appendChild(wrap);
@@ -14250,6 +14266,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     wrap.querySelector('.v75SrcMenuOverlay').addEventListener('click',close);
     wrap.querySelector('#v75SrcCancel').addEventListener('click',close);
+    wrap.querySelector('#v75SrcEdit').addEventListener('click',function(){
+      close();
+      setTimeout(function(){ if(typeof window.caseflowV75EditSource==='function') window.caseflowV75EditSource(i); },220);
+    });
     wrap.querySelector('#v75SrcReplace').addEventListener('click',function(){
       close();
       setTimeout(function(){ if(typeof window.caseflowV75ReplaceSource==='function') window.caseflowV75ReplaceSource(i); },220);
@@ -14286,6 +14306,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.caseflowV75DeletePoint=function(){
     const arr=lm(activePhoto()); const i=state.v75SelectedIndex;
     if(!arr||i==null||!arr[i]) return;
+    if(!window.confirm('このランドマーク（点）を削除しますか？\nこの操作は元に戻せません。')) return;
     arr.splice(i,1);
     state.v75SelectedIndex=arr.length?Math.min(i,arr.length-1):null;
     drawLandmarks(); renderStudio();
@@ -22754,8 +22775,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
         box.querySelectorAll('#cfCapSpeed button').forEach(function(b){ b.classList.remove('on'); });
         var morphDurEl=document.getElementById('morphDuration');
         if(morphDurEl){ morphDurEl.value=ms; try{ morphDurEl.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-        /* Refresh canvas with new settings */
-        try{ render(Number((document.getElementById('cfCapScrub')||{}).value||0)/100); }catch(e){}
+        /* Refresh canvas with new settings (rAF so warp event propagates first) */
+        requestAnimationFrame(function(){
+          try{ render(Number((document.getElementById('cfCapScrub')||{}).value||0)/100); }catch(e){}
+        });
       });
     });
 
@@ -22866,7 +22889,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var mime=mimeChoices.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
     var stream=cv.captureStream(30);
     var chunks=[];
-    var rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000});
     rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
     rec.onstop=function(){
       var blob=new Blob(chunks,{type:mime});
@@ -22950,7 +22973,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     // Canvas size from aspect ratio setting
     var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
     var w,h;
-    if(r==='16:9'){w=1080;h=608;}else if(r==='1:1'){w=1080;h=1080;}else if(r==='4:5'){w=1080;h=1350;}else{w=1080;h=1920;}
+    if(r==='16:9'){w=1920;h=1080;}else if(r==='1:1'){w=1080;h=1080;}else if(r==='4:5'){w=1080;h=1350;}else{w=1080;h=1920;}
     toastFn('書き出し準備中… ('+frames+'フレーム)');
     // Save & patch state flags for export rendering
     var prevMesh=(window.state&&state.trueMeshEnabled);
@@ -22986,7 +23009,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       stream=canvas.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
       if(track&&typeof track.requestFrame==='function') manual=true; else stream=canvas.captureStream(fps);
     }catch(e){ stream=canvas.captureStream(fps); }
-    var rec=new MediaRecorder(stream,{mimeType:mime}),parts=[];
+    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000}),parts=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
     rec.start();
     // Wall-clock pacing: compensate for variable draw time so each frame lands at its exact target
