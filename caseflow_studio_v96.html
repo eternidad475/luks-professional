@@ -19696,79 +19696,38 @@ body[data-ui-tone="dark"]{
     toneMatchToOriginal(aix, ox, w, h, 0.85);
 
     const facial=(kind==='Facial');
-    // Detect the mouth (teeth) via lip landmarks; on a portrait, blend the AI result ONLY inside a
-    // generously-feathered mouth region so the rest of the face stays the patient's own pixels.
-    // Tone-matched layer + large feather => no visible boundary.
-    // Prefer the INNER lip aperture so the AI replaces ONLY the intraoral region (teeth/gingiva)
-    // and the lips + facial skin stay the patient's own pixels — this moves the seam from the
-    // skin (visible gap) to the natural lip-tooth margin, and treats the mouth interior like a
-    // focus/intraoral close-up edit for quality. Fall back to the outer lip if the inner ring
-    // isn't found.
-    let lipInner = facial ? await lipInnerPolygon(o,w,h) : null;
-    let lip = lipInner || (facial ? await lipMaskPolygon(o,w,h) : null);
-    if(facial && lip){
-      ctx.drawImage(oc,0,0);  // untouched original face as base
-      // Compute lip polygon centroid + bounding box for ROI derivation
-      let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
-      let minX=1e9,maxX=-1e9,minY_lip=1e9,maxY_lip=-1e9;
-      lip.forEach(p=>{
-        minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x);
-        minY_lip=Math.min(minY_lip,p.y); maxY_lip=Math.max(maxY_lip,p.y);
-      });
-      const mouthW=Math.max(20,maxX-minX);
-      const mouthH_lip=Math.max(1,maxY_lip-minY_lip);
-      // Chin / nasal guards: absolute hard stops to prevent identity alteration. These now
-      // FEATHER off (gradient) rather than a hard rectangle cut, so the matte never shows a
-      // straight horizontal seam at the guard line.
-      const chinGuardY=Math.round(maxY_lip + mouthH_lip*0.40);
-      const nasalGuardY=Math.round(minY_lip - mouthH_lip*0.30);
-      // Core ROI base: slightly wider than lip aperture (gingival margin + lip edges)
-      const lipRx=mouthW*0.56, lipRy=mouthH_lip*0.62;
-      // landmark-aware ROI config: concept + active cards drive both extent AND shape
-      const _v82f=state.simV82||{};
-      const roiScalesF=cfSimROIConfig(_v82f.concept||'ortho', _v82f.targets||{});
-      const featherPxF=Math.max(8, Math.round(mouthW*0.10));
-      // Distance-based soft matte clipped to the actual lip polygon (structural, not elliptical)
-      const mk=cfBuildSoftMatte(w, h, cx, cy, lipRx, lipRy, roiScalesF, featherPxF, lip);
-      // Apply chin + nasal guards with a feathered gradient (no hard horizontal cut)
-      const mkGuard=mk.getContext('2d');
-      mkGuard.globalCompositeOperation='destination-out';
-      if(chinGuardY<h){
-        const cg=mkGuard.createLinearGradient(0,chinGuardY,0,Math.min(h,chinGuardY+mouthH_lip*0.6));
-        cg.addColorStop(0,'rgba(255,255,255,0)'); cg.addColorStop(1,'rgba(255,255,255,1)');
-        mkGuard.fillStyle=cg; mkGuard.fillRect(0,chinGuardY,w,h-chinGuardY);
-      }
-      if(nasalGuardY>0){
-        const ng=mkGuard.createLinearGradient(0,nasalGuardY,0,Math.max(0,nasalGuardY-mouthH_lip*0.5));
-        ng.addColorStop(0,'rgba(255,255,255,0)'); ng.addColorStop(1,'rgba(255,255,255,1)');
-        mkGuard.fillStyle=ng; mkGuard.fillRect(0,0,w,nasalGuardY);
-      }
-      mkGuard.globalCompositeOperation='source-over';
-      // なじみ補正: match perioral exposure/WB of the AI layer to the original before masking
-      cfRingToneMatch(aix, ox, mk, w, h, 0.10, 0.55);
-      // Composite: AI layer masked by the distance-based soft matte → over original
-      const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
-      const maskedx=masked.getContext('2d'); maskedx.drawImage(aic,0,0);
-      maskedx.globalCompositeOperation='destination-in'; maskedx.drawImage(mk,0,0); maskedx.globalCompositeOperation='source-over';
+    if(facial){
+      // ── FACIAL (Phase A): treat the AI result as a FULL completed after-image. ──────
+      // The recent ROI / lip-polygon / multi-zone local soft-composite dragged the lower
+      // face (口角・下唇・オトガイ) and produced a "partial face-swap / re-composited patch"
+      // look. For a facial portrait the backend already returns an identity-preserving
+      // full-frame edit (face/lips/skin pixel-faithful, only the dentition changed), so we
+      // show that whole image — global tone/exposure match already applied above — and do
+      // NOT re-paste a local mouth patch. Compare slider then compares two complete images:
+      //   before = the patient's own photo,  after = the full AI after-image.
+      ctx.drawImage(oc,0,0);                 // base = original (shown when sliders are 0)
       const sF=requestedStrength();
-      if(sF>0.001){ ctx.globalAlpha=1; ctx.drawImage(masked,0,0); ctx.globalAlpha=1; }
+      if(sF>0.001){
+        ctx.globalAlpha=1; ctx.drawImage(aic,0,0); ctx.globalAlpha=1;   // full completed after-image
+      }
     } else {
-      // focus / no face detected: the treatment area is the whole frame (plain focus) or the
-      // enamel only (intraoral). Composite the AI at FULL opacity inside the mask — never a
-      // partial blend over the original, which would double-expose into a ghost.
+      // ── FOCUS: dental ROI local processing is appropriate here (close-up / intraoral). ──
+      // The whole frame is teeth-centric, so a distance-based dental soft matte (or the
+      // intraoral enamel mask) keeps the gingiva / retractors / background as the patient's
+      // own pixels. This path is intentionally NOT shared with the facial branch above.
       ctx.drawImage(oc,0,0);
       const sF=requestedStrength();
       if(sF>0.001){
         let mask = (opts && opts.intraoral) ? enamelMaskCanvas(ox,w,h) : null;
-        // Concept + card config applies to focus/fallback paths too
+        // Concept + card config applies to focus paths
         const _v82foc=state.simV82||{};
         const roiScalesFoc=cfSimROIConfig(_v82foc.concept||'ortho', _v82foc.targets||{});
         let usedSoftMatte=false;
-        if(!mask && opts && opts.lips===false){
-          // FOCUS branch — distinct dental logic (NOT the facial lip path): use detectBand to
-          // find the dental bounding box (≈ 前歯部 bounding box / 切縁ライン / 歯列外形), then build
-          // the continuous distance-based matte around it.  Core = crowns/arches, Support =
-          // gingival line, Context = retractor/frame edge.
+        if(!mask){
+          // FOCUS dental logic: use detectBand to find the dental bounding box
+          // (≈ 前歯部 bounding box / 切縁ライン / 歯列外形), then build the continuous
+          // distance-based matte around it. Core = crowns/arches, Support = gingival line,
+          // Context = retractor/frame edge.
           const band=(typeof detectBand==='function')?detectBand(ox,w,h):null;
           const bx0=band?band.x0:w*0.10, by0=band?band.y0:h*0.18, bx1=band?band.x1:w*0.90, by1=band?band.y1:h*0.82;
           const cxb=(bx0+bx1)/2, cyb=(by0+by1)/2;
@@ -19777,18 +19736,9 @@ body[data-ui-tone="dark"]{
           mask=cfBuildSoftMatte(w, h, cxb, cyb, rxb, ryb, roiScalesFoc, featherFoc);
           usedSoftMatte=true;
         }
-        if(!mask && facial){
-          // Facial portrait — lip landmarks not found: continuous distance-based matte centred
-          // on the heuristic mouth position.  Support covers gingiva + full lip surface; Context
-          // extends into perioral tissue so the boundary is invisible.
-          const cxFb=w*0.5, cyFb=h*0.66, rxFb=w*0.26, ryFb=h*0.16;
-          const featherFb=Math.max(10,Math.round(w*0.045));
-          mask=cfBuildSoftMatte(w, h, cxFb, cyFb, rxFb, ryFb, roiScalesFoc, featherFb);
-          usedSoftMatte=true;
-        }
         if(mask){
-          // なじみ補正 for the soft-matte paths (band / facial fallback). Skipped for the intraoral
-          // enamel mask, whose black-contraster surround would bias the ring sample.
+          // なじみ補正 for the dental soft-matte (band) path. Skipped for the intraoral enamel
+          // mask, whose black-contraster surround would bias the ring sample.
           if(usedSoftMatte) cfRingToneMatch(aix, ox, mask, w, h, 0.10, 0.55);
           // Composite the AI through the matte: Core→full edit, Support→partial, Context→light touch
           const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
