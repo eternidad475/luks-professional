@@ -12148,12 +12148,19 @@ window.addEventListener('DOMContentLoaded', () => {
   function normToRect(p, r){
     return {x:r.x + r.w*(p.x/100), y:r.y + r.h*(p.y/100)};
   }
+  function drawCaseflowGradientBg(ctx, w, h){
+    var cs=getComputedStyle(document.documentElement);
+    var c1=(cs.getPropertyValue('--c1')||'#7c5cff').trim();
+    var c2=(cs.getPropertyValue('--c2')||'#ff9fd6').trim();
+    var gr=ctx.createLinearGradient(0,0,w,h);
+    gr.addColorStop(0,c1); gr.addColorStop(1,c2);
+    ctx.fillStyle=gr; ctx.fillRect(0,0,w,h);
+  }
   function makeBaseCanvas(img, w, h, rect){
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,w,h);
+    drawCaseflowGradientBg(ctx, w, h); // gradient matte instead of white
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
@@ -12360,14 +12367,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const w=canvas.width, h=canvas.height;
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,w,h);
-    (function drawMeshBg(){
-      var cs=getComputedStyle(document.documentElement);
-      var c1=(cs.getPropertyValue('--c1')||'#7c5cff').trim();
-      var c2=(cs.getPropertyValue('--c2')||'#ff9fd6').trim();
-      var gr=ctx.createLinearGradient(0,0,w,h);
-      gr.addColorStop(0,c1); gr.addColorStop(1,c2);
-      ctx.fillStyle=gr; ctx.fillRect(0,0,w,h);
-    })();
+    drawCaseflowGradientBg(ctx,w,h);
     if(!a || !b){
       ctx.fillStyle='rgba(32,27,53,.62)';
       ctx.font='800 30px -apple-system,BlinkMacSystemFont,sans-serif';
@@ -12382,20 +12382,32 @@ window.addEventListener('DOMContentLoaded', () => {
     const collected=collectMorphPairs(a,b,rectA,rectB,w,h);
     const pairs=dedupePairs(collected.pairs);
     const e=ease(Math.max(0,Math.min(1,t)));
-    // Variant-based warp scale: clinical=subtle, oral=strong, stable=conservative
-    const warpScale=window.cfMorphVariant==='oral'?1.2:window.cfMorphVariant==='stable'?0.55:0.75;
-    const eW=Math.max(0,Math.min(1.5,e*warpScale));
+    // Mode-based warp scale:
+    //   clinical = safe minimum warp (default, no dental compositing)
+    //   oral     = slightly stronger smile-line alignment only
+    //   stable   = conservative, suppresses position jitter
+    const warpScale=window.cfMorphVariant==='oral'?0.72:window.cfMorphVariant==='stable'?0.48:0.60;
+    // Internal pair quality risk — cached dental brightness diff; no UI display yet
+    var _cfPairRisk='low';
+    try{
+      var _qroi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
+      var _qdiff=_qroi?cfComputeDentalDiff(baseA,baseB,_qroi,a,b):0;
+      _cfPairRisk=_qdiff>=0.22?'high':_qdiff>=0.11?'medium':'low';
+      window._cfLastPairQualityRisk=_cfPairRisk;
+      if(window.CASEFLOW_DEBUG) console.log('[CW] pairQualityRisk:',_cfPairRisk,'diff:',_qdiff.toFixed(3));
+    }catch(e2){}
+    // For high-risk pairs (large clinical difference), reduce warp further to prevent breakdown
+    const riskMult=_cfPairRisk==='high'?0.70:1.0;
+    const eW=Math.max(0,Math.min(1.2,e*warpScale*riskMult));
     const mid=pairs.map(p=>({x:p.p1.x*(1-eW)+p.p2.x*eW,y:p.p1.y*(1-eW)+p.p2.y*eW}));
     const p1=pairs.map(p=>p.p1), p2=pairs.map(p=>p.p2);
     const tris=delaunay(mid);
     if(!state.trueMeshEnabled || tris.length<1){
-      // Cross-DISSOLVE without a white midpoint: A is the OPAQUE base, B fades in over it. Drawing
-      // B at alpha=e over an opaque A equals A*(1-e)+B*e — the correct blend, but it never passes
-      // through the white fill (which was the "white fade").
+      // Cross-dissolve: A opaque base, B fades in — no white midpoint.
       ctx.save(); ctx.globalAlpha=1; ctx.drawImage(baseA,0,0); ctx.restore();
       ctx.save(); ctx.globalAlpha=e; ctx.drawImage(baseB,0,0); ctx.restore();
     }else{
-      // A as the opaque warped base (covers the frame → no white seams), B warped over it at e.
+      // A as the opaque warped base, B warped over it at e.
       tris.forEach(tr=>{
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1);
@@ -12404,13 +12416,11 @@ window.addEventListener('DOMContentLoaded', () => {
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],e);
       });
-      // ── Dental ROI Protection ──────────────────────────────────────────────
-      // Prevents bracket ghosting by overlaying B's dental triangles with a
-      // purpose-timed alpha inside a soft elliptical mask.
-      // Only activate when face mesh is available (detected=true) AND the dental
-      // diff is bracket-level (>0.13). Heuristic fallback and moderate diffs
-      // are handled cleanly by the mesh warp without extra compositing.
-      {
+      // ── Dental ROI alpha blend — DISABLED in standard mode ────────────────
+      // Enabled only under debug flag: window.CASEFLOW_DEBUG_DENTAL_BLEND = true
+      // In standard mode this compositing caused patch-like artifacts around the
+      // mouth, lower lip, and chin. Safe mesh warp above handles all normal cases.
+      if(window.CASEFLOW_DEBUG_DENTAL_BLEND){
         const _droi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
         if(_droi && _droi.detected) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
       }
@@ -12637,6 +12647,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Override preview handlers.
   window.drawPairPreviewAtCurrentT = drawCurrentMeshPreview;
   window.cfDrawMorphFrame = drawMeshMorphFrame;   // exposed for the CapCut-style live editor
+  window.drawCaseflowGradientBg = drawCaseflowGradientBg; // shared gradient helper
   window.stopPairPreview = function(){
     state.v70MeshPlaying=false;
     state.v70MeshToken++;
@@ -22849,12 +22860,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(empty) empty.style.display='flex';
       try{
         var c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
-        // Draw gradient background even when empty so stage never shows white
-        var cs2=getComputedStyle(document.documentElement);
-        var bg=c.createLinearGradient(0,0,cv.width,cv.height);
-        bg.addColorStop(0,(cs2.getPropertyValue('--c1')||'#7c5cff').trim());
-        bg.addColorStop(1,(cs2.getPropertyValue('--c2')||'#ff9fd6').trim());
-        c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
+        if(typeof window.drawCaseflowGradientBg==='function') window.drawCaseflowGradientBg(c,cv.width,cv.height);
       }catch(e){}
       return;
     }
@@ -23013,6 +23019,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
     var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
     var tc=tmp.getContext('2d');
+    tc.imageSmoothingEnabled=true; tc.imageSmoothingQuality='high';
     var blobs=[];
     try{
       for(var f=0;f<frames;f++){
@@ -23021,9 +23028,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var seg=Math.floor(g), localT=g-seg;
         if(seg>=segCount){seg=segCount-1;localT=1;}
         await window.cfDrawMorphFrame(tmp,localT,{aIndex:seg,bIndex:seg+1});
-        // Watermark (replaces suppressed debug badge)
         drawWatermark(tc, w, h);
-        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.88); });
+        var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.93); });
         blobs.push(blob);
       }
     }finally{
