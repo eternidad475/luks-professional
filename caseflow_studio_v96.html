@@ -19519,6 +19519,86 @@ body[data-ui-tone="dark"]{
     ctx.putImageData(id, 0, 0);
   }
 
+  // ── Sim Studio 3-layer ROI soft matte system ─────────────────────────────────
+  // Maps treatment concept + active chief complaint cards → Core/Support/Context
+  // scale multipliers.  All scales multiply the base (rx, ry) of the detected
+  // oral region.  Larger scale = wider zone = more area is edited/blended.
+  function cfSimROIConfig(concept, targets){
+    let support=1.55, context=2.10;
+    if(concept==='prosthetic'){ support=1.80; context=2.40; }
+    if(concept==='hybrid'){     support=2.00; context=2.80; }
+    const t=targets||{};
+    if(t.harmony){ support=Math.max(support,2.20); context=Math.max(context,3.00); }
+    if(t.missing){ support=Math.max(support,2.00); context=Math.max(context,2.80); }
+    if(t.space){   support=Math.max(support,1.90); context=Math.max(context,2.60); }
+    if(t.scallop){ support=Math.max(support,1.90); context=Math.max(context,2.50); }
+    if(t.incisal){ support=Math.max(support,1.70); context=Math.max(context,2.30); }
+    // 'shade' is the tightest card — no upward override
+    return {core:1.0, support:support, context:context};
+  }
+
+  // Builds a 3-zone elliptical alpha matte for destination-in compositing.
+  // Matte alpha encodes edit contribution per zone:
+  //   Core  (rx×core,    ry×core)    → alpha ≈ 1.00  dental crowns / incisal
+  //   Support (rx×support, ry×support) → alpha ≈ 0.75  gingiva / lip edges
+  //   Context (rx×context, ry×context) → alpha ≈ 0.22  perioral / lower-face
+  // Zones are separated by Gaussian blur so transitions are smooth, never hard.
+  function cfBuildSoftMatte(w, h, cx, cy, rx, ry, scales, baseFeatherPx){
+    const off=document.createElement('canvas'); off.width=w; off.height=h;
+    const ox=off.getContext('2d');
+    const feath=Math.max(2, baseFeatherPx||0);
+    const addLayer=function(erx, ery, fillAlpha, blurPx){
+      const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
+      const tx=tmp.getContext('2d');
+      tx.fillStyle='rgba(255,255,255,'+fillAlpha+')';
+      tx.beginPath(); tx.ellipse(cx, cy, Math.max(1,erx), Math.max(1,ery), 0, 0, Math.PI*2); tx.fill();
+      if(blurPx>0.5){
+        const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
+        const fbx=fb.getContext('2d');
+        fbx.filter='blur('+Math.round(blurPx)+'px)'; fbx.drawImage(tmp,0,0); fbx.filter='none';
+        return fb;
+      }
+      return tmp;
+    };
+    // Context layer: widest, faintest (≈0.22), heaviest blur — perioral zone
+    ox.drawImage(addLayer(rx*scales.context, ry*scales.context, 0.22, feath*2.2), 0, 0);
+    // Support layer: mid width (≈0.75 cumulative), moderate blur — gingiva/lip edges
+    ox.drawImage(addLayer(rx*scales.support, ry*scales.support, 0.72, feath*1.0), 0, 0);
+    // Core layer: tightest (≈1.0 cumulative), light blur — dental crowns / incisal
+    ox.drawImage(addLayer(rx*scales.core,    ry*scales.core,    1.00, Math.max(1,feath*0.4)), 0, 0);
+    return off;
+  }
+
+  // Unified landmark/region detector shared across Sim Studio compositing paths.
+  // Returns {cx, cy, rx, ry, kind} regardless of image type so ROI derivation
+  // is centralized and both facial + focus callers use the same interface.
+  //   type:  'facial' | 'focus'
+  //   ctx2d: 2D context of original image canvas (willReadFrequently=true)
+  //   w, h:  canvas dimensions
+  function cfDetectCaseflowLandmarks(type, ctx2d, w, h){
+    if(type==='focus'){
+      if(typeof detectBand==='function'){
+        try{
+          const band=detectBand(ctx2d, w, h);
+          return {cx:(band.x0+band.x1)/2, cy:(band.y0+band.y1)/2,
+                  rx:Math.max(20,(band.x1-band.x0)/2), ry:Math.max(16,(band.y1-band.y0)/2),
+                  kind:'band'};
+        }catch(e){}
+      }
+      return {cx:w*0.5, cy:h*0.50, rx:w*0.44, ry:h*0.40, kind:'heuristic-focus'};
+    }
+    // Facial heuristic: mouth sits at ~66% face height, centred horizontally
+    return {cx:w*0.5, cy:h*0.66, rx:w*0.26, ry:h*0.16, kind:'heuristic-facial'};
+  }
+  // Expose shared landmark+matte API on the engine namespace
+  // (allows Morphing Video Studio to call cfDetectCaseflowLandmarks / cfBuildSoftMatte)
+  if(window.CaseFlowMorphEngine){
+    window.CaseFlowMorphEngine.cfSimROIConfig=cfSimROIConfig;
+    window.CaseFlowMorphEngine.cfBuildSoftMatte=cfBuildSoftMatte;
+    window.CaseFlowMorphEngine.cfDetectCaseflowLandmarks=cfDetectCaseflowLandmarks;
+  }
+  window.cfDetectCaseflowLandmarks=cfDetectCaseflowLandmarks;
+
   async function finalizeAIImage(origUrl, aiUrl, kind, opts){
     const [o,a]=await Promise.all([loadImage(origUrl),loadImage(aiUrl)]);
     // Use the ORIGINAL dimensions as the canvas base so any localized blend aligns exactly.
@@ -19549,42 +19629,36 @@ body[data-ui-tone="dark"]{
     let lip = lipInner || (facial ? await lipMaskPolygon(o,w,h) : null);
     if(facial && lip){
       ctx.drawImage(oc,0,0);  // untouched original face as base
+      // Compute lip polygon centroid + bounding box for ROI derivation
       let cx=0,cy=0; lip.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=lip.length; cy/=lip.length;
-      let minX=1e9,maxX=-1e9; lip.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
+      let minX=1e9,maxX=-1e9,minY_lip=1e9,maxY_lip=-1e9;
+      lip.forEach(p=>{
+        minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x);
+        minY_lip=Math.min(minY_lip,p.y); maxY_lip=Math.max(maxY_lip,p.y);
+      });
       const mouthW=Math.max(20,maxX-minX);
-      // Inner aperture: expand 1.16× from centroid (tighter than before to avoid touching the
-      // chin/jaw area), then feather 18% of mouth-width so the transition zone still blends
-      // across the full lip surface. The chin + nasal guards below provide an absolute hard stop.
-      // Outer polygon fallback: wider expansion + 28% feather gives a softer boundary.
-      const exp = lipInner ? 1.16 : 1.54;
-      const featherPx = lipInner ? Math.max(12,Math.round(mouthW*0.18)) : Math.max(18,Math.round(mouthW*0.28));
-      // Bounding box of the original (non-expanded) lip polygon for guard rails.
-      let minY_lip=1e9,maxY_lip=-1e9,minX_lip=1e9,maxX_lip=-1e9;
-      lip.forEach(p=>{minY_lip=Math.min(minY_lip,p.y);maxY_lip=Math.max(maxY_lip,p.y);minX_lip=Math.min(minX_lip,p.x);maxX_lip=Math.max(maxX_lip,p.x);});
       const mouthH_lip=Math.max(1,maxY_lip-minY_lip);
-      // Chin guard: hard limit for the bottom of the composite mask. Clamp to the natural
-      // lower-lip margin + 12% of mouth height — this ensures the chin/jaw area is ALWAYS
-      // taken from the patient's original photo and never from the AI-generated face.
+      // Chin / nasal guards: absolute hard stops to prevent identity alteration
       const chinGuardY=Math.round(maxY_lip + mouthH_lip*0.12);
-      // Nasal guard: don't bleed into the nose bridge either.
       const nasalGuardY=Math.round(minY_lip - mouthH_lip*0.08);
-
-      const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
-      const m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
-      lip.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
-      m1x.closePath(); m1x.fill();
-      // Apply chin + nasal guards: clear mask pixels outside the safe zone.
-      if(chinGuardY < h) m1x.clearRect(0, chinGuardY, w, h-chinGuardY);
-      if(nasalGuardY > 0) m1x.clearRect(0, 0, w, nasalGuardY);
-      const mk=document.createElement('canvas'); mk.width=w; mk.height=h;
-      const mx=mk.getContext('2d'); mx.filter='blur('+featherPx+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
-      // mask the AI layer, then lay it over the original
+      // Core ROI base: slightly wider than lip aperture (gingival margin + lip edges)
+      const lipRx=mouthW*0.56, lipRy=mouthH_lip*0.62;
+      // 3-layer ROI config: concept + active cards drive Support/Context zone widths
+      const _v82f=state.simV82||{};
+      const roiScalesF=cfSimROIConfig(_v82f.concept||'ortho', _v82f.targets||{});
+      const featherPxF=Math.max(8, Math.round(mouthW*0.10));
+      // Build 3-layer soft matte — Core full / Support ~0.75 / Context ~0.22
+      const mk=cfBuildSoftMatte(w, h, cx, cy, lipRx, lipRy, roiScalesF, featherPxF);
+      // Apply chin + nasal guards: erase matte pixels outside the anatomical safe zone
+      const mkGuard=mk.getContext('2d');
+      mkGuard.globalCompositeOperation='destination-out'; mkGuard.fillStyle='#fff';
+      if(chinGuardY<h) mkGuard.fillRect(0, chinGuardY, w, h-chinGuardY);
+      if(nasalGuardY>0) mkGuard.fillRect(0, 0, w, nasalGuardY);
+      mkGuard.globalCompositeOperation='source-over';
+      // Composite: AI layer masked by 3-layer soft matte → over original
       const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
-      const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
-      mkx.globalCompositeOperation='destination-in'; mkx.drawImage(mk,0,0); mkx.globalCompositeOperation='source-over';
-      // Composite the masked AI mouth at FULL opacity. The feathered mask edge gives the
-      // seamless seam; a partial-alpha blend of two slightly-misaligned images is what
-      // produces a translucent double-exposure (ghost), so we never do that. (0 => original.)
+      const maskedx=masked.getContext('2d'); maskedx.drawImage(aic,0,0);
+      maskedx.globalCompositeOperation='destination-in'; maskedx.drawImage(mk,0,0); maskedx.globalCompositeOperation='source-over';
       const sF=requestedStrength();
       if(sF>0.001){ ctx.globalAlpha=1; ctx.drawImage(masked,0,0); ctx.globalAlpha=1; }
     } else {
@@ -19595,37 +19669,30 @@ body[data-ui-tone="dark"]{
       const sF=requestedStrength();
       if(sF>0.001){
         let mask = (opts && opts.intraoral) ? enamelMaskCanvas(ox,w,h) : null;
+        // Concept + card config applies to focus/fallback paths too
+        const _v82foc=state.simV82||{};
+        const roiScalesFoc=cfSimROIConfig(_v82foc.concept||'ortho', _v82foc.targets||{});
         if(!mask && opts && opts.lips===false){
-          // No-lips close-up (retracted / focus marked 口唇なし) without a black contraster:
-          // confine the AI edit to a generously-feathered central oral band so any lips the
-          // model invents at the frame periphery are discarded (the original pixels — gingiva,
-          // retractors, background — are kept there). Defense-in-depth behind the prompt.
+          // No-lips close-up (retracted focus / 口唇なし): use detectBand for the tooth-zone
+          // center, then apply 3-layer soft matte so concept/card widths are respected.
+          // Core = dental crowns/arches, Support = gingiva, Context = retractor/frame edges.
           const band=(typeof detectBand==='function')?detectBand(ox,w,h):null;
           const bx0=band?band.x0:w*0.10, by0=band?band.y0:h*0.18, bx1=band?band.x1:w*0.90, by1=band?band.y1:h*0.82;
-          const cxb=(bx0+bx1)/2, cyb=(by0+by1)/2, rxb=Math.max(20,(bx1-bx0)/2)*1.18, ryb=Math.max(16,(by1-by0)/2)*1.30;
-          const e1=document.createElement('canvas'); e1.width=w; e1.height=h;
-          const e1x=e1.getContext('2d'); e1x.fillStyle='#fff'; e1x.beginPath();
-          e1x.ellipse(cxb, cyb, rxb, ryb, 0, 0, Math.PI*2); e1x.fill();
-          const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
-          const fbx=fb.getContext('2d'); fbx.filter='blur('+Math.max(8,Math.round(Math.min(w,h)*0.035))+'px)'; fbx.drawImage(e1,0,0); fbx.filter='none';
-          mask=fb;
+          const cxb=(bx0+bx1)/2, cyb=(by0+by1)/2;
+          const rxb=Math.max(20,(bx1-bx0)/2), ryb=Math.max(16,(by1-by0)/2);
+          const featherFoc=Math.max(8,Math.round(Math.min(w,h)*0.025));
+          mask=cfBuildSoftMatte(w, h, cxb, cyb, rxb, ryb, roiScalesFoc, featherFoc);
         }
         if(!mask && facial){
-          // Facial portrait but lip landmarks unavailable: confine the edit to a feathered
-          // lower-central mouth ellipse so the rest of the face stays the patient's own pixels
-          // (full replacement here would risk altering identity).
-          const e1=document.createElement('canvas'); e1.width=w; e1.height=h;
-          const e1x=e1.getContext('2d'); e1x.fillStyle='#fff'; e1x.beginPath();
-          // ③ Larger + softer fallback mouth ellipse so a missed lip-detection still blends
-          // smoothly instead of leaving a hard patch (matches IMG_5829 failure case).
-          e1x.ellipse(w*0.5, h*0.66, w*0.24, h*0.15, 0, 0, Math.PI*2); e1x.fill();
-          const fb=document.createElement('canvas'); fb.width=w; fb.height=h;
-          const fbx=fb.getContext('2d'); fbx.filter='blur('+Math.max(10,Math.round(w*0.05))+'px)'; fbx.drawImage(e1,0,0); fbx.filter='none';
-          mask=fb;
+          // Facial portrait — lip landmarks not found: 3-layer soft matte centred on
+          // heuristic mouth position.  Support zone now includes gingiva and full lip
+          // surface; Context zone extends into perioral tissue so the seam is invisible.
+          const cxFb=w*0.5, cyFb=h*0.66, rxFb=w*0.26, ryFb=h*0.16;
+          const featherFb=Math.max(10,Math.round(w*0.045));
+          mask=cfBuildSoftMatte(w, h, cxFb, cyFb, rxFb, ryFb, roiScalesFoc, featherFb);
         }
         if(mask){
-          // Restrict the AI correction to the mask (enamel / mouth) so the background, gingiva
-          // and the rest of the face stay exactly as in the patient's own photo.
+          // Apply 3-layer soft matte: Core→full edit, Support→partial, Context→light touch
           const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
           const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
           mkx.globalCompositeOperation='destination-in'; mkx.drawImage(mask,0,0); mkx.globalCompositeOperation='source-over';
