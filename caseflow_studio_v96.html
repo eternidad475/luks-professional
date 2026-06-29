@@ -12386,11 +12386,14 @@ window.addEventListener('DOMContentLoaded', () => {
         drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],e);
       });
       // ── Dental ROI Protection ──────────────────────────────────────────────
-      // Prevents bracket ghosting / white dental blob by overlaying B's dental
-      // triangles with a purpose-timed alpha inside a soft elliptical mask.
+      // Prevents bracket ghosting by overlaying B's dental triangles with a
+      // purpose-timed alpha inside a soft elliptical mask.
+      // Only activate when face mesh is available (detected=true) AND the dental
+      // diff is bracket-level (>0.13). Heuristic fallback and moderate diffs
+      // are handled cleanly by the mesh warp without extra compositing.
       {
         const _droi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
-        if(_droi) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
+        if(_droi && _droi.detected) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
       }
     }
     if(state.meshOverlayEnabled){
@@ -12494,15 +12497,16 @@ window.addEventListener('DOMContentLoaded', () => {
   // of B's dental triangles over the ghosted blend inside a soft elliptical mask.
   function cfApplyDentalROIFull(ctx,baseA,baseB,roi,photoA,photoB,w,h,e,tris,mid,p2){
     const diff=cfComputeDentalDiff(baseA,baseB,roi,photoA,photoB);
-    // Skip if structural content is similar (no bracket/restoration change)
-    if(diff<0.055){
+    // Only apply for true bracket/restoration changes; moderate diffs look better
+    // with the plain mesh warp and don't need extra compositing.
+    if(diff<0.13){
       if(window.CASEFLOW_DEBUG){
         const _dRoi={cx:roi.cxA*(1-e)+roi.cxB*e,cy:roi.cyA*(1-e)+roi.cyB*e,rx:Math.max(roi.rxA,roi.rxB),ry:Math.max(roi.ryA,roi.ryB)};
         _cfDentalDbg(ctx,_dRoi,e,diff,0,false,0);
       }
       return;
     }
-    const isBracket=diff>0.13;
+    const isBracket=true; // threshold is already bracket-level
     // Dental alpha: time curve
     // Bracket case: hold A dental until 32 %, fast cross at 32-68 %, hold B dental
     // Moderate case: slightly faster ease than the full-frame ease
@@ -13819,6 +13823,7 @@ window.addEventListener('DOMContentLoaded', () => {
       </div>`;
     }).join('');
     const pts=lm(activePhoto())||[];
+    const ptCount=pts.length;
     const sel=state.v75SelectedIndex;
     const srcCount=photos.filter(function(p){return !p.aiGenerated;}).length;
     /* Add-photo button: triggers hidden file input */
@@ -13832,12 +13837,18 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="v73SourceStrip">${cards}${addBtn}</div>
       <div class="v73PointTools">
         ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="flex:1.5;background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
-        <button onclick="caseflowV75PrevPoint()">Prev</button>
-        <button onclick="caseflowV75NextPoint()">Next</button>
-        <button onclick="caseflowV75UndoPoint()">Undo</button>
-        <button class="danger" onclick="caseflowV75DeletePoint()">Delete</button>
+        <button onclick="caseflowV75PrevPoint()" ${ptCount===0?'disabled':''}>Prev</button>
+        <button onclick="caseflowV75NextPoint()" ${ptCount===0?'disabled':''}>Next</button>
+        <button onclick="caseflowV75UndoPoint()" ${ptCount===0?'disabled':''}>Undo</button>
+        <button class="danger" onclick="caseflowV75DeletePoint()" ${ptCount===0?'disabled':''}>Delete</button>
       </div>
-      <div class="v73Hint">${sel==null ? 'タップしてポイントを追加。ドラッグで微調整、<b>ダブルタップで削除</b>。サムネイルをドラッグしてモーフィング順を入れ替えられます。' : `Point ${sel+1} / ${pts.length} を選択中。<b>ダブルタップ</b>または Delete で削除。`}</div>
+      <div class="v73Hint">${ptCount===0
+        ? (isFacial(activePhoto())
+            ? '「AI自動検出」で眼・鼻・オトガイを自動配置、または画像をタップして手動追加。'
+            : '画像をタップしてランドマークを追加。ドラッグで微調整、<b>ダブルタップで削除</b>。')
+        : sel==null
+          ? `${ptCount}点を追加済み。画像をタップして追加、ドラッグで微調整。`
+          : `Point ${sel+1} / ${ptCount} を選択中。<b>ダブルタップ</b>または Delete で削除。`}</div>
       <div class="v74Guide">${currentGuide()}</div>
     `;
     bindSourceReorder(panel);
