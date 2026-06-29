@@ -10448,7 +10448,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   function outputSize(){
     const r=state.ratio||'9:16';
-    if(r==='16:9') return [1080,608];
+    if(r==='16:9') return [1920,1080];
     if(r==='1:1') return [1080,1080];
     if(r==='4:5') return [1080,1350];
     return [1080,1920];
@@ -12344,6 +12344,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.closePath();
     ctx.clip();
     ctx.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
     ctx.drawImage(src,0,0);
     ctx.restore();
   }
@@ -12381,7 +12382,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const collected=collectMorphPairs(a,b,rectA,rectB,w,h);
     const pairs=dedupePairs(collected.pairs);
     const e=ease(Math.max(0,Math.min(1,t)));
-    const mid=pairs.map(p=>({x:p.p1.x*(1-e)+p.p2.x*e,y:p.p1.y*(1-e)+p.p2.y*e}));
+    // Variant-based warp scale: clinical=subtle, oral=strong, stable=conservative
+    const warpScale=window.cfMorphVariant==='oral'?1.2:window.cfMorphVariant==='stable'?0.55:0.75;
+    const eW=Math.max(0,Math.min(1.5,e*warpScale));
+    const mid=pairs.map(p=>({x:p.p1.x*(1-eW)+p.p2.x*eW,y:p.p1.y*(1-eW)+p.p2.y*eW}));
     const p1=pairs.map(p=>p.p1), p2=pairs.map(p=>p.p2);
     const tris=delaunay(mid);
     if(!state.trueMeshEnabled || tris.length<1){
@@ -12512,67 +12516,70 @@ window.addEventListener('DOMContentLoaded', () => {
   // of B's dental triangles over the ghosted blend inside a soft elliptical mask.
   function cfApplyDentalROIFull(ctx,baseA,baseB,roi,photoA,photoB,w,h,e,tris,mid,p2){
     const diff=cfComputeDentalDiff(baseA,baseB,roi,photoA,photoB);
-    // Only apply for true bracket/restoration changes; moderate diffs look better
-    // with the plain mesh warp and don't need extra compositing.
-    if(diff<0.13){
+    // Apply for any visible change (0.06+); below that the mesh warp is clean enough.
+    if(diff<0.06){
       if(window.CASEFLOW_DEBUG){
         const _dRoi={cx:roi.cxA*(1-e)+roi.cxB*e,cy:roi.cyA*(1-e)+roi.cyB*e,rx:Math.max(roi.rxA,roi.rxB),ry:Math.max(roi.ryA,roi.ryB)};
         _cfDentalDbg(ctx,_dRoi,e,diff,0,false,0);
       }
       return;
     }
-    const isBracket=true; // threshold is already bracket-level
+    const isBracket=diff>=0.13; // true bracket/restoration vs moderate shade change
     // Dental alpha: time curve
-    // Bracket case: hold A dental until 32 %, fast cross at 32-68 %, hold B dental
-    // Moderate case: slightly faster ease than the full-frame ease
+    // Bracket case: hold A dental until 28%, fast cross at 28-72%, hold B dental
+    // Moderate case: full ease-in/out over the whole animation
     let da;
     if(isBracket){
-      const ds=0.32,de_=0.68;
+      const ds=0.28,de_=0.72;
       const dr=Math.max(0,Math.min(1,(e-ds)/(de_-ds)));
       da=0.5-0.5*Math.cos(Math.PI*dr);
     }else{
-      const dr=Math.max(0,Math.min(1,(e-0.12)/0.76));
-      da=0.5-0.5*Math.cos(Math.PI*dr);
+      da=0.5-0.5*Math.cos(Math.PI*Math.max(0,Math.min(1,(e-0.08)/0.84)));
     }
-    if(da<0.01) return; // nothing to add yet
+    if(da<0.008) return; // nothing to add yet
     // Interpolated ROI center tracks the warp displacement
     const cx=roi.cxA*(1-e)+roi.cxB*e;
     const cy=roi.cyA*(1-e)+roi.cyB*e;
-    const rx=Math.max(roi.rxA,roi.rxB);
-    const ry=Math.max(roi.ryA,roi.ryB);
-    // Filter triangles whose centroid falls within 1.65× the dental ellipse
+    // Use the larger of the two ROIs, expanded slightly to cover lip corners
+    const rx=Math.max(roi.rxA,roi.rxB)*1.12;
+    const ry=Math.max(roi.ryA,roi.ryB)*1.12;
+    // Filter triangles whose centroid falls within 2.0× the dental ellipse (wider catch)
     const dTris=tris.filter(function(tr){
       const tcx=(mid[tr[0]].x+mid[tr[1]].x+mid[tr[2]].x)/3;
       const tcy=(mid[tr[0]].y+mid[tr[1]].y+mid[tr[2]].y)/3;
-      const dx=(tcx-cx)/(rx*1.65),dy=(tcy-cy)/(ry*1.65);
+      const dx=(tcx-cx)/(rx*2.0),dy=(tcy-cy)/(ry*2.0);
       return dx*dx+dy*dy<1;
     });
     if(!dTris.length) return;
-    // Offscreen canvas: draw dental triangles from B at full opacity (no A ghost)
+    // Offscreen canvas: draw dental triangles from both A and B, blended at da
     const off=document.createElement('canvas');
     off.width=w;off.height=h;
     const oCtx=off.getContext('2d');
+    oCtx.imageSmoothingEnabled=true;oCtx.imageSmoothingQuality='high';
+    // Draw A dental first (fully opaque base to prevent gradient show-through)
     dTris.forEach(function(tr){
       const [i,j,k]=tr;
-      drawWarpedTriangle(oCtx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],1);
+      drawWarpedTriangle(oCtx,baseA,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],1);
     });
-    // Soft elliptical mask: full opacity in core dental zone, feathers to 0 at lip border
+    // Overlay B dental at da — clean cut from A to B with no ghost bleed
+    dTris.forEach(function(tr){
+      const [i,j,k]=tr;
+      drawWarpedTriangle(oCtx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],da);
+    });
+    // Soft elliptical mask: full opacity in core dental zone, feathers to 0 at edges
     oCtx.globalCompositeOperation='destination-in';
-    oCtx.beginPath();
-    oCtx.ellipse(cx,cy,rx*1.32,ry*1.5,0,0,Math.PI*2);
-    const mGr=oCtx.createRadialGradient(cx,cy,0,cx,cy,Math.max(rx,ry)*1.5);
+    const mGr=oCtx.createRadialGradient(cx,cy,Math.min(rx,ry)*0.3,cx,cy,Math.max(rx,ry)*1.65);
     mGr.addColorStop(0,   'rgba(0,0,0,1)');
-    mGr.addColorStop(0.48,'rgba(0,0,0,1)');
-    mGr.addColorStop(0.70,'rgba(0,0,0,0.88)');
-    mGr.addColorStop(0.87,'rgba(0,0,0,0.42)');
+    mGr.addColorStop(0.52,'rgba(0,0,0,1)');
+    mGr.addColorStop(0.73,'rgba(0,0,0,0.85)');
+    mGr.addColorStop(0.90,'rgba(0,0,0,0.35)');
     mGr.addColorStop(1,   'rgba(0,0,0,0)');
     oCtx.fillStyle=mGr;
+    oCtx.beginPath();
+    oCtx.ellipse(cx,cy,rx*1.65,ry*1.65,0,0,Math.PI*2);
     oCtx.fill();
-    // Composite over main canvas
-    ctx.save();
-    ctx.globalAlpha=da;
+    // Composite over main canvas at full opacity (alpha is baked into the offscreen blend)
     ctx.drawImage(off,0,0);
-    ctx.restore();
     if(window.CASEFLOW_DEBUG) _cfDentalDbg(ctx,{cx,cy,rx,ry},e,diff,da,isBracket,dTris.length);
   }
   function _cfDentalDbg(ctx,roi,e,diff,da,bracket,tCount){
@@ -12594,7 +12601,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function outputSize(){
     const r=state.ratio||'9:16';
-    if(r==='16:9') return [1080,608];
+    if(r==='16:9') return [1920,1080];
     if(r==='1:1') return [1080,1080];
     if(r==='4:5') return [1080,1350];
     return [1080,1920];
@@ -13852,18 +13859,14 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="v73SourceStrip">${cards}${addBtn}</div>
       <div class="v73PointTools">
         ${isFacial(activePhoto()) ? `<button class="v75AiDetect" onclick="caseflowV75AutoDetect()" style="flex:1.5;background:linear-gradient(135deg,#7c5cff,#ff9fd6)!important;color:#fff!important;border:0!important;font-weight:900"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M12 2l2.4 7.2H22l-6.2 4.5 2.4 7.2-6.2-4.5-6.2 4.5 2.4-7.2L2 9.2h7.6z"/></svg>AI自動検出</button>` : ''}
-        <button onclick="caseflowV75PrevPoint()" ${ptCount===0?'disabled':''}>Prev</button>
-        <button onclick="caseflowV75NextPoint()" ${ptCount===0?'disabled':''}>Next</button>
-        <button onclick="caseflowV75UndoPoint()" ${ptCount===0?'disabled':''}>Undo</button>
-        <button class="danger" onclick="caseflowV75DeletePoint()" ${ptCount===0?'disabled':''}>Delete</button>
+        <button onclick="cfCapPrevImage()" title="選択画像を前に移動" ${photos.length<2||active===0?'disabled':''}>← 前へ</button>
+        <button onclick="cfCapNextImage()" title="選択画像を後ろに移動" ${photos.length<2||active>=photos.length-1?'disabled':''}>次へ →</button>
+        <button onclick="cfCapUndoImage()" title="直前の操作を取り消す" ${!(window._cfCapUndoStack&&window._cfCapUndoStack.length)?'disabled':''}>Undo</button>
+        <button class="danger" onclick="cfCapDeleteImage()" title="選択画像を削除" ${photos.length<1?'disabled':''}>削除</button>
       </div>
-      <div class="v73Hint">${ptCount===0
-        ? (isFacial(activePhoto())
-            ? '「AI自動検出」で眼・鼻・オトガイを自動配置、または画像をタップして手動追加。'
-            : '画像をタップしてランドマークを追加。ドラッグで微調整、<b>ダブルタップで削除</b>。')
-        : sel==null
-          ? `${ptCount}点を追加済み。画像をタップして追加、ドラッグで微調整。`
-          : `Point ${sel+1} / ${ptCount} を選択中。<b>ダブルタップ</b>または Delete で削除。`}</div>
+      <div class="v73Hint">${photos.length===0
+        ? 'Gallery で 2 枚以上の画像を選択してください。'
+        : `画像 ${active+1} / ${srcCount} 選択中。← →で並び替え、削除で除去。ダブルタップで編集・差し替えメニュー。`}</div>
       <div class="v74Guide">${currentGuide()}</div>
     `;
     bindSourceReorder(panel);
@@ -13900,15 +13903,25 @@ window.addEventListener('DOMContentLoaded', () => {
         ps.longPressTimer=null;
         // Enter drag mode — create ghost + placeholder
         const rect=card.getBoundingClientRect();
-        const ghost=card.cloneNode(true);
+        // Build ghost from div+background-image (not cloneNode) to avoid iOS img callout
+        const ghost=document.createElement('div');
         ghost.className='v73SrcDragGhost';
         ghost.style.cssText='position:fixed;top:'+rect.top+'px;left:'+rect.left+'px;width:'+rect.width+'px;height:'+rect.height+'px;';
+        const thumb=card.querySelector('.v73SrcThumb');
+        if(thumb){
+          const gi=document.createElement('div');
+          gi.className='v73SrcThumb';
+          gi.style.backgroundImage=thumb.style.backgroundImage;
+          ghost.appendChild(gi);
+        }
         document.body.appendChild(ghost);
         const ph=document.createElement('div');
         ph.className='v73SrcPlaceholder';
         ph.style.cssText='flex:0 0 '+rect.width+'px;height:'+rect.height+'px;';
         strip.insertBefore(ph,card);
         card.style.opacity='0.12';
+        // Freeze scroll on strip so iOS doesn't hijack the drag pointer
+        strip.style.touchAction='none';
         ps.dragActive=true;
         ps.ghost=ghost;
         ps.placeholder=ph;
@@ -13980,6 +13993,7 @@ window.addEventListener('DOMContentLoaded', () => {
           }
         }
       }
+      strip.style.touchAction='';
       try{strip.releasePointerCapture(ps.pointerId);}catch(e){}
       ps=null;
     }
@@ -13990,6 +14004,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(ps.ghost){try{document.body.removeChild(ps.ghost);}catch(e){}}
       if(ps.placeholder){try{strip.removeChild(ps.placeholder);}catch(e){}}
       ps.card.style.opacity='';
+      strip.style.touchAction='';
       try{strip.releasePointerCapture(ps.pointerId);}catch(e){}
       ps=null;
     });
@@ -22403,7 +22418,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(r==='16:9') return '16/9'; if(r==='1:1') return '1/1'; if(r==='9:16') return '9/16'; return '4/5';
   }
   function ratioWH(r){
-    if(r==='16:9') return {w:1080,h:608};
+    if(r==='16:9') return {w:1920,h:1080};
     if(r==='1:1')  return {w:1080,h:1080};
     if(r==='9:16') return {w:1080,h:1920};
     return {w:1080,h:1350}; // 4:5 default
@@ -22765,6 +22780,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       btn.addEventListener('click',function(){
         box.querySelectorAll('.cfCapPat').forEach(function(b){b.classList.remove('on');});
         btn.classList.add('on');
+        window.cfMorphVariant=btn.dataset.pat||'clinical';
         var warp=Number(btn.dataset.warp||0);
         var ms=Number(btn.dataset.ms||2600);
         /* Apply warp strength */
@@ -22829,7 +22845,19 @@ body.cfPresent .cfPresentExit{display:flex!important}
   async function render(t){
     var cv=$id('cfCapCanvas'); if(!cv || typeof window.cfDrawMorphFrame!=='function') return;
     var ph=(window.state&&state.photos)||[], empty=$id('cfCapEmpty');
-    if(ph.length<2){ if(empty) empty.style.display='flex'; try{ var c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height); }catch(e){} return; }
+    if(ph.length<2){
+      if(empty) empty.style.display='flex';
+      try{
+        var c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+        // Draw gradient background even when empty so stage never shows white
+        var cs2=getComputedStyle(document.documentElement);
+        var bg=c.createLinearGradient(0,0,cv.width,cv.height);
+        bg.addColorStop(0,(cs2.getPropertyValue('--c1')||'#7c5cff').trim());
+        bg.addColorStop(1,(cs2.getPropertyValue('--c2')||'#ff9fd6').trim());
+        c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
+      }catch(e){}
+      return;
+    }
     if(empty) empty.style.display='none';
     // Map the global scrub (0..1) across ALL images (N-1 segments) so a 4-image set morphs
     // through every image, not just the first pair.
@@ -22974,6 +23002,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
     var w,h;
     if(r==='16:9'){w=1920;h=1080;}else if(r==='1:1'){w=1080;h=1080;}else if(r==='4:5'){w=1080;h=1350;}else{w=1080;h=1920;}
+    // Show waiting overlay during export
+    var waitOvEl=$id('cfCWWait');
+    if(waitOvEl){ waitOvEl.querySelector&&(waitOvEl.querySelector('.cfCWMsg').textContent='書き出し中… ('+frames+'フレーム)'); waitOvEl.classList.add('active'); }
     toastFn('書き出し準備中… ('+frames+'フレーム)');
     // Save & patch state flags for export rendering
     var prevMesh=(window.state&&state.trueMeshEnabled);
@@ -23029,11 +23060,68 @@ body.cfPresent .cfPresentExit{display:flex!important}
       };
       rec.stop();
     });
+    var waitOvEl2=$id('cfCWWait');
+    if(waitOvEl2) waitOvEl2.classList.remove('active');
     if(result){
       if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
       toastFn('動画を書き出しました（'+Math.round(durationMs/100)/10+'s / '+fps+'fps）');
     }
   }
+
+  // ── Source image management: Prev / Next / Undo / Delete ──────────────────
+  window._cfCapUndoStack = window._cfCapUndoStack || [];
+  function cfCapPushUndo(){
+    var ph=(window.state&&state.photos)||[];
+    window._cfCapUndoStack.push(JSON.stringify(ph.map(function(p){ return {dataUrl:p.dataUrl,label:p.label,name:p.name,category:p.category}; })));
+    if(window._cfCapUndoStack.length>6) window._cfCapUndoStack.shift();
+  }
+  window.cfCapPrevImage=function(){
+    var ph=(window.state&&state.photos)||[];
+    var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+    if(ph.length<2||i<=0){ toastFn('これ以上前に移動できません'); return; }
+    cfCapPushUndo();
+    var tmp=ph[i]; ph[i]=ph[i-1]; ph[i-1]=tmp;
+    state.v75ActiveIndex=i-1;
+    if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+    else refresh();
+  };
+  window.cfCapNextImage=function(){
+    var ph=(window.state&&state.photos)||[];
+    var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+    if(ph.length<2||i>=ph.length-1){ toastFn('これ以上後ろに移動できません'); return; }
+    cfCapPushUndo();
+    var tmp=ph[i]; ph[i]=ph[i+1]; ph[i+1]=tmp;
+    state.v75ActiveIndex=i+1;
+    if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+    else refresh();
+  };
+  window.cfCapUndoImage=function(){
+    if(!window._cfCapUndoStack||!window._cfCapUndoStack.length){ toastFn('取り消す操作がありません'); return; }
+    try{
+      var saved=JSON.parse(window._cfCapUndoStack.pop());
+      if(window.state) state.photos=saved;
+      state.v75ActiveIndex=Math.min(state.v75ActiveIndex||0,Math.max(0,saved.length-1));
+      if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+      if(typeof window.renderUpload==='function') window.renderUpload();
+      refresh();
+      toastFn('取り消しました');
+    }catch(e){ toastFn('取り消しに失敗しました'); }
+  };
+  window.cfCapDeleteImage=function(){
+    var ph=(window.state&&state.photos)||[];
+    var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+    if(!ph[i]){ toastFn('削除する画像がありません'); return; }
+    var label=ph[i].label||ph[i].name||('Image '+(i+1));
+    if(!window.confirm('「'+label+'」を削除しますか？\nこの操作は取り消せます（Undoボタン）。')) return;
+    cfCapPushUndo();
+    ph.splice(i,1);
+    state.v75ActiveIndex=Math.min(i,Math.max(0,ph.length-1));
+    if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+    if(typeof window.renderUpload==='function') window.renderUpload();
+    if(typeof window.renderSimulator==='function') window.renderSimulator();
+    refresh();
+    toastFn('画像を削除しました');
+  };
 
   // header / step-3 "書き出し"
   window.cfMorphExport=function(){
