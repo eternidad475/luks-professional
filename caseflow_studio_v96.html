@@ -12385,6 +12385,13 @@ window.addEventListener('DOMContentLoaded', () => {
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],e);
       });
+      // ── Dental ROI Protection ──────────────────────────────────────────────
+      // Prevents bracket ghosting / white dental blob by overlaying B's dental
+      // triangles with a purpose-timed alpha inside a soft elliptical mask.
+      {
+        const _droi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
+        if(_droi) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
+      }
     }
     if(state.meshOverlayEnabled){
       ctx.save();
@@ -12410,6 +12417,155 @@ window.addEventListener('DOMContentLoaded', () => {
     if(!state.cfExportMode){
     }
     return {triangles:tris.length,points:pairs.length,userCount:collected.userCount,fallback:false};
+  }
+
+  // ── Dental ROI Protection helpers ─────────────────────────────────────────
+  // cfComputeDentalROI — detect the oral/dental region in both source images.
+  // Returns {cxA,cyA,rxA,ryA,cxB,cyB,rxB,ryB,detected}. Prefers face-mesh;
+  // falls back to a facial-proportion heuristic.
+  const _dentalDiffCache=new Map();
+  function cfComputeDentalROI(photoA,photoB,rectA,rectB,w,h){
+    function mouthFrom(mesh,rect){
+      // MediaPipe face: mouth zone ≈ y∈[0.57,0.84], x∈[0.24,0.76]
+      const pts=mesh.filter(function(p){return p.y>0.57&&p.y<0.84&&p.x>0.24&&p.x<0.76;});
+      if(pts.length<3) return null;
+      const px=pts.map(function(p){return rect.x+p.x*rect.w;});
+      const py=pts.map(function(p){return rect.y+p.y*rect.h;});
+      const minX=Math.min.apply(null,px),maxX=Math.max.apply(null,px);
+      const minY=Math.min.apply(null,py),maxY=Math.max.apply(null,py);
+      return{
+        cx:(minX+maxX)*0.5,
+        cy:(minY+maxY)*0.5+(maxY-minY)*0.09, // nudge center toward teeth
+        rx:(maxX-minX)*0.48,
+        ry:(maxY-minY)*0.38
+      };
+    }
+    let cxA,cyA,rxA,ryA,cxB,cyB,rxB,ryB,detected=false;
+    const ma=photoA&&photoA._faceMesh,mb=photoB&&photoB._faceMesh;
+    if(ma&&mb){
+      const mA=mouthFrom(ma,rectA),mB=mouthFrom(mb,rectB);
+      if(mA&&mB){
+        cxA=mA.cx;cyA=mA.cy;rxA=mA.rx;ryA=mA.ry;
+        cxB=mB.cx;cyB=mB.cy;rxB=mB.rx;ryB=mB.ry;
+        detected=true;
+      }
+    }
+    if(!detected){
+      // Heuristic: teeth sit at ~65% face height, centred, ~22% half-width
+      cxA=rectA.x+rectA.w*0.5; cyA=rectA.y+rectA.h*0.665;
+      cxB=rectB.x+rectB.w*0.5; cyB=rectB.y+rectB.h*0.665;
+      rxA=rxB=Math.min(rectA.w,rectB.w)*0.22;
+      ryA=ryB=Math.min(rectA.h,rectB.h)*0.065;
+    }
+    return{cxA,cyA,rxA,ryA,cxB,cyB,rxB,ryB,detected};
+  }
+
+  // cfComputeDentalDiff — mean absolute brightness difference in dental ROI,
+  // cached per photo pair so getImageData is only called once per pair.
+  function cfComputeDentalDiff(baseA,baseB,roi,photoA,photoB){
+    const ka=(photoA.dataUrl||'').slice(-28);
+    const kb=(photoB.dataUrl||'').slice(-28);
+    const ck=ka+'|'+kb;
+    if(_dentalDiffCache.has(ck)) return _dentalDiffCache.get(ck);
+    try{
+      const rx=Math.max(24,Math.ceil(roi.rxA)),ry=Math.max(14,Math.ceil(roi.ryA));
+      const sx=Math.max(0,Math.round(roi.cxA-rx)),sy=Math.max(0,Math.round(roi.cyA-ry));
+      const sw=Math.min(baseA.width-sx,rx*2),sh=Math.min(baseA.height-sy,ry*2);
+      if(sw<2||sh<2){_dentalDiffCache.set(ck,0);return 0;}
+      const pdA=baseA.getContext('2d').getImageData(sx,sy,sw,sh).data;
+      const sxB=Math.max(0,Math.round(roi.cxB-rx)),syB=Math.max(0,Math.round(roi.cyB-ry));
+      const swB=Math.min(baseB.width-sxB,rx*2),shB=Math.min(baseB.height-syB,ry*2);
+      const pdB=(swB>=2&&shB>=2)
+        ?baseB.getContext('2d').getImageData(sxB,syB,swB,shB).data
+        :baseB.getContext('2d').getImageData(sx,sy,sw,sh).data;
+      let tot=0,cnt=0;
+      const step=4*5; // sample every 5th pixel
+      for(let i=0;i<pdA.length&&i<pdB.length;i+=step){
+        const bA=(pdA[i]*0.299+pdA[i+1]*0.587+pdA[i+2]*0.114)/255;
+        const bB=(pdB[i]*0.299+pdB[i+1]*0.587+pdB[i+2]*0.114)/255;
+        tot+=Math.abs(bA-bB);cnt++;
+      }
+      const score=cnt>0?tot/cnt:0;
+      _dentalDiffCache.set(ck,score);return score;
+    }catch(e){_dentalDiffCache.set(ck,0);return 0;}
+  }
+
+  // cfApplyDentalROIFull — after the main mesh warp, composite a clean version
+  // of B's dental triangles over the ghosted blend inside a soft elliptical mask.
+  function cfApplyDentalROIFull(ctx,baseA,baseB,roi,photoA,photoB,w,h,e,tris,mid,p2){
+    const diff=cfComputeDentalDiff(baseA,baseB,roi,photoA,photoB);
+    // Skip if structural content is similar (no bracket/restoration change)
+    if(diff<0.055){
+      if(window.CASEFLOW_DEBUG){
+        const _dRoi={cx:roi.cxA*(1-e)+roi.cxB*e,cy:roi.cyA*(1-e)+roi.cyB*e,rx:Math.max(roi.rxA,roi.rxB),ry:Math.max(roi.ryA,roi.ryB)};
+        _cfDentalDbg(ctx,_dRoi,e,diff,0,false,0);
+      }
+      return;
+    }
+    const isBracket=diff>0.13;
+    // Dental alpha: time curve
+    // Bracket case: hold A dental until 32 %, fast cross at 32-68 %, hold B dental
+    // Moderate case: slightly faster ease than the full-frame ease
+    let da;
+    if(isBracket){
+      const ds=0.32,de_=0.68;
+      const dr=Math.max(0,Math.min(1,(e-ds)/(de_-ds)));
+      da=0.5-0.5*Math.cos(Math.PI*dr);
+    }else{
+      const dr=Math.max(0,Math.min(1,(e-0.12)/0.76));
+      da=0.5-0.5*Math.cos(Math.PI*dr);
+    }
+    if(da<0.01) return; // nothing to add yet
+    // Interpolated ROI center tracks the warp displacement
+    const cx=roi.cxA*(1-e)+roi.cxB*e;
+    const cy=roi.cyA*(1-e)+roi.cyB*e;
+    const rx=Math.max(roi.rxA,roi.rxB);
+    const ry=Math.max(roi.ryA,roi.ryB);
+    // Filter triangles whose centroid falls within 1.65× the dental ellipse
+    const dTris=tris.filter(function(tr){
+      const tcx=(mid[tr[0]].x+mid[tr[1]].x+mid[tr[2]].x)/3;
+      const tcy=(mid[tr[0]].y+mid[tr[1]].y+mid[tr[2]].y)/3;
+      const dx=(tcx-cx)/(rx*1.65),dy=(tcy-cy)/(ry*1.65);
+      return dx*dx+dy*dy<1;
+    });
+    if(!dTris.length) return;
+    // Offscreen canvas: draw dental triangles from B at full opacity (no A ghost)
+    const off=document.createElement('canvas');
+    off.width=w;off.height=h;
+    const oCtx=off.getContext('2d');
+    dTris.forEach(function(tr){
+      const [i,j,k]=tr;
+      drawWarpedTriangle(oCtx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],1);
+    });
+    // Soft elliptical mask: full opacity in core dental zone, feathers to 0 at lip border
+    oCtx.globalCompositeOperation='destination-in';
+    oCtx.beginPath();
+    oCtx.ellipse(cx,cy,rx*1.32,ry*1.5,0,0,Math.PI*2);
+    const mGr=oCtx.createRadialGradient(cx,cy,0,cx,cy,Math.max(rx,ry)*1.5);
+    mGr.addColorStop(0,   'rgba(0,0,0,1)');
+    mGr.addColorStop(0.48,'rgba(0,0,0,1)');
+    mGr.addColorStop(0.70,'rgba(0,0,0,0.88)');
+    mGr.addColorStop(0.87,'rgba(0,0,0,0.42)');
+    mGr.addColorStop(1,   'rgba(0,0,0,0)');
+    oCtx.fillStyle=mGr;
+    oCtx.fill();
+    // Composite over main canvas
+    ctx.save();
+    ctx.globalAlpha=da;
+    ctx.drawImage(off,0,0);
+    ctx.restore();
+    if(window.CASEFLOW_DEBUG) _cfDentalDbg(ctx,{cx,cy,rx,ry},e,diff,da,isBracket,dTris.length);
+  }
+  function _cfDentalDbg(ctx,roi,e,diff,da,bracket,tCount){
+    const{cx,cy,rx,ry}=roi;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,30,110,0.9)';ctx.lineWidth=1.5;
+    ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,30,110,0.9)';ctx.font='bold 10px monospace';
+    ctx.fillText('Dental ROI | Δ:'+diff.toFixed(3)+' | α:'+da.toFixed(2)+' | bracket:'+bracket+(tCount?' | tris:'+tCount:''),Math.max(4,cx-rx),Math.max(14,cy-ry-6));
+    ctx.restore();
   }
 
   function roundRectLocal(ctx,x,y,w,h,r){
