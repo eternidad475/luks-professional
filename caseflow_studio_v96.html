@@ -23040,6 +23040,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   async function render(t){
+    if(window._cfExportInProgress) return; // block preview render during export
     var cv=$id('cfCapCanvas'); if(!cv || typeof window.cfDrawMorphFrame!=='function') return;
     var ph=(window.state&&state.photos)||[], empty=$id('cfCapEmpty');
     if(ph.length<2){
@@ -23097,46 +23098,242 @@ body.cfPresent .cfPresentExit{display:flex!important}
     })(performance.now());
   }
 
-  /* ── Browser-based video save: records cfCapCanvas directly (fast, no GPU) ── */
+  // ── Export helpers: precompute plan, deterministic frame renderer, fingerprint ──
+
+  // computeFrameFingerprint — lightweight hash over 64×64 thumbnail for duplicate detection.
+  function computeFrameFingerprint(ctx, w, h){
+    var sW=64, sH=64;
+    var tmp=document.createElement('canvas'); tmp.width=sW; tmp.height=sH;
+    var tc=tmp.getContext('2d');
+    tc.drawImage(ctx.canvas, 0, 0, sW, sH);
+    var data=tc.getImageData(0,0,sW,sH).data;
+    var hash=0;
+    for(var i=0;i<data.length;i+=16){ hash=((hash<<5)-hash+data[i])|0; }
+    return hash;
+  }
+
+  // prepareMorphExportPlan — loads images, builds base canvases, and pre-computes
+  // oralROI / pairRisk / morphPairs for every segment so the export loop itself is
+  // purely synchronous (no loadImage, no mesh detection, no Delaunay re-triangulation
+  // of the control-point set — only the midpoint recompute per frame is needed).
+  async function prepareMorphExportPlan(photos, w, h, fps, durationMs){
+    var segCount=Math.max(1, photos.length-1);
+    var totalFrames=Math.max(2, Math.round(durationMs/1000*fps));
+    var _vdef=cfGetVariantDef(window.cfMorphVariant);
+
+    // imageCache makes repeat calls free; load all upfront
+    var images=await Promise.all(photos.map(function(p){ return loadImage(p.dataUrl); }));
+    var rects=images.map(function(img){ return fitContain(img.naturalWidth||img.width, img.naturalHeight||img.height, w, h, 0); });
+    var bases=rects.map(function(rect, i){ return makeBaseCanvas(images[i], w, h, rect); });
+
+    var pairPlans=[];
+    for(var i=0;i<segCount;i++){
+      var photoA=photos[i], photoB=photos[i+1];
+      var rectA=rects[i], rectB=rects[i+1];
+      var baseA=bases[i], baseB=bases[i+1];
+
+      var oralROI=cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
+
+      var pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
+      try{ pairRisk=cfAssessPairRisk(photoA, photoB, baseA, baseB, oralROI); }catch(e2){}
+
+      var effectiveCW=Math.max(0,Math.min(1, pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
+      var oralExpand=1.1+effectiveCW*0.5;
+
+      var collected=collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand);
+      var morphPairs=dedupePairs(collected.pairs);
+
+      pairPlans.push({
+        photoA:photoA, photoB:photoB,
+        rectA:rectA, rectB:rectB,
+        baseA:baseA, baseB:baseB,
+        oralROI:oralROI, pairRisk:pairRisk,
+        coarseWeight:effectiveCW, oralExpand:oralExpand,
+        morphPairs:morphPairs, _vdef:_vdef
+      });
+    }
+    return {pairPlans:pairPlans, segCount:segCount, totalFrames:totalFrames, fps:fps, w:w, h:h, durationMs:durationMs};
+  }
+
+  // renderExportFrame — purely synchronous single-frame renderer from a precomputed plan.
+  // No async IO, no loadImage, no mesh detection — just midpoint lerp + Delaunay + affine warp.
+  function renderExportFrame(ctx, plan, pairPlan, localT){
+    var w=plan.w, h=plan.h;
+    var _vdef=pairPlan._vdef;
+    var e=ease(Math.max(0,Math.min(1,localT)));
+    var eW=e; // endpoint-preserving: t=0→A exactly, t=1→B exactly
+
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    drawCaseflowGradientBg(ctx, w, h);
+
+    var pairs=pairPlan.morphPairs;
+    var p1=pairs.map(function(p){ return p.p1; });
+    var p2=pairs.map(function(p){ return p.p2; });
+    var mid=pairs.map(function(p){ return {x:p.p1.x*(1-eW)+p.p2.x*eW, y:p.p1.y*(1-eW)+p.p2.y*eW}; });
+    var tris=delaunay(mid);
+
+    if(tris.length<1){
+      ctx.save(); ctx.globalAlpha=1; ctx.drawImage(pairPlan.baseA,0,0); ctx.restore();
+      ctx.save(); ctx.globalAlpha=e; ctx.drawImage(pairPlan.baseB,0,0); ctx.restore();
+    }else{
+      tris.forEach(function(tr){
+        var i=tr[0],j=tr[1],k=tr[2];
+        drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
+      });
+      tris.forEach(function(tr){
+        var i=tr[0],j=tr[1],k=tr[2];
+        drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], e);
+      });
+      if((_vdef.oralSoftDiss||0)>0 && pairPlan.oralROI && pairPlan.oralROI.detected){
+        cfApplyOralSoftDissolve(ctx, pairPlan.baseB, pairPlan.oralROI, eW, _vdef.oralSoftDiss, w, h);
+      }
+    }
+  }
+
+  /* ── Browser-based video export: deterministic two-phase renderer (pre-render → replay) ── */
   async function cfCapBrowserExport(){
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     if(typeof MediaRecorder==='undefined'){ toastFn('このブラウザは動画録画に対応していません'); return; }
-    var cv=$id('cfCapCanvas'); if(!cv) return;
-    var btn=$id('cfCapSaveBtn'); if(btn){ btn.classList.add('recording'); btn.textContent='録画中…'; }
+
+    // Stop preview loop and block render() during export
     stop();
-    var mimeChoices=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
-    var mime=mimeChoices.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
-    var stream=cv.captureStream(30);
-    var chunks=[];
-    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000});
-    rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
-    rec.onstop=function(){
-      var blob=new Blob(chunks,{type:mime});
-      var ext=mime.includes('mp4')?'mp4':'webm';
-      if(typeof setExportBlob==='function'){ setExportBlob(blob,'caseflow_preview.'+ext,mime); if(typeof go==='function') go('export'); }
-      else { var u=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=u; a.download='caseflow_preview.'+ext; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
-      toastFn('動画を保存しました ✓');
+    window._cfExportInProgress=true;
+    var prevExportMode=(window.state&&!!state.cfExportMode);
+    if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
+
+    var btn=$id('cfCapSaveBtn');
+    if(btn){ btn.classList.add('recording'); btn.textContent='準備中…'; }
+    var waitEl=$id('cfCWWait');
+
+    // Export canvas is always full output resolution — independent of preview canvas size
+    var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
+    var rDims=ratioWH(r);
+    var w=rDims.w, h=rDims.h;
+
+    var fps=30;
+    var segCount=Math.max(1,ph.length-1);
+    var durationMs=speedMs()*segCount;
+    var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
+    var frameMs=1000/fps;
+
+    try{
+      // Phase 0: Precompute plan — load images, build baseCanvas, compute oralROI/pairRisk/morphPairs
+      if(waitEl){
+        var msg=waitEl.querySelector&&waitEl.querySelector('.cfCWMsg');
+        if(msg) msg.textContent='Export準備中 ('+totalFrames+'フレーム)…';
+        waitEl.classList.add('active');
+      }
+      toastFn('Export準備中 ('+totalFrames+'フレーム)…');
+
+      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs);
+
+      // Phase 1: Render all frames synchronously to JPEG blobs (no async race conditions)
+      var exportCanvas=document.createElement('canvas');
+      exportCanvas.width=w; exportCanvas.height=h;
+      var exportCtx=exportCanvas.getContext('2d',{alpha:false});
+      exportCtx.imageSmoothingEnabled=true;
+      exportCtx.imageSmoothingQuality='high';
+
+      var blobs=[];
+      var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
+
+      for(var f=0;f<totalFrames;f++){
+        var globalT=totalFrames<=1?1:f/(totalFrames-1);
+        var raw=globalT*plan.segCount;
+        var pairIdx=Math.min(plan.segCount-1,Math.floor(raw));
+        var localT=raw-pairIdx;
+        if(pairIdx>=plan.segCount){ pairIdx=plan.segCount-1; localT=1; }
+
+        // Synchronous render — no IO, no async, no duplicate frames
+        renderExportFrame(exportCtx, plan, plan.pairPlans[pairIdx], localT);
+        drawWatermark(exportCtx, w, h);
+
+        var fp=computeFrameFingerprint(exportCtx, w, h);
+        if(lastFp!==null && fp===lastFp){
+          dupCount++;
+          curDupRun++;
+          if(curDupRun>maxDupRun) maxDupRun=curDupRun;
+        }else{ curDupRun=0; }
+        lastFp=fp;
+
+        var blob=await new Promise(function(res){ exportCanvas.toBlob(res,'image/jpeg',0.93); });
+        blobs.push(blob);
+
+        if(btn) btn.textContent='レンダリング '+Math.round((f+1)/totalFrames*100)+'%';
+        if((f+1)%8===0) await new Promise(function(r){ setTimeout(r,0); }); // yield to UI
+      }
+
+      // Phase 2: Replay pre-rendered JPEG blobs into MediaRecorder at exact wall-clock fps
+      if(btn) btn.textContent='エンコード中…';
+      toastFn('動画エンコード中…');
+
+      var replayCanvas=document.createElement('canvas');
+      replayCanvas.width=w; replayCanvas.height=h;
+      var replayCtx=replayCanvas.getContext('2d');
+
+      var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
+      var mime=mimes.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
+
+      var stream, track, manual=false;
+      try{
+        stream=replayCanvas.captureStream(0);
+        track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        if(track&&typeof track.requestFrame==='function') manual=true;
+        else stream=replayCanvas.captureStream(fps);
+      }catch(e2){ stream=replayCanvas.captureStream(fps); }
+
+      var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000});
+      var parts=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) parts.push(e.data); };
+      rec.start();
+
+      var replayStart=performance.now();
+      for(var f2=0;f2<totalFrames;f2++){
+        var bmp=await createImageBitmap(blobs[f2]);
+        replayCtx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
+        // Let browser composite canvas before requestFrame so encoder sees the new pixels
+        await new Promise(requestAnimationFrame);
+        if(manual&&track) track.requestFrame();
+        // Wall-clock pacing: each frame lands at its exact target time
+        var targetMs=replayStart+(f2+1)*frameMs;
+        var delay=Math.max(0,targetMs-performance.now());
+        if(delay>0) await new Promise(function(r){ setTimeout(r,delay); });
+      }
+      await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
+
+      var result=await new Promise(function(resolve){
+        rec.onstop=function(){
+          var ext=mime.includes('mp4')?'mp4':'webm';
+          resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph.'+ext});
+        };
+        rec.stop();
+      });
+
+      // Persist stats for console inspection: window._cfLastExportStats
+      var dupRate=totalFrames>1?(dupCount/(totalFrames-1)*100).toFixed(1):'0.0';
+      window._cfLastExportStats={
+        totalFrames:totalFrames, dupCount:dupCount, dupRate:parseFloat(dupRate),
+        maxDupRun:maxDupRun, segCount:plan.segCount,
+        framesPerSegment:Math.round(totalFrames/plan.segCount),
+        fps:fps, bitrateMbps:12, width:w, height:h, durationSec:durationMs/1000
+      };
+      if(window.CASEFLOW_DEBUG) console.log('[CF Export]', JSON.stringify(window._cfLastExportStats));
+
+      if(result){
+        if(typeof setExportBlob==='function'){ setExportBlob(result.blob,result.name,result.mime); if(typeof go==='function') go('export'); }
+        else{ var u=URL.createObjectURL(result.blob); var a=document.createElement('a'); a.href=u; a.download=result.name; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
+      }
+      toastFn('動画を書き出しました ✓ ('+Math.round(durationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+
+    }catch(err){
+      toastFn('書き出しエラー: '+(err&&err.message||String(err)).slice(0,80));
+    }finally{
+      window._cfExportInProgress=false;
+      if(window.state){ state.cfExportMode=prevExportMode; }
+      if(waitEl) waitEl.classList.remove('active');
       if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; }
-    };
-    rec.start(100);
-    toastFn('プレビューを録画中…');
-    /* Play one full oscillation (0→1→0) then stop */
-    var segCount=Math.max(1,ph.length-1), durMs=speedMs()*segCount;
-    var totalMs=durMs*2, startT=performance.now(), scrub=$id('cfCapScrub');
-    var tok=++playToken;
-    await new Promise(function(resolve){
-      (function loop(now){
-        if(tok!==playToken){ resolve(); return; }
-        var elapsed=now-startT;
-        if(elapsed>=totalMs){ render(0); setTimeout(resolve,300); return; }
-        var t=elapsed<durMs ? elapsed/durMs : 2-(elapsed/durMs);
-        if(scrub) scrub.value=String(Math.round(t*100)); setPct(t);
-        render(t);
-        requestAnimationFrame(loop);
-      })(performance.now());
-    });
-    rec.stop();
+    }
   }
 
   function refresh(){
@@ -23174,55 +23371,70 @@ body.cfPresent .cfPresentExit{display:flex!important}
     raw.__cfCap=true; window.renderAlign=raw;
   }
 
-  // Two-phase export: pre-render all frames with cfDrawMorphFrame (same engine as preview),
-  // then replay at controlled fps so the exported video speed matches what the user saw.
+  // Two-phase export: precompute plan (no per-frame async IO), render deterministically,
+  // replay at controlled wall-clock fps into MediaRecorder.
   async function cfCapDoExport(){
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
       toastFn('この環境では動画書き出しが未対応です'); return;
     }
-    if(typeof window.cfDrawMorphFrame!=='function'){
-      if(typeof window.exportPreview==='function') window.exportPreview(); return;
-    }
     var segCount=Math.max(1,ph.length-1);
     var durationMs=speedMs()*segCount;
     var fps=30;
-    var frames=Math.max(2,Math.round(durationMs/1000*fps));
+    var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
     var frameMs=1000/fps;
-    // Canvas size from aspect ratio setting
+    // Output resolution from ratio setting
     var r=(window.state&&state.v75Settings&&state.v75Settings.size)||state.ratio||'9:16';
-    var w,h;
-    if(r==='16:9'){w=1920;h=1080;}else if(r==='1:1'){w=1080;h=1080;}else if(r==='4:5'){w=1080;h=1350;}else{w=1080;h=1920;}
-    // Show waiting overlay during export
+    var rDims=ratioWH(r);
+    var w=rDims.w, h=rDims.h;
+    // Show waiting overlay
     var waitOvEl=$id('cfCWWait');
-    if(waitOvEl){ waitOvEl.querySelector&&(waitOvEl.querySelector('.cfCWMsg').textContent='書き出し中… ('+frames+'フレーム)'); waitOvEl.classList.add('active'); }
-    toastFn('書き出し準備中… ('+frames+'フレーム)');
-    // Save & patch state flags for export rendering
+    if(waitOvEl){
+      var _msg=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg');
+      if(_msg) _msg.textContent='書き出し中… ('+totalFrames+'フレーム)';
+      waitOvEl.classList.add('active');
+    }
+    toastFn('書き出し準備中… ('+totalFrames+'フレーム)');
+    stop();
+    window._cfExportInProgress=true;
     var prevMesh=(window.state&&state.trueMeshEnabled);
     var prevOverlay=(window.state&&state.meshOverlayEnabled);
     var prevExportMode=(window.state&&!!state.cfExportMode);
     if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
-    var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
-    var tc=tmp.getContext('2d');
-    tc.imageSmoothingEnabled=true; tc.imageSmoothingQuality='high';
     var blobs=[];
     try{
-      for(var f=0;f<frames;f++){
-        var t=f/(frames-1);
-        var g=Math.max(0,Math.min(0.999999,t))*segCount;
-        var seg=Math.floor(g), localT=g-seg;
-        if(seg>=segCount){seg=segCount-1;localT=1;}
-        await window.cfDrawMorphFrame(tmp,localT,{aIndex:seg,bIndex:seg+1});
+      // Phase 0: precompute — no async IO inside the render loop
+      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs);
+      // Phase 1: deterministic frame render
+      var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
+      var tc=tmp.getContext('2d',{alpha:false});
+      tc.imageSmoothingEnabled=true; tc.imageSmoothingQuality='high';
+      var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
+      for(var f=0;f<totalFrames;f++){
+        var globalT=totalFrames<=1?1:f/(totalFrames-1);
+        var raw=globalT*plan.segCount;
+        var pairIdx=Math.min(plan.segCount-1,Math.floor(raw));
+        var localT=raw-pairIdx;
+        if(pairIdx>=plan.segCount){ pairIdx=plan.segCount-1; localT=1; }
+        renderExportFrame(tc, plan, plan.pairPlans[pairIdx], localT);
         drawWatermark(tc, w, h);
+        var fp=computeFrameFingerprint(tc, w, h);
+        if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+        lastFp=fp;
         var blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.93); });
         blobs.push(blob);
+        if((f+1)%8===0) await new Promise(function(r){ setTimeout(r,0); });
       }
+      var dupRate=totalFrames>1?(dupCount/(totalFrames-1)*100).toFixed(1):'0.0';
+      window._cfLastExportStats={totalFrames:totalFrames,dupCount:dupCount,dupRate:parseFloat(dupRate),maxDupRun:maxDupRun,segCount:plan.segCount,framesPerSegment:Math.round(totalFrames/plan.segCount),fps:fps,bitrateMbps:12,width:w,height:h,durationSec:durationMs/1000};
+      if(window.CASEFLOW_DEBUG) console.log('[CF Export]', JSON.stringify(window._cfLastExportStats));
     }finally{
       if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
+      window._cfExportInProgress=false;
     }
     toastFn('動画エンコード中…');
-    // Phase 2: replay pre-rendered frames at controlled fps so video speed is always correct
+    // Phase 2: replay pre-rendered frames at controlled wall-clock fps
     var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
     var ctx=canvas.getContext('2d');
     var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
@@ -23232,31 +23444,29 @@ body.cfPresent .cfPresentExit{display:flex!important}
       stream=canvas.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
       if(track&&typeof track.requestFrame==='function') manual=true; else stream=canvas.captureStream(fps);
     }catch(e){ stream=canvas.captureStream(fps); }
-    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000}),parts=[];
+    var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
     rec.start();
-    // Wall-clock pacing: compensate for variable draw time so each frame lands at its exact target
     var replayStart=performance.now();
-    for(var f2=0;f2<frames;f2++){
+    for(var f2=0;f2<totalFrames;f2++){
       var bmp=await createImageBitmap(blobs[f2]);
       ctx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
+      await new Promise(requestAnimationFrame); // let browser composite before requestFrame
       if(manual&&track) track.requestFrame();
       var targetMs=replayStart+(f2+1)*frameMs;
       var delay=Math.max(0,targetMs-performance.now());
-      await new Promise(function(r){setTimeout(r,delay);});
+      if(delay>0) await new Promise(function(r){setTimeout(r,delay);});
     }
-    await new Promise(function(r){setTimeout(r,200);});
+    await new Promise(function(r){setTimeout(r,250);});
     var result=await new Promise(function(resolve){
-      rec.onstop=function(){
-        resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')});
-      };
+      rec.onstop=function(){ resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')}); };
       rec.stop();
     });
     var waitOvEl2=$id('cfCWWait');
     if(waitOvEl2) waitOvEl2.classList.remove('active');
     if(result){
       if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
-      toastFn('動画を書き出しました（'+Math.round(durationMs/100)/10+'s / '+fps+'fps）');
+      toastFn('動画を書き出しました（'+Math.round(durationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+'）');
     }
   }
 
