@@ -13822,7 +13822,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const sel=state.v75SelectedIndex;
     const srcCount=photos.filter(function(p){return !p.aiGenerated;}).length;
     /* Add-photo button: triggers hidden file input */
-    const addBtn=`<button class="v73SrcAddBtn" onclick="(function(){var fi=document.getElementById('cfSrcAddInput');if(!fi){fi=document.createElement('input');fi.type='file';fi.id='cfSrcAddInput';fi.accept='image/*';fi.multiple=true;fi.style.display='none';document.body.appendChild(fi);fi.addEventListener('change',async function(e){var files=Array.prototype.slice.call(e.target.files||[]);if(!files.length)return;var st=window.state;if(!st||!Array.isArray(st.photos))return;if(typeof toast==='function')toast('写真を読み込み中…');for(var k=0;k<files.length;k++){try{var dataUrl=await new Promise(function(res,rej){var r=new FileReader();r.onload=function(ev){res(ev.target.result);};r.onerror=rej;r.readAsDataURL(files[k]);});st.photos.push({dataUrl:dataUrl,label:'Image '+(st.photos.length+1),name:files[k].name});}catch(_){}}if(typeof window.caseflowV75Refresh==='function')window.caseflowV75Refresh();if(typeof window.cfCapRefresh==='function')window.cfCapRefresh();if(typeof toast==='function')toast('写真を追加しました');e.target.value='';});}fi.click();})()"><span>＋</span><span>追加</span></button>`;
+    const addBtn=`<button class="v73SrcAddBtn" onclick="(function(){var fi=document.getElementById('cfSrcAddInput');if(!fi){fi=document.createElement('input');fi.type='file';fi.id='cfSrcAddInput';fi.accept='image/*';fi.multiple=true;fi.style.display='none';document.body.appendChild(fi);fi.addEventListener('change',async function(e){var files=Array.prototype.slice.call(e.target.files||[]);if(!files.length)return;var st=window.state;if(!st||!Array.isArray(st.photos))return;if(typeof toast==='function')toast('写真を読み込み中…');for(var k=0;k<files.length;k++){try{var dataUrl=await new Promise(function(res,rej){var r=new FileReader();r.onload=function(ev){res(ev.target.result);};r.onerror=rej;r.readAsDataURL(files[k]);});st.photos.push({dataUrl:dataUrl,label:'Image '+(st.photos.length+1),name:files[k].name,category:'facial'});}catch(_){}}if(typeof window.caseflowV75Refresh==='function')window.caseflowV75Refresh();if(typeof window.cfCapRefresh==='function')window.cfCapRefresh();if(typeof toast==='function')toast('写真を追加しました');e.target.value='';});}fi.click();})()"><span>＋</span><span>追加</span></button>`;
     panel.innerHTML=`
       <div class="v73SrcHeader">
         <b>Source Images</b>
@@ -22183,7 +22183,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
 <style>
 /* ===== CapCut-style morphing editor (injected at the top of #align) ===== */
 #cfCapCut{margin:0 0 14px}
-#cfCapStage{position:relative;width:100%;aspect-ratio:var(--cfcap-ar,4/5);border-radius:16px;overflow:hidden;background:#0c0a16;box-shadow:0 20px 60px -24px rgba(20,12,40,.6),inset 0 0 0 1px rgba(255,255,255,.06)}
+#cfCapStage{position:relative;width:100%;aspect-ratio:var(--cfcap-ar,4/5);border-radius:16px;overflow:hidden;background:linear-gradient(145deg,var(--c1) 0%,color-mix(in srgb,var(--c1) var(--blend,50%),var(--c2)) 50%,var(--c2) 100%);box-shadow:0 20px 60px -24px rgba(20,12,40,.6),inset 0 0 0 1px rgba(255,255,255,.06)}
+#cfCapStage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 70% 60% at 22% 26%,var(--c1) 0%,transparent 60%),radial-gradient(ellipse 66% 64% at 80% 74%,var(--c2) 0%,transparent 60%),radial-gradient(ellipse 50% 48% at 52% 50%,color-mix(in srgb,var(--c1) 50%,var(--c2)) 0%,transparent 58%);background-size:185% 185%,185% 185%,160% 160%;filter:saturate(1.45) contrast(1.03) blur(4px);animation:cfBgEdge 18s ease-in-out infinite alternate}
 #cfCapCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 #cfCapStage .cfCapLbl{position:absolute;top:10px;font-family:ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.16em;color:#fff;background:rgba(8,6,16,.5);padding:4px 9px;border-radius:999px;backdrop-filter:blur(6px);pointer-events:none}
 #cfCapStage .cfCapLbl.l{left:10px}#cfCapStage .cfCapLbl.r{right:10px}
@@ -22198,6 +22199,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #cfCapSpeed button.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.32)}
 #cfCapHint{margin-top:9px;font-size:10.5px;line-height:1.55;color:rgba(32,27,53,.55);font-weight:600}
 #cfCapHint b{color:#6a3de8;font-weight:900}
+#cfCapRatioRow{display:flex;gap:6px;margin-top:10px}
+#cfCapRatioRow .cfCapRat{flex:1;border:1.5px solid rgba(124,92,255,.22);border-radius:12px;background:rgba(32,27,53,.05);color:rgba(32,27,53,.58);font-size:12px;font-weight:700;padding:9px 4px 7px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .18s;line-height:1.2}
+#cfCapRatioRow .cfCapRat span{font-size:9px;font-weight:600;color:rgba(32,27,53,.42);letter-spacing:.04em}
+#cfCapRatioRow .cfCapRat.on{background:linear-gradient(135deg,rgba(124,92,255,.14),rgba(255,159,214,.14));border-color:#7c5cff;color:#5b3fcc}
+#cfCapRatioRow .cfCapRat.on span{color:#8b6ee8}
 /* ── GPU job progress overlay ─────────────────────────────────────────────── */
 #cfCapGpuOverlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(8,6,16,.84);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);flex-direction:column;align-items:center;justify-content:center;gap:18px;border-radius:inherit;}
 #cfCapGpuOverlay.active{display:flex;}
@@ -22364,6 +22370,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var r=(window.state&&state.ratio)||'4:5';
     if(r==='16:9') return '16/9'; if(r==='1:1') return '1/1'; if(r==='9:16') return '9/16'; return '4/5';
   }
+  function ratioWH(r){
+    if(r==='16:9') return {w:1080,h:608};
+    if(r==='1:1')  return {w:1080,h:1080};
+    if(r==='9:16') return {w:1080,h:1920};
+    return {w:1080,h:1350}; // 4:5 default
+  }
   function ensureUI(){
     var align=$id('align'); if(!align) return null;
     var box=$id('cfCapCut'); if(box) return box;
@@ -22397,6 +22409,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button data-ms="3800">Slow</button>'+
         '<button data-ms="2600" class="on">Normal</button>'+
         '<button data-ms="1400">Fast</button>'+
+      '</div>'+
+      '<div id="cfCapRatioRow">'+
+        '<button class="cfCapRat" data-ratio="9:16">9:16<span>縦</span></button>'+
+        '<button class="cfCapRat on" data-ratio="4:5">4:5<span>フィード</span></button>'+
+        '<button class="cfCapRat" data-ratio="1:1">1:1<span>正方形</span></button>'+
+        '<button class="cfCapRat" data-ratio="16:9">16:9<span>横</span></button>'+
       '</div>'+
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま保存</button>'+
       '<div id="cfCapHint">&#9654; で往復再生。3つのプレビューパターンを切り替えて、最適なものを保存してください。</div>'+
@@ -22691,9 +22709,25 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(v75dur){ v75dur.value=String(totalSec); if(v75durVal) v75durVal.textContent=totalSec.toFixed(1)+'s'; }
       });
     });
-    /* Save button: shows resize popup for aspect ratio selection, then records canvas */
+    /* Aspect ratio row: update state.ratio and preview canvas immediately */
+    var initRatio=(window.state&&state.ratio)||'4:5';
+    box.querySelectorAll('.cfCapRat').forEach(function(btn){
+      btn.classList.toggle('on',btn.dataset.ratio===initRatio);
+      btn.addEventListener('click',function(){
+        if(window.state) state.ratio=btn.dataset.ratio;
+        box.querySelectorAll('.cfCapRat').forEach(function(b){b.classList.toggle('on',b===btn);});
+        var stage=$id('cfCapStage'); if(stage) stage.style.setProperty('--cfcap-ar',ratioAR());
+        // Resize canvas intrinsic dimensions to match so export captures the right shape
+        var cv=$id('cfCapCanvas');
+        if(cv){ var rd=ratioWH(btn.dataset.ratio); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
+        try{render(Number(($id('cfCapScrub')||{}).value||0)/100);}catch(e){}
+      });
+    });
+    /* Save button: export at the aspect ratio already selected on screen */
     var saveBtn=box.querySelector('#cfCapSaveBtn');
-    if(saveBtn) saveBtn.addEventListener('click',function(){ openResizePopup(); });
+    if(saveBtn) saveBtn.addEventListener('click',function(){
+      cfCapBrowserExport().catch(function(e){ toastFn('保存エラー: '+(e&&e.message||String(e)).slice(0,60)); });
+    });
     /* ── Clinical Warp pattern switcher (3 presets, pure client-side, no API) ── */
     box.querySelectorAll('.cfCapPat').forEach(function(btn){
       btn.addEventListener('click',function(){
@@ -22854,6 +22888,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function refresh(){
     var box=ensureUI(); if(!box) return;
     var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
+    // Sync canvas intrinsic size to current ratio (clears canvas, re-render follows below)
+    var cv=$id('cfCapCanvas');
+    if(cv){ var rd=ratioWH((window.state&&state.ratio)||'4:5'); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
     /* Show Clinical Warp waiting overlay while canvas initialises */
     var ph=(window.state&&state.photos)||[];
     var wait=$id('cfCWWait');
@@ -22941,11 +22978,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var rec=new MediaRecorder(stream,{mimeType:mime}),parts=[];
     rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
     rec.start();
+    // Wall-clock pacing: compensate for variable draw time so each frame lands at its exact target
+    var replayStart=performance.now();
     for(var f2=0;f2<frames;f2++){
       var bmp=await createImageBitmap(blobs[f2]);
       ctx.drawImage(bmp,0,0); bmp.close(); blobs[f2]=null;
       if(manual&&track) track.requestFrame();
-      await new Promise(function(r){setTimeout(r,frameMs);});
+      var targetMs=replayStart+(f2+1)*frameMs;
+      var delay=Math.max(0,targetMs-performance.now());
+      await new Promise(function(r){setTimeout(r,delay);});
     }
     await new Promise(function(r){setTimeout(r,200);});
     var result=await new Promise(function(resolve){
