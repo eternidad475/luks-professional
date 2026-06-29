@@ -12168,16 +12168,20 @@ window.addEventListener('DOMContentLoaded', () => {
       dentalBlend: false,
       mouthEmphasis: 0,
       stabilityBias: 0,
-      riskReduction: true
+      riskReduction: true,
+      oralSoftDiss: 0,        // no supplementary dissolve in clinical mode
+      coarseWeightBias: 0.0   // neutral oral mesh bias
     },
     oral: {
       // Oral Focus — smile-line / lip alignment priority.
       // Slightly stronger warp near mouth landmarks; no dental compositing.
       warpScale: 0.72,
       dentalBlend: false,
-      mouthEmphasis: 1,   // reserved for future lip-landmark weighting
+      mouthEmphasis: 1,
       stabilityBias: 0,
-      riskReduction: true
+      riskReduction: true,
+      oralSoftDiss: 0.10,     // gentle local dissolve inside oral region only (max alpha)
+      coarseWeightBias: -0.05 // slightly favour fine mesh outside the oral zone
     },
     stable: {
       // Stability — suppresses head-position drift and background wobble.
@@ -12185,13 +12189,129 @@ window.addEventListener('DOMContentLoaded', () => {
       warpScale: 0.48,
       dentalBlend: false,
       mouthEmphasis: 0,
-      stabilityBias: 1,   // reserved for future temporal smoothing
-      riskReduction: true
+      stabilityBias: 1,
+      riskReduction: true,
+      oralSoftDiss: 0,        // no supplementary dissolve in stability mode
+      coarseWeightBias: 0.08  // slightly favour coarser mesh for stability
     }
   };
   function cfGetVariantDef(v){
     return (window.cfMorphVariantDefs||{})[v||'clinical']
         || window.cfMorphVariantDefs.clinical;
+  }
+
+  // ── Dual Mesh System: Oral Cavity Helpers ────────────────────────────────
+  // cfIsInsideOralROI — true when canvas point p falls inside the (expanded)
+  // oral ellipse. expand>1 adds a safety margin around the exclusion zone.
+  function cfIsInsideOralROI(p, cx, cy, rx, ry, expand){
+    const ex=rx*(expand||1.0), ey=ry*(expand||1.0);
+    if(ex<1||ey<1) return false;
+    const dx=(p.x-cx)/ex, dy=(p.y-cy)/ey;
+    return dx*dx+dy*dy<1;
+  }
+
+  // cfAddCoarseOralMesh — replaces fine mesh inside the oral cavity with ~11
+  // coarse boundary + interior points. Larger triangles produce gentle, clay-like
+  // warp with no micro-tearing around teeth/brackets.
+  function cfAddCoarseOralMesh(pairs, roi){
+    // 8 points on ellipse boundary, every 45°
+    var angles=[0,45,90,135,180,225,270,315];
+    angles.forEach(function(deg){
+      var r=deg*Math.PI/180, cosR=Math.cos(r), sinR=Math.sin(r);
+      addPair(pairs,
+        {x:roi.cxA+roi.rxA*cosR, y:roi.cyA+roi.ryA*sinR},
+        {x:roi.cxB+roi.rxB*cosR, y:roi.cyB+roi.ryB*sinR},
+        'oral-coarse');
+    });
+    // 3 interior points: center, left-quarter, right-quarter
+    addPair(pairs, {x:roi.cxA,             y:roi.cyA}, {x:roi.cxB,             y:roi.cyB}, 'oral-coarse');
+    addPair(pairs, {x:roi.cxA-roi.rxA*0.5, y:roi.cyA}, {x:roi.cxB-roi.rxB*0.5, y:roi.cyB}, 'oral-coarse');
+    addPair(pairs, {x:roi.cxA+roi.rxA*0.5, y:roi.cyA}, {x:roi.cxB+roi.rxB*0.5, y:roi.cyB}, 'oral-coarse');
+  }
+
+  // cfAssessPairRisk — multi-factor risk assessment for a photo pair.
+  // Returns {level, score, coarseWeight, factors} where coarseWeight drives how
+  // aggressively the oral fine-mesh exclusion zone is expanded.
+  // Risk levels → coarseWeight: low→0.20, medium→0.40, high→0.65, critical→0.85
+  function cfAssessPairRisk(photoA, photoB, baseA, baseB, oralROI){
+    var factors={dentalDiff:0, mouthPositionRisk:0, facePoseRisk:0, bracketRisk:0};
+    try{
+      // Factor 1: dental brightness difference
+      var diff=oralROI ? cfComputeDentalDiff(baseA, baseB,
+        {rxA:oralROI.rxA,ryA:oralROI.ryA,cxA:oralROI.cxA,cyA:oralROI.cyA,
+         cxB:oralROI.cxB,cyB:oralROI.cyB}, photoA, photoB) : 0;
+      factors.dentalDiff=Math.min(1, diff/0.30);
+
+      // Factor 2: mouth position shift (normalised to ROI radius)
+      if(oralROI){
+        var dxM=oralROI.cxB-oralROI.cxA, dyM=oralROI.cyB-oralROI.cyA;
+        var refSize=Math.max(oralROI.rxA, oralROI.rxB, 1)*2;
+        factors.mouthPositionRisk=Math.min(1, Math.hypot(dxM,dyM)/refSize);
+      }
+
+      // Factor 3: face pose change (rough: head-width ratio delta from mesh)
+      var ma=photoA&&photoA._faceMesh, mb=photoB&&photoB._faceMesh;
+      if(ma&&mb&&ma.length>20&&mb.length>20){
+        var xsA=ma.map(function(p){return p.x;}), xsB=mb.map(function(p){return p.x;});
+        var wA=Math.max.apply(null,xsA)-Math.min.apply(null,xsA);
+        var wB=Math.max.apply(null,xsB)-Math.min.apply(null,xsB);
+        factors.facePoseRisk=Math.min(1, Math.abs(wA-wB)/Math.max(wA,wB,0.01));
+      }
+
+      // Factor 4: bracket detection (binary escalator)
+      factors.bracketRisk=diff>=0.13?1:0;
+    }catch(e2){}
+
+    var score=factors.dentalDiff*0.40 + factors.mouthPositionRisk*0.25
+             +factors.facePoseRisk*0.15 + factors.bracketRisk*0.20;
+    var level, coarseWeight;
+    if(score<0.25){       level='low';      coarseWeight=0.20;}
+    else if(score<0.50){  level='medium';   coarseWeight=0.40;}
+    else if(score<0.75){  level='high';     coarseWeight=0.65;}
+    else{                 level='critical'; coarseWeight=0.85;}
+
+    window._cfLastPairQualityRisk=level;
+    return{level:level, score:score, coarseWeight:coarseWeight, factors:factors};
+  }
+
+  // cfApplyOralSoftDissolve — supplementary soft cross-dissolve of baseB clipped
+  // to the oral region only (Oral Focus mode; maxAlpha≤0.10). A no-op for
+  // Clinical and Stability modes where oralSoftDiss=0.
+  function cfApplyOralSoftDissolve(ctx, baseB, oralROI, eW, maxAlpha, w, h){
+    if(!oralROI||maxAlpha<=0||eW<=0) return;
+    try{
+      var cx=oralROI.cxA*(1-eW)+oralROI.cxB*eW;
+      var cy=oralROI.cyA*(1-eW)+oralROI.cyB*eW;
+      var rx=Math.max(oralROI.rxA,oralROI.rxB)*1.05;
+      var ry=Math.max(oralROI.ryA,oralROI.ryB)*1.05;
+      // Ramps up to maxAlpha at eW=0.5 then stays there
+      var alpha=Math.min(maxAlpha, eW*maxAlpha*2);
+      if(alpha<0.005) return;
+      // Build a soft elliptical mask via an offscreen canvas
+      var msk=document.createElement('canvas'); msk.width=w; msk.height=h;
+      var mc=msk.getContext('2d');
+      var grd=mc.createRadialGradient(cx,cy,0,cx,cy,Math.max(rx,ry));
+      grd.addColorStop(0,'rgba(0,0,0,1)');
+      grd.addColorStop(0.55,'rgba(0,0,0,0.7)');
+      grd.addColorStop(1,'rgba(0,0,0,0)');
+      mc.save();
+      mc.scale(1, ry/rx);
+      mc.fillStyle=grd;
+      mc.beginPath();
+      mc.arc(cx, cy*rx/ry, rx, 0, Math.PI*2);
+      mc.fill();
+      mc.restore();
+      // Draw baseB, clip to mask, composite onto main ctx
+      var off2=document.createElement('canvas'); off2.width=w; off2.height=h;
+      var o2=off2.getContext('2d');
+      o2.drawImage(baseB,0,0);
+      o2.globalCompositeOperation='destination-in';
+      o2.drawImage(msk,0,0);
+      ctx.save();
+      ctx.globalAlpha=alpha;
+      ctx.drawImage(off2,0,0);
+      ctx.restore();
+    }catch(e2){}
   }
 
   function drawCaseflowGradientBg(ctx, w, h){
@@ -12242,8 +12362,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   window.cfEnsureFaceMesh=cfEnsureFaceMesh;
 
-  function collectMorphPairs(photoA, photoB, rectA, rectB, w, h){
+  // oralExpand: how far to extend the oral exclusion zone around face-mesh points
+  // (1.1 = tight, 1.6 = very wide). Driven by cfAssessPairRisk coarseWeight.
+  function collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand){
     const pairs = [];
+    const expand = oralExpand || 1.3;
     // Canvas boundary: fixed, keeps the white frame stable.
     const canvasBounds = [
       [0,0],[w*.25,0],[w*.5,0],[w*.75,0],[w,0],
@@ -12272,22 +12395,31 @@ window.addEventListener('DOMContentLoaded', () => {
         userCount++;
       }
     });
-    // Automatic dense face-mesh correspondence — gives real WARPING on facial portraits with no
-    // manual plotting (the 468-pt mesh is detected/cached in the background). Mesh coords are
-    // normalised to the image (0..1) → mapped into each fitted rect.
+
+    // Detect oral ROI for dual mesh: fine-mesh points inside are excluded below.
+    const oralROI = cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
+
+    // Automatic dense face-mesh — oral cavity points excluded (replaced by coarse mesh).
     const ma=photoA && photoA._faceMesh, mb=photoB && photoB._faceMesh;
     if(ma && mb && ma.length && ma.length===mb.length){
       for(let i=0;i<ma.length;i++){
-        addPair(pairs,
-          {x:rectA.x+ma[i].x*rectA.w, y:rectA.y+ma[i].y*rectA.h},
-          {x:rectB.x+mb[i].x*rectB.w, y:rectB.y+mb[i].y*rectB.h}, 'facemesh');
+        const pA={x:rectA.x+ma[i].x*rectA.w, y:rectA.y+ma[i].y*rectA.h};
+        const pB={x:rectB.x+mb[i].x*rectB.w, y:rectB.y+mb[i].y*rectB.h};
+        // Skip points inside oral cavity on either side to avoid micro-tear artifacts.
+        if(cfIsInsideOralROI(pA, oralROI.cxA, oralROI.cyA, oralROI.rxA, oralROI.ryA, expand)) continue;
+        if(cfIsInsideOralROI(pB, oralROI.cxB, oralROI.cyB, oralROI.rxB, oralROI.ryB, expand)) continue;
+        addPair(pairs, pA, pB, 'facemesh');
         userCount++;
       }
     }
 
+    // Replace oral fine mesh with ~11 coarse boundary points → large triangles,
+    // clay-like motion, no micro-tearing around teeth / brackets.
+    cfAddCoarseOralMesh(pairs, oralROI);
+
     // A very light stabilizer near the center of each image.
     addPair(pairs,{x:rectA.x+rectA.w*.5,y:rectA.y+rectA.h*.52},{x:rectB.x+rectB.w*.5,y:rectB.y+rectB.h*.52},'center');
-    return {pairs, userCount};
+    return {pairs, userCount, oralROI};
   }
 
   function dedupePairs(pairs){
@@ -12425,26 +12557,27 @@ window.addEventListener('DOMContentLoaded', () => {
     const rectB=fitContain(imgB.naturalWidth||imgB.width,imgB.naturalHeight||imgB.height,w,h,0);
     const baseA=makeBaseCanvas(imgA,w,h,rectA);
     const baseB=makeBaseCanvas(imgB,w,h,rectB);
-    const collected=collectMorphPairs(a,b,rectA,rectB,w,h);
-    const pairs=dedupePairs(collected.pairs);
     const e=ease(Math.max(0,Math.min(1,t)));
     // Read mode config — all behaviour is driven from cfMorphVariantDefs so future
     // expansions only require changing the config object, not this render loop.
     const _vdef=cfGetVariantDef(window.cfMorphVariant);
-    const warpScale=_vdef.warpScale;
     const _dentalBlendEnabled=_vdef.dentalBlend||!!window.CASEFLOW_DEBUG_DENTAL_BLEND;
-    // Internal pair quality risk — brightness diff cached per pair; no UI yet
-    var _cfPairRisk='low';
+    // Pre-assess pair risk (uses base canvases) → drives oral mesh exclusion zone.
+    const _preRoi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
+    var _pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
     try{
-      var _qroi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
-      var _qdiff=_qroi?cfComputeDentalDiff(baseA,baseB,_qroi,a,b):0;
-      _cfPairRisk=_qdiff>=0.22?'high':_qdiff>=0.11?'medium':'low';
-      window._cfLastPairQualityRisk=_cfPairRisk;
-      if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','pairRisk:',_cfPairRisk,'diff:',_qdiff.toFixed(3));
+      _pairRisk=cfAssessPairRisk(a,b,baseA,baseB,_preRoi);
+      if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','risk:',_pairRisk.level,'score:',_pairRisk.score.toFixed(3),'cw:',_pairRisk.coarseWeight.toFixed(2));
     }catch(e2){}
-    // High-risk pairs get additional warp reduction (only when mode opts in)
-    const riskMult=(_vdef.riskReduction&&_cfPairRisk==='high')?0.70:1.0;
-    const eW=Math.max(0,Math.min(1.2,e*warpScale*riskMult));
+    // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
+    const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
+    const _oralExpand=1.1+_effectiveCW*0.5;
+    const collected=collectMorphPairs(a,b,rectA,rectB,w,h,_oralExpand);
+    const pairs=dedupePairs(collected.pairs);
+    const oralROI=collected.oralROI;
+    // Endpoint-preserving morph: eW=e means t=0→image A exactly, t=1→image B exactly.
+    // coarseWeight shapes mesh topology only (oral exclusion zone), never eW itself.
+    const eW=e;
     const mid=pairs.map(p=>({x:p.p1.x*(1-eW)+p.p2.x*eW,y:p.p1.y*(1-eW)+p.p2.y*eW}));
     const p1=pairs.map(p=>p.p1), p2=pairs.map(p=>p.p2);
     const tris=delaunay(mid);
@@ -12470,6 +12603,11 @@ window.addEventListener('DOMContentLoaded', () => {
       if(_dentalBlendEnabled){
         const _droi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
         if(_droi && _droi.detected) cfApplyDentalROIFull(ctx,baseA,baseB,_droi,a,b,w,h,e,tris,mid,p2);
+      }
+      // ── Oral soft dissolve (Oral Focus mode only) ─────────────────────────
+      // oralSoftDiss=0.10 for Oral Focus, 0 for Clinical and Stability → no-op.
+      if((_vdef.oralSoftDiss||0)>0 && oralROI && oralROI.detected){
+        cfApplyOralSoftDissolve(ctx,baseB,oralROI,eW,_vdef.oralSoftDiss,w,h);
       }
     }
     if(state.meshOverlayEnabled){
@@ -12696,6 +12834,10 @@ window.addEventListener('DOMContentLoaded', () => {
   window.cfDrawMorphFrame = drawMeshMorphFrame;       // exposed for the CapCut-style live editor
   window.drawCaseflowGradientBg = drawCaseflowGradientBg; // shared gradient helper
   window.cfGetVariantDef = cfGetVariantDef;          // read-only access to mode config
+  window.cfIsInsideOralROI = cfIsInsideOralROI;      // dual mesh: ellipse test
+  window.cfAddCoarseOralMesh = cfAddCoarseOralMesh;  // dual mesh: coarse boundary points
+  window.cfAssessPairRisk = cfAssessPairRisk;        // multi-factor risk assessment
+  window.cfApplyOralSoftDissolve = cfApplyOralSoftDissolve; // Oral Focus soft dissolve
   window.stopPairPreview = function(){
     state.v70MeshPlaying=false;
     state.v70MeshToken++;
