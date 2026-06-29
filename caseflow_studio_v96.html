@@ -24151,10 +24151,46 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var eyeL=avg(p(33),p(133),p(159),p(145));
       var eyeR=avg(p(263),p(362),p(386),p(374));
       var nose=p(1);
+      var mouthL=p(61), mouthR=p(291);
       var mouthC=avg(p(13),p(14),p(61),p(291));
       var chin=p(152);
-      if(eyeL&&eyeR&&nose&&mouthC&&chin) return {eyeL:eyeL,eyeR:eyeR,nose:nose,mouthC:mouthC,chin:chin};
+      if(eyeL&&eyeR&&nose&&mouthC&&chin) return {eyeL:eyeL,eyeR:eyeR,nose:nose,mouthL:mouthL,mouthR:mouthR,mouthC:mouthC,chin:chin};
       return null;
+    }catch(e){ return null; }
+  }
+
+  // Reject implausible detections (hair/background false positives): eyes must sit above
+  // mouth above chin, all points in-frame, eyes horizontally separated.
+  function validAnchors(a){
+    if(!a||!a.eyeL||!a.eyeR||!a.nose||!a.mouthC||!a.chin) return false;
+    var ps=[a.eyeL,a.eyeR,a.nose,a.mouthC,a.chin];
+    for(var i=0;i<ps.length;i++){ if(ps[i].x<-0.05||ps[i].x>1.05||ps[i].y<-0.05||ps[i].y>1.05) return false; }
+    var eyeY=(a.eyeL.y+a.eyeR.y)/2;
+    if(!(eyeY<a.mouthC.y-0.01 && a.mouthC.y<a.chin.y+0.03)) return false;
+    if(Math.abs(a.eyeR.x-a.eyeL.x)<0.04) return false;
+    return true;
+  }
+
+  // Content descriptor for non-face (e.g. intra-oral) images: brightness-weighted
+  // centroid + axis spreads. Used to align by the bright teeth mass when no face exists.
+  function contentMoments(img){
+    try{
+      var W=100, iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+      var H=Math.max(8,Math.round(W*ih/iw));
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var x=c.getContext('2d'); x.drawImage(img,0,0,W,H);
+      var d; try{ d=x.getImageData(0,0,W,H).data; }catch(e){ return null; }
+      var n=W*H, lum=new Float32Array(n), k, mean=0;
+      for(k=0;k<n;k++){ var o=k*4; var L=0.299*d[o]+0.587*d[o+1]+0.114*d[o+2]; lum[k]=L; mean+=L; }
+      mean/=n; var vr=0; for(k=0;k<n;k++){ var dd=lum[k]-mean; vr+=dd*dd; } var sd=Math.sqrt(vr/n);
+      var th=mean+0.30*sd;
+      var sum=0,sx=0,sy=0,j,ii;
+      for(j=0;j<H;j++)for(ii=0;ii<W;ii++){ var w=lum[j*W+ii]-th; if(w>0){ sum+=w; sx+=w*ii; sy+=w*j; } }
+      if(sum<1e-3) return null;
+      var cx=sx/sum, cy=sy/sum, cxx=0,cyy=0;
+      for(j=0;j<H;j++)for(ii=0;ii<W;ii++){ var w2=lum[j*W+ii]-th; if(w2>0){ var ax=ii-cx, ay=j-cy; cxx+=w2*ax*ax; cyy+=w2*ay*ay; } }
+      cxx/=sum; cyy/=sum;
+      return {cx:cx/W, cy:cy/H, sx:Math.sqrt(cxx)/W, sy:Math.sqrt(cyy)/H};
     }catch(e){ return null; }
   }
 
@@ -24182,23 +24218,78 @@ body.cfPresent .cfPresentExit{display:flex!important}
     return {scale:scale,rot:rot,tx:tx,ty:ty};
   }
 
-  // Convert an image's normalized anchor (0..1) to "local centered" stage coords.
+  // Image type from gallery category: 'facial' uses face landmarks, anything else
+  // ('focus' = intra-oral) uses dental/content brightness moments.
+  function imgType(s,i){
+    var p=(window.state&&state.photos[i])||{};
+    return (p.category==='facial')?'facial':'focus';
+  }
+  // Convert an image's normalized point (0..1) to "local centered" stage coords.
   function localPt(s,i,nx,ny){ var f=s.fits[i]; return {x:(nx-0.5)*f.w, y:(ny-0.5)*f.h}; }
+  // Facial correspondence points (eyes/nose/mouth/chin) in local stage coords.
   function anchorLocals(s,i){
     var a=s.anchors[i]; if(!a) return null;
     return [localPt(s,i,a.eyeL.x,a.eyeL.y),localPt(s,i,a.eyeR.x,a.eyeR.y),
             localPt(s,i,a.nose.x,a.nose.y),localPt(s,i,a.mouthC.x,a.mouthC.y),
             localPt(s,i,a.chin.x,a.chin.y)];
   }
-  function autoAlignOne(i){
-    var s=S(); if(!s) return false;
-    if(i===s.baseIndex){ s.tf[i]={scale:1,rot:0,tx:0,ty:0}; return true; }
-    var srcL=anchorLocals(s,i), dstL=anchorLocals(s,s.baseIndex);
-    if(!srcL||!dstL) return false;
-    s.tf[i]=solveSimilarity(srcL,dstL);
+  // Dental/content correspondence points (centroid + axis spreads) in local stage coords.
+  function contentLocals(s,i){
+    var m=s.moments[i]; if(!m) return null;
+    return [localPt(s,i,m.cx,m.cy), localPt(s,i,m.cx+m.sx,m.cy), localPt(s,i,m.cx,m.cy+m.sy)];
+  }
+  // Reject transforms that would clearly be a misdetection (extreme scale/translation/rotation).
+  function guardOK(s,tf){
+    if(!tf||!isFinite(tf.scale)||!isFinite(tf.tx)||!isFinite(tf.ty)) return false;
+    if(tf.scale<0.45||tf.scale>2.4) return false;
+    if(Math.abs(tf.tx)>s.stageW*0.7||Math.abs(tf.ty)>s.stageH*0.7) return false;
+    if(Math.abs(tf.rot)>30*Math.PI/180) return false;
     return true;
   }
-  function autoAlignAll(){ var s=S(); if(!s) return; var ok=0; for(var i=0;i<s.imgs.length;i++){ if(autoAlignOne(i)) ok++; } return ok; }
+  // Align image i onto the base. Returns 'face' | 'dental' | false and records the method.
+  function autoAlignOne(i){
+    var s=S(); if(!s) return false;
+    s.alignType=s.alignType||[];
+    if(i===s.baseIndex){ s.tf[i]={scale:1,rot:0,tx:0,ty:0}; s.alignType[i]='base'; return 'base'; }
+    // Facial path (both base + target are facial with valid landmarks)
+    if(imgType(s,i)==='facial' && imgType(s,s.baseIndex)==='facial'){
+      var srcL=anchorLocals(s,i), dstL=anchorLocals(s,s.baseIndex);
+      if(srcL&&dstL){ var tfF=solveSimilarity(srcL,dstL); if(guardOK(s,tfF)){ s.tf[i]=tfF; s.alignType[i]='face'; return 'face'; } }
+    }
+    // Dental/content path (intra-oral or facial fallback when landmarks unusable)
+    var sp=contentLocals(s,i), bp=contentLocals(s,s.baseIndex);
+    if(sp&&bp){ var tfD=solveSimilarity(sp,bp); if(guardOK(s,tfD)){ s.tf[i]=tfD; s.alignType[i]='dental'; return 'dental'; } }
+    s.alignType[i]='failed';
+    return false;
+  }
+  function autoAlignAll(){ var s=S(); if(!s) return 0; var ok=0; for(var i=0;i<s.imgs.length;i++){ if(autoAlignOne(i)) ok++; } return ok; }
+
+  // Compute the canvas "view" rect (stage coords) focused on the base image's face
+  // (facial) or bright dental ROI (focus), so the subject fills the editor — never
+  // showing only hair/background.
+  function refocus(){
+    var s=S(); if(!s) return; var b=s.baseIndex, f=s.fits[b], C=center(s);
+    function w(nx,ny){ return {x:C.x+(nx-0.5)*f.w, y:C.y+(ny-0.5)*f.h}; }
+    var a=s.anchors[b];
+    if(imgType(s,b)==='facial' && a && validAnchors(a)){
+      var eL=w(a.eyeL.x,a.eyeL.y), eR=w(a.eyeR.x,a.eyeR.y), ch=w(a.chin.x,a.chin.y), mc=w(a.mouthC.x,a.mouthC.y);
+      var eyeMid={x:(eL.x+eR.x)/2,y:(eL.y+eR.y)/2};
+      var faceH=Math.hypot(ch.x-eyeMid.x, ch.y-eyeMid.y), eyeW=Math.hypot(eR.x-eL.x, eR.y-eL.y);
+      var side=Math.max(faceH*1.05, eyeW*1.5)*2.5;
+      var fc={x:(eyeMid.x+mc.x)/2, y:(eyeMid.y+ch.y)/2};
+      s.view={x:fc.x-side/2, y:fc.y-side*0.56, w:side, h:side};
+      return;
+    }
+    var m=s.moments[b];
+    if(m){
+      var cx=C.x+(m.cx-0.5)*f.w, cy=C.y+(m.cy-0.5)*f.h;
+      var vw=Math.min(f.w, Math.max(f.w*0.4, m.sx*f.w*3.4));
+      var vh=Math.min(f.h, Math.max(f.h*0.4, m.sy*f.h*3.8));
+      s.view={x:cx-vw/2, y:cy-vh/2, w:vw, h:vh};
+      return;
+    }
+    s.view={x:0,y:0,w:s.stageW,h:s.stageH};
+  }
 
   /* ---- Stage rendering ----------------------------------------------------------- */
   function drawImgTf(ctx,img,tf,fit){
@@ -24209,78 +24300,115 @@ body.cfPresent .cfPresentExit{display:flex!important}
     ctx.drawImage(img,-fit.w/2,-fit.h/2,fit.w,fit.h);
     ctx.restore();
   }
-  function dispScale(s){
-    var cv=$id('cfAlignCanvas'); if(!cv) return 1;
-    return Math.min(cv.width/s.stageW, cv.height/s.stageH);
+  /* ---- View-based rendering (subject fills the canvas) --------------------------- */
+  function getView(s){ return s.view || {x:0,y:0,w:s.stageW,h:s.stageH}; }
+  // Map a stage-coords view rect to fit inside a canvas sub-rect → {vs,ox,oy}.
+  function mapFitInRect(view,rx,ry,rw,rh){
+    var vs=Math.min(rw/view.w, rh/view.h);
+    return {vs:vs, ox:rx+(rw-view.w*vs)/2 - view.x*vs, oy:ry+(rh-view.h*vs)/2 - view.y*vs};
   }
-  function drawAnchors(ctx,s,i,color){
-    var a=s.anchors[i]; if(!a) return; var f=s.fits[i], tf=s.tf[i], C=center(s);
-    function w(nx,ny){
-      var lx=(nx-0.5)*f.w, ly=(ny-0.5)*f.h;
-      var cos=Math.cos(tf.rot), sin=Math.sin(tf.rot);
-      var rx=tf.scale*(cos*lx-sin*ly), ry=tf.scale*(sin*lx+cos*ly);
-      return {x:C.x+tf.tx+rx, y:C.y+tf.ty+ry};
-    }
-    var pts=[w(a.eyeL.x,a.eyeL.y),w(a.eyeR.x,a.eyeR.y),w(a.nose.x,a.nose.y),w(a.mouthC.x,a.mouthC.y),w(a.chin.x,a.chin.y)];
-    ctx.save(); ctx.fillStyle=color;
-    for(var k=0;k<pts.length;k++){ ctx.beginPath(); ctx.arc(pts[k].x,pts[k].y,7,0,Math.PI*2); ctx.fill(); }
+  // Facial landmark points (face set or mouth set) in stage-world coords for image i.
+  function anchorWorldPts(s,i,setName){
+    var a=s.anchors[i]; if(!a) return null;
+    var f=s.fits[i], tf=s.tf[i], C=center(s);
+    function w(nx,ny){ var lx=(nx-0.5)*f.w, ly=(ny-0.5)*f.h, cos=Math.cos(tf.rot), sin=Math.sin(tf.rot);
+      return {x:C.x+tf.tx+tf.scale*(cos*lx-sin*ly), y:C.y+tf.ty+tf.scale*(sin*lx+cos*ly)}; }
+    if(setName==='mouth'){ var ps=[]; if(a.mouthL)ps.push(w(a.mouthL.x,a.mouthL.y)); if(a.mouthR)ps.push(w(a.mouthR.x,a.mouthR.y)); ps.push(w(a.mouthC.x,a.mouthC.y)); return ps; }
+    return [w(a.eyeL.x,a.eyeL.y),w(a.eyeR.x,a.eyeR.y),w(a.nose.x,a.nose.y),w(a.mouthC.x,a.mouthC.y),w(a.chin.x,a.chin.y)];
+  }
+  function drawImageMap(ctx,s,i,map,alpha){
+    ctx.save(); ctx.setTransform(map.vs,0,0,map.vs,map.ox,map.oy);
+    ctx.globalAlpha=(alpha==null?1:alpha);
+    var C=center(s); ctx.translate(C.x,C.y);
+    drawImgTf(ctx,s.imgs[i],s.tf[i],s.fits[i]);
     ctx.restore();
   }
+  function drawAnchorsMap(ctx,s,i,map,color){
+    if(imgType(s,i)!=='facial') return;
+    var pts=anchorWorldPts(s,i,s.lmSet||'face'); if(!pts) return;
+    ctx.save(); ctx.setTransform(map.vs,0,0,map.vs,map.ox,map.oy);
+    var r=Math.max(3,7/map.vs); ctx.fillStyle=color; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=2/map.vs;
+    pts.forEach(function(p){ ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+    ctx.restore();
+  }
+  // Dental guides for focus images: midline, incisal/occlusal line, anterior-centre box,
+  // and the common safe-crop frame — all referenced to the BASE image so the user aligns to them.
+  function drawDentalGuidesMap(ctx,s,map){
+    var b=s.baseIndex, f=s.fits[b], C=center(s), m=s.moments[b], g=s.dentalGuide||{};
+    var cx=m?C.x+(m.cx-0.5)*f.w:C.x, cy=m?C.y+(m.cy-0.5)*f.h:C.y;
+    var bw=m?Math.max(f.w*0.18,m.sx*f.w*1.6):f.w*0.3, bh=m?Math.max(f.h*0.18,m.sy*f.h*1.6):f.h*0.3;
+    var v=getView(s);
+    ctx.save(); ctx.setTransform(map.vs,0,0,map.vs,map.ox,map.oy); ctx.lineWidth=1.4/map.vs;
+    if(g.midline!==false){ ctx.strokeStyle='rgba(124,180,255,.9)'; ctx.beginPath(); ctx.moveTo(cx,v.y); ctx.lineTo(cx,v.y+v.h); ctx.stroke(); }
+    if(g.incisal!==false){ ctx.strokeStyle='rgba(255,210,120,.85)'; ctx.setLineDash([8/map.vs,6/map.vs]); ctx.beginPath(); ctx.moveTo(v.x,cy); ctx.lineTo(v.x+v.w,cy); ctx.stroke(); ctx.setLineDash([]); }
+    if(g.center!==false){ ctx.strokeStyle='rgba(120,255,170,.9)'; ctx.strokeRect(cx-bw/2,cy-bh/2,bw,bh); }
+    if(g.crop!==false){ var cr=commonCrop(s); ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.setLineDash([5/map.vs,5/map.vs]); ctx.strokeRect(cr.x0,cr.y0,cr.x1-cr.x0,cr.y1-cr.y0); ctx.setLineDash([]); }
+    ctx.restore();
+  }
+  function drawFacialGuidesMap(ctx,s,map){
+    var v=getView(s); var cx=v.x+v.w/2;
+    ctx.save(); ctx.setTransform(map.vs,0,0,map.vs,map.ox,map.oy); ctx.lineWidth=1.2/map.vs; ctx.strokeStyle='rgba(255,255,255,.25)';
+    ctx.beginPath(); ctx.moveTo(cx,v.y); ctx.lineTo(cx,v.y+v.h); ctx.stroke();
+    [0.40,0.62].forEach(function(fy){ var yy=v.y+v.h*fy; ctx.beginPath(); ctx.moveTo(v.x,yy); ctx.lineTo(v.x+v.w,yy); ctx.stroke(); });
+    ctx.restore();
+  }
+  function drawGuidesMap(ctx,s,map){
+    if(!s.showGuides) return;
+    if(imgType(s,s.baseIndex)==='facial') drawFacialGuidesMap(ctx,s,map); else drawDentalGuidesMap(ctx,s,map);
+  }
+  var GREEN='rgba(120,255,170,.95)', PINK='rgba(255,150,210,.95)';
   function renderStage(){
     var s=S(); if(!s) return; var cv=$id('cfAlignCanvas'); if(!cv) return;
     var ctx=cv.getContext('2d'); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
     ctx.fillStyle='#15101f'; ctx.fillRect(0,0,cv.width,cv.height);
-    var ds=dispScale(s), C=center(s);
-    var ox=(cv.width-s.stageW*ds)/2, oy=(cv.height-s.stageH*ds)/2;
-    var i=s.index, b=s.baseIndex;
-    function withStage(fn){ ctx.save(); ctx.translate(ox,oy); ctx.scale(ds,ds); fn(); ctx.restore(); }
-
+    var i=s.index, b=s.baseIndex, view=getView(s);
+    s._tmap=null;
     if(s.viewMode==='side'){
-      // base left half, target right half
-      var hw=cv.width/2;
-      ctx.save(); ctx.beginPath(); ctx.rect(0,0,hw,cv.height); ctx.clip();
-      ctx.translate((hw-s.stageW*ds)/2, oy); ctx.scale(ds,ds);
-      drawImgTf(ctx,s.imgs[b],s.tf[b],s.fits[b]);
-      if(s.showLandmarks) drawAnchors(ctx,s,b,'rgba(120,255,170,.95)');
+      // Mobile-friendly TOP/BOTTOM split: top = Base, bottom = Target.
+      var hh=cv.height/2;
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,cv.width,hh); ctx.clip();
+      var mT=mapFitInRect(view,0,0,cv.width,hh);
+      drawImageMap(ctx,s,b,mT,1); if(s.showLandmarks)drawAnchorsMap(ctx,s,b,mT,GREEN); drawGuidesMap(ctx,s,mT);
       ctx.restore();
-      ctx.save(); ctx.beginPath(); ctx.rect(hw,0,hw,cv.height); ctx.clip();
-      ctx.translate(hw+(hw-s.stageW*ds)/2, oy); ctx.scale(ds,ds);
-      drawImgTf(ctx,s.imgs[i],s.tf[i],s.fits[i]);
-      if(s.showLandmarks) drawAnchors(ctx,s,i,'rgba(255,150,210,.95)');
+      ctx.save(); ctx.beginPath(); ctx.rect(0,hh,cv.width,hh); ctx.clip();
+      var mB=mapFitInRect(view,0,hh,cv.width,hh);
+      drawImageMap(ctx,s,i,mB,1); if(s.showLandmarks)drawAnchorsMap(ctx,s,i,mB,PINK); drawGuidesMap(ctx,s,mB);
       ctx.restore();
-      ctx.save(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(hw,0); ctx.lineTo(hw,cv.height); ctx.stroke(); ctx.restore();
+      s._tmap=mB;
+      ctx.setTransform(1,0,0,1,0,0); ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.beginPath(); ctx.moveTo(0,hh); ctx.lineTo(cv.width,hh); ctx.stroke();
+      tagText(ctx,8,18,'BASE '+(b+1)); tagText(ctx,8,hh+18,'TARGET '+(i+1));
     } else if(s.viewMode==='beforeafter'){
-      var show=s._baToggle?i:b;
-      withStage(function(){
-        drawImgTf(ctx,s.imgs[show],s.tf[show],s.fits[show]);
-        if(s.showLandmarks) drawAnchors(ctx,s,show, show===b?'rgba(120,255,170,.95)':'rgba(255,150,210,.95)');
-      });
-    } else { // overlay
-      withStage(function(){
-        if(i!==b){ ctx.save(); ctx.globalAlpha=0.45; drawImgTf(ctx,s.imgs[b],s.tf[b],s.fits[b]); ctx.restore(); }
-        drawImgTf(ctx,s.imgs[i],s.tf[i],s.fits[i]);
-        if(s.showLandmarks){ if(i!==b) drawAnchors(ctx,s,b,'rgba(120,255,170,.95)'); drawAnchors(ctx,s,i,'rgba(255,150,210,.95)'); }
-      });
-    }
-    // guides
-    if(s.showGuides){
-      withStage(function(){
-        ctx.save(); ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1/ds;
-        ctx.beginPath(); ctx.moveTo(s.stageW/2,0); ctx.lineTo(s.stageW/2,s.stageH); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0,s.stageH*0.42); ctx.lineTo(s.stageW,s.stageH*0.42); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0,s.stageH*0.62); ctx.lineTo(s.stageW,s.stageH*0.62); ctx.stroke();
-        ctx.restore();
-      });
+      var show=s._baHold?b:i; var m=mapFitInRect(view,0,0,cv.width,cv.height);
+      drawImageMap(ctx,s,show,m,1); if(s.showLandmarks)drawAnchorsMap(ctx,s,show,m,show===b?GREEN:PINK); drawGuidesMap(ctx,s,m);
+      s._tmap=m;
+      tagText(ctx,8,18,(s._baHold?'BEFORE (Base '+(b+1)+')':'AFTER (Target '+(i+1)+')'));
+    } else { // overlay (default)
+      var mo=mapFitInRect(view,0,0,cv.width,cv.height);
+      if(i!==b) drawImageMap(ctx,s,b,mo,(s.overlayAlpha==null?0.5:s.overlayAlpha));
+      drawImageMap(ctx,s,i,mo,1);
+      if(s.showLandmarks){ if(i!==b)drawAnchorsMap(ctx,s,b,mo,GREEN); drawAnchorsMap(ctx,s,i,mo,PINK); }
+      drawGuidesMap(ctx,s,mo);
+      s._tmap=mo;
     }
     updateLabels();
   }
+  function tagText(ctx,x,y,t){ ctx.setTransform(1,0,0,1,0,0); ctx.save(); ctx.font='700 12px -apple-system,sans-serif'; ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(x-4,y-13,ctx.measureText(t).width+10,18); ctx.fillStyle='#fff'; ctx.fillText(t,x+1,y); ctx.restore(); }
 
   function updateLabels(){
     var s=S(); if(!s) return;
-    var li=$id('cfAlignImgLabel'); if(li){ var p=(window.state&&state.photos[s.index])||{}; li.textContent='画像 '+(s.index+1)+'/'+s.imgs.length+(p.label?(' · '+p.label):''); }
-    var bl=$id('cfAlignBaseLabel'); if(bl){ var bp=(window.state&&state.photos[s.baseIndex])||{}; bl.textContent='ベース: 画像 '+(s.baseIndex+1)+(bp.label?(' · '+bp.label):''); }
+    var typ=imgType(s,s.baseIndex)==='facial'?'Facial':'Focus';
+    var bl=$id('cfAlignBaseLabel'); if(bl){ bl.textContent='Base '+(s.baseIndex+1)+' → Target '+(s.index+1)+'/'+s.imgs.length+' · '+typ; }
     var det=$id('cfAlignDetState');
-    if(det){ var a=s.anchors[s.index]; det.textContent=a?'顔ランドマーク検出済み':'顔未検出（手動補正のみ）'; det.style.color=a?'rgba(120,255,170,.95)':'rgba(255,200,120,.95)'; }
+    if(det){
+      var at=(s.alignType&&s.alignType[s.index])||null, p=(window.state&&state.photos[s.index])||{};
+      var t,col;
+      if(s.index===s.baseIndex){ t='基準画像（固定）'; col='rgba(120,255,170,.95)'; }
+      else if(at==='face'){ t='✓ 顔ランドマークで整列'; col='rgba(120,255,170,.95)'; }
+      else if(at==='dental'){ t='✓ 歯列・前歯部基準で整列'; col='rgba(120,255,170,.95)'; }
+      else if(at==='failed'){ t='⚠ 自動整列が不安定です。Manualで調整してください'; col='rgba(255,170,120,.95)'; }
+      else { t=(p.category==='facial'?'顔基準':'歯列基準')+'：Auto Alignで整列できます'; col='rgba(244,241,251,.6)'; }
+      det.textContent=t; det.style.color=col;
+    }
   }
 
   /* ---- Manual transform ops ------------------------------------------------------ */
@@ -24371,99 +24499,131 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
   function stopSlideshow(){ _slideToken++; if(_slideTimer){ cancelAnimationFrame(_slideTimer); _slideTimer=null; } }
 
-  /* ---- DOM construction (once) --------------------------------------------------- */
+  /* ---- DOM construction (once) — mobile-first bottom-sheet layout ---------------- */
   function ensureDom(){
     if($id('cfAlignOverlay')) return $id('cfAlignOverlay');
     var st=document.createElement('style'); st.id='cfAlignStyles'; st.textContent=
       '#cfAlignOverlay{position:fixed;inset:0;z-index:100000;background:#0d0a14;display:none;flex-direction:column;color:#f4f1fb;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}'+
       '#cfAlignOverlay.open{display:flex}'+
-      '.cfAlHead{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#15101f;border-bottom:1px solid rgba(255,255,255,.08)}'+
-      '.cfAlHead .cfAlStep{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#b9a8ff;font-weight:800}'+
-      '.cfAlHead h3{font-size:15px;margin:0;font-weight:800}'+
-      '.cfAlHead .cfAlSub{font-size:11px;color:rgba(244,241,251,.6)}'+
-      '.cfAlBtn{border:0;border-radius:11px;padding:9px 13px;font-size:12px;font-weight:700;background:rgba(255,255,255,.08);color:#f4f1fb;cursor:pointer}'+
+      '.cfAlHead{position:sticky;top:0;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:#15101f;border-bottom:1px solid rgba(255,255,255,.08);z-index:6}'+
+      '.cfAlTitleWrap{flex:1;min-width:0}'+
+      '.cfAlStep{font-size:10px;letter-spacing:.14em;color:#b9a8ff;font-weight:800}'+
+      '.cfAlSub{font-size:12px;color:rgba(244,241,251,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.cfAlBtn{border:0;border-radius:11px;padding:0 13px;min-height:44px;font-size:13px;font-weight:700;background:rgba(255,255,255,.08);color:#f4f1fb;cursor:pointer;-webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;justify-content:center}'+
       '.cfAlBtn.pri{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff}'+
       '.cfAlBtn.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff}'+
-      '.cfAlBtn:disabled{opacity:.4;cursor:default}'+
-      '.cfAlSpacer{flex:1}'+
-      '.cfAlBody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 28px}'+
-      '.cfAlRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}'+
-      '.cfAlRow .lbl{font-size:11px;color:rgba(244,241,251,.6);min-width:62px}'+
-      '.cfAlSeg{display:flex;gap:6px;flex-wrap:wrap}'+
-      '.cfAlStageWrap{position:relative;width:100%;background:#15101f;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.07)}'+
-      '#cfAlignCanvas{display:block;width:100%;height:auto;touch-action:none}'+
-      '.cfAlMeta{display:flex;justify-content:space-between;font-size:11px;color:rgba(244,241,251,.7);margin:8px 2px}'+
-      '.cfAlPad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:220px}'+
-      '.cfAlPad button{padding:10px 0;border-radius:10px;border:0;background:rgba(255,255,255,.08);color:#fff;font-size:15px;font-weight:800;cursor:pointer}'+
-      '.cfAlCard{background:#15101f;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:12px;margin:12px 0}'+
-      '.cfAlCard h4{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#b9a8ff}'+
-      '.cfAlNote{font-size:11px;color:rgba(244,241,251,.55);line-height:1.5;margin:6px 0}'+
-      '.cfAlThumbs{display:flex;gap:7px;overflow-x:auto;padding:4px 0}'+
-      '.cfAlThumb{position:relative;flex:0 0 auto;width:52px;height:52px;border-radius:9px;overflow:hidden;border:2px solid transparent;cursor:pointer}'+
+      '.cfAlBtn.big{flex:1;min-height:50px;font-size:15px}'+
+      '.cfAlBtn.sm{min-height:38px;padding:0 10px;font-size:12px;border-radius:9px}'+
+      '#cfAlStageArea{position:relative;flex:1;min-height:46vh;background:#15101f;overflow:hidden}'+
+      '#cfAlignCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}'+
+      '#cfAlignProg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(13,10,20,.74);font-size:13px;color:#fff;z-index:4;text-align:center;padding:20px}'+
+      '#cfAlignProg.on{display:flex}'+
+      '#cfAlBaHint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:11px;background:rgba(0,0,0,.55);padding:6px 13px;border-radius:20px;color:#fff;display:none;z-index:3}'+
+      '#cfAlSheet{background:#120e1c;border-top:1px solid rgba(255,255,255,.08);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.45);max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px calc(14px + env(safe-area-inset-bottom));z-index:6}'+
+      '.cfAlGrip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 6px;cursor:pointer;position:sticky;top:0;background:#120e1c;z-index:2}'+
+      '.cfAlGrip i{width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);display:block}'+
+      '.cfAlGrip small{font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em}'+
+      '.cfAlSheetCore{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}'+
+      '.cfAlSeg{display:flex;gap:6px}'+
+      '.cfAlSegFull{display:flex;gap:6px}'+
+      '.cfAlSegFull .cfAlBtn{flex:1}'+
+      '.cfAlRow2{display:flex;gap:8px}'+
+      '.cfAlStatus{font-size:12px;text-align:center;padding:2px 0 2px;min-height:16px;line-height:1.4}'+
+      '.cfAlSheetMore{display:none;flex-direction:column;gap:14px;padding-bottom:8px;border-top:1px solid rgba(255,255,255,.06);margin-top:4px;padding-top:12px}'+
+      '.cfAlSheetMore.open{display:flex}'+
+      '.cfAlGroup{display:flex;flex-direction:column;gap:8px}'+
+      '.cfAlGroupTitle{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#b9a8ff;font-weight:800}'+
+      '.cfAlToolTabs{display:flex;gap:6px}'+
+      '.cfAlToolTabs .cfAlBtn{flex:1}'+
+      '.cfAlToolPanel{display:none}'+
+      '.cfAlToolPanel.on{display:block}'+
+      '.cfAlPad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:250px;margin:0 auto}'+
+      '.cfAlPad button{min-height:46px;border-radius:10px;border:0;background:rgba(255,255,255,.08);color:#fff;font-size:18px;font-weight:800;cursor:pointer}'+
+      '.cfAlStepRow{display:flex;gap:6px}.cfAlStepRow .cfAlBtn{flex:1}'+
+      '.cfAlThumbs{display:flex;gap:8px;overflow-x:auto;padding:2px 0}'+
+      '.cfAlThumb{position:relative;flex:0 0 auto;width:58px;height:58px;border-radius:10px;overflow:hidden;border:2px solid transparent;cursor:pointer}'+
       '.cfAlThumb img{width:100%;height:100%;object-fit:cover;display:block}'+
-      '.cfAlThumb.sel{border-color:#7c5cff}'+
+      '.cfAlThumb.sel{border-color:#ff9fd6}'+
       '.cfAlThumb.base{border-color:#34d399}'+
-      '.cfAlThumb b{position:absolute;left:2px;top:1px;font-size:9px;background:rgba(0,0,0,.6);padding:0 4px;border-radius:5px}'+
-      '#cfAlignSlideSheet{position:fixed;inset:0;z-index:100001;background:rgba(8,6,14,.92);display:none;flex-direction:column;align-items:center;justify-content:center;padding:18px}'+
+      '.cfAlThumb b{position:absolute;left:0;top:0;font-size:8px;background:rgba(0,0,0,.62);padding:1px 4px;border-bottom-right-radius:6px;font-weight:800}'+
+      '.cfAlNote{font-size:11px;color:rgba(244,241,251,.5);line-height:1.5}'+
+      'input.cfAlRange{width:100%;accent-color:#b07cff;height:30px}'+
+      '#cfAlignSlideSheet{position:fixed;inset:0;z-index:100001;background:rgba(8,6,14,.93);display:none;flex-direction:column;align-items:center;justify-content:center;padding:18px}'+
       '#cfAlignSlideSheet.open{display:flex}'+
-      '#cfAlignSlideCanvas{width:min(86vw,420px);height:auto;aspect-ratio:3/4;background:#000;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
-      '#cfAlignProg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(13,10,20,.72);z-index:5;font-size:12px;color:#fff}'+
-      '#cfAlignProg.on{display:flex}';
+      '#cfAlignSlideCanvas{width:min(88vw,440px);height:auto;aspect-ratio:3/4;background:#000;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
+      '@media (min-width:768px){#cfAlSheet{max-width:560px;margin:0 auto;width:100%}#cfAlStageArea{min-height:52vh}}';
     document.head.appendChild(st);
 
     var ov=document.createElement('div'); ov.id='cfAlignOverlay';
     ov.innerHTML=
       '<div class="cfAlHead">'+
-        '<button class="cfAlBtn" id="cfAlClose">‹ 戻る</button>'+
-        '<div><div class="cfAlStep">2 · Edit / Align · Morph Prep</div><div class="cfAlSub" id="cfAlignBaseLabel">ベース: 画像 1</div></div>'+
-        '<div class="cfAlSpacer"></div>'+
+        '<button class="cfAlBtn sm" id="cfAlClose">‹</button>'+
+        '<div class="cfAlTitleWrap"><div class="cfAlStep">2 · EDIT / ALIGN · MORPH PREP</div><div class="cfAlSub" id="cfAlignBaseLabel">Base 1 → Target 1</div></div>'+
         '<button class="cfAlBtn pri" id="cfAlNext">Next ›</button>'+
       '</div>'+
-      '<div class="cfAlBody">'+
-        '<div class="cfAlNote">Previewの前に、モーフィング用に画像の位置と構図を整えます。ベース画像に合わせて他の画像を自動または手動で補正し、最後に共通クロップを作成します。</div>'+
-        '<div class="cfAlRow"><span class="lbl">モード</span><div class="cfAlSeg">'+
-          '<button class="cfAlBtn" data-mode="auto">Auto</button>'+
-          '<button class="cfAlBtn on" data-mode="hybrid">Hybrid</button>'+
-          '<button class="cfAlBtn" data-mode="manual">Manual</button>'+
-        '</div></div>'+
-        '<div class="cfAlRow"><span class="lbl">表示</span><div class="cfAlSeg">'+
-          '<button class="cfAlBtn on" data-view="overlay">Overlay</button>'+
-          '<button class="cfAlBtn" data-view="side">Side</button>'+
-          '<button class="cfAlBtn" data-view="beforeafter">B/A</button>'+
-          '<button class="cfAlBtn" id="cfAlBaToggle" style="display:none">切替</button>'+
-        '</div></div>'+
-        '<div class="cfAlRow"><span class="lbl">ガイド</span><div class="cfAlSeg">'+
-          '<button class="cfAlBtn on" id="cfAlLm">ランドマーク</button>'+
-          '<button class="cfAlBtn on" id="cfAlGd">ガイドライン</button>'+
-        '</div></div>'+
-        '<div class="cfAlStageWrap"><canvas id="cfAlignCanvas" width="720" height="900"></canvas><div id="cfAlignProg"><span id="cfAlignProgTxt">検出中…</span></div></div>'+
-        '<div class="cfAlMeta"><span id="cfAlignImgLabel">画像 1</span><span id="cfAlignDetState"></span></div>'+
-        '<div class="cfAlThumbs" id="cfAlThumbs"></div>'+
-        '<div class="cfAlRow" style="justify-content:space-between"><button class="cfAlBtn" id="cfAlPrev">‹ 前の画像</button><button class="cfAlBtn" id="cfAlSetBase">この画像をベースに</button><button class="cfAlBtn" id="cfAlNextImg">次の画像 ›</button></div>'+
-
-        '<div class="cfAlCard" id="cfAlAutoCard">'+
-          '<h4>Auto / Hybrid 補正</h4>'+
-          '<div class="cfAlRow"><button class="cfAlBtn pri" id="cfAlAutoCur">この画像を自動整列</button><button class="cfAlBtn" id="cfAlAutoAll">全画像を自動整列</button><button class="cfAlBtn" id="cfAlRedetect">再検出</button></div>'+
-          '<div class="cfAlNote">両眼・鼻尖・口元中心・オトガイを基準に、ベース画像へ回転・拡大縮小・平行移動で位置合わせします。顔が検出できない画像は手動補正のみになります。</div>'+
+      '<div id="cfAlStageArea">'+
+        '<canvas id="cfAlignCanvas"></canvas>'+
+        '<div id="cfAlBaHint">押している間：Before（基準）／ 離す：After</div>'+
+        '<div id="cfAlignProg"><span id="cfAlignProgTxt">準備中…</span></div>'+
+      '</div>'+
+      '<div id="cfAlSheet">'+
+        '<div class="cfAlGrip" id="cfAlGrip"><i></i><small>詳細 ▲</small></div>'+
+        '<div class="cfAlSheetCore">'+
+          '<div class="cfAlSegFull" id="cfAlModeSeg">'+
+            '<button class="cfAlBtn" data-mode="auto">Auto</button>'+
+            '<button class="cfAlBtn on" data-mode="hybrid">Hybrid</button>'+
+            '<button class="cfAlBtn" data-mode="manual">Manual</button>'+
+          '</div>'+
+          '<div class="cfAlSegFull" id="cfAlViewSeg">'+
+            '<button class="cfAlBtn on" data-view="overlay">Overlay</button>'+
+            '<button class="cfAlBtn" data-view="beforeafter">B/A</button>'+
+            '<button class="cfAlBtn" data-view="side">Side</button>'+
+          '</div>'+
+          '<div class="cfAlRow2"><button class="cfAlBtn pri big" id="cfAlAutoCur">⚡ Auto Align</button><button class="cfAlBtn" id="cfAlReset">Reset</button></div>'+
+          '<div class="cfAlStatus" id="cfAlignDetState"></div>'+
         '</div>'+
-
-        '<div class="cfAlCard" id="cfAlManualCard">'+
-          '<h4>Manual 微調整</h4>'+
-          '<div class="cfAlRow"><span class="lbl">移動</span><div class="cfAlPad">'+
-            '<button data-nudge="ul">↖</button><button data-nudge="u">↑</button><button data-nudge="ur">↗</button>'+
-            '<button data-nudge="l">←</button><button data-nudge="c">·</button><button data-nudge="r">→</button>'+
-            '<button data-nudge="dl">↙</button><button data-nudge="d">↓</button><button data-nudge="dr">↘</button>'+
-          '</div></div>'+
-          '<div class="cfAlRow"><span class="lbl">拡大縮小</span><div class="cfAlSeg"><button class="cfAlBtn" data-scale="0.97">－</button><button class="cfAlBtn" data-scale="1.03">＋</button></div>'+
-            '<span class="lbl">回転</span><div class="cfAlSeg"><button class="cfAlBtn" data-rot="-1">⟲</button><button class="cfAlBtn" data-rot="1">⟳</button></div></div>'+
-          '<div class="cfAlRow"><button class="cfAlBtn" id="cfAlReset">この画像をリセット</button></div>'+
-          '<div class="cfAlNote">キャンバスを直接ドラッグしても移動できます。回転・拡大縮小は画像中心を基準に行われます。</div>'+
-        '</div>'+
-
-        '<div class="cfAlCard">'+
-          '<h4>確認 / Layer Check</h4>'+
-          '<div class="cfAlRow"><button class="cfAlBtn" id="cfAlSlideshow">スライドショー確認</button></div>'+
-          '<div class="cfAlNote">補正後の各画像を、シンプルなディゾルブのみで順に表示します（Morph / Dual Mesh は使いません）。位置ズレ・揺れ・クロップの不自然さをPreview前に検品できます。</div>'+
+        '<div class="cfAlSheetMore" id="cfAlSheetMore">'+
+          '<div class="cfAlGroup">'+
+            '<div class="cfAlGroupTitle">手動微調整 / Manual</div>'+
+            '<div class="cfAlToolTabs" id="cfAlToolTabs"><button class="cfAlBtn on" data-tool="move">Move</button><button class="cfAlBtn" data-tool="scale">Scale</button><button class="cfAlBtn" data-tool="rotate">Rotate</button></div>'+
+            '<div class="cfAlToolPanel on" data-panel="move"><div class="cfAlPad">'+
+              '<button data-nudge="ul">↖</button><button data-nudge="u">↑</button><button data-nudge="ur">↗</button>'+
+              '<button data-nudge="l">←</button><button data-nudge="c">·</button><button data-nudge="r">→</button>'+
+              '<button data-nudge="dl">↙</button><button data-nudge="d">↓</button><button data-nudge="dr">↘</button>'+
+            '</div></div>'+
+            '<div class="cfAlToolPanel" data-panel="scale"><div class="cfAlStepRow"><button class="cfAlBtn" data-scale="0.95">－5%</button><button class="cfAlBtn" data-scale="0.99">－1%</button><button class="cfAlBtn" data-scale="1.01">＋1%</button><button class="cfAlBtn" data-scale="1.05">＋5%</button></div></div>'+
+            '<div class="cfAlToolPanel" data-panel="rotate"><div class="cfAlStepRow"><button class="cfAlBtn" data-rot="-1">－1°</button><button class="cfAlBtn" data-rot="-0.5">－.5°</button><button class="cfAlBtn" data-rot="0.5">＋.5°</button><button class="cfAlBtn" data-rot="1">＋1°</button></div></div>'+
+            '<div class="cfAlNote">キャンバスを直接ドラッグしても移動できます。拡大縮小・回転は画像中心が基準です。</div>'+
+          '</div>'+
+          '<div class="cfAlGroup" id="cfAlOpacityGroup">'+
+            '<div class="cfAlGroupTitle">重なり透明度 / Overlay</div>'+
+            '<input type="range" class="cfAlRange" id="cfAlOpacity" min="10" max="90" value="50">'+
+          '</div>'+
+          '<div class="cfAlGroup">'+
+            '<div class="cfAlGroupTitle" id="cfAlGuideTitle">ガイド表示</div>'+
+            '<div class="cfAlSeg" id="cfAlGuideFacial" style="flex-wrap:wrap">'+
+              '<button class="cfAlBtn sm on" data-lmset="face">Face</button>'+
+              '<button class="cfAlBtn sm" data-lmset="mouth">Mouth</button>'+
+              '<button class="cfAlBtn sm on" id="cfAlLm">ランドマーク</button>'+
+              '<button class="cfAlBtn sm on" id="cfAlGdF">ガイド</button>'+
+            '</div>'+
+            '<div class="cfAlSeg" id="cfAlGuideFocus" style="flex-wrap:wrap">'+
+              '<button class="cfAlBtn sm on" id="cfAlGdD">Dental Guide</button>'+
+              '<button class="cfAlBtn sm on" data-dg="midline">正中</button>'+
+              '<button class="cfAlBtn sm on" data-dg="incisal">切縁</button>'+
+              '<button class="cfAlBtn sm on" data-dg="center">前歯中心</button>'+
+              '<button class="cfAlBtn sm on" data-dg="crop">クロップ枠</button>'+
+            '</div>'+
+          '</div>'+
+          '<div class="cfAlGroup">'+
+            '<div class="cfAlGroupTitle">画像 / Base · Target</div>'+
+            '<div class="cfAlThumbs" id="cfAlThumbs"></div>'+
+            '<div class="cfAlRow2"><button class="cfAlBtn sm" id="cfAlSetBase">基準にする</button><button class="cfAlBtn sm" id="cfAlAutoAll">全部 Auto</button><button class="cfAlBtn sm" id="cfAlRedetect">再検出</button></div>'+
+          '</div>'+
+          '<div class="cfAlGroup">'+
+            '<button class="cfAlBtn" id="cfAlSlideshow">▷ スライドショー確認（Layer Check）</button>'+
+            '<div class="cfAlNote" id="cfAlFlowNote">基準画像に合わせて他の画像の位置を整えます。まず ⚡Auto Align を試し、必要に応じて Move / Scale / Rotate で微調整 → Next で Preview へ。</div>'+
+          '</div>'+
         '</div>'+
       '</div>';
     document.body.appendChild(ov);
@@ -24471,7 +24631,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var sl=document.createElement('div'); sl.id='cfAlignSlideSheet';
     sl.innerHTML='<canvas id="cfAlignSlideCanvas" width="600" height="800"></canvas>'+
       '<div style="margin-top:14px;display:flex;gap:10px"><button class="cfAlBtn" id="cfAlSlideClose">閉じる</button><button class="cfAlBtn pri" id="cfAlSlideNext">これでPreviewへ ›</button></div>'+
-      '<div class="cfAlNote" style="max-width:420px;text-align:center;margin-top:10px">補正済みレイヤーのディゾルブ確認です。問題なければPreviewへ進めます。</div>';
+      '<div class="cfAlNote" style="max-width:440px;text-align:center;margin-top:10px">補正済みレイヤーのディゾルブ確認です。正中・切縁・上下位置・前歯部のズレを確認し、問題なければPreviewへ。</div>';
     document.body.appendChild(sl);
 
     bind(ov);
@@ -24479,17 +24639,30 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   function setMode(m){ var s=S(); if(!s) return; s.mode=m;
-    document.querySelectorAll('#cfAlignOverlay [data-mode]').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-mode')===m); });
-    var am=$id('cfAlAutoCard'), mm=$id('cfAlManualCard');
-    if(am) am.style.display=(m==='manual')?'none':'';
-    if(mm) mm.style.display=(m==='auto')?'none':'';
-    if((m==='auto'||m==='hybrid')){ autoAlignAll(); }
-    renderStage();
+    document.querySelectorAll('#cfAlModeSeg [data-mode]').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-mode')===m); });
+    if(m==='auto'||m==='hybrid'){ autoAlignAll(); }
+    renderThumbs(); renderStage();
   }
   function setView(v){ var s=S(); if(!s) return; s.viewMode=v;
-    document.querySelectorAll('#cfAlignOverlay [data-view]').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-view')===v); });
-    var bt=$id('cfAlBaToggle'); if(bt) bt.style.display=(v==='beforeafter')?'':'none';
+    document.querySelectorAll('#cfAlViewSeg [data-view]').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-view')===v); });
+    var hint=$id('cfAlBaHint'); if(hint) hint.style.display=(v==='beforeafter')?'block':'none';
+    var op=$id('cfAlOpacityGroup'); if(op) op.style.display=(v==='overlay')?'':'none';
     renderStage();
+  }
+  // Show facial vs focus (dental) guide controls based on base image type.
+  function syncTypeUI(){
+    var s=S(); if(!s) return;
+    var focus=imgType(s,s.baseIndex)!=='facial';
+    var gf=$id('cfAlGuideFacial'), go=$id('cfAlGuideFocus'), gt=$id('cfAlGuideTitle');
+    if(gf) gf.style.display=focus?'none':'flex';
+    if(go) go.style.display=focus?'flex':'none';
+    if(gt) gt.textContent=focus?'歯科ガイド / Dental Guide':'ガイド表示';
+  }
+  // Size the canvas backing store to the displayed stage area (DPR-aware, capped).
+  function sizeCanvas(){
+    var cv=$id('cfAlignCanvas'), area=$id('cfAlStageArea'); if(!cv||!area) return;
+    var r=area.getBoundingClientRect(); var dpr=Math.min(2, window.devicePixelRatio||1);
+    cv.width=Math.max(2,Math.round(r.width*dpr)); cv.height=Math.max(2,Math.round(r.height*dpr));
   }
 
   function renderThumbs(){
@@ -24497,7 +24670,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var photos=(window.state&&state.photos)||[]; wrap.innerHTML='';
     photos.forEach(function(p,i){
       var d=document.createElement('div'); d.className='cfAlThumb'+(i===s.index?' sel':'')+(i===s.baseIndex?' base':'');
-      d.innerHTML='<img src="'+(p.dataUrl||'')+'"><b>'+(i+1)+(i===s.baseIndex?'★':'')+'</b>';
+      var at=(s.alignType&&s.alignType[i]);
+      var tag=(i===s.baseIndex)?'Base':((i===s.index)?'Edit':((at==='face'||at==='dental')?'Done':String(i+1)));
+      d.innerHTML='<img src="'+(p.dataUrl||'')+'"><b>'+tag+'</b>';
       d.onclick=function(){ s.index=i; renderThumbs(); renderStage(); };
       wrap.appendChild(d);
     });
@@ -24506,31 +24681,50 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function bind(ov){
     ov.querySelector('#cfAlClose').onclick=function(){ closeAlign(false); };
     ov.querySelector('#cfAlNext').onclick=function(){ applyAndPreview(); };
-    ov.querySelectorAll('[data-mode]').forEach(function(b){ b.onclick=function(){ setMode(b.getAttribute('data-mode')); }; });
-    ov.querySelectorAll('[data-view]').forEach(function(b){ b.onclick=function(){ setView(b.getAttribute('data-view')); }; });
-    ov.querySelector('#cfAlBaToggle').onclick=function(){ var s=S(); if(s){ s._baToggle=!s._baToggle; renderStage(); } };
-    ov.querySelector('#cfAlLm').onclick=function(){ var s=S(); if(!s)return; s.showLandmarks=!s.showLandmarks; this.classList.toggle('on',s.showLandmarks); renderStage(); };
-    ov.querySelector('#cfAlGd').onclick=function(){ var s=S(); if(!s)return; s.showGuides=!s.showGuides; this.classList.toggle('on',s.showGuides); renderStage(); };
-    ov.querySelector('#cfAlPrev').onclick=function(){ var s=S(); if(!s)return; s.index=(s.index-1+s.imgs.length)%s.imgs.length; renderThumbs(); renderStage(); };
-    ov.querySelector('#cfAlNextImg').onclick=function(){ var s=S(); if(!s)return; s.index=(s.index+1)%s.imgs.length; renderThumbs(); renderStage(); };
-    ov.querySelector('#cfAlSetBase').onclick=function(){ var s=S(); if(!s)return; s.baseIndex=s.index; s.tf[s.baseIndex]={scale:1,rot:0,tx:0,ty:0}; if(s.mode!=='manual') autoAlignAll(); renderThumbs(); renderStage(); toastFn('ベース画像を変更しました'); };
-    ov.querySelector('#cfAlAutoCur').onclick=function(){ var s=S(); if(!s)return; if(!autoAlignOne(s.index)) toastFn('顔が検出できませんでした。手動で補正してください。'); renderStage(); };
-    ov.querySelector('#cfAlAutoAll').onclick=function(){ autoAlignAll(); renderStage(); toastFn('全画像を自動整列しました'); };
+    ov.querySelectorAll('#cfAlModeSeg [data-mode]').forEach(function(b){ b.onclick=function(){ setMode(b.getAttribute('data-mode')); }; });
+    ov.querySelectorAll('#cfAlViewSeg [data-view]').forEach(function(b){ b.onclick=function(){ setView(b.getAttribute('data-view')); }; });
+    // Bottom-sheet expand / collapse
+    ov.querySelector('#cfAlGrip').onclick=function(){ var more=$id('cfAlSheetMore'); var open=more.classList.toggle('open'); var sm=this.querySelector('small'); if(sm) sm.textContent=open?'閉じる ▼':'詳細 ▲'; };
+    // Primary actions
+    ov.querySelector('#cfAlAutoCur').onclick=function(){ var s=S(); if(!s)return; var r=autoAlignOne(s.index);
+      if(!r||r==='failed') toastFn(imgType(s,s.index)==='facial'?'顔を検出できませんでした。Manualで調整してください':'歯列基準で整列できませんでした。Manualで調整してください');
+      else toastFn(r==='face'?'顔ランドマークで整列しました':'歯列・前歯部基準で整列しました');
+      renderThumbs(); renderStage(); };
+    ov.querySelector('#cfAlReset').onclick=function(){ resetCur(); renderThumbs(); };
+    ov.querySelector('#cfAlAutoAll').onclick=function(){ var n=autoAlignAll(); renderThumbs(); renderStage(); toastFn('自動整列: '+n+'/'+S().imgs.length+' 枚'); };
     ov.querySelector('#cfAlRedetect').onclick=function(){ redetect(); };
-    ov.querySelectorAll('[data-nudge]').forEach(function(b){ b.onclick=function(){ var s=S(); if(!s)return; var step=s.stageH*0.012; var k=b.getAttribute('data-nudge'); var dx=0,dy=0;
-      if(k.indexOf('l')>=0)dx-=step; if(k.indexOf('r')>=0)dx+=step; if(k.indexOf('u')>=0)dy-=step; if(k.indexOf('d')>=0)dy+=step; if(k==='c'){dx=0;dy=0;} nudge(dx,dy); }; });
+    ov.querySelector('#cfAlSetBase').onclick=function(){ var s=S(); if(!s)return; s.baseIndex=s.index; s.tf[s.baseIndex]={scale:1,rot:0,tx:0,ty:0}; refocus(); syncTypeUI(); if(s.mode!=='manual') autoAlignAll(); renderThumbs(); renderStage(); toastFn('基準画像を変更しました'); };
+    ov.querySelector('#cfAlSlideshow').onclick=function(){ openSlideshow(); };
+    // Manual tool tabs
+    ov.querySelectorAll('#cfAlToolTabs [data-tool]').forEach(function(b){ b.onclick=function(){ var t=b.getAttribute('data-tool');
+      ov.querySelectorAll('#cfAlToolTabs [data-tool]').forEach(function(x){ x.classList.toggle('on',x===b); });
+      ov.querySelectorAll('.cfAlToolPanel').forEach(function(pn){ pn.classList.toggle('on',pn.getAttribute('data-panel')===t); }); }; });
+    ov.querySelectorAll('[data-nudge]').forEach(function(b){ b.onclick=function(){ var s=S(); if(!s)return; var step=s.stageH*0.012, k=b.getAttribute('data-nudge'), dx=0,dy=0;
+      if(k.indexOf('l')>=0)dx-=step; if(k.indexOf('r')>=0)dx+=step; if(k.indexOf('u')>=0)dy-=step; if(k.indexOf('d')>=0)dy+=step; nudge(dx,dy); }; });
     ov.querySelectorAll('[data-scale]').forEach(function(b){ b.onclick=function(){ scaleBy(parseFloat(b.getAttribute('data-scale'))); }; });
     ov.querySelectorAll('[data-rot]').forEach(function(b){ b.onclick=function(){ rotateBy(parseFloat(b.getAttribute('data-rot'))*Math.PI/180); }; });
-    ov.querySelector('#cfAlReset').onclick=function(){ resetCur(); };
-    ov.querySelector('#cfAlSlideshow').onclick=function(){ openSlideshow(); };
-    // drag to move
+    // Overlay opacity
+    var op=ov.querySelector('#cfAlOpacity'); if(op) op.oninput=function(){ var s=S(); if(s){ s.overlayAlpha=parseInt(op.value,10)/100; renderStage(); } };
+    // Facial guide controls
+    ov.querySelectorAll('#cfAlGuideFacial [data-lmset]').forEach(function(b){ b.onclick=function(){ var s=S(); if(!s)return; s.lmSet=b.getAttribute('data-lmset'); s.showLandmarks=true;
+      ov.querySelectorAll('#cfAlGuideFacial [data-lmset]').forEach(function(x){ x.classList.toggle('on',x===b); }); var lm=$id('cfAlLm'); if(lm) lm.classList.add('on'); renderStage(); }; });
+    ov.querySelector('#cfAlLm').onclick=function(){ var s=S(); if(!s)return; s.showLandmarks=!s.showLandmarks; this.classList.toggle('on',s.showLandmarks); renderStage(); };
+    ov.querySelector('#cfAlGdF').onclick=function(){ var s=S(); if(!s)return; s.showGuides=!s.showGuides; this.classList.toggle('on',s.showGuides); renderStage(); };
+    // Focus (dental) guide controls
+    ov.querySelector('#cfAlGdD').onclick=function(){ var s=S(); if(!s)return; s.showGuides=!s.showGuides; this.classList.toggle('on',s.showGuides); renderStage(); };
+    ov.querySelectorAll('#cfAlGuideFocus [data-dg]').forEach(function(b){ b.onclick=function(){ var s=S(); if(!s)return; s.dentalGuide=s.dentalGuide||{}; var k=b.getAttribute('data-dg'); var cur=s.dentalGuide[k]!==false, nv=!cur; s.dentalGuide[k]=nv; b.classList.toggle('on',nv); renderStage(); }; });
+    // Canvas: drag-to-move (overlay/side) OR press-and-hold Before (B/A)
     var cv=ov.querySelector('#cfAlignCanvas'); var drag=null;
     function pos(ev){ var r=cv.getBoundingClientRect(); var t=ev.touches?ev.touches[0]:ev; return {x:(t.clientX-r.left)*(cv.width/r.width), y:(t.clientY-r.top)*(cv.height/r.height)}; }
-    function down(ev){ var s=S(); if(!s||s.index===s.baseIndex) return; drag=pos(ev); ev.preventDefault(); }
-    function move(ev){ if(!drag) return; var s=S(); var p=pos(ev); var ds=dispScale(s); var dx=(p.x-drag.x)/ds, dy=(p.y-drag.y)/ds; drag=p; var t=curTf(); if(t){ t.tx+=dx; t.ty+=dy; renderStage(); } ev.preventDefault(); }
-    function up(){ drag=null; }
+    function down(ev){ var s=S(); if(!s) return;
+      if(s.viewMode==='beforeafter'){ s._baHold=true; renderStage(); ev.preventDefault(); return; }
+      if(s.index===s.baseIndex) return; drag=pos(ev); ev.preventDefault(); }
+    function move(ev){ var s=S(); if(!s||s.viewMode==='beforeafter'||!drag) return; var p=pos(ev); var vs=(s._tmap&&s._tmap.vs)||1; var dx=(p.x-drag.x)/vs, dy=(p.y-drag.y)/vs; drag=p; var t=curTf(); if(t){ t.tx+=dx; t.ty+=dy; renderStage(); } ev.preventDefault(); }
+    function up(){ var s=S(); if(s&&s.viewMode==='beforeafter'&&s._baHold){ s._baHold=false; renderStage(); } drag=null; }
     cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
     cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up);
+    // Reflow on resize / orientation change
+    window.addEventListener('resize',function(){ var o=$id('cfAlignOverlay'); if(o&&o.classList.contains('open')){ sizeCanvas(); renderStage(); } });
 
     var ss=$id('cfAlignSlideSheet');
     ss.querySelector('#cfAlSlideClose').onclick=function(){ stopSlideshow(); ss.classList.remove('open'); };
@@ -24541,12 +24735,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var s=S(); if(!s) return; var prog=$id('cfAlignProg'), ptxt=$id('cfAlignProgTxt');
     if(prog){ prog.classList.add('on'); }
     var photos=(window.state&&state.photos)||[];
-    for(var i=0;i<s.imgs.length;i++){ if(ptxt) ptxt.textContent='検出中… '+(i+1)+'/'+s.imgs.length; s.anchors[i]=await detectAnchors(photos[i].dataUrl); }
-    if(s.mode!=='manual') autoAlignAll();
+    for(var i=0;i<s.imgs.length;i++){ if(ptxt) ptxt.textContent='解析中… '+(i+1)+'/'+s.imgs.length;
+      s.moments[i]=contentMoments(s.imgs[i]);
+      if(imgType(s,i)==='facial'){ var a=await detectAnchors(photos[i].dataUrl); s.anchors[i]=(a&&validAnchors(a))?a:null; }
+      else { s.anchors[i]=null; }
+    }
+    refocus(); if(s.mode!=='manual') autoAlignAll();
     if(prog) prog.classList.remove('on');
-    renderStage();
-    var found=s.anchors.filter(Boolean).length;
-    toastFn('顔検出: '+found+'/'+s.imgs.length+' 枚');
+    renderThumbs(); renderStage();
+    toastFn('再検出しました');
   }
 
   function openSlideshow(){
@@ -24575,32 +24772,35 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var photos=(window.state&&state.photos)||[];
     if(photos.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     ensureDom();
-    // build session
+    // Load images
     var imgs=[]; for(var i=0;i<photos.length;i++){ try{ imgs[i]=await loadImg(photos[i].dataUrl); }catch(e){ imgs[i]=null; } }
     if(imgs.some(function(x){return !x;})){ toastFn('画像の読み込みに失敗しました'); return; }
     var base=imgs[0];
-    var maxSide=1024; var sc=Math.min(1, maxSide/Math.max(base.naturalWidth||base.width, base.naturalHeight||base.height));
+    var maxSide=1024, sc=Math.min(1, maxSide/Math.max(base.naturalWidth||base.width, base.naturalHeight||base.height));
     var stageW=Math.round((base.naturalWidth||base.width)*sc), stageH=Math.round((base.naturalHeight||base.height)*sc);
-    var fits=imgs.map(function(im){
-      var iw=im.naturalWidth||im.width, ih=im.naturalHeight||im.height;
-      var r=Math.min(stageW/iw, stageH/ih); return {w:iw*r, h:ih*r};
-    });
+    var fits=imgs.map(function(im){ var iw=im.naturalWidth||im.width, ih=im.naturalHeight||im.height; var r=Math.min(stageW/iw, stageH/ih); return {w:iw*r, h:ih*r}; });
     var existing=window.state&&state.morphReady;
     var baseIndex=(existing&&typeof existing.baseIndex==='number'&&existing.baseIndex<photos.length)?existing.baseIndex:0;
-    state.morphEdit={ baseIndex:baseIndex, mode:'hybrid', viewMode:'overlay', showLandmarks:true, showGuides:true,
-      index:0, stageW:stageW, stageH:stageH, imgs:imgs, fits:fits, anchors:new Array(imgs.length).fill(null), tf:imgs.map(function(){return {scale:1,rot:0,tx:0,ty:0};}), _baToggle:false };
-    // size canvas to stage aspect
-    var cv=$id('cfAlignCanvas'); if(cv){ var cw=720; cv.width=cw; cv.height=Math.round(cw*stageH/stageW); }
+    state.morphEdit={ baseIndex:baseIndex, mode:'hybrid', viewMode:'overlay', showLandmarks:true, showGuides:true, lmSet:'face',
+      overlayAlpha:0.5, dentalGuide:{midline:true,incisal:true,center:true,crop:true},
+      index:(baseIndex===0?Math.min(1,photos.length-1):0), stageW:stageW, stageH:stageH, imgs:imgs, fits:fits,
+      anchors:new Array(imgs.length).fill(null), moments:new Array(imgs.length).fill(null),
+      alignType:new Array(imgs.length).fill(null), tf:imgs.map(function(){return {scale:1,rot:0,tx:0,ty:0};}), _baHold:false };
     var ov=$id('cfAlignOverlay'); ov.classList.add('open');
-    setMode('hybrid'); setView('overlay'); renderThumbs(); renderStage();
-    // async detect then auto-align
+    sizeCanvas();
+    setMode('hybrid'); setView('overlay'); syncTypeUI(); renderThumbs(); renderStage();
+    // Analyse: brightness moments (all) + face landmarks (facial only)
     var prog=$id('cfAlignProg'), ptxt=$id('cfAlignProgTxt'); if(prog) prog.classList.add('on');
-    for(var j=0;j<imgs.length;j++){ if(ptxt) ptxt.textContent='顔ランドマーク検出中… '+(j+1)+'/'+imgs.length; state.morphEdit.anchors[j]=await detectAnchors(photos[j].dataUrl); }
+    for(var j=0;j<imgs.length;j++){ if(ptxt) ptxt.textContent='解析中… '+(j+1)+'/'+imgs.length;
+      state.morphEdit.moments[j]=contentMoments(imgs[j]);
+      if(imgType(state.morphEdit,j)==='facial'){ var a=await detectAnchors(photos[j].dataUrl); state.morphEdit.anchors[j]=(a&&validAnchors(a))?a:null; }
+    }
     if(prog) prog.classList.remove('on');
+    refocus(); syncTypeUI();
     if(state.morphEdit.mode!=='manual') autoAlignAll();
     renderThumbs(); renderStage();
-    var found=state.morphEdit.anchors.filter(Boolean).length;
-    toastFn('顔検出: '+found+'/'+imgs.length+' 枚 — Hybridで自動整列しました');
+    var aligned=(state.morphEdit.alignType||[]).filter(function(t){return t==='face'||t==='dental';}).length;
+    toastFn('解析完了 — '+aligned+'/'+(imgs.length-1)+' 枚を自動整列しました');
   }
 
   window.cfOpenEditAlign=openAlign;
