@@ -5011,11 +5011,11 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="export">
-  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('preview')">‹</button><div><h2 class="title">Export</h2><p class="subtitle">Library に自動保存済み / Auto-saved to Library</p></div><span class="iconSvg exportIconSvg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"></path><path d="M8 9l4 4 4-4"></path><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg></span></div>
+  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('preview')">‹</button><div><h2 class="title">Export</h2><p class="subtitle" id="exportSubtitle">プレビューを確認して保存 / Save preview video</p></div><span class="iconSvg exportIconSvg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"></path><path d="M8 9l4 4 4-4"></path><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg></span></div>
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem">2<span>Preview</span></div><div class="stepitem on">3<span>Export</span></div></div>
   <div class="card export"><img id="exportImage"><video id="exportVideo" controls playsinline loop style="display:none;width:100%;border-radius:18px;background:#000"></video></div>
   <div class="smallcaps">Share / 共有</div>
-  <button class="secondary" onclick="shareSNS()">動画を保存 / Save Video</button>
+  <button class="secondary" onclick="shareSNS()">プレビュー動画を保存 / Save Preview Video</button>
 </section>
 
 
@@ -5367,7 +5367,20 @@ function renderResult(){
 
 /* ---------- 書き出し ＆ 保存先導線 ---------- */
 function dataUrlToBlob(dataUrl){const arr=dataUrl.split(','),mime=arr[0].match(/:(.*?);/)[1],bin=atob(arr[1]);let n=bin.length;const u8=new Uint8Array(n);while(n--)u8[n]=bin.charCodeAt(n);return new Blob([u8],{type:mime})}
-function setExportBlob(blob,name,type){state.lastBlob=blob;state.lastName=name;state.lastType=type;if(state.lastUrl)URL.revokeObjectURL(state.lastUrl);state.lastUrl=URL.createObjectURL(blob);const isVid=type.indexOf('video')===0;const iv=$('exportVideo'),ii=$('exportImage');if(isVid){ii.style.display='none';iv.style.display='block';iv.src=state.lastUrl}else{iv.style.display='none';iv.removeAttribute('src');ii.style.display='block';ii.src=state.lastUrl}go('export')}
+function setExportBlob(blob,name,type){
+  if(!blob||!blob.size){ console.error('[CaseFlow Export Save Error] setExportBlob called with empty blob'); throw new Error('Preview video blob is empty'); }
+  state.lastBlob=blob;state.lastName=name;state.lastType=type;
+  if(state.lastUrl)URL.revokeObjectURL(state.lastUrl);
+  state.lastUrl=URL.createObjectURL(blob);
+  const isVid=type.indexOf('video')===0;
+  const iv=$('exportVideo'),ii=$('exportImage');
+  if(isVid){ii.style.display='none';iv.style.display='block';iv.src=state.lastUrl}
+  else{iv.style.display='none';iv.removeAttribute('src');ii.style.display='block';ii.src=state.lastUrl}
+  // Update subtitle to reflect actual Library save status
+  const sub=document.getElementById('exportSubtitle');
+  if(sub) sub.textContent='Libraryに保存済み / Saved to Library';
+  go('export');
+}
 function setExport(dataUrl){setExportBlob(dataUrlToBlob(dataUrl),'caseflow.jpg','image/jpeg')}
 async function exportMp4(){
   if(state.photos.length<2){toast('写真を2枚以上追加してください');return}
@@ -5389,7 +5402,43 @@ function saveResult(){const img=$('resultAfter').src;if(!img){toast('生成結�
 function exportFile(){return state.lastBlob?new File([state.lastBlob],state.lastName,{type:state.lastType}):null}
 async function savePhotos(){const f=exportFile();if(!f){toast('先に書き出してください');return}const isVid=state.lastType.indexOf('video')===0;if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){try{await navigator.share({files:[f],title:'CaseFlow Studio'});toast(isVid?'共有シートから「ビデオを保存」を選んでください':'共有シートから「画像を保存」を選んでください');return}catch(e){if(e.name==='AbortError')return}}if(state.lastUrl)window.open(state.lastUrl,'_blank');toast(isVid?'動画を長押しして保存してください':'画像を長押しして「“写真”に追加」を選んでください')}
 function saveFiles(){if(!state.lastUrl){toast('先に書き出してください');return}const a=document.createElement('a');a.href=state.lastUrl;a.download=state.lastName;document.body.appendChild(a);a.click();a.remove();toast('「ファイル」アプリに保存されます')}
-async function shareSNS(){const f=exportFile();if(!f){toast('先に書き出してください');return}if(navigator.share){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'CaseFlow Studio',text:'CaseFlow Studio'})}else{await navigator.share({title:'CaseFlow Studio',text:'CaseFlow Studio'})}return}catch(e){if(e.name==='AbortError')return}}saveFiles()}
+async function shareSNS(){
+  // Validate blob before attempting any save
+  if(!state.lastBlob||!state.lastBlob.size){
+    console.error('[CaseFlow Export Save Error] No valid blob in state for share');
+    toast('保存できる動画がありません。先にプレビュー動画を生成してください');
+    return;
+  }
+  // Build File from stored blob — prefer .mp4 filename for iOS compatibility
+  var blobType=state.lastType||'video/mp4';
+  var ext=blobType.indexOf('mp4')>=0?'mp4':'webm';
+  var fileName='caseflow_preview_video.'+ext;
+  var f=new File([state.lastBlob],fileName,{type:blobType});
+  // Track B: Device save via navigator.share() (iOS Safari compatible)
+  if(navigator.share){
+    try{
+      if(navigator.canShare&&navigator.canShare({files:[f]})){
+        await navigator.share({files:[f],title:'CaseFlow Preview Video',text:'CASEFLOW STUDIO™ Preview Video'});
+      }else{
+        await navigator.share({title:'CaseFlow Preview Video',text:'CASEFLOW STUDIO™ Preview Video'});
+      }
+      return;
+    }catch(e){
+      if(e.name==='AbortError') return; // user dismissed share sheet — not an error
+      console.error('[CaseFlow Export Save Error] navigator.share failed',e);
+      toast('端末への保存は共有メニューから行ってください');
+      return;
+    }
+  }
+  // Non-iOS fallback: anchor download
+  if(state.lastUrl){
+    var a=document.createElement('a'); a.href=state.lastUrl; a.download=fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('「ファイル」アプリに保存されます');
+  }else{
+    toast('端末への保存は共有メニューから行ってください');
+  }
+}
 
 /* ---------- サンプル ---------- */
 function sampleSvg(label,c1,c2){const teeth=Array.from({length:8}).map((_,i)=>`<rect x="${250+i*50}" y="292" width="39" height="68" rx="13" fill="#fffdf8" stroke="#eadbd1" stroke-width="3"/>`).join('');const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient><filter id="b"><feGaussianBlur stdDeviation="18"/></filter></defs><rect width="900" height="640" fill="url(#g)"/><ellipse cx="450" cy="335" rx="335" ry="148" fill="#9b5b4a" opacity=".24" filter="url(#b)"/><ellipse cx="450" cy="320" rx="318" ry="120" fill="#e9a0a5" opacity=".62"/><ellipse cx="450" cy="332" rx="265" ry="56" fill="#281212" opacity=".74"/><rect x="235" y="285" width="430" height="82" rx="38" fill="#fff7ef"/>${teeth}<path d="M245 376 C360 410,550 410,662 376" fill="none" stroke="#d78686" stroke-width="12" opacity=".45"/><text x="40" y="70" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="34" font-weight="800" fill="rgba(255,255,255,.88)">${label}</text><text x="40" y="112" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="20" font-weight="600" fill="rgba(255,255,255,.7)">Sample clinical placeholder / サンプル画像</text></svg>`;return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)}
@@ -22689,7 +22738,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button class="cfCapRat" data-ratio="1:1">1:1<span>正方形</span></button>'+
         '<button class="cfCapRat" data-ratio="16:9">16:9<span>横</span></button>'+
       '</div>'+
-      '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビューをそのまま保存</button>'+
+      '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビュー動画を保存</button>'+
       '<div id="cfCapHint">&#9654; で往復再生。3つのプレビューパターンを切り替えて、最適なものを保存してください。</div>'+
       '';
     /* Resize popup — injected once */
@@ -23455,9 +23504,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       replayCanvas.width=w; replayCanvas.height=h;
       var replayCtx=replayCanvas.getContext('2d');
 
-      // Set up MediaRecorder
+      // Set up MediaRecorder — video/mp4 tried first for iOS Safari compatibility
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
+      console.log('[CaseFlow Export] selected mimeType:', mime);
       var stream, track, manual=false;
       try{
         stream=replayCanvas.captureStream(0);
@@ -23524,18 +23574,49 @@ body.cfPresent .cfPresentExit{display:flex!important}
       console.log('[CF Export stats]', JSON.stringify(window._cfLastExportStats));
 
       if(result){
-        if(typeof setExportBlob==='function'){ setExportBlob(result.blob,result.name,result.mime); if(typeof go==='function') go('export'); }
-        else{ var u=URL.createObjectURL(result.blob); var a=document.createElement('a'); a.href=u; a.download=result.name; a.click(); setTimeout(function(){ URL.revokeObjectURL(u); },5000); }
+        // Safety: reject empty blobs before any save attempt
+        if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+
+        // Track A: Library save (mandatory — stores blob in app state, navigates to Export page)
+        var libSaved=false;
+        if(typeof setExportBlob==='function'){
+          try{
+            setExportBlob(result.blob,result.name,result.mime);
+            libSaved=true;
+            var exportSubEl=document.getElementById('exportSubtitle');
+            if(exportSubEl) exportSubEl.textContent='Libraryに保存済み / Saved to Library';
+          }catch(libErr){
+            console.error('[CaseFlow Export Save Error] Library save failed',libErr);
+          }
+        }
+
+        if(libSaved){
+          toastFn('プレビュー動画を保存しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+          if(typeof go==='function') go('export');
+        }else{
+          // Fallback: direct download (non-iOS, non-Library environments)
+          try{
+            var dlUrl=URL.createObjectURL(result.blob);
+            var dlA=document.createElement('a'); dlA.href=dlUrl; dlA.download=result.name; dlA.click();
+            setTimeout(function(){ URL.revokeObjectURL(dlUrl); },5000);
+            toastFn('プレビュー動画を保存しました ✓');
+          }catch(dlErr){
+            console.error('[CaseFlow Export Save Error] Fallback download failed',dlErr);
+            toastFn('保存に失敗しました。端末の共有メニューをご利用ください');
+          }
+        }
+      }else{
+        throw new Error('MediaRecorder produced no result');
       }
-      toastFn('動画を書き出しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
 
     }catch(err){
-      toastFn('書き出しエラー: '+(err&&err.message||String(err)).slice(0,80));
+      console.error('[CaseFlow Export Save Error]',err);
+      toastFn('プレビュー動画の保存に失敗しました: '+(err&&err.message||String(err)).slice(0,60));
     }finally{
       window._cfExportInProgress=false;
       if(window.state){ state.cfExportMode=prevExportMode; }
       if(waitEl) waitEl.classList.remove('active');
-      if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビューをそのまま保存'; }
+      if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビュー動画を保存'; }
     }
   }
 
@@ -23628,8 +23709,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var repCv=document.createElement('canvas'); repCv.width=w; repCv.height=h;
       var repCtx=repCv.getContext('2d');
 
+      // video/mp4 tried first for iOS Safari compatibility
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
+      console.log('[CaseFlow Export] selected mimeType:', mime);
       var stream,track,manual=false;
       try{
         stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
@@ -23679,9 +23762,33 @@ body.cfPresent .cfPresentExit{display:flex!important}
       });
       if(waitOvEl) waitOvEl.classList.remove('active');
       if(result){
-        if(typeof setExportBlob==='function') setExportBlob(result.blob,result.name,result.mime);
-        toastFn('動画を書き出しました（'+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+'）');
+        // Safety: reject empty blobs before any save attempt
+        if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+        // Track A: Library save (mandatory)
+        var libSaved2=false;
+        if(typeof setExportBlob==='function'){
+          try{
+            setExportBlob(result.blob,result.name,result.mime);
+            libSaved2=true;
+            var exportSubEl2=document.getElementById('exportSubtitle');
+            if(exportSubEl2) exportSubEl2.textContent='Libraryに保存済み / Saved to Library';
+          }catch(libErr2){
+            console.error('[CaseFlow Export Save Error] Library save failed',libErr2);
+          }
+        }
+        if(libSaved2){
+          toastFn('プレビュー動画を保存しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+        }else{
+          console.error('[CaseFlow Export Save Error] No Library save method available');
+          toastFn('端末への保存は共有メニューからご利用ください');
+        }
+      }else{
+        throw new Error('MediaRecorder produced no result');
       }
+    }catch(err2){
+      console.error('[CaseFlow Export Save Error]',err2);
+      if(waitOvEl) waitOvEl.classList.remove('active');
+      toastFn('プレビュー動画の保存に失敗しました: '+(err2&&err2.message||String(err2)).slice(0,60));
     }finally{
       if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
       window._cfExportInProgress=false;
