@@ -12838,6 +12838,25 @@ window.addEventListener('DOMContentLoaded', () => {
   window.cfAddCoarseOralMesh = cfAddCoarseOralMesh;  // dual mesh: coarse boundary points
   window.cfAssessPairRisk = cfAssessPairRisk;        // multi-factor risk assessment
   window.cfApplyOralSoftDissolve = cfApplyOralSoftDissolve; // Oral Focus soft dissolve
+
+  // CaseFlowMorphEngine — single namespace that crosses IIFE boundaries.
+  // The export pipeline (in a separate IIFE) resolves all engine functions through this object
+  // so iOS Safari scope resolution never fails regardless of IIFE nesting depth.
+  window.CaseFlowMorphEngine = Object.assign(window.CaseFlowMorphEngine || {}, {
+    fitContain:           fitContain,
+    drawWarpedTriangle:   drawWarpedTriangle,
+    delaunay:             delaunay,
+    dedupePairs:          dedupePairs,
+    collectMorphPairs:    collectMorphPairs,
+    cfComputeDentalROI:   cfComputeDentalROI,
+    cfAssessPairRisk:     cfAssessPairRisk,
+    cfGetVariantDef:      cfGetVariantDef,
+    drawCaseflowGradientBg: drawCaseflowGradientBg,
+    cfApplyOralSoftDissolve: cfApplyOralSoftDissolve,
+    ease:                 ease,
+    cfIsInsideOralROI:    cfIsInsideOralROI,
+    cfAddCoarseOralMesh:  cfAddCoarseOralMesh
+  });
   window.stopPairPreview = function(){
     state.v70MeshPlaying=false;
     state.v70MeshToken++;
@@ -23140,24 +23159,30 @@ body.cfPresent .cfPresentExit{display:flex!important}
   window.cfMakeBaseCanvasForExport=cfMakeBaseCanvasForExport;
 
   // cfValidateExportDependencies — preflight check before export starts.
-  // Throws a descriptive error so the catch block in cfCapBrowserExport/cfCapDoExport
-  // can surface it to the user instead of cryptically failing mid-export.
+  // Checks window.CaseFlowMorphEngine (not local scope) so cross-IIFE failures are caught
+  // before the export loop rather than exploding mid-render.
+  // Returns the validated engine object so callers can store it once.
   function cfValidateExportDependencies(){
     var missing=[];
+    var engine=window.CaseFlowMorphEngine;
+    if(!engine){
+      var err=new Error('CaseFlowMorphEngine が未初期化です。Morphing engineのIIFEが先にロードされているか確認してください。');
+      console.error('[CaseFlow Export] engine missing', err);
+      throw err;
+    }
+    ['fitContain','drawWarpedTriangle','delaunay','dedupePairs','collectMorphPairs',
+     'cfComputeDentalROI','cfAssessPairRisk','cfGetVariantDef','drawCaseflowGradientBg','ease'
+    ].forEach(function(name){
+      if(typeof engine[name]!=='function') missing.push(name);
+    });
     if(typeof cfLoadImageForExport!=='function') missing.push('cfLoadImageForExport');
     if(typeof cfMakeBaseCanvasForExport!=='function') missing.push('cfMakeBaseCanvasForExport');
-    if(typeof cfGetVariantDef!=='function'&&typeof window.cfGetVariantDef!=='function') missing.push('cfGetVariantDef');
-    if(typeof cfComputeDentalROI!=='function') missing.push('cfComputeDentalROI');
-    if(typeof cfAssessPairRisk!=='function') missing.push('cfAssessPairRisk');
-    if(typeof collectMorphPairs!=='function') missing.push('collectMorphPairs');
-    if(typeof dedupePairs!=='function') missing.push('dedupePairs');
-    if(typeof fitContain!=='function') missing.push('fitContain');
-    if(typeof delaunay!=='function') missing.push('delaunay');
-    if(typeof drawWarpedTriangle!=='function') missing.push('drawWarpedTriangle');
-    if(typeof ease!=='function') missing.push('ease');
     if(missing.length>0){
-      throw new Error('Export依存関数が未定義: '+missing.join(', '));
+      var err2=new Error('Export dependency missing: '+missing.join(', '));
+      console.error('[CaseFlow Export] dependency error', err2, {engine:engine, missing:missing});
+      throw err2;
     }
+    return engine;
   }
   window.cfValidateExportDependencies=cfValidateExportDependencies;
 
@@ -23177,14 +23202,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
   // oralROI / pairRisk / morphPairs for every segment so the export loop itself is
   // purely synchronous (no loadImage, no mesh detection, no Delaunay re-triangulation
   // of the control-point set — only the midpoint recompute per frame is needed).
-  async function prepareMorphExportPlan(photos, w, h, fps, durationMs){
+  // engine is window.CaseFlowMorphEngine, passed in so iOS Safari scope resolution is guaranteed.
+  async function prepareMorphExportPlan(photos, w, h, fps, durationMs, engine){
+    engine = engine || window.CaseFlowMorphEngine;
     var segCount=Math.max(1, photos.length-1);
     var totalFrames=Math.max(2, Math.round(durationMs/1000*fps));
-    var _vdef=cfGetVariantDef(window.cfMorphVariant);
+    var _vdef=engine.cfGetVariantDef(window.cfMorphVariant);
 
-    // Use self-contained loaders safe across all IIFE scopes (fixes iOS Safari scope error)
+    // cfLoadImageForExport / cfMakeBaseCanvasForExport are defined in this same IIFE scope
+    // and are guaranteed present after cfValidateExportDependencies() passes.
     var images=await Promise.all(photos.map(function(p){ return cfLoadImageForExport(p.dataUrl||p.url||p.src); }));
-    var rects=images.map(function(img){ return fitContain(img.naturalWidth||img.width, img.naturalHeight||img.height, w, h, 0); });
+    var rects=images.map(function(img){ return engine.fitContain(img.naturalWidth||img.width, img.naturalHeight||img.height, w, h, 0); });
     var bases=rects.map(function(rect, i){ return cfMakeBaseCanvasForExport(images[i], w, h, rect); });
 
     var pairPlans=[];
@@ -23193,16 +23221,16 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var rectA=rects[i], rectB=rects[i+1];
       var baseA=bases[i], baseB=bases[i+1];
 
-      var oralROI=cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
+      var oralROI=engine.cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
 
       var pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
-      try{ pairRisk=cfAssessPairRisk(photoA, photoB, baseA, baseB, oralROI); }catch(e2){}
+      try{ pairRisk=engine.cfAssessPairRisk(photoA, photoB, baseA, baseB, oralROI); }catch(e2){}
 
       var effectiveCW=Math.max(0,Math.min(1, pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
       var oralExpand=1.1+effectiveCW*0.5;
 
-      var collected=collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand);
-      var morphPairs=dedupePairs(collected.pairs);
+      var collected=engine.collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand);
+      var morphPairs=engine.dedupePairs(collected.pairs);
 
       pairPlans.push({
         photoA:photoA, photoB:photoB,
@@ -23213,26 +23241,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
         morphPairs:morphPairs, _vdef:_vdef
       });
     }
-    return {pairPlans:pairPlans, segCount:segCount, totalFrames:totalFrames, fps:fps, w:w, h:h, durationMs:durationMs};
+    return {engine:engine, pairPlans:pairPlans, segCount:segCount, totalFrames:totalFrames, fps:fps, w:w, h:h, durationMs:durationMs};
   }
 
   // renderExportFrame — purely synchronous single-frame renderer from a precomputed plan.
   // No async IO, no loadImage, no mesh detection — just midpoint lerp + Delaunay + affine warp.
+  // All engine calls go through plan.engine to avoid IIFE scope failures on iOS Safari.
   function renderExportFrame(ctx, plan, pairPlan, localT){
+    var engine=plan.engine||window.CaseFlowMorphEngine;
     var w=plan.w, h=plan.h;
     var _vdef=pairPlan._vdef;
-    var e=ease(Math.max(0,Math.min(1,localT)));
+    var e=engine.ease(Math.max(0,Math.min(1,localT)));
     var eW=e; // endpoint-preserving: t=0→A exactly, t=1→B exactly
 
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,w,h);
-    drawCaseflowGradientBg(ctx, w, h);
+    engine.drawCaseflowGradientBg(ctx, w, h);
 
     var pairs=pairPlan.morphPairs;
     var p1=pairs.map(function(p){ return p.p1; });
     var p2=pairs.map(function(p){ return p.p2; });
     var mid=pairs.map(function(p){ return {x:p.p1.x*(1-eW)+p.p2.x*eW, y:p.p1.y*(1-eW)+p.p2.y*eW}; });
-    var tris=delaunay(mid);
+    var tris=engine.delaunay(mid);
 
     if(tris.length<1){
       ctx.save(); ctx.globalAlpha=1; ctx.drawImage(pairPlan.baseA,0,0); ctx.restore();
@@ -23240,14 +23270,16 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }else{
       tris.forEach(function(tr){
         var i=tr[0],j=tr[1],k=tr[2];
-        drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
+        engine.drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
       });
       tris.forEach(function(tr){
         var i=tr[0],j=tr[1],k=tr[2];
-        drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], e);
+        engine.drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], e);
       });
       if((_vdef.oralSoftDiss||0)>0 && pairPlan.oralROI && pairPlan.oralROI.detected){
-        cfApplyOralSoftDissolve(ctx, pairPlan.baseB, pairPlan.oralROI, eW, _vdef.oralSoftDiss, w, h);
+        if(typeof engine.cfApplyOralSoftDissolve==='function'){
+          engine.cfApplyOralSoftDissolve(ctx, pairPlan.baseB, pairPlan.oralROI, eW, _vdef.oralSoftDiss, w, h);
+        }
       }
     }
   }
@@ -23257,7 +23289,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     if(typeof MediaRecorder==='undefined'){ toastFn('このブラウザは動画録画に対応していません'); return; }
-    try{ cfValidateExportDependencies(); }catch(depErr){ toastFn('書き出しエラー: '+depErr.message.slice(0,80)); return; }
+    var _engine; try{ _engine=cfValidateExportDependencies(); }catch(depErr){ console.error('[CaseFlow Export] dependency error',depErr); toastFn('書き出しエラー: '+depErr.message); return; }
 
     // Stop preview loop and block render() during export
     stop();
@@ -23289,7 +23321,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
       toastFn('Export準備中 ('+totalFrames+'フレーム)…');
 
-      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs);
+      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine);
 
       // Phase 1: Render all frames synchronously to JPEG blobs (no async race conditions)
       var exportCanvas=document.createElement('canvas');
@@ -23441,7 +23473,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
       toastFn('この環境では動画書き出しが未対応です'); return;
     }
-    try{ cfValidateExportDependencies(); }catch(depErr){ toastFn('書き出しエラー: '+depErr.message.slice(0,80)); return; }
+    var _engine2; try{ _engine2=cfValidateExportDependencies(); }catch(depErr){ console.error('[CaseFlow Export] dependency error',depErr); toastFn('書き出しエラー: '+depErr.message); return; }
     var segCount=Math.max(1,ph.length-1);
     var durationMs=speedMs()*segCount;
     var fps=30;
@@ -23468,7 +23500,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var blobs=[];
     try{
       // Phase 0: precompute — no async IO inside the render loop
-      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs);
+      var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine2);
       // Phase 1: deterministic frame render
       var tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
       var tc=tmp.getContext('2d',{alpha:false});
