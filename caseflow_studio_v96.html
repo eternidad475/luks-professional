@@ -23100,6 +23100,67 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   // ── Export helpers: precompute plan, deterministic frame renderer, fingerprint ──
 
+  // cfLoadImageForExport — self-contained image loader safe across all IIFE scopes.
+  // Uses img.decode() when available (eliminates iOS Safari partial-paint race).
+  function cfLoadImageForExport(src){
+    return new Promise(function(resolve, reject){
+      if(!src){ reject(new Error('cfLoadImageForExport: empty src')); return; }
+      var img=new Image();
+      img.onload=function(){
+        if(img.decode){
+          img.decode().then(function(){ resolve(img); }, function(){ resolve(img); });
+        }else{
+          resolve(img);
+        }
+      };
+      img.onerror=function(){ reject(new Error('cfLoadImageForExport: failed to load image')); };
+      img.src=src;
+    });
+  }
+  window.cfLoadImageForExport=cfLoadImageForExport;
+
+  // cfMakeBaseCanvasForExport — self-contained base-canvas builder with gradient fallback.
+  // Does not rely on makeBaseCanvas or any other IIFE-local helper.
+  function cfMakeBaseCanvasForExport(img, w, h, rect){
+    var c=document.createElement('canvas'); c.width=w; c.height=h;
+    var ctx=c.getContext('2d',{alpha:false});
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    // Background gradient — prefer the shared helper, fall back to inline
+    var bgFn=(typeof drawCaseflowGradientBg==='function'&&drawCaseflowGradientBg)
+            ||(window.drawCaseflowGradientBg)||null;
+    if(bgFn){ bgFn(ctx,w,h); }
+    else{
+      var g=ctx.createLinearGradient(0,0,w,h);
+      g.addColorStop(0,'#7c5cff'); g.addColorStop(1,'#ff9fd6');
+      ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    }
+    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+    return c;
+  }
+  window.cfMakeBaseCanvasForExport=cfMakeBaseCanvasForExport;
+
+  // cfValidateExportDependencies — preflight check before export starts.
+  // Throws a descriptive error so the catch block in cfCapBrowserExport/cfCapDoExport
+  // can surface it to the user instead of cryptically failing mid-export.
+  function cfValidateExportDependencies(){
+    var missing=[];
+    if(typeof cfLoadImageForExport!=='function') missing.push('cfLoadImageForExport');
+    if(typeof cfMakeBaseCanvasForExport!=='function') missing.push('cfMakeBaseCanvasForExport');
+    if(typeof cfGetVariantDef!=='function'&&typeof window.cfGetVariantDef!=='function') missing.push('cfGetVariantDef');
+    if(typeof cfComputeDentalROI!=='function') missing.push('cfComputeDentalROI');
+    if(typeof cfAssessPairRisk!=='function') missing.push('cfAssessPairRisk');
+    if(typeof collectMorphPairs!=='function') missing.push('collectMorphPairs');
+    if(typeof dedupePairs!=='function') missing.push('dedupePairs');
+    if(typeof fitContain!=='function') missing.push('fitContain');
+    if(typeof delaunay!=='function') missing.push('delaunay');
+    if(typeof drawWarpedTriangle!=='function') missing.push('drawWarpedTriangle');
+    if(typeof ease!=='function') missing.push('ease');
+    if(missing.length>0){
+      throw new Error('Export依存関数が未定義: '+missing.join(', '));
+    }
+  }
+  window.cfValidateExportDependencies=cfValidateExportDependencies;
+
   // computeFrameFingerprint — lightweight hash over 64×64 thumbnail for duplicate detection.
   function computeFrameFingerprint(ctx, w, h){
     var sW=64, sH=64;
@@ -23121,10 +23182,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var totalFrames=Math.max(2, Math.round(durationMs/1000*fps));
     var _vdef=cfGetVariantDef(window.cfMorphVariant);
 
-    // imageCache makes repeat calls free; load all upfront
-    var images=await Promise.all(photos.map(function(p){ return loadImage(p.dataUrl); }));
+    // Use self-contained loaders safe across all IIFE scopes (fixes iOS Safari scope error)
+    var images=await Promise.all(photos.map(function(p){ return cfLoadImageForExport(p.dataUrl||p.url||p.src); }));
     var rects=images.map(function(img){ return fitContain(img.naturalWidth||img.width, img.naturalHeight||img.height, w, h, 0); });
-    var bases=rects.map(function(rect, i){ return makeBaseCanvas(images[i], w, h, rect); });
+    var bases=rects.map(function(rect, i){ return cfMakeBaseCanvasForExport(images[i], w, h, rect); });
 
     var pairPlans=[];
     for(var i=0;i<segCount;i++){
@@ -23196,6 +23257,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var ph=(window.state&&state.photos)||[];
     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     if(typeof MediaRecorder==='undefined'){ toastFn('このブラウザは動画録画に対応していません'); return; }
+    try{ cfValidateExportDependencies(); }catch(depErr){ toastFn('書き出しエラー: '+depErr.message.slice(0,80)); return; }
 
     // Stop preview loop and block render() during export
     stop();
@@ -23379,6 +23441,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
       toastFn('この環境では動画書き出しが未対応です'); return;
     }
+    try{ cfValidateExportDependencies(); }catch(depErr){ toastFn('書き出しエラー: '+depErr.message.slice(0,80)); return; }
     var segCount=Math.max(1,ph.length-1);
     var durationMs=speedMs()*segCount;
     var fps=30;
