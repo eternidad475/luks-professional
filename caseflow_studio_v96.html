@@ -24044,17 +24044,31 @@ body.cfPresent .cfPresentExit{display:flex!important}
     throw new Error('AIバックエンドに接続できませんでした');
   }
 
-  function buildGoldenProportionPrompt(){
+  // CLAMPED, conservative golden-balance prompt. The goal is NOT to force the ideal
+  // 1.618 ratio — it is a small, clinically-plausible tidy-up of the SAME teeth. Facial
+  // gets the most conservative wording (full-frame, identity-preserving); focus may
+  // refine crown form a little more but still gently.
+  function buildGoldenProportionPrompt(imageType){
+    if(imageType==='facial'){
+      return [
+        'Edit ONLY the visible upper anterior teeth in THIS exact portrait (image-to-image);',
+        'keep it the SAME person — face, eyes, nose, skin, lips, expression, framing and background pixel-identical.',
+        'Apply a SUBTLE, conservative balancing of the existing teeth: very slightly even the incisal edge line and',
+        'soften obvious width asymmetries toward (not all the way to) natural proportions; keep the patient\'s own tooth',
+        'shape, length, shade and individual character. Do NOT whiten to pure white, do NOT flatten or fuse teeth,',
+        'do NOT create generic veneers, do NOT move the gingival margin or the lips. The change must be barely',
+        'perceptible and look like the patient\'s real teeth, gently tidied. Return the FULL image at the same crop',
+        'and head position so it overlays the original exactly.'
+      ].join(' ');
+    }
+    // focus (intraoral / close-up): dental-specific refinement allowed a little more
     return [
-      'close-up dental photograph, upper anterior teeth perfectly aligned,',
-      'golden proportion smile: central incisor visible width to lateral incisor ratio 1.618:1,',
-      'lateral incisor to canine visible width ratio 1.618:1,',
-      'smile arc gently following lower lip curvature,',
-      'harmonious gingival zenith positions with slight distal lean on lateral incisors,',
-      'square-tapered central incisors 8-9mm width, bright A1-A2 natural enamel shade,',
-      'subtle incisal translucency and natural surface texture, no staining,',
-      'photorealistic ultra-detailed dental photography 8k resolution,',
-      'do NOT change lips, gingiva beyond incisal third, or any skin or background'
+      'close-up dental photograph: gently refine the upper anterior crown forms toward natural, balanced proportions',
+      '(centrals slightly dominant, soft step-down to laterals and canines) WITHOUT forcing a perfect golden ratio.',
+      'Keep the patient\'s own tooth type, length, surface texture and shade; natural A1-A2 enamel, subtle incisal',
+      'translucency, no staining, scalloped natural gingiva. Do NOT whiten to pure white, do NOT flatten or fuse teeth,',
+      'do NOT create generic veneers, do NOT change lips, gingiva beyond the gingival margin, skin or background.',
+      'Photorealistic, conservative, believable.'
     ].join(' ');
   }
 
@@ -24067,6 +24081,22 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
       var L = res.faceLandmarks[0];
       var ring = [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
+      var pts = ring.map(function(i){ return L[i]; }).filter(Boolean).map(function(p){ return {x:p.x*w, y:p.y*h}; });
+      return pts.length>=10 ? pts : null;
+    }catch(e){ return null; }
+  }
+
+  // OUTER lip ring — used to build the support/context blend region (teeth + lip surface),
+  // reusing the same MediaPipe faceLandmarker the Morphing Video Studio relies on.
+  async function getLipOuterRing(img, w, h){
+    try{
+      var initFn = window.initMediaPipeLocalML;
+      var ok = (typeof initFn==='function') ? await initFn() : false;
+      if(!ok || !window.CaseFlowLocalML || !window.CaseFlowLocalML.faceLandmarker) return null;
+      var res = window.CaseFlowLocalML.faceLandmarker.detect(img);
+      if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+      var L = res.faceLandmarks[0];
+      var ring = [61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146];
       var pts = ring.map(function(i){ return L[i]; }).filter(Boolean).map(function(p){ return {x:p.x*w, y:p.y*h}; });
       return pts.length>=10 ? pts : null;
     }catch(e){ return null; }
@@ -24113,11 +24143,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
     return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };
   }
 
-  async function generateRefinedCropViaAI(croppedDataUrl){
+  // Generate the refined image. FACIAL: full-frame, identity-preserving, LOW denoising
+  // (a gentle balance pass — never an intraoral close-up). FOCUS: dental crop, intraoral,
+  // a little more latitude. Golden-proportion change is clamped via low denoising_strength.
+  async function generateRefinedViaAI(imageDataUrl, imageType){
     var epRaw = getAiEndpoint();
     if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
-
-    // Token gate
     if(typeof window.cfConsumeToken==='function'){
       var tk = await window.cfConsumeToken('generation');
       if(tk && tk.ok===false){
@@ -24126,35 +24157,35 @@ body.cfPresent .cfPresentExit{display:flex!important}
         err.cfNoTokens = true; throw err;
       }
     }
-
     var ep = epRaw.replace(/\/+$/,'');
     if(!/\/simulate$/.test(ep)) ep += '/simulate';
-
-    // Build payload from global buildSimulationPayload as a base where possible,
-    // then override with golden-proportion-specific fields
     var basePayload = {};
     if(typeof window.buildSimulationPayload==='function' && window.state && window.state.simResult && window.state.simResult.srcObj){
       try{ basePayload = window.buildSimulationPayload(window.state.simResult.srcObj); }catch(e){}
     }
-
+    var facial = (imageType==='facial');
     var payload = Object.assign({}, basePayload, {
-      image: croppedDataUrl,
-      prompt: buildGoldenProportionPrompt(),
+      image: imageDataUrl,
+      prompt: buildGoldenProportionPrompt(imageType),
       concept: 'prosthetic',
-      denoising_strength: 0.50,
-      control_weight: 0.70,
-      intraoral: true,
-      lips: false,
+      // CLAMP: facial gets a much smaller denoise so the pass stays a gentle balance,
+      // not a re-generation that can drift identity / over-whiten.
+      denoising_strength: facial ? 0.26 : 0.42,
+      control_weight: facial ? 0.85 : 0.72,
+      // FACIAL is NEVER intraoral and keeps the lips — that focus-mode flag is exactly
+      // what produced the "focus-style local replacement on a facial photo" breakage.
+      intraoral: !facial,
+      lips: facial,
       extraction_mode: false,
       hybrid_mode: false,
       negative_prompt: [
         'blurry, low quality, artifacts, watermark, text, oversaturated,',
+        'pure white teeth, flat teeth, fused teeth, generic veneers, denture look,',
         'unnatural color, brackets, braces, wires, metal, discoloration, stains,',
         'uneven gingiva, misaligned gingival zenith, gaps, crowding, dark shadows,',
-        'deformed teeth, cartoon, painting, sketch, anime'
+        'changed face, changed lips, changed skin, deformed teeth, cartoon, painting, sketch, anime'
       ].join(' ')
     });
-
     var res = await fetchWithRetry(ep, JSON.stringify(payload));
     var j = await res.json();
     if(j && j.error) throw new Error(String(j.error).slice(0,300));
@@ -24191,54 +24222,125 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }catch(e){}
   }
 
-  async function compositeRefinedBack(primaryDataUrl, refinedCropUrl, cropRect){
+  // Local fallback matte builder (convex-ish feathered polygon) if the shared engine matte
+  // isn't available. NEVER a rectangle — always the lip/region contour, heavily feathered.
+  function buildPolygonMatteFallback(poly, w, h, expand, featherPx){
+    var cx=0,cy=0; poly.forEach(function(p){cx+=p.x;cy+=p.y;}); cx/=poly.length; cy/=poly.length;
+    var m1=document.createElement('canvas'); m1.width=w; m1.height=h;
+    var m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
+    poly.forEach(function(p,i){ var x=cx+(p.x-cx)*expand, y=cy+(p.y-cy)*expand; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
+    m1x.closePath(); m1x.fill();
+    var mk=document.createElement('canvas'); mk.width=w; mk.height=h;
+    var mx=mk.getContext('2d'); mx.filter='blur('+Math.max(6,Math.round(featherPx))+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
+    return mk;
+  }
+
+  // Luminance stats over pixels whose matte alpha is within [aLo,aHi] (0..255).
+  function regionLumStats(px, ma, aLo, aHi){
+    var sum=0, sum2=0, n=0;
+    for(var i=0;i<px.length;i+=4){
+      var a=ma[i+3]!==undefined?ma[i+3]:ma[i]; // matte drawn white→ use any channel
+      if(a<aLo||a>aHi) continue;
+      var l=(px[i]*0.299+px[i+1]*0.587+px[i+2]*0.114);
+      sum+=l; sum2+=l*l; n++;
+    }
+    if(!n) return {mean:0,variance:0,n:0};
+    var mean=sum/n; return {mean:mean, variance:Math.max(0,sum2/n-mean*mean), n:n};
+  }
+
+  // Composite the refined FULL image over the primary using a soft, contour-based matte.
+  // Returns { dataUrl, metrics }. metrics drives accept/reject (no rectangle anywhere).
+  async function compositeRefinedSoft(primaryDataUrl, refinedFullUrl, imageType, poly){
     var base = await loadImg(primaryDataUrl);
-    var refined = await loadImg(refinedCropUrl);
+    var refined = await loadImg(refinedFullUrl);
     var w = base.naturalWidth||base.width, h = base.naturalHeight||base.height;
-    var rx=cropRect.x, ry=cropRect.y, rw=cropRect.w, rh=cropRect.h;
+    var facial = (imageType==='facial');
 
-    // Canvas with primary result as base
-    var c = document.createElement('canvas'); c.width=w; c.height=h;
-    var ctx = c.getContext('2d',{willReadFrequently:true}); ctx.imageSmoothingQuality='high';
-    ctx.drawImage(base, 0, 0, w, h);
+    // ── Build the soft matte (Core/Support/Context) — contour-based, never a box ──
+    var scales = facial
+      ? {core:1.0, support:1.70, context:2.40, biasX:1.12, biasUp:0.10, biasDown:0.14}
+      : {core:1.0, support:1.50, context:2.10, biasX:1.0,  biasUp:0.08, biasDown:0.12};
+    var cx, cy, rx, ry, blendMode;
+    if(facial && poly && poly.length>=6){
+      var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+      poly.forEach(function(p){ minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y); });
+      cx=(minX+maxX)/2; cy=(minY+maxY)/2; rx=Math.max(20,(maxX-minX)*0.56); ry=Math.max(14,(maxY-minY)*0.62);
+      blendMode='polygon-softmatte';
+    } else {
+      // focus / no landmarks: teeth-centred ellipse (rectangle-free)
+      cx=w*0.5; cy=h*0.5; rx=w*0.42; ry=h*0.34; blendMode='ellipse-softmatte';
+    }
+    var featherPx = Math.max(8, Math.round(Math.min(w,h)*(facial?0.030:0.024)));
+    var eng = window.CaseFlowMorphEngine;
+    var matte;
+    if(eng && typeof eng.cfBuildSoftMatte==='function'){
+      matte = eng.cfBuildSoftMatte(w, h, cx, cy, rx, ry, scales, featherPx, (facial?poly:null));
+    } else if(facial && poly){
+      matte = buildPolygonMatteFallback(poly, w, h, 1.9, featherPx*1.6);
+    } else {
+      // ellipse fallback
+      var ec=document.createElement('canvas'); ec.width=w; ec.height=h;
+      var ex=ec.getContext('2d'); ex.fillStyle='#fff'; ex.beginPath();
+      ex.ellipse(cx,cy,rx*scales.context,ry*scales.context,0,0,Math.PI*2); ex.fill();
+      var eb=document.createElement('canvas'); eb.width=w; eb.height=h;
+      var ebx=eb.getContext('2d'); ebx.filter='blur('+featherPx*2+'px)'; ebx.drawImage(ec,0,0); ebx.filter='none';
+      matte=eb;
+    }
 
-    // Tone-match: render refined crop at crop-region dimensions, match colours to primary
-    var refC = document.createElement('canvas'); refC.width=rw; refC.height=rh;
-    var refX = refC.getContext('2d',{willReadFrequently:true}); refX.imageSmoothingQuality='high';
-    refX.drawImage(refined, 0, 0, refined.naturalWidth||refined.width, refined.naturalHeight||refined.height, 0, 0, rw, rh);
+    // ── Base + tone-matched refined layer ──
+    var c=document.createElement('canvas'); c.width=w; c.height=h;
+    var ctx=c.getContext('2d',{willReadFrequently:true}); ctx.imageSmoothingQuality='high';
+    ctx.drawImage(base,0,0,w,h);
 
-    // Extract the same region from primary for colour reference
-    var primC = document.createElement('canvas'); primC.width=rw; primC.height=rh;
-    var primX = primC.getContext('2d',{willReadFrequently:true});
-    primX.drawImage(base, rx, ry, rw, rh, 0, 0, rw, rh);
+    var refC=document.createElement('canvas'); refC.width=w; refC.height=h;
+    var refX=refC.getContext('2d',{willReadFrequently:true}); refX.imageSmoothingQuality='high';
+    refX.drawImage(refined,0,0,w,h);
+    // colour/exposure match the refined layer to the primary (low-frequency naturalisation)
+    var primC=document.createElement('canvas'); primC.width=w; primC.height=h;
+    var primX=primC.getContext('2d',{willReadFrequently:true}); primX.drawImage(base,0,0,w,h);
+    toneMatchSimple(refX, primX, w, h, 0.70);
+    if(eng && typeof eng.cfRingToneMatch==='function'){ try{ eng.cfRingToneMatch(refX, primX, matte, w, h, 0.10, 0.55); }catch(e){} }
 
-    toneMatchSimple(refX, primX, rw, rh, 0.80);
+    // mask refined by the soft matte, lay over primary
+    var masked=document.createElement('canvas'); masked.width=w; masked.height=h;
+    var mkx=masked.getContext('2d'); mkx.drawImage(refC,0,0);
+    mkx.globalCompositeOperation='destination-in'; mkx.drawImage(matte,0,0); mkx.globalCompositeOperation='source-over';
+    ctx.drawImage(masked,0,0);
 
-    // Feathered rectangle mask — soft edge at all four sides
-    var featherPx = Math.round(Math.min(rw, rh) * 0.14);
-    var m1 = document.createElement('canvas'); m1.width=w; m1.height=h;
-    var m1x = m1.getContext('2d');
-    m1x.fillStyle='#000'; m1x.fillRect(0,0,w,h);
-    m1x.fillStyle='#fff';
-    var inset = featherPx;
-    m1x.fillRect(rx+inset, ry+inset, Math.max(1,rw-inset*2), Math.max(1,rh-inset*2));
+    // ── Quality metrics (all rectangle-free; outside-change is ~0 by construction) ──
+    var metrics={ blendMode:blendMode, roiCore:Math.round(rx*scales.core)+'x'+Math.round(ry*scales.core),
+      roiSupport:Math.round(rx*scales.support)+'x'+Math.round(ry*scales.support),
+      roiContext:Math.round(rx*scales.context)+'x'+Math.round(ry*scales.context) };
+    try{
+      var maD=matte.getContext('2d').getImageData(0,0,w,h).data;
+      var baD=primX.getImageData(0,0,w,h).data;
+      var reD=refX.getImageData(0,0,w,h).data;   // tone-matched refined
+      var rsD=ctx.getImageData(0,0,w,h).data;    // final result
+      // outsideRegionChangeScore: mean |Δlum| where matte≈0 (should be ~0)
+      var oS=0,oN=0, sS=0,sN=0;
+      for(var i=0;i<maD.length;i+=4){
+        var a=maD[i+3]; // matte weight is the ALPHA channel (RGB stays 255)
+        var lb=(baD[i]*0.299+baD[i+1]*0.587+baD[i+2]*0.114);
+        var lr=(rsD[i]*0.299+rsD[i+1]*0.587+rsD[i+2]*0.114);
+        if(a<8){ oS+=Math.abs(lb-lr); oN++; }
+        else if(a>=40 && a<=150){ // support ring: refined vs primary discontinuity
+          var lref=(reD[i]*0.299+reD[i+1]*0.587+reD[i+2]*0.114);
+          sS+=Math.abs(lref-lb); sN++;
+        }
+      }
+      metrics.outsideRegionChangeScore = oN? +(oS/oN).toFixed(2) : 0;
+      metrics.seamScore = sN? +(sS/sN).toFixed(2) : 0;
+      // whiteness / flatness of the refined teeth in the CORE (alpha>170)
+      var core=regionLumStats(reD, maD, 170, 255);
+      metrics.coreMeanLum=+core.mean.toFixed(1); metrics.coreVariance=+core.variance.toFixed(1);
+      var whiteMeanThr = facial?224:236, whiteVarThr = facial?110:70;
+      var whiteFlat = core.n>50 && core.mean>whiteMeanThr && core.variance<whiteVarThr;
+      var outThr = facial?7:15, seamThr = facial?26:42;
+      metrics.artifactReject = !!(whiteFlat || metrics.outsideRegionChangeScore>outThr || metrics.seamScore>seamThr);
+      metrics.rejectCause = whiteFlat?'white-flat-teeth':(metrics.outsideRegionChangeScore>outThr?'outside-change':(metrics.seamScore>seamThr?'seam':''));
+    }catch(e){ metrics.artifactReject=false; metrics.metricError=String(e&&e.message||e); }
 
-    var mk = document.createElement('canvas'); mk.width=w; mk.height=h;
-    var mx = mk.getContext('2d');
-    mx.filter = 'blur('+featherPx+'px)';
-    mx.drawImage(m1, 0, 0);
-    mx.filter = 'none';
-
-    // Place tone-matched refined crop on a full-size canvas, then mask
-    var refFull = document.createElement('canvas'); refFull.width=w; refFull.height=h;
-    var rfx = refFull.getContext('2d');
-    rfx.drawImage(refC, 0, 0, rw, rh, rx, ry, rw, rh);
-    rfx.globalCompositeOperation = 'destination-in';
-    rfx.drawImage(mk, 0, 0);
-    rfx.globalCompositeOperation = 'source-over';
-
-    ctx.drawImage(refFull, 0, 0);
-    return c.toDataURL('image/jpeg', 0.93);
+    return { dataUrl: c.toDataURL('image/jpeg',0.93), metrics: metrics };
   }
 
   function updateRefineBtn(){
@@ -24256,52 +24358,80 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }
   }
 
+  // Gated refinement: 1) evaluate ROI/landmarks/imageType → 2) decide if a refine is safe →
+  // 3) run a CLAMPED full-frame pass → 4) soft-matte composite (no rectangle) →
+  // 5) quality check → 6) reject & keep the first-pass on any artifact, else adopt.
   window.runSecondaryRefinement = async function(){
     var btn = document.getElementById('cfRefineBtn');
     var result = window.state && window.state.simResult;
-    if(!result || !result.dataUrl){
-      toast('生成結果が見つかりません'); return;
-    }
-    if(!getAiEndpoint()){
-      toast('AI バックエンドが設定されていません'); return;
-    }
+    var dbg = { imageType:null, secondaryRefineEnabled:false, secondaryRefineSkippedReason:null,
+      roiCore:null, roiSupport:null, roiContext:null, blendMode:null, seamScore:null,
+      outsideRegionChangeScore:null, artifactReject:null, finalSource:'first-pass' };
+
+    if(!result || !result.dataUrl){ toast('生成結果が見つかりません'); return; }
+    if(!getAiEndpoint()){ toast('AI バックエンドが設定されていません'); return; }
+
+    var imageType = (result.sourceKind==='Facial') ? 'facial' : 'focus';
+    dbg.imageType = imageType;
 
     if(btn){ btn.disabled=true; btn.innerHTML='…<br>処理中'; }
-    toast('上顎前歯部をクロップ中…');
     try{
       var primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+      var primImg = await loadImg(primaryDataUrl);
+      var w = primImg.naturalWidth||primImg.width, h = primImg.naturalHeight||primImg.height;
 
-      toast('上顎前歯部を精密クロップ中…');
-      var cropResult = await cropUpperAnteriorTeeth(primaryDataUrl);
+      // ── GATE: facial needs reliable mouth landmarks; without them, a safe local refine
+      //    is impossible → SKIP and keep the first-pass (never force a blind patch). ──
+      var poly = null;
+      if(imageType==='facial'){
+        poly = await getLipOuterRing(primImg, w, h);
+        if(!poly){
+          dbg.secondaryRefineSkippedReason='no_facial_landmarks';
+          console.log('[CaseFlow Refine]', dbg);
+          if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+          toast('顔のランドマークが安定しないため二次生成をスキップしました（一次結果を維持）');
+          return;
+        }
+      }
+      dbg.secondaryRefineEnabled = true;
 
-      toast('ゴールデンプロポーション二次生成中…');
-      var refinedCropUrl = await generateRefinedCropViaAI(cropResult.dataUrl);
+      // ── CLAMPED full-frame refine pass (facial = identity-preserving, low denoise) ──
+      toast(imageType==='facial' ? 'スマイルバランスを control 補正中…' : 'ゴールデンプロポーション二次生成中…');
+      var refinedFull = await generateRefinedViaAI(primaryDataUrl, imageType);
 
-      toast('一次結果に精密合成中…');
-      var finalUrl = await compositeRefinedBack(primaryDataUrl, refinedCropUrl, cropResult.cropRect);
+      // ── Soft-matte composite (polygon/ellipse, never a rectangle) + quality metrics ──
+      toast('一次結果へなじませ中…');
+      var comp = await compositeRefinedSoft(primaryDataUrl, refinedFull, imageType, poly);
+      var m = comp.metrics||{};
+      dbg.roiCore=m.roiCore; dbg.roiSupport=m.roiSupport; dbg.roiContext=m.roiContext;
+      dbg.blendMode=m.blendMode; dbg.seamScore=m.seamScore;
+      dbg.outsideRegionChangeScore=m.outsideRegionChangeScore; dbg.artifactReject=!!m.artifactReject;
 
-      // Persist refined result back into state
+      if(m.artifactReject){
+        // ── FALLBACK: a worse/patchy result is never adopted — keep the first-pass. ──
+        dbg.finalSource='first-pass';
+        dbg.secondaryRefineSkippedReason='artifact_reject:'+(m.rejectCause||'unknown');
+        console.log('[CaseFlow Refine]', dbg, m);
+        if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+        toast('二次生成が不自然なため一次結果を維持しました');
+        return;
+      }
+
+      // ── ADOPT the second-pass ──
+      dbg.finalSource='second-pass';
       result._primaryDataUrl = result._primaryDataUrl || result.dataUrl;
       result._secondaryRefined = true;
-      result.dataUrl = finalUrl;
-      // Also update in simResults array so gallery and auto-save see the new version
+      result.dataUrl = comp.dataUrl;
       if(Array.isArray(window.state.simResults) && typeof window.state.simResultIndex==='number'){
         var idx = window.state.simResultIndex;
         if(window.state.simResults[idx]) window.state.simResults[idx] = result;
       }
-
-      // Refresh result view
+      console.log('[CaseFlow Refine]', dbg, m);
       if(typeof window.renderResult==='function') window.renderResult();
-
-      if(btn){
-        btn.disabled = true;
-        btn.innerHTML = '✦ Refined<br>精密済み';
-        btn.style.opacity = '0.65';
-        btn.title = '二次生成完了 — 精密済み';
-      }
-      toast('✦ 二次生成完了 — ゴールデンプロポーション適用');
+      if(btn){ btn.disabled=true; btn.innerHTML='✦ Refined<br>精密済み'; btn.style.opacity='0.65'; btn.title='二次生成完了 — 精密済み'; }
+      toast('✦ 二次生成完了 — バランス補正を適用');
     }catch(e){
-      console.error('Secondary refinement failed', e);
+      console.error('[CaseFlow Refine] Secondary refinement failed', e, dbg);
       if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
       var msg = e.cfNoTokens ? e.message : ('二次生成エラー: '+(e.message||String(e)).slice(0,120));
       toast(msg);
