@@ -4988,7 +4988,7 @@ button[id="localMLDetectButton"]{
 
 <section class="screen soft" id="library">
   <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof renderLibrary==='function') renderLibrary();" title="Reload library / ライブラリを更新">↻</button></div>
-  <div class="note">現在のワークスペースを保存し、ここから再度読み込めます。Morphing Video Studio™︎（landmark / manual animation）と Visual Simulation Studio™︎ の状態をまとめて保存します。</div>
+  <div class="note">作成したプロジェクトは48時間Libraryに一時保存されます。期限を過ぎると自動的に削除されるため、必要な画像や動画は期限内に保存してください。</div>
   <div id="libraryList" class="libraryList"></div>
 </section>
 
@@ -16618,64 +16618,60 @@ body[data-ui-tone="dark"]{
     toastFn('タイトルを更新しました');
   };
 
-  /* ── Timer helpers ───────────────────────────────────────────────────── */
-  function cfLibRemainingTime(createdAt){
-    if(!createdAt) return '';
-    const d=new Date(String(createdAt).replace(/\//g,'-'));
-    if(isNaN(d.getTime())) return '';
-    const rem=d.getTime()+48*3600*1000-Date.now();
-    if(rem<=0) return '期限切れ';
-    const h=Math.floor(rem/3600000);
-    const m=Math.floor((rem%3600000)/60000);
-    return h>=24 ? `残り ${Math.floor(h/24)}日 ${h%24}時間` : `残り ${h}時間 ${m}分`;
+  /* ── Timer helpers (expiresAt-based; robust on iOS Safari) ─────────────── */
+  const CF_LIB_TTL_MS=48*3600*1000;
+  // Parse a createdAt that may be ISO ("2026-06-30T08:33:00.000Z") OR ja-JP locale
+  // ("2026/06/30 08:33"). Safari rejects "YYYY-MM-DD HH:MM" (needs a "T"), which is why
+  // the old locale-string parse produced Invalid Date → blank/incorrect countdowns.
+  function cfLibParseCreated(s){
+    if(!s) return NaN;
+    s=String(s);
+    let t=Date.parse(s);
+    if(isNaN(t)) t=Date.parse(s.replace(/\//g,'-').replace(' ','T'));
+    return t;
   }
-  function cfLibExpClass(createdAt){
-    if(!createdAt) return '';
-    const d=new Date(String(createdAt).replace(/\//g,'-'));
-    if(isNaN(d.getTime())) return '';
-    const rem=d.getTime()+48*3600*1000-Date.now();
+  // Resolve a record's expiry timestamp. Prefer the explicit numeric expiresAt (set at
+  // save time); only TEMP records get an implied expiry. Permanent projects/videos → 0
+  // (no countdown shown).
+  function cfLibExpiresAt(rec){
+    if(rec && typeof rec==='object'){
+      if(typeof rec.expiresAt==='number') return rec.expiresAt;
+      if(rec.temp){
+        if(typeof rec.createdMs==='number') return rec.createdMs+CF_LIB_TTL_MS;
+        const t=cfLibParseCreated(rec.createdAt); if(!isNaN(t)) return t+CF_LIB_TTL_MS;
+      }
+      return 0;
+    }
+    // Legacy: a bare createdAt string was passed → assume a temp 48h record.
+    const t=cfLibParseCreated(rec); return isNaN(t)?0:t+CF_LIB_TTL_MS;
+  }
+  // 残り時間表示: 24h以上→「残り 47時間」, 1〜24h→「残り 12時間30分」, 1h未満→「残り 42分」, 期限切れ→「期限切れ」
+  function cfFormatTimeRemaining(expiresAt){
+    if(!expiresAt) return '';
+    const remaining=expiresAt-Date.now();
+    if(remaining<=0) return '期限切れ';
+    const minutes=Math.floor(remaining/60000);
+    const hours=Math.floor(minutes/60);
+    if(hours>=24) return '残り '+hours+'時間';
+    if(hours>=1) return '残り '+hours+'時間'+(minutes%60)+'分';
+    return '残り '+minutes+'分';
+  }
+  function cfLibRemainingTime(rec){ return cfFormatTimeRemaining(cfLibExpiresAt(rec)); }
+  function cfLibExpClass(rec){
+    const exp=cfLibExpiresAt(rec); if(!exp) return '';
+    const rem=exp-Date.now();
     if(rem<=0) return ' cfLibExpired';
     if(rem<6*3600*1000) return ' cfLibExpiring';
     return '';
   }
+  // Expose for the 1-minute auto-refresh ticker (defined in a trailing script).
+  window.cfFormatTimeRemaining=cfFormatTimeRemaining;
+  window.cfLibExpiresAt=cfLibExpiresAt;
+  window.cfLibRemainingTime=cfLibRemainingTime;
+  window.cfLibExpClass=cfLibExpClass;
 
-  /* ── Long-press title edit ───────────────────────────────────────────── */
-  function cfLibBindLongPress(root){
-    root.querySelectorAll('.libraryTitle[data-id]').forEach(el=>{
-      let timer=null;
-      const start=()=>{
-        el.classList.add('cfLPressing');
-        timer=setTimeout(()=>{
-          el.classList.remove('cfLPressing');
-          const id=el.dataset.id;
-          const inp=document.createElement('input');
-          inp.className='libraryTitleEdit';
-          inp.value=el.textContent;
-          inp.style.display='block';
-          el.after(inp);
-          el.style.display='none';
-          requestAnimationFrame(()=>{ inp.focus(); inp.select(); });
-          const commit=()=>{
-            const val=inp.value.trim()||'Untitled';
-            const fn=window.caseflowV90CommitLibraryTitle||window.caseflowV85CommitLibraryTitle;
-            if(fn) fn(id,val);
-            el.textContent=val;
-            el.style.display='';
-            inp.remove();
-          };
-          inp.addEventListener('blur',commit);
-          inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } });
-        },600);
-      };
-      const cancel=()=>{ clearTimeout(timer); timer=null; el.classList.remove('cfLPressing'); };
-      el.addEventListener('touchstart',start,{passive:true});
-      el.addEventListener('touchend',cancel);
-      el.addEventListener('touchmove',cancel);
-      el.addEventListener('mousedown',start);
-      el.addEventListener('mouseup',cancel);
-      el.addEventListener('mouseleave',cancel);
-    });
-  }
+  /* ── Title editing removed (project titles are auto-generated, not user-editable) ── */
+  function cfLibBindLongPress(root){ /* no-op: long-press rename disabled per spec */ }
 
   window.renderLibrary=function(){
     const root=$id('libraryList');
@@ -17513,7 +17509,7 @@ body[data-ui-tone="dark"]{
     if(!root) return;
     const arr=mergeLibrary();
     if(!arr.length){
-      root.innerHTML='<div class="pmEmptyHint">作成した動画・シミュレーション画像・プロジェクトはまだありません。</div>';
+      root.innerHTML='<div class="pmEmptyHint">保存中のプロジェクトはありません。<br>Visual Simulation Studio または Morphing Video Studio で作成したプロジェクトが、48時間ここに表示されます。</div>';
       return;
     }
     root.innerHTML=arr.map(r=>{
@@ -17523,8 +17519,12 @@ body[data-ui-tone="dark"]{
       const media=isVideo(r)&&videoSourceOf(r)
         ? `<video src="${esc(videoSourceOf(r))}" muted playsinline loop></video>`
         : `<img src="${esc(thumbOf(r))}" alt="${title}">`;
-      const timerCls=`cfLibTimer${cfLibExpClass(r.createdAt)}`;
-      return `<article class="libraryCard" data-id="${esc(r.id)}">${media}<div><div class="libraryTitle" data-id="${esc(r.id)}">${title}</div><span class="${timerCls}" data-created="${esc(r.createdAt||'')}">&#128337;&nbsp;${cfLibRemainingTime(r.createdAt)}</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
+      // Countdown badge driven by the record's expiresAt (robust on iOS Safari). Permanent
+      // records resolve to '' and show no badge.
+      const remTxt=cfLibRemainingTime(r);
+      const timerCls=`cfLibTimer${cfLibExpClass(r)}`;
+      const timerHtml=remTxt?`<span class="${timerCls}" data-lib-timer="1">&#128337;&nbsp;保存期限：${remTxt}</span>`:'';
+      return `<article class="libraryCard" data-id="${esc(r.id)}">${media}<div><div class="libraryTitle" data-id="${esc(r.id)}">${title}</div>${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
     }).join('');
     cfLibBindLongPress(root);
   };
@@ -20163,8 +20163,13 @@ body[data-ui-tone="dark"]{
     }
     return false;
   }
-  async function cfAutoSaveTempSim(r){
-    if(!r || !r.dataUrl) return;
+  async function cfAutoSaveTempSim(r, opts){
+    opts=opts||{};
+    const wantToast=!!opts.toast;
+    if(!r || !r.dataUrl){
+      if(wantToast){ console.error('[CaseFlow Library Save Error] no image to save', r); toastFn('Library保存に失敗しました'); }
+      return false;
+    }
     try{
       const KEY='caseflow_project_library_v55';
       // Compress hard BEFORE storing (≈60KB) so the Library record reliably fits even when
@@ -20177,15 +20182,21 @@ body[data-ui-tone="dark"]{
       if(!Array.isArray(arr)) arr=[];
       const now=Date.now();
       arr=arr.filter(x=>!(x && x.temp && x.expiresAt && x.expiresAt<now)); // purge expired
-      const payload={ simResult:{ dataUrl:thumb, source:srcSmall, sourceKind:r.sourceKind||'Image', settings:r.settings||{}, fav:!!r.fav }, photos:[], title:'Simulation Reference Image' };
+      // imageType (facial / focus) for the project state snapshot.
+      const imageType=(r.sourceKind==='Facial')?'facial':'focus';
+      const payload={ simResult:{ dataUrl:thumb, source:srcSmall, sourceKind:r.sourceKind||'Image', settings:r.settings||{}, fav:!!r.fav }, photos:[], title:'Visual Simulation',
+        state:{ treatmentType:((state.simV82||{}).concept||''), complaintCards:((state.simV82||{}).targets||{}), imageType:imageType, sliders:(r.settings||(state.simV96||{})) } };
       const existing = r.__autoId ? arr.find(x=>x && x.id===r.__autoId) : null;
       if(existing){
-        existing.thumb=thumb; existing.payload=payload; existing.fav=!!r.fav; existing.expiresAt=now+CF_TEMP_TTL;
+        existing.thumb=thumb; existing.payload=payload; existing.fav=!!r.fav;
+        existing.createdMs=existing.createdMs||now; existing.expiresAt=existing.createdMs+CF_TEMP_TTL;
       } else {
         const id='simauto_'+now+'_'+Math.random().toString(36).slice(2,7);
         r.__autoId=id;
-        arr.unshift({ id:id, temp:true, expiresAt:now+CF_TEMP_TTL,
-          title:((state.title||'Simulation'))+'（自動保存・48時間）',
+        // Clean auto-title (no inline 48h suffix — the countdown badge conveys expiry).
+        arr.unshift({ id:id, temp:true, studio:'visual-simulation', type:'visual-simulation',
+          editableTitle:false, createdMs:now, expiresAt:now+CF_TEMP_TTL,
+          title:'Visual Simulation',
           createdAt:new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
           kind:'simulation-image', thumb:thumb, fav:!!r.fav, payload:payload });
         // Cap stored simulation-image records (drop oldest) so the Library store can't grow
@@ -20194,11 +20205,22 @@ body[data-ui-tone="dark"]{
         if(sims.length>12){ const drop=new Set(sims.slice(12)); arr=arr.filter(x=>!drop.has(x)); }
       }
       const ok=cfPersistLib(KEY, arr);
+      if(!ok){
+        console.error('[CaseFlow Library Save Error] persist failed (storage full)');
+        if(wantToast) toastFn('Library保存に失敗しました');
+        return false;
+      }
       if(window.state) window.state.projectLibrary=arr;
       // Real-time reflection: refresh the Library list whenever a generation is auto-saved, so
       // it is already up to date the moment the clinician opens (or is viewing) the Library.
-      if(ok && typeof window.renderLibrary==='function') window.renderLibrary();
-    }catch(e){}
+      if(typeof window.renderLibrary==='function') window.renderLibrary();
+      if(wantToast) toastFn('Libraryに保存しました（48時間）');
+      return true;
+    }catch(e){
+      console.error('[CaseFlow Library Save Error]', e);
+      if(wantToast) toastFn('Library保存に失敗しました');
+      return false;
+    }
   }
   window.cfAutoSaveTempSim=cfAutoSaveTempSim;
   window.cfPersistLib=cfPersistLib;
@@ -20208,7 +20230,8 @@ body[data-ui-tone="dark"]{
     while(state.simResults.length>SIM_GALLERY_MAX) state.simResults.shift();
     state.simResultIndex=state.simResults.length-1;
     state.simResult=r;
-    cfAutoSaveTempSim(r);
+    // Generation just completed → save to Library and surface a truthful success/failure toast.
+    cfAutoSaveTempSim(r, {toast:true});
   }
   function selectSimResult(i){
     const arr=Array.isArray(state.simResults)?state.simResults:[];
@@ -25027,6 +25050,43 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   window.cfOpenEditAlign=openAlign;
   window.cfClearMorphReady=function(){ if(window.state) state.morphReady=null; };
+})();
+</script>
+
+<script>
+/* ── Library countdown ticker: refresh remaining-time badges every minute while the
+   Library is visible, and auto-purge records whose 48h window has elapsed. ───────── */
+(function(){
+  var LIB_KEY='caseflow_project_library_v55';
+  function libVisible(){
+    var sec=document.getElementById('library');
+    return !!(sec && sec.offsetParent!==null); // offsetParent===null ⇒ display:none / hidden
+  }
+  function tick(){
+    try{
+      if(!libVisible()) return;
+      var list=document.getElementById('libraryList'); if(!list) return;
+      var fmt=window.cfFormatTimeRemaining, expOf=window.cfLibExpiresAt, clsOf=window.cfLibExpClass;
+      if(typeof fmt!=='function'||typeof expOf!=='function') return;
+      // Load current records to map card id → record.
+      var arr=[]; try{ arr=JSON.parse(localStorage.getItem(LIB_KEY)||'[]')||[]; }catch(e){ arr=[]; }
+      var byId={}; arr.forEach(function(r){ if(r&&r.id) byId[String(r.id)]=r; });
+      var now=Date.now(), anyExpired=false;
+      list.querySelectorAll('.libraryCard[data-id]').forEach(function(card){
+        var r=byId[card.getAttribute('data-id')]; if(!r) return;
+        var exp=expOf(r);
+        if(exp && exp<=now){ anyExpired=true; return; }
+        var badge=card.querySelector('[data-lib-timer]');
+        if(badge && exp){
+          badge.className='cfLibTimer'+(typeof clsOf==='function'?clsOf(r):'');
+          badge.innerHTML='&#128337;&nbsp;保存期限：'+fmt(exp);
+        }
+      });
+      // Something crossed its expiry → full re-render purges it (mergeLibrary drops expired).
+      if(anyExpired && typeof window.renderLibrary==='function') window.renderLibrary();
+    }catch(e){}
+  }
+  setInterval(tick, 60*1000);
 })();
 </script>
 
