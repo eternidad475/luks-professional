@@ -4987,7 +4987,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="library">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof renderLibrary==='function') renderLibrary();" title="Reload library / ライブラリを更新">↻</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof cfReloadLibraryWithFeedback==='function'){cfReloadLibraryWithFeedback();}else if(typeof renderLibrary==='function'){renderLibrary();}" title="Reload library / ライブラリを更新">↻</button></div>
   <div class="note">作成したプロジェクトは48時間Libraryに一時保存されます。期限を過ぎると自動的に削除されるため、必要な画像や動画は期限内に保存してください。</div>
   <div id="libraryList" class="libraryList"></div>
 </section>
@@ -15011,10 +15011,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const url = state.lastUrl || (blob ? URL.createObjectURL(blob) : '');
     state.projectLibrary = Array.isArray(state.projectLibrary) ? state.projectLibrary : getStore();
     const title = 'Landmark Morph Video';
+    const _vnow = Date.now();
     const record = {
-      id:'vid_' + Date.now(),
+      id:'vid_' + _vnow,
       title,
       createdAt:nowStamp(),
+      createdMs:_vnow,
+      // 48h temp like Visual Simulation images → shows a countdown and auto-purges.
+      temp:true,
+      expiresAt:_vnow + 48*3600*1000,
+      studio:'morphing-video',
+      type:'morphing-video',
       kind:'landmark-video',
       thumb:getThumb(),
       payload:{
@@ -16636,13 +16643,13 @@ body[data-ui-tone="dark"]{
   function cfLibExpiresAt(rec){
     if(rec && typeof rec==='object'){
       if(typeof rec.expiresAt==='number') return rec.expiresAt;
-      if(rec.temp){
-        if(typeof rec.createdMs==='number') return rec.createdMs+CF_LIB_TTL_MS;
-        const t=cfLibParseCreated(rec.createdAt); if(!isNaN(t)) return t+CF_LIB_TTL_MS;
-      }
-      return 0;
+      if(typeof rec.createdMs==='number') return rec.createdMs+CF_LIB_TTL_MS;
+      // ALL Library assets (Visual Simulation images AND Morphing videos) are 48h temp:
+      // derive expiry from createdAt so every card shows a countdown and auto-purges.
+      const t=cfLibParseCreated(rec.createdAt); if(!isNaN(t)) return t+CF_LIB_TTL_MS;
+      return 0; // unparseable date → never auto-expire (safety, no countdown shown)
     }
-    // Legacy: a bare createdAt string was passed → assume a temp 48h record.
+    // Legacy: a bare createdAt string was passed.
     const t=cfLibParseCreated(rec); return isNaN(t)?0:t+CF_LIB_TTL_MS;
   }
   // 残り時間表示: 24h以上→「残り 47時間」, 1〜24h→「残り 12時間30分」, 1h未満→「残り 42分」, 期限切れ→「期限切れ」
@@ -17310,9 +17317,16 @@ body[data-ui-tone="dark"]{
       const bi=Number(String(b.id||'').replace(/\D/g,''))||0;
       return bi-ai;
     });
-    // ① Purge expired temporary auto-saved simulation images (48h TTL) on every Library read.
+    // ① Purge expired records (48h TTL) on every Library read — applies to ALL asset types
+    //    (Visual Simulation images AND Morphing videos). Records with an unparseable date
+    //    resolve to expiry 0 and are kept (never blindly purged).
     const _now=Date.now();
-    arr=arr.filter(r=>!(r && r.temp && r.expiresAt && r.expiresAt<_now));
+    const _expFn=(typeof window.cfLibExpiresAt==='function')?window.cfLibExpiresAt:null;
+    arr=arr.filter(r=>{
+      if(!r) return false;
+      if(_expFn){ const e=_expFn(r); return !(e && e<_now); }
+      return !(r.temp && r.expiresAt && r.expiresAt<_now);
+    });
     state.projectLibrary=arr;
     setStore(arr);
     return arr;
@@ -17504,28 +17518,82 @@ body[data-ui-tone="dark"]{
     toastFn('タイトルを更新しました');
   };
 
+  // Display helpers shared by the list + favourites pick-up row.
+  function libFavOf(r){ return !!(r && ((r.payload && r.payload.simResult && r.payload.simResult.fav) || r.fav)); }
+  function libStudioLabel(r){ return isVideo(r) ? 'Landmark Morph Video' : isSimulation(r) ? 'Visual Simulation' : 'Project'; }
+  function libAssetType(r){ return isVideo(r) ? 'video' : isSimulation(r) ? (r.kind==='simulation-image' ? 'image' : 'reference') : 'project'; }
+  function libExpAt(r){ return (typeof window.cfLibExpiresAt==='function') ? window.cfLibExpiresAt(r) : 0; }
+  function libRem(r){ return (typeof window.cfLibRemainingTime==='function') ? window.cfLibRemainingTime(r) : ''; }
+  function libExpCls(r){ return (typeof window.cfLibExpClass==='function') ? window.cfLibExpClass(r) : ''; }
+  function libMediaTag(r){
+    return (isVideo(r) && videoSourceOf(r))
+      ? `<video src="${esc(videoSourceOf(r))}" muted playsinline loop></video>`
+      : `<img src="${esc(thumbOf(r))}" alt="${esc(libStudioLabel(r))}">`;
+  }
+
+  // Sort: newest (default) | oldest | favorite
+  function cfSortLibItems(items, sortMode){
+    const arr=items.slice();
+    const ts=r=>{ const e=libExpAt(r); return e?e:(Number(String(r.id||'').replace(/\D/g,''))||0); };
+    if(sortMode==='oldest')      arr.sort((a,b)=>ts(a)-ts(b));
+    else if(sortMode==='favorite') arr.sort((a,b)=>{ const fb=Number(libFavOf(b))-Number(libFavOf(a)); return fb!==0?fb:ts(b)-ts(a); });
+    else                         arr.sort((a,b)=>ts(b)-ts(a));
+    return arr;
+  }
+  window.cfLibSortMode = window.cfLibSortMode || 'newest';
+  window.cfSetLibSort = function(mode){ window.cfLibSortMode = mode||'newest'; if(typeof window.renderLibrary==='function') window.renderLibrary(); };
+
+  // Reload with explicit user feedback (the bare renderLibrary() gave no signal).
+  window.cfReloadLibraryWithFeedback = async function(){
+    try{
+      toastFn('Reloading…');
+      await new Promise(r=>setTimeout(r,300)); // brief delay so the action is perceptible
+      if(typeof window.renderLibrary==='function') window.renderLibrary();
+      toastFn('Libraryを更新しました');
+    }catch(err){
+      console.error('[CaseFlow Library Reload Error]', err);
+      toastFn('Libraryの更新に失敗しました');
+    }
+  };
+
   window.renderLibrary=function(){
     const root=$id('libraryList');
     if(!root) return;
-    const arr=mergeLibrary();
+    let arr=mergeLibrary();
     if(!arr.length){
-      root.innerHTML='<div class="pmEmptyHint">保存中のプロジェクトはありません。<br>Visual Simulation Studio または Morphing Video Studio で作成したプロジェクトが、48時間ここに表示されます。</div>';
+      root.innerHTML='<div class="pmEmptyHint">保存中の生成物はありません。<br>Visual Simulation Studio または Morphing Video Studio で作成した画像・動画が、48時間ここに表示されます。</div>';
       return;
     }
-    root.innerHTML=arr.map(r=>{
-      const type=isVideo(r)?'Video':isSimulation(r)?'Reference image':'Project';
-      const title=esc(r.title||'Untitled');
-      const meta=`${esc(r.kind||'project')}<br>${esc(r.createdAt||'')}<span class="${isVideo(r)?'libraryVideoBadge':isSimulation(r)?'libraryImageBadge':'libraryVideoBadge'}">${type}</span><span class="libraryDocStatus">${isVideo(r)?'Openで動画を表示します':isSimulation(r)?'OpenでReference Imageを表示します':'Openでプロジェクトを復元します'}</span>`;
-      const media=isVideo(r)&&videoSourceOf(r)
-        ? `<video src="${esc(videoSourceOf(r))}" muted playsinline loop></video>`
-        : `<img src="${esc(thumbOf(r))}" alt="${title}">`;
-      // Countdown badge driven by the record's expiresAt (robust on iOS Safari). Permanent
-      // records resolve to '' and show no badge.
-      const remTxt=cfLibRemainingTime(r);
-      const timerCls=`cfLibTimer${cfLibExpClass(r)}`;
-      const timerHtml=remTxt?`<span class="${timerCls}" data-lib-timer="1">&#128337;&nbsp;保存期限：${remTxt}</span>`:'';
-      return `<article class="libraryCard" data-id="${esc(r.id)}">${media}<div><div class="libraryTitle" data-id="${esc(r.id)}">${title}</div>${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
+    const sortMode=window.cfLibSortMode||'newest';
+    arr=cfSortLibItems(arr, sortMode);
+
+    // Sort control row
+    const sBtn=(mode,label)=>`<button type="button" class="cfLibSortBtn${sortMode===mode?' on':''}" onclick="cfSetLibSort('${mode}')">${label}</button>`;
+    let html=`<div class="cfLibSortRow">${sBtn('newest','新しい順')}${sBtn('oldest','古い順')}${sBtn('favorite','お気に入り')}</div>`;
+
+    // Favourites pick-up row (only when ≥1 favourite)
+    const favs=arr.filter(libFavOf);
+    if(favs.length){
+      html+=`<div class="cfLibPick"><div class="cfLibPickHead">お気に入り / Favorites</div><div class="cfLibPickScroll">`+
+        favs.map(r=>{
+          const rem=libExpAt(r)?libRem(r):'';
+          return `<div class="cfLibPickCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div class="cfLibPickTitle">${esc(libStudioLabel(r))}</div>${rem?`<div class="cfLibPickTime">${esc(rem)}</div>`:''}<button type="button" data-lib-open="${esc(r.id)}">Open</button></div>`;
+        }).join('')+
+        `</div></div>`;
+    }
+
+    // Main list
+    html+=arr.map(r=>{
+      const exp=libExpAt(r);
+      const remTxt=exp?libRem(r):'';
+      const timerHtml=remTxt?`<span class="cfLibTimer${libExpCls(r)}" data-lib-timer="1">&#128337;&nbsp;保存期限：${remTxt}</span>`:'';
+      const favHtml=libFavOf(r)?`<span class="cfLibFavBadge">★ お気に入り</span>`:'';
+      const at=libAssetType(r);
+      const meta=`${esc(at)}<br>${esc(r.createdAt||'')}<span class="${isVideo(r)?'libraryVideoBadge':isSimulation(r)?'libraryImageBadge':'libraryVideoBadge'}">${esc(at)}</span><span class="libraryDocStatus">${isVideo(r)?'Openで動画を表示します':isSimulation(r)?'OpenでReference Imageを表示します':'Openでプロジェクトを復元します'}</span>`;
+      return `<article class="libraryCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div><div class="libraryTitle" data-id="${esc(r.id)}">${esc(libStudioLabel(r))}</div>${favHtml}${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
     }).join('');
+
+    root.innerHTML=html;
     cfLibBindLongPress(root);
   };
 
@@ -22516,6 +22584,22 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #library .libraryCard.cfLibSelMode .cfLibCheck.on{background:#7c5cfc;border-color:#7c5cfc;color:#fff}
 #library .libraryCard.cfLibSelMode .libraryBtns,
 #library .libraryCard.cfLibSelMode .libraryTitleEdit{pointer-events:none;opacity:.5}
+/* Sort control */
+#library .cfLibSortRow{display:flex;gap:7px;margin:4px 0 12px}
+#library .cfLibSortBtn{flex:1;padding:9px 8px;border-radius:12px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanel,rgba(255,255,255,.86));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;font-weight:850;cursor:pointer}
+#library .cfLibSortBtn.on{border:0;color:#fff;background:linear-gradient(135deg,#6a3de8,#7c5cfc);box-shadow:0 3px 12px rgba(108,63,252,.32)}
+/* Favourite body badge */
+#library .cfLibFavBadge{display:inline-flex;align-items:center;gap:3px;margin:2px 0 0;font-size:10.5px;font-weight:900;color:#7a5a00;background:rgba(255,206,0,.22);border-radius:8px;padding:3px 8px;letter-spacing:.01em}
+/* Favourites pick-up row */
+#library .cfLibPick{margin:2px 0 14px;padding:11px 0 4px;border-top:1px solid rgba(32,27,53,.08);border-bottom:1px solid rgba(32,27,53,.08)}
+#library .cfLibPickHead{font-size:11.5px;font-weight:900;letter-spacing:.04em;color:rgba(32,27,53,.6);margin:0 0 9px;padding:0 2px}
+#library .cfLibPickScroll{display:flex;gap:10px;overflow-x:auto;padding:0 2px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#library .cfLibPickScroll::-webkit-scrollbar{display:none}
+#library .cfLibPickCard{flex:0 0 124px;width:124px;background:var(--cfUiPanel,rgba(255,255,255,.9));border-radius:14px;padding:8px;box-shadow:0 4px 14px -8px rgba(20,12,40,.4)}
+#library .cfLibPickCard img,#library .cfLibPickCard video{width:100%;height:84px;object-fit:cover;border-radius:10px;background:#000;display:block}
+#library .cfLibPickTitle{font-size:11px;font-weight:850;color:var(--cfUiText,#201b35);margin:6px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#library .cfLibPickTime{font-size:10px;font-weight:800;color:#c45500;margin:0 0 6px}
+#library .cfLibPickCard button{width:100%;padding:7px 0;border:0;border-radius:9px;font:inherit;font-size:11px;font-weight:850;color:#fff;background:linear-gradient(135deg,#6a3de8,#7c5cfc);cursor:pointer}
 </style>
 <script>
 /* ── Library: favourite reflection + multi-select save-to-camera-roll ──────────────
@@ -22604,7 +22688,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
   window.cfLibToggleFav=function(id){
     var recs=libRecords(); var r=recs.find(function(x){return x.id===id;}); if(!r) return;
     var nv=!recFav(r); r.fav=nv; if(r.payload&&r.payload.simResult) r.payload.simResult.fav=nv;
-    persist(recs); refresh(); toastFn(nv?'お気に入りに追加しました':'お気に入りを解除しました');
+    persist(recs);
+    // Full re-render so the body ★ badge, favourites pick-up row and 'お気に入り' sort all reflect the change.
+    if(typeof window.renderLibrary==='function') window.renderLibrary(); else refresh();
+    toastFn(nv?'お気に入りに追加しました':'お気に入りを解除しました');
   };
   window.cfLibSaveSelected=async function(){
     var recs=libRecords();
