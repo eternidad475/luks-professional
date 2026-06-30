@@ -16329,9 +16329,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   window.addEventListener('DOMContentLoaded',()=>{
-    const video=document.getElementById('morphingSampleVideo');
-    if(video){ video.removeAttribute('src'); }
-    ensureSampleSwitcher();
     patchSimulationSample();
     patchLegacyMorphExport();
   });
@@ -16899,7 +16896,6 @@ body[data-ui-tone="dark"]{
   };
 
   window.addEventListener('DOMContentLoaded',()=>{
-    ensureSampleTabs();
     applyFacialAfter();
     setTimeout(applyFacialAfter, 120);
     const video=document.getElementById('morphingSampleVideo');
@@ -16975,9 +16971,27 @@ body[data-ui-tone="dark"]{
 <script id="cf-v89-morph-sample-single-tabs">
 /* v9.6 Morphing sample: single looping video, no tab buttons */
 (function(){
+  const MORPH_VIDEO = 'media/caseflow_morph.mp4';
+
+  function restoreMorphVideo(){
+    /* Remove any tab elements injected by earlier script blocks */
+    const tabs = document.getElementById('morphingSampleTabs');
+    if(tabs) tabs.remove();
+    document.querySelectorAll('.sampleVideoTabs').forEach(function(el){ el.remove(); });
+    /* Restore correct src — earlier blocks may have set video.src to a wrong file */
+    const video = document.getElementById('morphingSampleVideo');
+    if(!video) return;
+    video.removeAttribute('src');
+    const src = video.querySelector('source');
+    if(src) src.setAttribute('src', MORPH_VIDEO);
+    video.muted = true;
+    try{ video.load(); }catch(e){}
+  }
+
   window.openMorphingVideoSample = function(){
     const overlay = document.getElementById('morphingSampleOverlay');
     if(!overlay) return;
+    restoreMorphVideo();
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden','false');
     const video = document.getElementById('morphingSampleVideo');
@@ -16989,6 +17003,9 @@ body[data-ui-tone="dark"]{
     const overlay = document.getElementById('morphingSampleOverlay');
     if(overlay){ overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); }
   };
+
+  /* Run last among all DOMContentLoaded handlers — cleans up tab/src pollution */
+  window.addEventListener('DOMContentLoaded', restoreMorphVideo);
 })();
 </script>
 
