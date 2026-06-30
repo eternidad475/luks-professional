@@ -5029,7 +5029,9 @@ button[id="localMLDetectButton"]{
       </div>
       <button type="button" class="sampleVideoClose" onclick="closeMorphingVideoSample()" aria-label="Close">×</button>
     </div>
-    <video id="morphingSampleVideo" preload="none" src="media/morph-sample.mp4" controls playsinline preload="metadata"></video>
+    <video id="morphingSampleVideo" autoplay loop muted playsinline webkit-playsinline preload="auto" style="width:100%;border-radius:14px;background:#000;display:block">
+      <source src="media/caseflow_morph.mp4" type="video/mp4">
+    </video>
   </div>
 </div>
 
@@ -16961,225 +16963,32 @@ body[data-ui-tone="dark"]{
 .sampleVideoHint{font-size:10px;font-weight:800;color:rgba(32,27,53,.56);}
 </style>
 <script id="cf-v88-morph-sample-script">
-(function(){
-  const MORPH_SAMPLE_VIDEOS = window.__CF_MORPH_VIDEOS = {
-    facial: "media/morph-facial.mp4",
-    focus: "media/morph-focus.mp4"
-  };
-  let activeMorphSample = 'facial';
-
-  function ensureMorphSampleUI(){
-    const overlay = document.getElementById('morphingSampleOverlay');
-    if(!overlay) return;
-    const sheet = overlay.querySelector('.sampleVideoSheet');
-    if(!sheet || sheet.dataset.v88Ready === '1') return;
-    const head = sheet.querySelector('.sampleVideoHead');
-    const oldVideo = sheet.querySelector('#morphingSampleVideo');
-    if(!head || !oldVideo) return;
-    const tabs = document.createElement('div');
-    tabs.className = 'sampleVideoTabs';
-    tabs.innerHTML = `
-      <button type="button" class="sampleVideoTabBtn active" data-mode="facial">Facial</button>
-      <button type="button" class="sampleVideoTabBtn" data-mode="focus">Focus</button>
-    `;
-    oldVideo.setAttribute('playsinline','');
-    oldVideo.setAttribute('muted','');
-    oldVideo.setAttribute('loop','');
-    oldVideo.controls = true;
-    oldVideo.src = MORPH_SAMPLE_VIDEOS.facial;
-    const meta = document.createElement('div');
-    meta.className = 'sampleVideoMeta';
-    meta.innerHTML = '<div class="sampleVideoLabel" id="morphingSampleLabel">Facial sample</div><div class="sampleVideoHint">Tap a tab to switch the sample video.</div>';
-    head.insertAdjacentElement('afterend', tabs);
-    oldVideo.insertAdjacentElement('afterend', meta);
-    tabs.querySelectorAll('.sampleVideoTabBtn').forEach(btn => {
-      btn.addEventListener('click', () => setMorphSample(btn.dataset.mode, true));
-    });
-    sheet.dataset.v88Ready = '1';
-  }
-
-  function setMorphSample(mode, autoplay){
-    activeMorphSample = (mode === 'focus') ? 'focus' : 'facial';
-    ensureMorphSampleUI();
-    const video = document.getElementById('morphingSampleVideo');
-    const label = document.getElementById('morphingSampleLabel');
-    const overlay = document.getElementById('morphingSampleOverlay');
-    if(!video) return;
-    const nextSrc = MORPH_SAMPLE_VIDEOS[activeMorphSample];
-    if(video.src !== nextSrc) {
-      video.pause();
-      video.src = nextSrc;
-      video.load();
-    }
-    document.querySelectorAll('.sampleVideoTabBtn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === activeMorphSample));
-    if(label) label.textContent = activeMorphSample === 'focus' ? 'Focus sample' : 'Facial sample';
-    if(overlay && overlay.classList.contains('open') && autoplay) {
-      const p = video.play(); if(p && p.catch) p.catch(()=>{});
-    }
-  }
-
-  const prevOpen = window.openMorphingVideoSample;
-  window.openMorphingVideoSample = function(mode){
-    ensureMorphSampleUI();
-    if(typeof prevOpen === 'function') prevOpen();
-    setMorphSample(mode || activeMorphSample, true);
-  };
-
-  const prevClose = window.closeMorphingVideoSample;
-  window.closeMorphingVideoSample = function(){
-    const video = document.getElementById('morphingSampleVideo');
-    if(video) video.pause();
-    if(typeof prevClose === 'function') prevClose();
-  };
-
-  window.addEventListener('DOMContentLoaded', () => {
-    ensureMorphSampleUI();
-    setMorphSample('facial', false);
-  });
-})();
+/* v9.6: replaced by single-video popup — no tab logic */
 </script>
 
 
 <style id="cf-v89-morph-sample-single-tabs">
-/* ---------- v8.9 Morphing sample: single tab row ---------- */
-.sampleVideoTabs{
-  display:none!important;
-}
-#morphingSampleTabs{
-  display:grid!important;
-  grid-template-columns:1fr 1fr!important;
-  gap:10px!important;
-  margin:8px 0 14px!important;
-}
-#morphingSampleTabs button{
-  width:100%!important;
-  min-height:56px!important;
-  border:0!important;
-  border-radius:18px!important;
-  padding:12px 14px!important;
-  font-size:17px!important;
-  font-weight:950!important;
-  letter-spacing:-.02em!important;
-  color:#201b35!important;
-  background:rgba(32,27,53,.08)!important;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.32),0 8px 20px rgba(20,16,46,.05)!important;
-  transition:background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease!important;
-}
-#morphingSampleTabs button.active{
-  color:#fff!important;
-  background:linear-gradient(135deg,var(--c1),var(--c2))!important;
-  box-shadow:0 14px 28px rgba(40,18,80,.20), inset 0 1px 0 rgba(255,255,255,.22)!important;
-}
-#morphingSampleTabs button:active{
-  transform:scale(.985);
-}
-.sampleVideoMeta{
-  display:flex!important;
-  gap:8px!important;
-  align-items:center!important;
-  justify-content:space-between!important;
-  margin:10px 2px 0!important;
-}
+/* v9.6: tab styles removed — single looping video, no tabs */
+#morphingSampleTabs{ display:none!important; }
+.sampleVideoTabs{ display:none!important; }
 </style>
 <script id="cf-v89-morph-sample-single-tabs">
-/* ---------- v8.9 Morphing sample: remove duplicate buttons + active color ---------- */
+/* v9.6 Morphing sample: single looping video, no tab buttons */
 (function(){
-  const MORPH_SAMPLE_VIDEOS_V89 = window.__CF_MORPH_VIDEOS;
-  let activeMode = 'facial';
-
-  function ensureTabs(){
-    const sheet = document.querySelector('#morphingSampleOverlay .sampleVideoSheet');
-    const head = sheet && sheet.querySelector('.sampleVideoHead');
-    const video = document.getElementById('morphingSampleVideo');
-    if(!sheet || !head || !video) return;
-
-    // Remove lower duplicate tabs produced by the previous patch.
-    sheet.querySelectorAll('.sampleVideoTabs').forEach(el => el.remove());
-
-    let tabs = document.getElementById('morphingSampleTabs');
-    if(!tabs){
-      tabs = document.createElement('div');
-      tabs.id = 'morphingSampleTabs';
-      head.insertAdjacentElement('afterend', tabs);
-    }
-    tabs.innerHTML = `
-      <button type="button" data-mode="facial">Facial</button>
-      <button type="button" data-mode="focus">Focus</button>
-    `;
-    tabs.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => setSample(btn.dataset.mode, true));
-    });
-
-    video.setAttribute('playsinline','');
-    video.setAttribute('webkit-playsinline','');
-    video.setAttribute('preload','metadata');
-    video.controls = true;
-
-    let meta = sheet.querySelector('.sampleVideoMeta');
-    if(!meta){
-      meta = document.createElement('div');
-      meta.className = 'sampleVideoMeta';
-      video.insertAdjacentElement('afterend', meta);
-    }
-    meta.innerHTML = '<div class="sampleVideoLabel" id="morphingSampleLabel">Facial sample</div><div class="sampleVideoHint">Tap a tab to switch the sample video.</div>';
-  }
-
-  function setSample(mode='facial', autoplay=false){
-    activeMode = mode === 'focus' ? 'focus' : 'facial';
-    ensureTabs();
-
-    const video = document.getElementById('morphingSampleVideo');
-    const label = document.getElementById('morphingSampleLabel');
-    const subtitle = document.querySelector('#morphingSampleOverlay .sampleVideoHead p');
-    const tabs = document.getElementById('morphingSampleTabs');
-
-    if(tabs){
-      tabs.querySelectorAll('button').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === activeMode);
-      });
-    }
-
-    if(label) label.textContent = activeMode === 'focus' ? 'Focus sample' : 'Facial sample';
-    if(subtitle) subtitle.textContent = activeMode === 'focus' ? 'Focus landmark morph preview' : 'Facial landmark morph preview';
-
-    if(video){
-      const src = MORPH_SAMPLE_VIDEOS_V89[activeMode];
-      if(video.getAttribute('src') !== src){
-        try{ video.pause(); }catch(e){}
-        video.setAttribute('src', src);
-        try{ video.load(); }catch(e){}
-      }
-      if(autoplay){
-        try{ video.currentTime = 0; }catch(e){}
-        const p = video.play();
-        if(p && p.catch) p.catch(()=>{});
-      }
-    }
-  }
-
-  window.setMorphingVideoSample = setSample;
-  window.openMorphingVideoSample = function(mode){
-    ensureTabs();
+  window.openMorphingVideoSample = function(){
     const overlay = document.getElementById('morphingSampleOverlay');
     if(!overlay) return;
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden','false');
-    setSample(mode || activeMode || 'facial', true);
+    const video = document.getElementById('morphingSampleVideo');
+    if(video){ video.muted=true; const p=video.play(); if(p&&p.catch) p.catch(()=>{}); }
   };
   window.closeMorphingVideoSample = function(){
     const video = document.getElementById('morphingSampleVideo');
     if(video) video.pause();
     const overlay = document.getElementById('morphingSampleOverlay');
-    if(overlay){
-      overlay.classList.remove('open');
-      overlay.setAttribute('aria-hidden','true');
-    }
+    if(overlay){ overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); }
   };
-
-  window.addEventListener('DOMContentLoaded', () => {
-    ensureTabs();
-    setSample('facial', false);
-  });
 })();
 </script>
 
@@ -17564,12 +17373,8 @@ body[data-ui-tone="dark"]{
       root.innerHTML='<div class="pmEmptyHint">保存中の生成物はありません。<br>Visual Simulation Studio または Morphing Video Studio で作成した画像・動画が、48時間ここに表示されます。</div>';
       return;
     }
-    const sortMode=window.cfLibSortMode||'newest';
-    arr=cfSortLibItems(arr, sortMode);
-
-    // Sort control row
-    const sBtn=(mode,label)=>`<button type="button" class="cfLibSortBtn${sortMode===mode?' on':''}" onclick="cfSetLibSort('${mode}')">${label}</button>`;
-    let html=`<div class="cfLibSortRow">${sBtn('newest','新しい順')}${sBtn('oldest','古い順')}${sBtn('favorite','お気に入り')}</div>`;
+    arr=cfSortLibItems(arr,'newest');
+    let html='';
 
     // Favourites pick-up row (only when ≥1 favourite)
     const favs=arr.filter(libFavOf);
@@ -22584,10 +22389,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #library .libraryCard.cfLibSelMode .cfLibCheck.on{background:#7c5cfc;border-color:#7c5cfc;color:#fff}
 #library .libraryCard.cfLibSelMode .libraryBtns,
 #library .libraryCard.cfLibSelMode .libraryTitleEdit{pointer-events:none;opacity:.5}
-/* Sort control */
-#library .cfLibSortRow{display:flex;gap:7px;margin:4px 0 12px}
-#library .cfLibSortBtn{flex:1;padding:9px 8px;border-radius:12px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanel,rgba(255,255,255,.86));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;font-weight:850;cursor:pointer}
-#library .cfLibSortBtn.on{border:0;color:#fff;background:linear-gradient(135deg,#6a3de8,#7c5cfc);box-shadow:0 3px 12px rgba(108,63,252,.32)}
 /* Favourite body badge */
 #library .cfLibFavBadge{display:inline-flex;align-items:center;gap:3px;margin:2px 0 0;font-size:10.5px;font-weight:900;color:#7a5a00;background:rgba(255,206,0,.22);border-radius:8px;padding:3px 8px;letter-spacing:.01em}
 /* Favourites pick-up row */
