@@ -25125,5 +25125,517 @@ body.cfPresent .cfPresentExit{display:flex!important}
 })();
 </script>
 
+<script id="cf-phase1-beta-gate-v2">
+/* ============================================================
+   Phase 1 Emergency Beta Gate v2 (invite-only clinical beta)
+   - Production default: OFF (CF_BETA_GATE_DEFAULT=false → 挙動不変)
+   - Preview/Staging 検証: URL に ?beta_gate=on を付ける（localStorageに保持、?beta_gate=off で解除)
+   - 正式リリース時は CF_BETA_GATE_DEFAULT を true にするだけ
+   - can_use_app = privileged role OR active subscription OR beta_access(招待承認済み)
+   - DB 側は supabase/migrations/20260701000001/2 の適用が前提（未適用でも白画面にはならない）
+   ============================================================ */
+(function(){
+  'use strict';
+  var CF_BETA_GATE_DEFAULT = false; /* ← Phase 1e で true に切替（本番招待制の開始スイッチ） */
+  var SUPA_URL  = 'https://nuolihmfdjzofporhwkp.supabase.co';
+  var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51b2xpaG1mZGp6b2Zwb3Jod2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNjE5NDEsImV4cCI6MjA5NzkzNzk0MX0.dvEtTyDSMuV0vJDZfmUdsGbsoWtf4rww-Y7tNi1nWv4'; /* anon key: 公開可（RLS前提） */
+  var GATE_KEY  = 'cf_beta_gate_v1';
+  var PRIVILEGED = ['developer','co_developer','admin'];
+  var ADMIN_ROLES = ['developer','admin'];
+
+  var memStore = {};
+  function lsSet(k,v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){ if(v===null) delete memStore[k]; else memStore[k]=v; console.error('[CF Gate] localStorage unavailable',e); } }
+  function lsGet(k){ try{ var v=localStorage.getItem(k); return v!==null?v:(memStore[k]||null); }catch(e){ return memStore[k]||null; } }
+
+  function gateEnabled(){
+    try{
+      var q=new URLSearchParams(location.search).get('beta_gate');
+      if(q==='on') lsSet(GATE_KEY,'on');
+      else if(q==='off') lsSet(GATE_KEY,null);
+    }catch(e){ console.error('[CF Gate] query parse failed',e); }
+    if(lsGet(GATE_KEY)==='on') return true;
+    return CF_BETA_GATE_DEFAULT;
+  }
+  if(!gateEnabled()) return; /* ← Production は現状ここで抜ける（挙動不変） */
+
+  /* ---------------- shared state ---------------- */
+  var sb=null, curProfile=null, curSession=null, subActive=false;
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
+
+  /* ---------------- styles ---------------- */
+  var css=document.createElement('style');
+  css.textContent=[
+    '#cfGateV2{position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:20px;overflow:auto;',
+    ' background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);',
+    " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
+    '#cfGateV2.open{display:flex}',
+    '.cfG2Card{width:100%;max-width:390px;background:rgba(255,255,255,.95);border-radius:24px;padding:28px 24px;box-shadow:0 24px 70px rgba(40,20,80,.28);color:#231a3a}',
+    '.cfG2Brand{text-align:center;font-weight:900;letter-spacing:.06em;font-size:15px;color:#5b3fd6}',
+    '.cfG2Sub{text-align:center;font-size:12.5px;color:#7a7290;margin:6px 0 14px}',
+    '.cfG2Invited{margin:0 0 16px;padding:10px 12px;border-radius:12px;background:rgba(124,92,255,.10);color:#5b3fd6;font-size:12px;font-weight:700;line-height:1.7;text-align:center}',
+    '.cfG2Label{display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px}',
+    '.cfG2Input{width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:12px;background:#fff;color:#231a3a}',
+    '.cfG2Btn{width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px}',
+    '.cfG2Btn[disabled]{opacity:.55}',
+    '.cfG2BtnGhost{width:100%;padding:11px;border:1.5px solid rgba(32,27,53,.14);border-radius:12px;background:#fff;color:#3c4043;font-weight:800;font-size:14px;cursor:pointer;margin-top:10px}',
+    '.cfG2Msg{display:none;font-size:12.5px;margin-bottom:12px;padding:9px 11px;border-radius:9px;line-height:1.6}',
+    '.cfG2Tabs{display:flex;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:16px}',
+    '.cfG2Tab{flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:transparent;color:#7a7290}',
+    '.cfG2Tab.on{background:#fff;color:#5b3fd6;box-shadow:0 2px 8px rgba(40,20,80,.10)}',
+    '.cfG2Foot{font-size:11px;color:#9a93b0;margin-top:14px;text-align:center;line-height:1.7}',
+    '.cfG2Foot a{color:#5b3fd6}',
+    '#cfFbFab{position:fixed;right:12px;bottom:92px;z-index:2147482000;display:none;border:0;border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.92);color:#5b3fd6;box-shadow:0 6px 18px rgba(40,20,80,.22)}',
+    '#cfFbModal,#cfAdminModal{position:fixed;inset:0;z-index:2147483645;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.55);overflow:auto;',
+    " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
+    '#cfFbModal.open,#cfAdminModal.open{display:flex}',
+    '.cfFbCard{width:100%;max-width:420px;max-height:86dvh;overflow:auto;background:#fff;border-radius:20px;padding:22px 20px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a}',
+    '.cfFbTitle{font-weight:900;font-size:15px;color:#5b3fd6;margin:0 0 12px}',
+    '.cfFbSelect{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:14px;margin-bottom:10px;background:#fff;color:#231a3a}',
+    '.cfFbTa{width:100%;box-sizing:border-box;min-height:110px;padding:11px 13px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:15px;margin-bottom:12px;resize:vertical;background:#fff;color:#231a3a}',
+    '.cfAdmItem{border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;line-height:1.6}',
+    '.cfAdmMeta{color:#7a7290;font-size:11px;margin-bottom:4px;word-break:break-all}',
+    '.cfAdmRow{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}',
+    '.cfAdmMini{padding:7px 10px;border-radius:9px;border:1.5px solid rgba(124,92,255,.3);background:#fff;font-size:12px;color:#231a3a}',
+    '.cfAdmBtnS{padding:7px 12px;border:0;border-radius:9px;background:#5b3fd6;color:#fff;font-weight:800;font-size:12px;cursor:pointer}',
+    '.cfAdmSection{margin:14px 0 6px;font-weight:900;font-size:13px;color:#5b3fd6}'
+  ].join('\n');
+  document.head.appendChild(css);
+
+  /* ---------------- gate DOM (dynamic; 既存DOMと非干渉) ---------------- */
+  var wrap=document.createElement('div');
+  wrap.id='cfGateV2';
+  wrap.innerHTML=
+    '<div class="cfG2Card">'+
+      '<div class="cfG2Brand">CASEFLOW STUDIO&trade;</div>'+
+      '<div class="cfG2Sub">Clinical beauty, visualized.</div>'+
+      '<div class="cfG2Invited">Currently available to invited dental professionals only.<br>現在、招待された歯科医療関係者のみご利用いただけます。</div>'+
+      /* --- view: auth --- */
+      '<div id="cfG2AuthView">'+
+        '<div class="cfG2Tabs">'+
+          '<button type="button" class="cfG2Tab on" id="cfG2TabLogin">ログイン</button>'+
+          '<button type="button" class="cfG2Tab" id="cfG2TabSignup">新規登録</button>'+
+        '</div>'+
+        '<label class="cfG2Label">メールアドレス</label>'+
+        '<input class="cfG2Input" id="cfG2Email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@clinic.jp">'+
+        '<label class="cfG2Label">パスワード</label>'+
+        '<input class="cfG2Input" id="cfG2Pass" type="password" autocomplete="current-password" placeholder="6文字以上">'+
+        '<div class="cfG2Msg" id="cfG2AuthMsg"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfG2Submit">ログイン</button>'+
+        '<button type="button" class="cfG2BtnGhost" id="cfG2Google">Googleで続ける</button>'+
+      '</div>'+
+      /* --- view: invite --- */
+      '<div id="cfG2InviteView" style="display:none">'+
+        '<div style="font-size:13px;color:#5a5470;line-height:1.8;margin-bottom:14px;text-align:center">'+
+          'Enter your invitation code to continue.<br>招待コードを入力して続行してください。</div>'+
+        '<label class="cfG2Label">招待コード / Invitation code</label>'+
+        '<input class="cfG2Input" id="cfG2Invite" type="text" autocapitalize="characters" autocomplete="off" placeholder="CF-XXXXXXXX" style="letter-spacing:.08em;text-transform:uppercase">'+
+        '<div class="cfG2Msg" id="cfG2InviteMsg"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfG2InviteSubmit">コードを確認して開始</button>'+
+        '<button type="button" class="cfG2BtnGhost" id="cfG2InviteLogout">別のアカウントでログイン</button>'+
+      '</div>'+
+      '<div class="cfG2Foot">ご利用は<a href="/terms" target="_blank">利用規約</a>・<a href="/privacy" target="_blank">プライバシーポリシー</a>に同意のうえご利用ください。<br>招待のご相談：eternidad475@gmail.com</div>'+
+    '</div>';
+  document.body.appendChild(wrap);
+
+  var fbFab=document.createElement('button');
+  fbFab.id='cfFbFab'; fbFab.type='button'; fbFab.textContent='フィードバック';
+  document.body.appendChild(fbFab);
+
+  var fbModal=document.createElement('div');
+  fbModal.id='cfFbModal';
+  fbModal.innerHTML=
+    '<div class="cfFbCard">'+
+      '<p class="cfFbTitle">フィードバックを送信 / Send feedback</p>'+
+      '<div id="cfFbFormView">'+
+        '<select class="cfFbSelect" id="cfFbCat">'+
+          ['Bug','UI Issue','Generation Quality','Clinical Accuracy','Morphing Quality','Account','Billing','Security','Other']
+            .map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
+        '</select>'+
+        '<select class="cfFbSelect" id="cfFbSev">'+
+          '<option value="low">Low / 軽微</option><option value="normal" selected>Normal / 通常</option>'+
+          '<option value="high">High / 重要</option><option value="critical">Critical / 緊急</option>'+
+        '</select>'+
+        '<textarea class="cfFbTa" id="cfFbMsg" maxlength="4000" placeholder="お気づきの点をご記入ください"></textarea>'+
+        '<div class="cfG2Msg" id="cfFbErr"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfFbSend">送信する</button>'+
+        '<button type="button" class="cfG2BtnGhost" id="cfFbClose">閉じる</button>'+
+      '</div>'+
+      '<div id="cfFbDoneView" style="display:none;text-align:center">'+
+        '<p style="font-size:14px;line-height:1.9;color:#231a3a;margin:6px 0 16px">Thank you. Your feedback has been sent.<br>ありがとうございます。フィードバックを送信しました。</p>'+
+        '<button type="button" class="cfG2Btn" id="cfFbDoneClose">閉じる</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(fbModal);
+
+  var admModal=document.createElement('div');
+  admModal.id='cfAdminModal';
+  admModal.innerHTML=
+    '<div class="cfFbCard">'+
+      '<p class="cfFbTitle">Feedback Inbox / 管理者受信箱</p>'+
+      '<div id="cfAdmList" style="min-height:40px;font-size:12.5px;color:#7a7290">読み込み中…</div>'+
+      '<div class="cfAdmSection">招待コード発行 / Create invite code</div>'+
+      '<input class="cfFbSelect" id="cfAdmInvEmail" type="email" placeholder="招待先メール（任意）">'+
+      '<select class="cfFbSelect" id="cfAdmInvRole">'+
+        '<option value="dentist" selected>dentist（100/100）</option>'+
+        '<option value="developer">developer（1000/0）</option>'+
+        '<option value="co_developer">co_developer（1000/0）</option>'+
+        '<option value="staff">staff（100/100）</option>'+
+      '</select>'+
+      '<button type="button" class="cfG2Btn" id="cfAdmInvCreate">コードを発行</button>'+
+      '<div class="cfG2Msg" id="cfAdmInvMsg"></div>'+
+      '<div class="cfAdmSection">発行済みコード / Issued codes</div>'+
+      '<div id="cfAdmCodes" style="font-size:12.5px;color:#7a7290">—</div>'+
+      '<button type="button" class="cfG2BtnGhost" id="cfAdmClose" style="margin-top:14px">閉じる</button>'+
+    '</div>';
+  document.body.appendChild(admModal);
+
+  /* ---------------- helpers ---------------- */
+  function msgBox(id,text,kind){
+    var m=el(id); if(!m) return;
+    if(!text){ m.style.display='none'; m.textContent=''; return; }
+    m.style.display='block'; m.textContent=text;
+    if(kind==='err'){ m.style.background='rgba(220,50,60,.10)'; m.style.color='#c0303a'; }
+    else if(kind==='ok'){ m.style.background='rgba(30,160,90,.12)'; m.style.color='#1a8f57'; }
+    else { m.style.background='rgba(124,92,255,.10)'; m.style.color='#5b3fd6'; }
+  }
+  function translateAuthErr(m){
+    m=String(m||'');
+    if(/Invalid login credentials/i.test(m)) return 'メールアドレスまたはパスワードが正しくありません。';
+    if(/Email not confirmed/i.test(m)) return 'メールの確認が完了していません。確認メールのリンクを開いてください。';
+    if(/User already registered/i.test(m)) return 'このメールアドレスは既に登録されています。「ログイン」からお進みください。';
+    if(/Password should be at least/i.test(m)) return 'パスワードは6文字以上で設定してください。';
+    if(/rate limit/i.test(m)) return '試行回数が多すぎます。しばらくしてからお試しください。';
+    return m;
+  }
+
+  var badge=el('cfTokenBadge'), logoutBtn=el('cfLogoutBtn');
+  function renderBadge(n){
+    if(!badge) return;
+    badge.innerHTML='<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:2px;display:inline-block"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2"/></svg>'+(n==null?'…':n);
+    badge.style.color=(n!=null&&n<=0)?'#c0303a':'#5b3fd6';
+  }
+  window.cfRenderTokenBadge=renderBadge;
+
+  async function refreshTokens(){
+    if(!sb) return;
+    try{
+      var u=await sb.auth.getUser();
+      var uid=u&&u.data&&u.data.user&&u.data.user.id;
+      if(!uid){ renderBadge(null); return; }
+      var q=await sb.from('profiles').select('tokens_remaining,role,beta_access').eq('id',uid).single();
+      if(q.error){ console.error('[CF Gate] profile fetch failed',q.error); renderBadge(null); return; }
+      curProfile=Object.assign(curProfile||{},q.data||{});
+      window.__cfTokens=q.data?q.data.tokens_remaining:null;
+      renderBadge(window.__cfTokens);
+    }catch(e){ console.error('[CF Gate] refreshTokens failed',e); renderBadge(null); }
+  }
+  window.cfRefreshTokens=refreshTokens;
+
+  /* 1生成=1トークン。既存の generateViaAI / generateRefinedViaAI から呼ばれる */
+  window.cfConsumeToken=async function(reason){
+    if(!sb) return { ok:false, reason:'error', message:'supabase not ready' };
+    try{
+      var r=await sb.rpc('consume_token',{ p_reason: reason||'generation' });
+      if(r.error){
+        var m=String(r.error.message||'');
+        if(/insufficient/i.test(m)){ renderBadge(0); return { ok:false, reason:'insufficient' }; }
+        if(/not authenticated|28000/i.test(m)) return { ok:false, reason:'auth' };
+        console.error('[CF Gate] consume_token failed',r.error);
+        return { ok:false, reason:'error', message:m };
+      }
+      var n=r.data; window.__cfTokens=n; renderBadge(n);
+      return { ok:true, remaining:n };
+    }catch(e){ console.error('[CF Gate] consume_token exception',e); return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+  };
+  var emptyModal=el('cfTokenEmpty'), emptyClose=el('cfTokenEmptyClose');
+  window.cfShowTokenEmpty=function(){ if(emptyModal) emptyModal.style.display='flex'; };
+  if(emptyClose) emptyClose.addEventListener('click',function(){ if(emptyModal) emptyModal.style.display='none'; });
+
+  /* ---------------- can_use_app ---------------- */
+  async function loadAccess(uid){
+    curProfile=null; subActive=false;
+    try{
+      var p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name').eq('id',uid).single();
+      if(p.error){ console.error('[CF Gate] profile load failed',p.error); }
+      else curProfile=p.data||null;
+    }catch(e){ console.error('[CF Gate] profile load exception',e); }
+    try{
+      var s=await sb.from('subscriptions').select('status,current_period_end').eq('user_id',uid)
+        .in('status',['active','trialing']).order('updated_at',{ascending:false}).limit(1);
+      if(!s.error && s.data && s.data.length){
+        var row=s.data[0];
+        subActive=!row.current_period_end || (new Date(row.current_period_end).getTime()>Date.now());
+      }
+    }catch(e){ console.error('[CF Gate] subscription check exception',e); }
+  }
+  function canUseApp(){
+    if(!curProfile) return false;
+    if(PRIVILEGED.indexOf(curProfile.role)>=0) return true;   /* 課金免除ロール */
+    if(subActive) return true;                                 /* 有効サブスク */
+    if(curProfile.beta_access===true) return true;             /* 招待承認済み */
+    return false;
+  }
+  function isAdmin(){ return !!(curProfile && ADMIN_ROLES.indexOf(curProfile.role)>=0); }
+  window.cfBetaGate={ get profile(){return curProfile;}, get canUse(){return canUseApp();}, get isAdmin(){return isAdmin();} };
+
+  /* ---------------- gate open/close ---------------- */
+  function showGate(view){
+    wrap.classList.add('open');
+    el('cfG2AuthView').style.display=(view==='invite')?'none':'block';
+    el('cfG2InviteView').style.display=(view==='invite')?'block':'none';
+    if(logoutBtn) logoutBtn.style.display='none';
+    if(badge) badge.style.display='none';
+    fbFab.style.display='none';
+  }
+  function unlockApp(){
+    wrap.classList.remove('open');
+    if(logoutBtn) logoutBtn.style.display='block';
+    if(badge) badge.style.display='block';
+    fbFab.style.display='block';
+    refreshTokens();
+  }
+
+  /* ---------------- main flow ---------------- */
+  async function evaluateSession(session){
+    curSession=session||null;
+    if(!session){ showGate('auth'); return; }
+    await loadAccess(session.user.id);
+    if(canUseApp()) unlockApp();
+    else showGate('invite');
+  }
+
+  function start(){
+    if(!window.supabase || !window.supabase.createClient){
+      showGate('auth');
+      msgBox('cfG2AuthMsg','読み込みに失敗しました。通信環境を確認して再読み込みしてください。','err');
+      var sBtn=el('cfG2Submit'); if(sBtn) sBtn.disabled=true;
+      return;
+    }
+    sb=window.cfSupabase||window.supabase.createClient(SUPA_URL,SUPA_ANON);
+    window.cfSupabase=sb;
+
+    /* --- auth view --- */
+    var mode='login';
+    function setMode(m){
+      mode=m; msgBox('cfG2AuthMsg','');
+      el('cfG2TabLogin').classList.toggle('on',m==='login');
+      el('cfG2TabSignup').classList.toggle('on',m==='signup');
+      el('cfG2Submit').textContent=(m==='login')?'ログイン':'登録する';
+      el('cfG2Pass').setAttribute('autocomplete',m==='login'?'current-password':'new-password');
+    }
+    el('cfG2TabLogin').addEventListener('click',function(){ setMode('login'); });
+    el('cfG2TabSignup').addEventListener('click',function(){ setMode('signup'); });
+
+    async function submitAuth(){
+      var email=(el('cfG2Email').value||'').trim(), pass=el('cfG2Pass').value||'';
+      if(!email||!pass){ msgBox('cfG2AuthMsg','メールアドレスとパスワードを入力してください。','err'); return; }
+      var btn=el('cfG2Submit'); btn.disabled=true; var label=btn.textContent; btn.textContent='処理中…'; msgBox('cfG2AuthMsg','');
+      try{
+        if(mode==='signup'){
+          var r=await sb.auth.signUp({ email:email, password:pass });
+          if(r.error) msgBox('cfG2AuthMsg',translateAuthErr(r.error.message),'err');
+          else if(r.data&&r.data.session) await evaluateSession(r.data.session);
+          else { msgBox('cfG2AuthMsg','確認メールを送信しました。メール内のリンクを開いてからログインしてください。','ok'); setMode('login'); }
+        } else {
+          var r2=await sb.auth.signInWithPassword({ email:email, password:pass });
+          if(r2.error) msgBox('cfG2AuthMsg',translateAuthErr(r2.error.message),'err');
+          else await evaluateSession(r2.data.session);
+        }
+      }catch(e){ console.error('[CF Gate] auth failed',e); msgBox('cfG2AuthMsg','通信エラーが発生しました。もう一度お試しください。','err'); }
+      btn.disabled=false; btn.textContent=label;
+    }
+    el('cfG2Submit').addEventListener('click',submitAuth);
+    el('cfG2Pass').addEventListener('keydown',function(e){ if(e.key==='Enter') submitAuth(); });
+    el('cfG2Google').addEventListener('click',async function(){
+      msgBox('cfG2AuthMsg','Googleに接続しています…','info');
+      try{
+        var r=await sb.auth.signInWithOAuth({ provider:'google',
+          options:{ redirectTo: location.origin+location.pathname+'?beta_gate=on' } });
+        if(r.error) msgBox('cfG2AuthMsg',translateAuthErr(r.error.message),'err');
+      }catch(e){ console.error('[CF Gate] oauth failed',e); msgBox('cfG2AuthMsg','外部ログインに接続できませんでした。','err'); }
+    });
+
+    /* --- invite view --- */
+    async function submitInvite(){
+      var code=(el('cfG2Invite').value||'').trim();
+      if(!code){ msgBox('cfG2InviteMsg','招待コードを入力してください。','err'); return; }
+      var btn=el('cfG2InviteSubmit'); btn.disabled=true; msgBox('cfG2InviteMsg','確認中…','info');
+      try{
+        var r=await sb.rpc('accept_invite_code',{ p_code: code });
+        if(r.error){
+          console.error('[CF Gate] accept_invite_code failed',r.error);
+          var em=String(r.error.message||'');
+          msgBox('cfG2InviteMsg',/does not exist|not find|schema cache/i.test(em)
+            ?'招待コード機能がまだ有効化されていません（管理者にお問い合わせください）。'
+            :'コードの確認に失敗しました。時間をおいて再度お試しください。','err');
+        } else {
+          var d=r.data||{};
+          if(d.ok){
+            msgBox('cfG2InviteMsg','ようこそ。'+(d.granted?('初回'+d.granted+'トークンを付与しました。'):''),'ok');
+            var s=await sb.auth.getSession();
+            await evaluateSession(s&&s.data?s.data.session:null);
+          } else {
+            var reasons={ invalid:'招待コードが見つかりません。', revoked:'この招待コードは無効化されています。',
+              expired:'この招待コードは期限切れです。', exhausted:'この招待コードは使用上限に達しています。',
+              email_mismatch:'この招待コードは別のメールアドレス宛です。', already_used:'この招待コードは使用済みです。' };
+            msgBox('cfG2InviteMsg',reasons[d.reason]||'コードを確認できませんでした。','err');
+          }
+        }
+      }catch(e){ console.error('[CF Gate] invite exception',e); msgBox('cfG2InviteMsg','通信エラーが発生しました。','err'); }
+      btn.disabled=false;
+    }
+    el('cfG2InviteSubmit').addEventListener('click',submitInvite);
+    el('cfG2Invite').addEventListener('keydown',function(e){ if(e.key==='Enter') submitInvite(); });
+    el('cfG2InviteLogout').addEventListener('click',async function(){
+      try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Gate] signOut failed',e); }
+      showGate('auth'); setMode('login');
+    });
+    if(logoutBtn) logoutBtn.addEventListener('click',async function(){
+      try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Gate] signOut failed',e); }
+      showGate('auth');
+    });
+
+    /* --- feedback --- */
+    fbFab.addEventListener('click',function(){
+      el('cfFbFormView').style.display='block'; el('cfFbDoneView').style.display='none';
+      msgBox('cfFbErr',''); fbModal.classList.add('open');
+      /* 管理者にはInboxボタンを出す */
+      if(isAdmin() && !el('cfFbAdminOpen')){
+        var b=document.createElement('button');
+        b.type='button'; b.id='cfFbAdminOpen'; b.className='cfG2BtnGhost'; b.textContent='Feedback Inbox（管理者）';
+        b.addEventListener('click',function(){ fbModal.classList.remove('open'); openAdmin(); });
+        el('cfFbFormView').appendChild(b);
+      }
+    });
+    el('cfFbClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
+    el('cfFbDoneClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
+    el('cfFbSend').addEventListener('click',async function(){
+      var m=(el('cfFbMsg').value||'').trim();
+      if(!m){ msgBox('cfFbErr','内容をご記入ください。','err'); return; }
+      var btn=el('cfFbSend'); btn.disabled=true; msgBox('cfFbErr','');
+      try{
+        var u=await sb.auth.getUser();
+        var uid=u&&u.data&&u.data.user&&u.data.user.id;
+        if(!uid){ msgBox('cfFbErr','ログインが必要です。','err'); btn.disabled=false; return; }
+        var ins=await sb.from('feedback_items').insert({
+          user_id:uid, category:el('cfFbCat').value, severity:el('cfFbSev').value,
+          message:m.slice(0,4000), page_path:(location.pathname+location.hash).slice(0,300),
+          user_agent:String(navigator.userAgent||'').slice(0,500)
+        });
+        if(ins.error){
+          console.error('[CF Feedback] insert failed',ins.error);
+          msgBox('cfFbErr',/does not exist|schema cache/i.test(String(ins.error.message||''))
+            ?'フィードバック機能がまだ有効化されていません。'
+            :'送信に失敗しました。時間をおいて再度お試しください。','err');
+        } else {
+          el('cfFbMsg').value='';
+          el('cfFbFormView').style.display='none'; el('cfFbDoneView').style.display='block';
+        }
+      }catch(e){ console.error('[CF Feedback] exception',e); msgBox('cfFbErr','通信エラーが発生しました。','err'); }
+      btn.disabled=false;
+    });
+
+    /* --- admin inbox --- */
+    async function openAdmin(){
+      if(!isAdmin()) return;
+      admModal.classList.add('open');
+      try{ await sb.rpc('admin_log_feedback_view'); }catch(e){ console.error('[CF Admin] audit log failed',e); }
+      await loadAdminData();
+    }
+    async function loadAdminData(){
+      var list=el('cfAdmList'), codes=el('cfAdmCodes');
+      list.textContent='読み込み中…';
+      try{
+        var q=await sb.from('feedback_items').select('id,category,severity,message,status,page_path,created_at').order('created_at',{ascending:false}).limit(50);
+        if(q.error){ console.error('[CF Admin] feedback load failed',q.error); list.textContent='読み込みに失敗しました（migration未適用の可能性）。'; }
+        else if(!q.data||!q.data.length) list.textContent='フィードバックはまだありません。';
+        else{
+          list.innerHTML=q.data.map(function(f){
+            return '<div class="cfAdmItem" data-fid="'+esc(f.id)+'">'+
+              '<div class="cfAdmMeta">'+esc(f.category)+' / '+esc(f.severity)+' / '+esc((f.created_at||'').slice(0,16).replace('T',' '))+' / '+esc(f.page_path||'')+'</div>'+
+              '<div>'+esc(f.message)+'</div>'+
+              '<div class="cfAdmRow">'+
+                '<select class="cfAdmMini" data-fstatus>'+
+                  ['new','triaged','in_progress','resolved','archived'].map(function(s){
+                    return '<option value="'+s+'"'+(s===f.status?' selected':'')+'>'+s+'</option>';}).join('')+
+                '</select>'+
+                '<button type="button" class="cfAdmBtnS" data-fsave>更新</button>'+
+              '</div></div>';
+          }).join('');
+          list.querySelectorAll('[data-fsave]').forEach(function(btn){
+            btn.addEventListener('click',async function(){
+              var item=btn.closest('.cfAdmItem'), fid=item.getAttribute('data-fid'),
+                  st=item.querySelector('[data-fstatus]').value;
+              btn.disabled=true;
+              try{
+                var r=await sb.rpc('admin_update_feedback',{ p_id:fid, p_status:st });
+                if(r.error){ console.error('[CF Admin] update failed',r.error); btn.textContent='失敗'; }
+                else btn.textContent='更新済み';
+              }catch(e){ console.error('[CF Admin] update exception',e); btn.textContent='失敗'; }
+              setTimeout(function(){ btn.textContent='更新'; btn.disabled=false; },1400);
+            });
+          });
+        }
+      }catch(e){ console.error('[CF Admin] feedback exception',e); list.textContent='読み込みに失敗しました。'; }
+      try{
+        var c=await sb.from('invite_codes').select('id,code,role,used_count,max_uses,revoked_at,expires_at').order('created_at',{ascending:false}).limit(20);
+        if(c.error){ console.error('[CF Admin] codes load failed',c.error); codes.textContent='—'; }
+        else if(!c.data||!c.data.length) codes.textContent='発行済みコードはありません。';
+        else{
+          codes.innerHTML=c.data.map(function(ic){
+            var dead=!!ic.revoked_at||(ic.expires_at&&new Date(ic.expires_at).getTime()<=Date.now())||ic.used_count>=ic.max_uses;
+            return '<div class="cfAdmItem" style="'+(dead?'opacity:.55':'')+'">'+
+              '<b style="letter-spacing:.06em">'+esc(ic.code)+'</b> — '+esc(ic.role)+' ('+ic.used_count+'/'+ic.max_uses+')'+
+              (ic.revoked_at?' <span style="color:#c0303a">無効化済み</span>':
+               (dead?' <span style="color:#c0303a">使用不可</span>':
+                ' <button type="button" class="cfAdmBtnS" data-revoke="'+esc(ic.id)+'" style="background:#c0303a">無効化</button>'))+
+              '</div>';
+          }).join('');
+          codes.querySelectorAll('[data-revoke]').forEach(function(btn){
+            btn.addEventListener('click',async function(){
+              btn.disabled=true;
+              try{
+                var r=await sb.rpc('admin_revoke_invite_code',{ p_id:btn.getAttribute('data-revoke') });
+                if(r.error) console.error('[CF Admin] revoke failed',r.error);
+              }catch(e){ console.error('[CF Admin] revoke exception',e); }
+              loadAdminData();
+            });
+          });
+        }
+      }catch(e){ console.error('[CF Admin] codes exception',e); codes.textContent='—'; }
+    }
+    el('cfAdmClose').addEventListener('click',function(){ admModal.classList.remove('open'); });
+    el('cfAdmInvCreate').addEventListener('click',async function(){
+      var role=el('cfAdmInvRole').value, email=(el('cfAdmInvEmail').value||'').trim();
+      var dev=(role==='developer'||role==='co_developer');
+      var btn=el('cfAdmInvCreate'); btn.disabled=true; msgBox('cfAdmInvMsg','発行中…','info');
+      try{
+        var r=await sb.rpc('admin_create_invite_code',{
+          p_code:null, p_invited_email:email||null, p_role:role,
+          p_workspace_type:dev?'developer':'personal',
+          p_token_grant_invitee:dev?1000:100, p_token_grant_inviter:dev?0:100,
+          p_max_uses:1, p_expires_at:null
+        });
+        if(r.error){ console.error('[CF Admin] create code failed',r.error); msgBox('cfAdmInvMsg','発行に失敗しました（migration未適用の可能性）。','err'); }
+        else if(r.data&&r.data.ok){ msgBox('cfAdmInvMsg','発行しました: '+r.data.code,'ok'); el('cfAdmInvEmail').value=''; loadAdminData(); }
+        else msgBox('cfAdmInvMsg','発行に失敗しました。','err');
+      }catch(e){ console.error('[CF Admin] create code exception',e); msgBox('cfAdmInvMsg','通信エラーが発生しました。','err'); }
+      btn.disabled=false;
+    });
+
+    /* --- session bootstrap --- */
+    sb.auth.onAuthStateChange(function(_evt,session){
+      evaluateSession(session).catch(function(e){ console.error('[CF Gate] evaluate failed',e); showGate('auth'); });
+    });
+    sb.auth.getSession().then(function(res){
+      return evaluateSession(res&&res.data?res.data.session:null);
+    }).catch(function(e){ console.error('[CF Gate] getSession failed',e); showGate('auth'); });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+</script>
+
 </body>
 </html>
