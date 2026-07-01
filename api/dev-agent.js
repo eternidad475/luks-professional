@@ -44,11 +44,41 @@ function send(res, status, payload){
   res.end(JSON.stringify(payload, null, 2));
 }
 
+function normalizePayload(obj){
+  const p = obj || {};
+  if(typeof p.apply === "string") p.apply = ["1","true","yes","on","apply"].includes(p.apply.toLowerCase());
+  if(typeof p.paths === "string") p.paths = p.paths.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
+  if(typeof p.path === "string" && !p.paths) p.paths = [p.path];
+  if(p.prompt && !p.messages) p.messages = [{role:"user", content:String(p.prompt)}];
+  return p;
+}
+
+function parseForm(body){
+  const params = new URLSearchParams(body || "");
+  const out = {};
+  for(const [k,v] of params.entries()){
+    if(out[k] === undefined) out[k] = v;
+    else if(Array.isArray(out[k])) out[k].push(v);
+    else out[k] = [out[k], v];
+  }
+  return normalizePayload(out);
+}
+
 function readBody(req){
   return new Promise((resolve, reject)=>{
     let body = "";
     req.on("data", c => { body += c; if(body.length > 2000000){ reject(new Error("Request body too large")); req.destroy(); } });
-    req.on("end", ()=>{ try{ resolve(body ? JSON.parse(body) : {}); }catch{ reject(new Error("Invalid JSON body")); } });
+    req.on("end", ()=>{
+      try{
+        const ct = String(req.headers["content-type"] || "").toLowerCase();
+        if(!body) return resolve({});
+        if(ct.includes("application/x-www-form-urlencoded")) return resolve(parseForm(body));
+        if(ct.includes("multipart/form-data")) return reject(new Error("multipart/form-data is not supported. Use application/x-www-form-urlencoded or JSON."));
+        return resolve(normalizePayload(JSON.parse(body)));
+      }catch{
+        reject(new Error("Invalid request body"));
+      }
+    });
     req.on("error", reject);
   });
 }
@@ -56,10 +86,10 @@ function readBody(req){
 function token(){ return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || ""; }
 function geminiKey(){ return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""; }
 function geminiModel(){ return process.env.GEMINI_MODEL || process.env.GOOGLE_MODEL || "gemini-2.5-flash"; }
-function admin(req){
+function admin(req, payload){
   const key = process.env.CASEFLOW_DEV_CONSOLE_KEY || "";
   if(!key) return {ok:false, status:503, error:"CASEFLOW_DEV_CONSOLE_KEY is not configured."};
-  const supplied = req.headers["x-caseflow-dev-key"] || req.headers["x-dev-agent-key"] || String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const supplied = req.headers["x-caseflow-dev-key"] || req.headers["x-dev-agent-key"] || String(req.headers.authorization || "").replace(/^Bearer\s+/i, "") || payload?.adminKey || payload?.caseflowDevKey || "";
   if(supplied !== key) return {ok:false, status:401, error:"Unauthorized. Provide the admin key."};
   return {ok:true};
 }
@@ -71,7 +101,7 @@ function safePath(path){
   if(!p) throw new Error("Empty path is not allowed.");
   if(p.includes("..") || p.includes("\0")) throw new Error(`Unsafe path: ${p}`);
   if(DENY_PATH_PATTERNS.some(rx => rx.test(p))) throw new Error(`Protected path cannot be edited: ${p}`);
-  const isSelf = /(^|\/)api\/dev-agent\.js$/i.test(p) || /(^|\/)caseflow_dev_console\.html$/i.test(p);
+  const isSelf = /(^|\/)api\/dev-agent\.js$/i.test(p) || /(^|\/)caseflow_dev_console\.html$/i.test(p) || /(^|\/)caseflow_dev_console_simple\.html$/i.test(p) || /(^|\/)caseflow_dev_console_form\.html$/i.test(p);
   if(isSelf && !ALLOW_SELF_EDIT) throw new Error(`Self-edit path is locked by CASEFLOW_DEV_ALLOW_SELF_EDIT: ${p}`);
   if(SENSITIVE_PATH_PATTERNS.some(rx => rx.test(p)) && !ALLOW_SENSITIVE) throw new Error(`Sensitive path requires CASEFLOW_DEV_ALLOW_SENSITIVE_EDITS=1: ${p}`);
   return p;
@@ -260,19 +290,19 @@ async function chat(payload){
   }
   return response;
 }
-async function health(){ return {ok:true, app:"CaseFlow Dev Console", version:"mvp-gemini-3", repo:DEFAULT_REPO, baseBranch:DEFAULT_BASE, allowedRepos:Array.from(ALLOWED_REPOS), provider:PROVIDER, dryRunOnly:DRY_RUN_ONLY, env:{githubToken:Boolean(token()), adminKey:Boolean(process.env.CASEFLOW_DEV_CONSOLE_KEY), gemini:Boolean(geminiKey()), geminiModel:geminiModel(), anthropic:Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL), openai:Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL)}, guards:{maxActions:MAX_ACTIONS, allowSensitive:ALLOW_SENSITIVE, allowSelfEdit:ALLOW_SELF_EDIT, deniedPatterns:DENY_PATH_PATTERNS.length, sensitivePatterns:SENSITIVE_PATH_PATTERNS.length}, features:["health","search","read_file","chat","compare","gemini_provider","apply_to_branch","draft_pr_reuse"]}; }
+async function health(){ return {ok:true, app:"CaseFlow Dev Console", version:"mvp-form-4", repo:DEFAULT_REPO, baseBranch:DEFAULT_BASE, allowedRepos:Array.from(ALLOWED_REPOS), provider:PROVIDER, dryRunOnly:DRY_RUN_ONLY, env:{githubToken:Boolean(token()), adminKey:Boolean(process.env.CASEFLOW_DEV_CONSOLE_KEY), gemini:Boolean(geminiKey()), geminiModel:geminiModel(), anthropic:Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL), openai:Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL)}, guards:{maxActions:MAX_ACTIONS, allowSensitive:ALLOW_SENSITIVE, allowSelfEdit:ALLOW_SELF_EDIT, deniedPatterns:DENY_PATH_PATTERNS.length, sensitivePatterns:SENSITIVE_PATH_PATTERNS.length}, features:["health","search","read_file","chat","compare","form_post","gemini_provider","apply_to_branch","draft_pr_reuse"]}; }
 
 module.exports = async function handler(req, res){
   if(req.method === "OPTIONS") return send(res, 204, {});
   if(req.method !== "POST") return send(res, 405, {ok:false, error:"Method not allowed"});
-  const a = admin(req); if(!a.ok) return send(res, a.status, {ok:false, error:a.error});
   try{
     const payload = await readBody(req);
+    const a = admin(req, payload); if(!a.ok) return send(res, a.status, {ok:false, error:a.error});
     const action = payload.action || "chat";
     const repo = payload.repo || DEFAULT_REPO; assertRepo(repo);
     if(action === "health") return send(res, 200, await health());
     if(action === "search") return send(res, 200, {ok:true, repo, query:payload.query || latest(payload.messages) || "CaseFlow", hits:await searchCode(repo, payload.query || latest(payload.messages) || "CaseFlow")});
-    if(action === "read_file") return send(res, 200, {ok:true, ...(await fetchFile(repo, payload.path, payload.ref || payload.baseBranch || DEFAULT_BASE))});
+    if(action === "read_file") return send(res, 200, {ok:true, ...(await fetchFile(repo, payload.path || payload.paths?.[0], payload.ref || payload.baseBranch || DEFAULT_BASE))});
     if(action === "compare") return send(res, 200, {ok:true, repo, ...(await compare(repo, payload.baseBranch || DEFAULT_BASE, payload.branch || DEFAULT_BASE))});
     if(action === "chat") return send(res, 200, await chat(payload));
     throw new Error(`Unknown action: ${action}`);
