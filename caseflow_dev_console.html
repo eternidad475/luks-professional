@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CaseFlow Dev Console™</title>
+  <style>
+    :root{--bg:#050713;--panel:#0c1023;--panel2:#121733;--line:rgba(199,202,255,.18);--text:#eef0ff;--muted:#9ca3c7;--gold:#f3d48b;--violet:#9b7cff;--cyan:#77e4ff;--danger:#ff6b8a;--ok:#87f7c3;--shadow:0 22px 70px rgba(0,0,0,.45);--radius:24px}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 18% 8%,rgba(126,94,255,.28),transparent 34%),radial-gradient(circle at 82% 18%,rgba(119,228,255,.16),transparent 30%),linear-gradient(140deg,#04050c 0%,#080a1b 48%,#10132b 100%);letter-spacing:.02em}
+    a{color:var(--cyan)} .shell{width:min(1220px,calc(100% - 28px));margin:0 auto;padding:28px 0 42px}
+    .hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:32px;padding:24px;background:linear-gradient(135deg,rgba(13,18,42,.88),rgba(10,11,25,.78));box-shadow:var(--shadow)}
+    .hero:before{content:"";position:absolute;inset:-2px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(243,212,139,.18),transparent),repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,transparent 1px 76px);mask:linear-gradient(#000,transparent 74%)}
+    .heroTop{position:relative;display:flex;gap:18px;justify-content:space-between;align-items:flex-start}.kicker{font-size:12px;color:var(--gold);text-transform:uppercase;letter-spacing:.22em}h1{margin:8px 0 8px;font-size:clamp(30px,5vw,62px);line-height:.98;letter-spacing:-.05em}.lead{max-width:830px;color:var(--muted);line-height:1.85;font-size:15px}.badge{border:1px solid rgba(243,212,139,.28);color:var(--gold);background:rgba(243,212,139,.08);border-radius:999px;padding:8px 12px;font-size:12px;white-space:nowrap}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:18px}.card{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(17,22,48,.92),rgba(9,11,25,.92));box-shadow:var(--shadow);overflow:hidden}.card h2{margin:0;padding:17px 18px;font-size:15px;border-bottom:1px solid var(--line)}.cardBody{padding:16px}
+    label{display:block;margin:0 0 11px;color:var(--muted);font-size:12px} input,textarea,select{width:100%;margin-top:6px;border:1px solid rgba(199,202,255,.18);border-radius:14px;background:rgba(0,0,0,.28);color:var(--text);padding:12px;outline:none;font:inherit;font-size:13px} textarea{min-height:130px;resize:vertical;line-height:1.65} input:focus,textarea:focus,select:focus{border-color:rgba(119,228,255,.55);box-shadow:0 0 0 4px rgba(119,228,255,.08)}
+    .btnRow{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px} button{border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:11px 14px;min-height:44px;background:linear-gradient(135deg,rgba(155,124,255,.92),rgba(91,113,255,.82));color:#fff;font-weight:760;cursor:pointer;box-shadow:0 12px 30px rgba(89,84,255,.2)} button.secondary{background:rgba(255,255,255,.055);color:var(--text);box-shadow:none} button:disabled{opacity:.45;cursor:not-allowed}.small{font-size:12px;color:var(--muted);line-height:1.7}
+    .status{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.pill{border:1px solid var(--line);border-radius:16px;padding:11px;background:rgba(255,255,255,.04);font-size:12px;color:var(--muted)}.pill strong{display:block;margin-bottom:4px;color:var(--text)}
+    .chat{min-height:550px;display:flex;flex-direction:column}.messages{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;max-height:640px;overflow:auto;scroll-behavior:smooth}.msg{width:min(92%,840px);border:1px solid var(--line);border-radius:20px;padding:14px 15px;background:rgba(255,255,255,.045);line-height:1.75;white-space:pre-wrap;font-size:14px}.msg.user{align-self:flex-end;background:rgba(155,124,255,.13);border-color:rgba(155,124,255,.34)}.msg.agent{align-self:flex-start}.msg.system{align-self:center;width:100%;color:var(--muted);background:rgba(243,212,139,.06);border-color:rgba(243,212,139,.18)}.composer{border-top:1px solid var(--line);padding:14px;background:rgba(0,0,0,.16)}
+    .result{margin-top:14px;border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.22);overflow:hidden}.resultHeader{display:flex;justify-content:space-between;gap:12px;padding:11px 13px;border-bottom:1px solid var(--line);color:var(--gold);font-size:12px;text-transform:uppercase;letter-spacing:.14em}pre{margin:0;padding:13px;overflow:auto;max-height:360px;color:#dbe0ff;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}.footer{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.8;text-align:center}
+    @media(max-width:880px){.grid{grid-template-columns:1fr}.heroTop{display:block}.badge{display:inline-block;margin-top:12px}.messages{max-height:520px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="heroTop">
+        <div>
+          <div class="kicker">CASEFLOW STUDIO™ / ADMIN-ONLY</div>
+          <h1>CaseFlow Dev Console™</h1>
+          <p class="lead">GitHubコードをチャット形式で調査し、dry-runで修正案を確認し、承認時だけ専用ブランチとDraft Pull Requestを作成する管理者用コンソールです。<br>English: An admin console for chatting with the GitHub codebase, reviewing dry-run proposals, and creating a branch plus Draft Pull Request only after explicit approval.</p>
+        </div>
+        <div class="badge">No direct main push / main直接pushなし</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <aside class="card">
+        <h2>Connection / 接続設定</h2>
+        <div class="cardBody">
+          <label>Admin key / 管理者キー<input id="adminKey" type="password" autocomplete="off" placeholder="CASEFLOW_DEV_CONSOLE_KEY" /></label>
+          <label>API endpoint / APIエンドポイント<input id="endpoint" value="/api/dev-agent" /></label>
+          <label>Repository / リポジトリ<input id="repo" value="eternidad475/luks-professional" /></label>
+          <label>Base branch / 基準ブランチ<input id="baseBranch" value="claude/image-morphing-video-3kujgb" /></label>
+          <label>Working branch / 作業ブランチ<input id="branch" value="chatgpt/dev-console-work" /></label>
+          <label>Explicit file paths / 明示的に読むファイル<textarea id="paths" placeholder="caseflow_studio_v96.html&#10;api/dev-agent.js"></textarea></label>
+          <label>Mode / 実行モード<select id="applyMode"><option value="dry">Dry-run only / 提案のみ</option><option value="apply">Apply + Draft PR / 適用してDraft PR作成</option></select></label>
+          <div class="btnRow"><button class="secondary" id="healthBtn">Health</button><button class="secondary" id="searchBtn">Search</button><button class="secondary" id="readBtn">Read file</button></div>
+          <div class="status"><div class="pill"><strong id="githubStatus">Unknown</strong>GitHub token</div><div class="pill"><strong id="modelStatus">Unknown</strong>AI provider</div><div class="pill"><strong id="dryStatus">Unknown</strong>Dry-run lock</div><div class="pill"><strong id="lastStatus">Ready</strong>Last status</div></div>
+          <p class="small">安全のため、最初は必ずDry-runで使ってください。Applyモードは、AIが返したactionsが妥当な時だけ実行してください。<br>English: Start in dry-run. Use Apply only after the proposed actions look correct.</p>
+        </div>
+      </aside>
+
+      <section class="card chat">
+        <h2>Chat / コードチャット</h2>
+        <div class="messages" id="messages"><div class="msg system">CaseFlow Dev Console MVP loaded. Healthボタンで環境変数の設定状況を確認してください。</div></div>
+        <div class="composer">
+          <label>Request / 依頼内容<textarea id="prompt" placeholder="例：Visual Simulation Studioで保存後に戻るとMorphing Studioへ遷移する原因を調査し、修正案を出してください。"></textarea></label>
+          <div class="btnRow"><button id="sendBtn">Send to Agent / 送信</button><button class="secondary" id="clearBtn">Clear / クリア</button></div>
+          <div class="result" id="result" hidden><div class="resultHeader"><span>Raw response</span><span id="resultMode">dry-run</span></div><pre id="raw"></pre></div>
+        </div>
+      </section>
+    </section>
+    <div class="footer">CASEFLOW STUDIO™ © 2026 NARRATIVE CHERISH — Dev Console prototype. No patient data. No production secrets in chat.</div>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id); const messagesEl = $("messages"); const rawEl = $("raw"); const resultEl = $("result"); const state = {messages:[]};
+    function settings(){return {endpoint:$("endpoint").value.trim()||"/api/dev-agent",adminKey:$("adminKey").value,repo:$("repo").value.trim(),baseBranch:$("baseBranch").value.trim(),branch:$("branch").value.trim(),paths:$("paths").value.split(/\n+/).map(v=>v.trim()).filter(Boolean),apply:$("applyMode").value==="apply"};}
+    function add(role,text){const d=document.createElement("div");d.className="msg "+(role==="user"?"user":role==="system"?"system":"agent");d.textContent=text;messagesEl.appendChild(d);messagesEl.scrollTop=messagesEl.scrollHeight;}
+    function last(t){$("lastStatus").textContent=t;}
+    async function call(payload){const s=settings();last("Working");const res=await fetch(s.endpoint,{method:"POST",headers:{"content-type":"application/json","x-caseflow-dev-key":s.adminKey},body:JSON.stringify({repo:s.repo,baseBranch:s.baseBranch,branch:s.branch,paths:s.paths,...payload})});const data=await res.json().catch(()=>({ok:false,error:"Invalid JSON response"}));rawEl.textContent=JSON.stringify(data,null,2);resultEl.hidden=false;$("resultMode").textContent=data.mode||payload.action||"response";last(data.ok?"OK":"Error");if(!res.ok||!data.ok) throw new Error(data.error||"Request failed");return data;}
+    function summary(data){const r=data.modelResult||data;const lines=[];if(r.summary_ja)lines.push(r.summary_ja);if(r.summary)lines.push("\nEnglish: "+r.summary);if(Array.isArray(r.plan_ja)&&r.plan_ja.length)lines.push("\nPlan / 方針:\n"+r.plan_ja.map((x,i)=>`${i+1}. ${x}`).join("\n"));if(Array.isArray(data.actions)&&data.actions.length)lines.push("\nProposed actions / 提案された操作:\n"+data.actions.map(a=>`- ${a.type}: ${a.path}`).join("\n"));if(data.pullRequest?.url)lines.push("\nDraft PR:\n"+data.pullRequest.url);return lines.join("\n")||JSON.stringify(data,null,2);}
+    $("sendBtn").addEventListener("click",async()=>{const text=$("prompt").value.trim();if(!text)return;const s=settings();add("user",text);state.messages.push({role:"user",content:text});$("prompt").value="";try{const data=await call({action:"chat",messages:state.messages,apply:s.apply});const ans=summary(data);add("agent",ans);state.messages.push({role:"assistant",content:ans});}catch(e){add("system","Error / エラー: "+e.message);}});
+    $("healthBtn").addEventListener("click",async()=>{try{const data=await call({action:"health"});$("githubStatus").textContent=data.env?.githubToken?"Configured":"Missing";$("modelStatus").textContent=data.env?.anthropic?"Anthropic":data.env?.openai?"OpenAI":"Missing";$("dryStatus").textContent=data.dryRunOnly?"Locked":"Optional";add("system","Health check OK / 環境確認OK");}catch(e){add("system","Health error / 環境確認エラー: "+e.message);}});
+    $("searchBtn").addEventListener("click",async()=>{const query=$("prompt").value.trim()||"CaseFlow";try{const data=await call({action:"search",query});add("agent","Search results / 検索結果:\n"+(data.hits||[]).map(h=>`- ${h.path||h.name}`).join("\n"));}catch(e){add("system","Search error / 検索エラー: "+e.message);}});
+    $("readBtn").addEventListener("click",async()=>{const p=settings().paths[0];if(!p){add("system","Read file needs one path in Explicit file paths. / 読みたいファイルパスを1つ入力してください。");return;}try{const data=await call({action:"read_file",path:p});add("agent",`Read file / ファイル読込: ${data.path}\nsha: ${data.sha}\nsize: ${data.size}`);}catch(e){add("system","Read error / 読込エラー: "+e.message);}});
+    $("clearBtn").addEventListener("click",()=>{state.messages=[];messagesEl.innerHTML="";add("system","Cleared. / クリアしました。");rawEl.textContent="";resultEl.hidden=true;});
+    window.addEventListener("DOMContentLoaded",()=>{const saved=sessionStorage.getItem("caseflow_dev_key");if(saved)$("adminKey").value=saved;$("adminKey").addEventListener("change",()=>sessionStorage.setItem("caseflow_dev_key",$("adminKey").value));});
+  </script>
+</body>
+</html>
