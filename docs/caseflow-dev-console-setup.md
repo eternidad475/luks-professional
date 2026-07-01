@@ -6,21 +6,11 @@ English: CaseFlow Dev Console™ is an admin-only development console for chatti
 
 ## Added files
 
-- `caseflow_dev_console.html`  
-  管理者用のブラウザUIです。Health / Search / Read file / Compare / Chat / Apply + Draft PR を扱います。  
-  English: Browser UI for Health, Search, Read file, Compare, Chat, and Apply + Draft PR.
-
-- `api/dev-agent.js`  
-  Vercel Serverless Functionです。GitHub APIとAIモデルAPIをサーバー側で呼び出します。  
-  English: Vercel Serverless Function that calls GitHub and the model provider from the server side.
-
-- `docs/caseflow-dev-console-setup.md`  
-  セットアップ、安全設計、環境変数、制限事項をまとめた文書です。  
-  English: Setup, safety model, environment variables, and limitations.
+- `caseflow_dev_console.html`: 管理者用UI。Health / Search / Read file / Compare / Chat / Apply + Draft PR に対応します。
+- `api/dev-agent.js`: Vercel Serverless Function。GitHub API と AI provider をサーバー側で呼び出します。
+- `docs/caseflow-dev-console-setup.md`: セットアップ、安全設計、環境変数、制限事項のメモです。
 
 ## Required environment variables
-
-Set these in Vercel Project Settings → Environment Variables.
 
 ```txt
 CASEFLOW_DEV_CONSOLE_KEY=your-admin-password
@@ -29,7 +19,7 @@ CASEFLOW_DEV_REPO=eternidad475/luks-professional
 CASEFLOW_DEV_BASE_BRANCH=claude/image-morphing-video-3kujgb
 ```
 
-AI provider must be one of the following.
+Configure one AI provider:
 
 ```txt
 ANTHROPIC_API_KEY=...
@@ -61,20 +51,15 @@ CASEFLOW_DEV_ALLOW_SELF_EDIT=0
 
 ## GitHub token permissions
 
-Use a fine-grained token. Limit it to the target repository.
-
-Recommended permissions:
+Use a fine-grained token limited to the target repository.
 
 - Contents: Read and write
 - Pull requests: Read and write
 - Metadata: Read-only
 
-日本語:
-GitHub token は、対象リポジトリだけに限定した fine-grained token を推奨します。必要な権限は Contents の読み書き、Pull requests の読み書き、Metadata の読み取りです。
+日本語: GitHub token は対象リポジトリだけに限定した fine-grained token を推奨します。
 
 ## Current features
-
-The guarded MVP supports:
 
 - Health check
 - GitHub code search
@@ -91,25 +76,18 @@ The guarded MVP supports:
 - Protected/sensitive path guard
 - Maximum action count guard
 
-日本語:
-現時点では、Health確認、GitHubコード検索、ファイル読込、ブランチ差分確認、AI相談、dry-run提案、作業ブランチへの適用、Draft PR作成、既存Draft PR再利用、秘密情報のマスク、許可リポジトリ制限、保護ブランチ制限、危険パス制限、最大操作数制限に対応しています。
-
 ## Safety model
 
-The console is intentionally conservative.
-
-- It does not push directly to the base branch.
+- No direct push to the base branch.
 - Apply mode creates or reuses a working branch.
-- Pull Requests are created as Draft PRs.
+- Pull Requests are Draft PRs.
 - Existing Draft PRs are reused instead of duplicated.
 - Secrets are redacted before being returned to the browser.
-- Secrets are never returned by the health endpoint.
-- If `CASEFLOW_DEV_DRY_RUN_ONLY=1`, apply mode is disabled server-side.
-- If `CASEFLOW_DEV_ALLOW_SENSITIVE_EDITS` is not enabled, payment/auth/patient/token-like paths are blocked.
-- If `CASEFLOW_DEV_ALLOW_SELF_EDIT` is not enabled, the Dev Console files themselves are blocked from self-modification.
+- `CASEFLOW_DEV_DRY_RUN_ONLY=1` disables apply mode server-side.
+- Payment/auth/patient/token-like paths are blocked unless `CASEFLOW_DEV_ALLOW_SENSITIVE_EDITS=1`.
+- Dev Console self-editing is blocked unless `CASEFLOW_DEV_ALLOW_SELF_EDIT=1`.
 
-日本語:
-安全性を優先し、base branch への直接pushは行いません。Applyモードでも専用ブランチに変更し、Draft PRを作成します。既存のPRがある場合は再利用します。`CASEFLOW_DEV_DRY_RUN_ONLY=1` を設定するとサーバー側で適用処理を無効化できます。Stripe・課金・認証・患者情報・token系のファイルは、明示的に許可しない限りブロックします。
+日本語: 安全性を優先し、base branchへの直接pushは行いません。まずはdry-runで使用してください。
 
 ## Recommended first use
 
@@ -124,34 +102,9 @@ The console is intentionally conservative.
 9. Review the proposed actions in the raw JSON.
 10. Switch to **Apply + Draft PR** only after the actions are clearly correct.
 
-日本語:
-最初は必ず Dry-run only で使ってください。AIが返す `actions` の内容を確認し、対象ファイルと内容が正しい時だけ Apply + Draft PR に切り替えてください。
+## Current limitation
 
-## Practical limitation of this MVP
-
-This is not a full Claude Code replacement yet.
-
-It can:
-
-- search GitHub code,
-- read files,
-- call an AI model,
-- propose file actions,
-- create/update full files,
-- compare branch diff,
-- create/reuse a Draft PR.
-
-It does not yet:
-
-- run `npm test` or `npm run build`,
-- execute shell commands,
-- inspect Vercel Preview visually,
-- perform multi-step tool loops with automatic patch refinement,
-- apply small patch hunks instead of full-file replacement,
-- manage per-file approval inside the UI.
-
-日本語:
-これはClaude Code完全互換ではなく、安全なMVPです。コード検索、ファイル読込、AI提案、ファイル作成/更新、差分確認、Draft PR作成/再利用までを担当します。テスト実行、シェル実行、Previewの視覚検証、自動修正ループ、patch単位の編集、ファイル単位の承認UIは次フェーズです。
+This is not a full Claude Code replacement yet. It does not run shell commands, npm tests, visual preview checks, automatic patch loops, patch-only hunk updates, or per-file approval UI.
 
 ## Final checkpoint in this PR
 
@@ -165,12 +118,7 @@ docs/caseflow-dev-console-setup.md
 
 It does not modify the existing CaseFlow Studio production HTML or media assets.
 
-日本語:
-このPRでは、既存のCaseFlow Studio本体HTMLやメディアファイルは変更していません。追加対象はDev Console関連ファイルのみです。
-
 ## Next phase
-
-A stronger version should add:
 
 - Vercel Preview deployment inspection
 - GitHub Actions log reading
@@ -182,6 +130,3 @@ A stronger version should add:
 - repo-specific CaseFlow Studio system prompt
 - Visual Simulation Studio / Morphing Video Studio regression checklist
 - optional browser verification for `/landing`, `/caseflow_studio_v96.html`, and `/caseflow_dev_console.html`
-
-日本語:
-次フェーズでは、Vercel Preview検証、GitHub Actionsログ読込、インライン差分ビューア、patch単位の更新、ファイル単位の明示承認、監査ログ、CaseFlow Studio専用の回帰チェックリスト、ブラウザ検証を追加すると実用性が大きく上がります。
