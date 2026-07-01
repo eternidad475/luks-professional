@@ -9,6 +9,7 @@ const MAX_CONTEXT = Number(process.env.CASEFLOW_DEV_MAX_CONTEXT_CHARS || 70000);
 const MAX_ACTIONS = Number(process.env.CASEFLOW_DEV_MAX_ACTIONS || 3);
 const ALLOW_SENSITIVE = process.env.CASEFLOW_DEV_ALLOW_SENSITIVE_EDITS === "1";
 const ALLOW_SELF_EDIT = process.env.CASEFLOW_DEV_ALLOW_SELF_EDIT === "1";
+const PROVIDER = String(process.env.CASEFLOW_DEV_PROVIDER || "auto").toLowerCase();
 const ALLOWED_REPOS = new Set(String(process.env.CASEFLOW_DEV_ALLOWED_REPOS || DEFAULT_REPO).split(",").map(s=>s.trim()).filter(Boolean));
 
 const DENY_PATH_PATTERNS = [
@@ -53,6 +54,8 @@ function readBody(req){
 }
 
 function token(){ return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || ""; }
+function geminiKey(){ return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""; }
+function geminiModel(){ return process.env.GEMINI_MODEL || process.env.GOOGLE_MODEL || "gemini-2.5-flash"; }
 function admin(req){
   const key = process.env.CASEFLOW_DEV_CONSOLE_KEY || "";
   if(!key) return {ok:false, status:503, error:"CASEFLOW_DEV_CONSOLE_KEY is not configured."};
@@ -83,6 +86,7 @@ function redact(text){
   return String(text || "")
     .replace(/sk-[A-Za-z0-9_\-]{20,}/g, "[REDACTED_OPENAI_KEY]")
     .replace(/sk-ant-[A-Za-z0-9_\-]{20,}/g, "[REDACTED_ANTHROPIC_KEY]")
+    .replace(/AIza[A-Za-z0-9_\-]{20,}/g, "[REDACTED_GOOGLE_API_KEY]")
     .replace(/gh[pousr]_[A-Za-z0-9_]{20,}/g, "[REDACTED_GITHUB_TOKEN]")
     .replace(/(api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^"'\s,}]+/gi, "$1=[REDACTED]");
 }
@@ -164,7 +168,7 @@ function parseJson(text){
   return null;
 }
 function setup(ctx){
-  return {summary:"Dev Console scaffold is installed, but no AI provider is configured yet.",summary_ja:"Dev Consoleの土台は追加済みですが、AIプロバイダーが未設定です。",plan:["Set CASEFLOW_DEV_CONSOLE_KEY and GITHUB_TOKEN.","Set ANTHROPIC_API_KEY + ANTHROPIC_MODEL or OPENAI_API_KEY + OPENAI_MODEL.","Use dry-run first."],plan_ja:["CASEFLOW_DEV_CONSOLE_KEY と GITHUB_TOKEN を設定する。","ANTHROPIC_API_KEY + ANTHROPIC_MODEL、または OPENAI_API_KEY + OPENAI_MODEL を設定する。","最初はdry-runで使う。"],actions:[],context:ctx};
+  return {summary:"Dev Console scaffold is installed, but no AI provider is configured yet.",summary_ja:"Dev Consoleの土台は追加済みですが、AIプロバイダーが未設定です。",plan:["Set CASEFLOW_DEV_CONSOLE_KEY and GITHUB_TOKEN.","Set GEMINI_API_KEY or GOOGLE_API_KEY, or configure ANTHROPIC_API_KEY / OPENAI_API_KEY.","Use dry-run first."],plan_ja:["CASEFLOW_DEV_CONSOLE_KEY と GITHUB_TOKEN を設定する。","GEMINI_API_KEY または GOOGLE_API_KEY を設定する。Anthropic/OpenAIも利用可能。","最初はdry-runで使う。"],actions:[],context:ctx};
 }
 async function anthropic(system, payload){
   if(!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_MODEL) return null;
@@ -179,10 +183,31 @@ async function openai(system, payload){
   if(typeof d.output_text === "string") return d.output_text;
   return (d.output || []).flatMap(i => i.content || []).map(p => p.text || p.content || "").join("\n");
 }
+async function gemini(system, payload){
+  const key = geminiKey();
+  if(!key) return null;
+  const modelName = geminiModel();
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`;
+  const r = await fetch(endpoint, {
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      systemInstruction:{parts:[{text:system}]},
+      contents:[{role:"user",parts:[{text:JSON.stringify(payload)}]}],
+      generationConfig:{temperature:.2,responseMimeType:"application/json"}
+    })
+  });
+  const d = await r.json();
+  if(!r.ok) throw new Error(d?.error?.message || "Gemini request failed");
+  return (d.candidates || []).flatMap(c => c.content?.parts || []).map(p => p.text || "").join("\n") || "";
+}
 async function model(payload){
   const system = `You are CaseFlow Dev Console, a careful coding agent for CaseFlow Studio. Return ONLY valid JSON with this schema: {"summary":"English", "summary_ja":"日本語", "plan":["English"], "plan_ja":["日本語"], "risk_notes":["English"], "risk_notes_ja":["日本語"], "actions":[{"type":"create_file|update_file", "path":"relative/path", "content":"complete UTF-8 file", "commitMessage":"message"}], "pr":{"title":"title", "body":"markdown"}}. Never expose secrets or patient data. Never push to base/main. Do not edit payment, auth, token, patient, medical, or dev-console self files unless the user explicitly requested it and the server allows it. For huge files, prefer a plan unless enough context exists. CaseFlow Studio has Photo Manager, Visual Simulation Studio, and Morphing Video Studio; UI safety is critical. Include English and Japanese summaries.`;
-  const a = await anthropic(system, payload); if(a) return parseJson(a) || {raw:redact(a)};
-  const o = await openai(system, payload); if(o) return parseJson(o) || {raw:redact(o)};
+  const order = PROVIDER === "gemini" ? [gemini, anthropic, openai] : PROVIDER === "anthropic" ? [anthropic, gemini, openai] : PROVIDER === "openai" ? [openai, gemini, anthropic] : [gemini, anthropic, openai];
+  for(const provider of order){
+    const out = await provider(system, payload);
+    if(out) return parseJson(out) || {raw:redact(out)};
+  }
   return setup(payload.context);
 }
 function normalizedActions(result){
@@ -225,7 +250,7 @@ async function chat(payload){
   const ctx = await context(repo, base, payload.messages || [], payload.paths || []);
   const result = await model({repo, baseBranch:base, branch, apply:doApply, messages:payload.messages || [], context:ctx});
   const acts = normalizedActions(result);
-  const response = {ok:true, mode:doApply ? "apply" : "dry-run", repo, baseBranch:base, branch, modelResult:result, actions:acts.map(a=>({type:a.type,path:a.path,commitMessage:a.commitMessage,preview:a.preview})), applied:[], pullRequest:null, compare:null, dryRunOnly:DRY_RUN_ONLY};
+  const response = {ok:true, mode:doApply ? "apply" : "dry-run", repo, baseBranch:base, branch, provider:PROVIDER, model:PROVIDER === "openai" ? process.env.OPENAI_MODEL : PROVIDER === "anthropic" ? process.env.ANTHROPIC_MODEL : geminiModel(), modelResult:result, actions:acts.map(a=>({type:a.type,path:a.path,commitMessage:a.commitMessage,preview:a.preview})), applied:[], pullRequest:null, compare:null, dryRunOnly:DRY_RUN_ONLY};
   if(doApply && acts.length){
     response.branchStatus = await ensureBranch(repo, branch, base);
     response.applied = await apply(repo, branch, acts);
@@ -235,7 +260,7 @@ async function chat(payload){
   }
   return response;
 }
-async function health(){ return {ok:true, app:"CaseFlow Dev Console", version:"mvp-guarded-2", repo:DEFAULT_REPO, baseBranch:DEFAULT_BASE, allowedRepos:Array.from(ALLOWED_REPOS), dryRunOnly:DRY_RUN_ONLY, env:{githubToken:Boolean(token()), adminKey:Boolean(process.env.CASEFLOW_DEV_CONSOLE_KEY), anthropic:Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL), openai:Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL)}, guards:{maxActions:MAX_ACTIONS, allowSensitive:ALLOW_SENSITIVE, allowSelfEdit:ALLOW_SELF_EDIT, deniedPatterns:DENY_PATH_PATTERNS.length, sensitivePatterns:SENSITIVE_PATH_PATTERNS.length}, features:["health","search","read_file","chat","compare","apply_to_branch","draft_pr_reuse"]}; }
+async function health(){ return {ok:true, app:"CaseFlow Dev Console", version:"mvp-gemini-3", repo:DEFAULT_REPO, baseBranch:DEFAULT_BASE, allowedRepos:Array.from(ALLOWED_REPOS), provider:PROVIDER, dryRunOnly:DRY_RUN_ONLY, env:{githubToken:Boolean(token()), adminKey:Boolean(process.env.CASEFLOW_DEV_CONSOLE_KEY), gemini:Boolean(geminiKey()), geminiModel:geminiModel(), anthropic:Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_MODEL), openai:Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL)}, guards:{maxActions:MAX_ACTIONS, allowSensitive:ALLOW_SENSITIVE, allowSelfEdit:ALLOW_SELF_EDIT, deniedPatterns:DENY_PATH_PATTERNS.length, sensitivePatterns:SENSITIVE_PATH_PATTERNS.length}, features:["health","search","read_file","chat","compare","gemini_provider","apply_to_branch","draft_pr_reuse"]}; }
 
 module.exports = async function handler(req, res){
   if(req.method === "OPTIONS") return send(res, 204, {});
