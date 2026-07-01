@@ -153,6 +153,21 @@ It does not yet:
 日本語:
 これはClaude Code完全互換ではなく、安全なMVPです。コード検索、ファイル読込、AI提案、ファイル作成/更新、差分確認、Draft PR作成/再利用までを担当します。テスト実行、シェル実行、Previewの視覚検証、自動修正ループ、patch単位の編集、ファイル単位の承認UIは次フェーズです。
 
+## Final checkpoint in this PR
+
+Compared with `claude/image-morphing-video-3kujgb`, this branch only adds Dev Console-related files:
+
+```txt
+api/dev-agent.js
+caseflow_dev_console.html
+docs/caseflow-dev-console-setup.md
+```
+
+It does not modify the existing CaseFlow Studio production HTML or media assets.
+
+日本語:
+このPRでは、既存のCaseFlow Studio本体HTMLやメディアファイルは変更していません。追加対象はDev Console関連ファイルのみです。
+
 ## Next phase
 
 A stronger version should add:
