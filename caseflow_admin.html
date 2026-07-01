@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Admin Operations — CASEFLOW STUDIO™</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --ink:#231a3a; --sub:#7a7290; --brand:#5b3fd6; --brand2:#7c5cff;
+  --panel:rgba(255,255,255,.94); --line:rgba(124,92,255,.18);
+  --ok:#1a8f57; --warn:#b07a00; --crit:#c0303a;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif;
+  background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);background-attachment:fixed}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 16px 80px}
+.card{background:var(--panel);border-radius:20px;padding:20px 18px;box-shadow:0 18px 50px rgba(40,20,80,.18);margin-bottom:16px}
+h1{font-size:21px;font-weight:950;margin:0;letter-spacing:.01em}
+h1 small{display:block;font-size:12.5px;color:var(--sub);font-weight:700;margin-top:3px}
+h2{font-size:15px;font-weight:900;color:var(--brand);margin:0 0 4px}
+h2 small{font-weight:800;color:var(--sub);font-size:12px;margin-left:6px}
+p.help{font-size:12px;color:var(--sub);line-height:1.7;margin:4px 0 12px}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 11px;font-size:11px;font-weight:900;letter-spacing:.03em}
+.badge.prod{background:#c0303a;color:#fff}
+.badge.preview{background:#b07a00;color:#fff}
+.badge.local{background:rgba(32,27,53,.14);color:var(--ink)}
+.badge.ok{background:rgba(30,160,90,.14);color:var(--ok)}
+.badge.warn{background:rgba(190,140,0,.14);color:var(--warn)}
+.badge.crit{background:rgba(220,50,60,.12);color:var(--crit)}
+.badge.dim{background:rgba(32,27,53,.08);color:var(--sub)}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.grid{display:grid;gap:12px}
+@media(min-width:640px){.grid.c2{grid-template-columns:1fr 1fr}.grid.c3{grid-template-columns:1fr 1fr 1fr}.grid.c4{grid-template-columns:repeat(4,1fr)}}
+.ov{background:rgba(124,92,255,.06);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.ov b{display:block;font-size:21px;font-weight:950}
+.ov span{font-size:11px;color:var(--sub);font-weight:700;line-height:1.5;display:block;margin-top:2px}
+.navcard{border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:6px;background:#fff}
+.navcard .t{font-weight:900;font-size:14px}
+.navcard .tj{font-size:12px;color:var(--brand);font-weight:800}
+.navcard .d{font-size:11.5px;color:var(--sub);line-height:1.6;flex:1}
+.btn{display:inline-block;border:0;border-radius:11px;padding:10px 16px;font-size:13px;font-weight:850;cursor:pointer;
+  background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;text-decoration:none;text-align:center}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid rgba(32,27,53,.16)}
+.btn.danger{background:#c0303a}
+.btn.small{padding:7px 12px;font-size:12px;border-radius:9px}
+.btn[disabled]{opacity:.5;cursor:default}
+input,select,textarea{width:100%;padding:10px 12px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:14px;font-family:inherit;color:var(--ink);background:#fff;margin-bottom:9px}
+textarea{min-height:80px;resize:vertical}
+label{display:block;font-size:11.5px;font-weight:800;color:var(--brand);margin:0 0 3px}
+.msg{display:none;font-size:12.5px;margin:8px 0;padding:9px 11px;border-radius:9px;line-height:1.6}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:uppercase}
+.item{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:12.5px;line-height:1.65;background:#fff}
+.meta{color:var(--sub);font-size:11px;margin-bottom:4px;word-break:break-all}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}
+.mini{width:auto;padding:7px 10px;font-size:12px;margin:0}
+.empty{padding:26px 14px;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.9;background:rgba(124,92,255,.05);border-radius:12px}
+.section{display:none}
+.section.on{display:block}
+.back{font-size:12.5px;font-weight:800;color:var(--brand);cursor:pointer;background:none;border:0;padding:0;margin-bottom:12px}
+.checklist label{display:flex;gap:9px;align-items:flex-start;font-size:13px;font-weight:600;color:var(--ink);padding:7px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.checklist input{width:auto;margin:2px 0 0}
+.guide{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px;background:#fff}
+.guide .g{font-size:13px;font-weight:800}
+.guide .g small{display:block;font-size:11px;color:var(--sub);font-weight:600;margin-top:1px}
+#gateView,#deniedView{min-height:70dvh;display:flex;align-items:center;justify-content:center}
+.gcard{width:100%;max-width:380px;background:var(--panel);border-radius:22px;padding:26px 22px;box-shadow:0 24px 70px rgba(40,20,80,.28)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ========== login ========== -->
+  <div id="gateView" style="display:none">
+    <div class="gcard">
+      <div style="text-align:center;font-weight:900;letter-spacing:.06em;font-size:14px;color:var(--brand)">CASEFLOW STUDIO&trade;</div>
+      <div style="text-align:center;font-size:12px;color:var(--sub);margin:5px 0 16px">Admin Operations / 運営管理</div>
+      <div style="margin:0 0 14px;padding:9px 11px;border-radius:11px;background:rgba(124,92,255,.10);color:var(--brand);font-size:11.5px;font-weight:700;line-height:1.7;text-align:center">
+        Currently available to invited dental professionals only.<br>現在、招待された歯科医療関係者のみご利用いただけます。</div>
+      <label>メールアドレス</label>
+      <input id="gEmail" type="email" autocomplete="email" placeholder="you@clinic.jp">
+      <label>パスワード</label>
+      <input id="gPass" type="password" autocomplete="current-password" placeholder="6文字以上">
+      <div class="msg" id="gMsg"></div>
+      <button class="btn" id="gLogin" style="width:100%">ログイン</button>
+      <a class="btn ghost" href="/" style="width:100%;margin-top:9px">アプリに戻る / Back to app</a>
+    </div>
+  </div>
+
+  <!-- ========== access denied ========== -->
+  <div id="deniedView" style="display:none">
+    <div class="gcard" style="text-align:center">
+      <div style="font-weight:900;font-size:15px;color:var(--crit);margin-bottom:8px">権限がありません / Access denied</div>
+      <p style="font-size:12.5px;color:var(--sub);line-height:1.8;margin:0 0 16px">
+        このページは管理者・開発者専用です。<br>This page is restricted to admins and developers.</p>
+      <a class="btn" href="/" style="width:100%">アプリに戻る / Back to app</a>
+      <button class="btn ghost" id="dLogout" style="width:100%;margin-top:9px">ログアウト</button>
+    </div>
+  </div>
+
+  <!-- ========== dashboard ========== -->
+  <div id="dashView" style="display:none">
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <h1>Admin Operations<small>運営管理 — Manage invitations, users, tokens, feedback, usage, and deployment checks.<br>招待、ユーザー、トークン、フィードバック、使用状況、デプロイ確認を管理します。</small></h1>
+        <div style="display:flex;gap:7px;flex-direction:column;align-items:flex-end">
+          <span class="badge" id="envBadge">…</span>
+          <button class="btn ghost small" id="hLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="chips" id="statusChips"></div>
+    </div>
+
+    <!-- Overview -->
+    <div class="card">
+      <h2>Overview<small>概要</small></h2>
+      <div class="grid c4" id="ovGrid"><div class="empty" style="grid-column:1/-1">読み込み中…</div></div>
+    </div>
+
+    <!-- まずここから -->
+    <div class="card">
+      <h2>まずここから<small>Start here</small></h2>
+      <p class="help">CASEFLOW STUDIO™ の運営で最初に確認する項目です。</p>
+      <div id="guideList"></div>
+    </div>
+
+    <!-- Task-based navigation -->
+    <div class="card">
+      <h2>目的別ナビゲーション<small>What do you want to do?</small></h2>
+      <div class="grid c3" id="navGrid"></div>
+    </div>
+
+    <!-- ===== sections ===== -->
+    <div class="card section" id="sec-invites">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Invite Codes<small>招待コード管理</small></h2>
+      <p class="help">招待コードは、CASEFLOW STUDIO™ を利用できるユーザーを制限するために使います。作成・確認・無効化ができます。</p>
+      <div class="grid c2">
+        <div>
+          <label>プリセット</label>
+          <select id="invPreset">
+            <option value="clinical">Clinical Beta Invite / 臨床ベータ招待（dentist・100/100）</option>
+            <option value="developer">Developer Invite / 開発者招待（developer・1000/0）</option>
+            <option value="admin">Admin Invite / 管理者招待（admin・1000/0）</option>
+          </select>
+          <label>招待先メール（任意）</label>
+          <input id="invEmail" type="email" placeholder="invitee@clinic.jp">
+          <div class="grid c2">
+            <div><label>invitee付与</label><input id="invGrantI" type="number" value="100" min="0"></div>
+            <div><label>inviter付与</label><input id="invGrantR" type="number" value="100" min="0"></div>
+          </div>
+          <div class="grid c2">
+            <div><label>max_uses</label><input id="invMax" type="number" value="1" min="1"></div>
+            <div><label>期限（任意）</label><input id="invExp" type="date"></div>
+          </div>
+          <button class="btn" id="invCreate">コードを発行 / Create</button>
+          <div class="msg" id="invMsg"></div>
+        </div>
+        <div>
+          <label>発行済みコード / Issued codes</label>
+          <div id="invList"><div class="empty">読み込み中…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section" id="sec-users">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Users<small>ユーザー管理</small></h2>
+      <p class="help">登録ユーザーの role・トークン残高・最終ログインを確認します。本名・住所等は保存しません（display_name は任意）。role変更・トークン付与は確認ダイアログ付きです。</p>
+      <div id="usersList"><div class="empty">読み込み中…</div></div>
+    </div>
+
+    <div class="card section" id="sec-usage">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Usage Analytics<small>使用状況分析</small></h2>
+      <p class="help">使用状況は、機能改善、不具合検出、サポート対応のために利用します。患者名やカルテ番号は記録しません。</p>
+      <div class="grid c3" id="usageOv"></div>
+      <h2 style="margin-top:16px">イベント種別（直近7日）<small>Events by type</small></h2>
+      <div id="usageByType"><div class="empty">読み込み中…</div></div>
+    </div>
+
+    <div class="card section" id="sec-tokens">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Tokens<small>トークン管理</small></h2>
+      <p class="help">トークンは、AI生成や一部の処理に使用されます。管理者は必要に応じて手動付与できます（reason: admin_grant・監査ログに記録されます）。</p>
+      <div id="ledgerList"><div class="empty">読み込み中…</div></div>
+    </div>
+
+    <div class="card section" id="sec-feedback">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Feedback Inbox<small>フィードバック受信箱</small></h2>
+      <p class="help">ユーザーから届いた不具合・改善要望を管理します。ユーザーには管理ステータスは表示されません。</p>
+      <div id="fbList"><div class="empty">読み込み中…</div></div>
+    </div>
+
+    <div class="card section" id="sec-deploy">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Deployment Compare<small>デプロイ比較</small></h2>
+      <p class="help">本番環境とPreview環境を比較し、リリース前後の確認に使います。</p>
+      <div class="item"><div class="meta">Production URL</div>
+        <b>https://caseflow-studio.vercel.app</b></div>
+      <div class="item"><div class="meta">Preview / Demo URL（このページを開いている環境が Preview の場合は現URL）</div>
+        <b id="depPreviewUrl">—</b></div>
+      <div class="item"><div class="meta">Current Environment / Branch・Build</div>
+        <b id="depEnv">—</b><div class="meta" style="margin-top:4px">Branch / Build ID: 未接続（Vercel API 連携は Phase 2）</div></div>
+      <div class="row">
+        <a class="btn" href="https://caseflow-studio.vercel.app/caseflow_studio_v96.html" target="_blank" rel="noopener">Open Production</a>
+        <button class="btn ghost" id="depOpenPreview">Open Preview</button>
+        <button class="btn ghost" id="depOpenBoth">Open Both</button>
+      </div>
+      <h2 style="margin-top:18px">Smoke Test Checklist<small>確認リスト</small></h2>
+      <div class="checklist" id="depChecklist"></div>
+    </div>
+
+    <div class="card section" id="sec-audit">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Audit Logs<small>監査ログ</small></h2>
+      <p class="help">招待コード作成・無効化、トークン手動付与、フィードバック閲覧・更新、role変更などの管理者操作履歴です。</p>
+      <div id="auditList"><div class="empty">読み込み中…</div></div>
+    </div>
+
+    <div class="card section" id="sec-smoke">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Production Smoke Test<small>本番スモークテスト</small></h2>
+      <p class="help">Productionでは開発・大量生成・破壊的テストは行わないでください。使用するのは開発者・管理者専用の Production Test Workspace とダミーデータのみです。チェック状態はこの端末に保存されます。</p>
+      <div class="checklist" id="smokeChecklist"></div>
+      <div class="row">
+        <a class="btn" href="https://caseflow-studio.vercel.app/caseflow_studio_v96.html" target="_blank" rel="noopener">本番を開く</a>
+        <button class="btn ghost" id="smokeReset">チェックをリセット</button>
+      </div>
+    </div>
+
+    <div class="card section" id="sec-settings">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Settings<small>設定</small></h2>
+      <p class="help">環境フラグと接続状態の確認です。設定変更（本番の招待制ON等）はコード側の CF_BETA_GATE_DEFAULT で行います。</p>
+      <div id="settingsBody"></div>
+    </div>
+
+  </div><!-- /dashView -->
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var SUPA_URL='https://nuolihmfdjzofporhwkp.supabase.co';
+  var SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51b2xpaG1mZGp6b2Zwb3Jod2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNjE5NDEsImV4cCI6MjA5NzkzNzk0MX0.dvEtTyDSMuV0vJDZfmUdsGbsoWtf4rww-Y7tNi1nWv4'; /* anon key: 公開可（RLS前提） */
+  var DASH_ROLES=['developer','co_developer','admin'];
+  var sb=null, profile=null, uid=null;
+
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
+  function msg(id,text,kind){
+    var m=el(id); if(!m) return;
+    if(!text){ m.style.display='none'; return; }
+    m.style.display='block'; m.textContent=text;
+    m.style.background=kind==='err'?'rgba(220,50,60,.10)':kind==='ok'?'rgba(30,160,90,.12)':'rgba(124,92,255,.10)';
+    m.style.color=kind==='err'?'#c0303a':kind==='ok'?'#1a8f57':'#5b3fd6';
+  }
+  function fmtTs(s){ return s?String(s).slice(0,16).replace('T',' '):'—'; }
+  function envName(){
+    var h=location.hostname;
+    if(h==='caseflow-studio.vercel.app') return 'production';
+    if(/localhost|127\.0\.0\.1/.test(h)) return 'local';
+    if(/vercel\.app$/.test(h)) return 'preview';
+    return 'staging';
+  }
+  function show(view){
+    el('gateView').style.display=view==='gate'?'flex':'none';
+    el('deniedView').style.display=view==='denied'?'flex':'none';
+    el('dashView').style.display=view==='dash'?'block':'none';
+  }
+  function notReady(e){ return /does not exist|schema cache|Could not find/i.test(String((e&&e.message)||e||'')); }
+  function failText(e,what){
+    return notReady(e) ? (what+'は未接続です（migration 20260701000003 が未適用の可能性）。')
+                       : (what+'の読み込みに失敗しました。');
+  }
+
+  /* ---------- header ---------- */
+  function renderHeader(){
+    var env=envName(), b=el('envBadge');
+    b.textContent=env==='production'?'PRODUCTION':env==='preview'?'PREVIEW':env==='local'?'LOCAL':'STAGING';
+    b.className='badge '+(env==='production'?'prod':env==='local'?'local':'preview');
+    var chips=[
+      ['Supabase: Connected','ok'],
+      ['Auth: ON (this page)','ok'],
+      ['Invite-only: '+(env==='production'?'OFF（CF_BETA_GATE_DEFAULT=false）':'flag制御（?beta_gate=on）'),env==='production'?'warn':'dim'],
+      ['Stripe: Not Connected（Phase 2 / test mode予定）','dim'],
+      ['Role: '+(profile?profile.role:'—'),'dim'],
+      ['Environment: '+env,'dim']
+    ];
+    el('statusChips').innerHTML=chips.map(function(c){ return '<span class="badge '+c[1]+'">'+esc(c[0])+'</span>'; }).join('');
+  }
+
+  /* ---------- overview ---------- */
+  async function loadOverview(){
+    var g=el('ovGrid');
+    try{
+      var r=await sb.rpc('admin_overview');
+      if(r.error) throw r.error;
+      var d=r.data||{};
+      function lvl(n,warnAt){ return n==null?'dim':(n>=warnAt?'crit':n>0?'warn':'ok'); }
+      g.innerHTML=[
+        ['Total Users','総ユーザー数',d.total_users,''],
+        ['Invited Users','招待済みユーザー',d.invited_users,''],
+        ['Active Invite Codes','有効な招待コード',d.active_invite_codes,''],
+        ['Pending Feedback','未対応フィードバック',d.pending_feedback,d.pending_feedback>0?'crit':''],
+        ['Tokens Used Today','本日の消費トークン',d.tokens_consumed_today,''],
+        ['Generations Today','本日の生成回数',d.generations_today,''],
+        ['Errors Today','本日のエラー数',d.errors_today,d.errors_today>0?'crit':''],
+        ['Active Users (7d)','アクティブユーザー(7日)',d.active_users_7d,'']
+      ].map(function(o){
+        return '<div class="ov"><b style="'+(o[3]==='crit'?'color:#c0303a':'')+'">'+(o[2]==null?'—':esc(o[2]))+'</b><span>'+esc(o[0])+'<br>'+esc(o[1])+'</span></div>';
+      }).join('');
+      window.__ov=d;
+    }catch(e){
+      console.error('[Admin] overview failed',e);
+      g.innerHTML='<div class="empty" style="grid-column:1/-1">'+esc(failText(e,'Overview'))+'<br>Coming soon / 未接続</div>';
+    }
+    renderGuide();
+  }
+
+  /* ---------- beginner guide ---------- */
+  function renderGuide(){
+    var ov=window.__ov||{};
+    var items=[
+      { t:'未対応フィードバックを見る', d:(ov.pending_feedback>0?('未対応が '+ov.pending_feedback+' 件あります'):'新しい報告を確認します'), btn:'Check Feedback / フィードバックを見る', sec:'sec-feedback', hot:ov.pending_feedback>0 },
+      { t:'新しい招待コードを作成する', d:'最初のベータユーザーを招待します', btn:'Create Invite / 招待コードを作成', sec:'sec-invites' },
+      { t:'ユーザーの登録状況を確認する', d:'登録・ログイン・トークン残高を確認します', btn:'View Users / ユーザーを確認', sec:'sec-users' },
+      { t:'今日のエラーを確認する', d:(ov.errors_today>0?('本日 '+ov.errors_today+' 件のエラー'):'エラーの発生状況を確認します'), btn:'Check Errors / エラーを確認', sec:'sec-usage', hot:ov.errors_today>0 },
+      { t:'PreviewとProductionを比較する', d:'リリース前後の動作確認に使います', btn:'Compare Deployments / デプロイを比較', sec:'sec-deploy' }
+    ];
+    el('guideList').innerHTML=items.map(function(g,i){
+      return '<div class="guide"><div class="g">'+esc(g.t)+(g.hot?' <span class="badge crit">要確認</span>':'')+'<small>'+esc(g.d)+'</small></div>'+
+        '<button class="btn small'+(g.hot?'':' ghost')+'" data-goto="'+g.sec+'">'+esc(g.btn)+'</button></div>';
+    }).join('');
+    bindGoto(el('guideList'));
+  }
+
+  /* ---------- nav cards ---------- */
+  var NAV=[
+    ['Invite Codes','招待コード管理','Create, review, and revoke invitation codes.<br>招待コードの作成・確認・無効化を行います。','sec-invites'],
+    ['Users','ユーザー管理','ユーザーが使えているか確認したい。role・残高・最終ログインを確認します。','sec-users'],
+    ['Usage Analytics','使用状況分析','誰がどれくらい使っているか見たい。機能利用・エラーを確認します。','sec-usage'],
+    ['Tokens','トークン管理','トークンを追加したい。台帳確認と手動付与を行います。','sec-tokens'],
+    ['Feedback Inbox','フィードバック受信箱','不具合や要望を確認したい。ユーザーには非公開です。','sec-feedback'],
+    ['Deployment Compare','デプロイ比較','本番とプレビューを比べたい。','sec-deploy'],
+    ['Audit Logs','監査ログ','管理者操作の履歴を見たい。','sec-audit'],
+    ['Production Smoke Test','本番スモークテスト','本番反映後に最低限確認したい。','sec-smoke'],
+    ['Settings','設定','環境フラグと接続状態を確認します。','sec-settings']
+  ];
+  function renderNav(){
+    var ov=window.__ov||{};
+    el('navGrid').innerHTML=NAV.map(function(n){
+      var badge='';
+      if(n[3]==='sec-feedback'&&ov.pending_feedback>0) badge='<span class="badge crit">New: '+ov.pending_feedback+'</span>';
+      else if(n[3]==='sec-invites') badge='<span class="badge ok">Active: '+(ov.active_invite_codes==null?'—':ov.active_invite_codes)+'</span>';
+      else if(n[3]==='sec-usage'&&ov.errors_today>0) badge='<span class="badge crit">Errors: '+ov.errors_today+'</span>';
+      else badge='<span class="badge dim">Normal / 正常</span>';
+      return '<div class="navcard"><div class="t">'+esc(n[0])+'</div><div class="tj">'+esc(n[1])+'</div>'+
+        '<div class="d">'+n[2]+'</div><div class="row" style="justify-content:space-between">'+badge+
+        '<button class="btn small" data-goto="'+n[3]+'">Open / 開く</button></div></div>';
+    }).join('');
+    bindGoto(el('navGrid'));
+  }
+  function bindGoto(root){
+    root.querySelectorAll('[data-goto]').forEach(function(b){
+      b.addEventListener('click',function(){ openSection(b.getAttribute('data-goto')); });
+    });
+  }
+  var LOADERS={ 'sec-invites':loadInvites,'sec-users':loadUsers,'sec-usage':loadUsage,'sec-tokens':loadTokens,
+                'sec-feedback':loadFeedback,'sec-audit':loadAudit,'sec-settings':loadSettings };
+  function openSection(id){
+    document.querySelectorAll('.section').forEach(function(s){ s.classList.toggle('on',s.id===id); });
+    var s=el(id); if(s) s.scrollIntoView({behavior:'smooth',block:'start'});
+    if(LOADERS[id]) LOADERS[id]().catch(function(e){ console.error('[Admin] section load failed',id,e); });
+  }
+  document.querySelectorAll('[data-back]').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('on'); });
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+
+  /* ---------- invites ---------- */
+  var PRESETS={ clinical:{role:'dentist',gi:100,gr:100}, developer:{role:'developer',gi:1000,gr:0}, admin:{role:'admin',gi:1000,gr:0} };
+  el('invPreset').addEventListener('change',function(){
+    var p=PRESETS[this.value]; if(!p) return;
+    el('invGrantI').value=p.gi; el('invGrantR').value=p.gr;
+  });
+  el('invCreate').addEventListener('click',async function(){
+    var p=PRESETS[el('invPreset').value]||PRESETS.clinical;
+    var exp=el('invExp').value?new Date(el('invExp').value+'T23:59:59').toISOString():null;
+    this.disabled=true; msg('invMsg','発行中…','info');
+    try{
+      var r=await sb.rpc('admin_create_invite_code',{
+        p_code:null, p_invited_email:(el('invEmail').value||'').trim()||null, p_role:p.role,
+        p_workspace_type:p.role==='dentist'?'personal':'developer',
+        p_token_grant_invitee:parseInt(el('invGrantI').value,10)||0,
+        p_token_grant_inviter:parseInt(el('invGrantR').value,10)||0,
+        p_max_uses:Math.max(1,parseInt(el('invMax').value,10)||1), p_expires_at:exp
+      });
+      if(r.error) throw r.error;
+      if(r.data&&r.data.ok){ msg('invMsg','発行しました: '+r.data.code,'ok'); el('invEmail').value=''; loadInvites(); loadOverview(); }
+      else msg('invMsg','発行に失敗しました。','err');
+    }catch(e){ console.error('[Admin] create invite failed',e); msg('invMsg',failText(e,'招待コード発行'),'err'); }
+    this.disabled=false;
+  });
+  async function loadInvites(){
+    var box=el('invList');
+    try{
+      var r=await sb.from('invite_codes').select('id,code,invited_email,role,token_grant_invitee,token_grant_inviter,used_count,max_uses,expires_at,revoked_at,created_at').order('created_at',{ascending:false}).limit(30);
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">招待コードがまだありません。<br>最初のベータユーザーを招待するには、招待コードを作成してください。</div>'; return; }
+      box.innerHTML=r.data.map(function(c){
+        var dead=!!c.revoked_at||(c.expires_at&&new Date(c.expires_at)<=new Date())||c.used_count>=c.max_uses;
+        return '<div class="item" style="'+(dead?'opacity:.55':'')+'"><b style="letter-spacing:.05em">'+esc(c.code)+'</b>'+
+          ' <span class="badge dim">'+esc(c.role)+'</span> <span class="badge '+(dead?'crit':'ok')+'">'+(c.revoked_at?'無効化済み':dead?'使用不可':'有効')+'</span>'+
+          '<div class="meta">invitee +'+c.token_grant_invitee+' / inviter +'+c.token_grant_inviter+' / '+c.used_count+'/'+c.max_uses+' 使用'+
+          (c.invited_email?' / '+esc(c.invited_email):'')+(c.expires_at?' / 期限 '+fmtTs(c.expires_at):'')+'</div>'+
+          (dead?'':'<div class="row"><button class="btn danger small" data-rv="'+esc(c.id)+'">無効化 / Revoke</button></div>')+'</div>';
+      }).join('');
+      box.querySelectorAll('[data-rv]').forEach(function(b){
+        b.addEventListener('click',async function(){
+          if(!confirm('この招待コードを無効化します。\n無効化後、このコードでは新しいユーザー登録ができなくなります。\nこの操作を続けますか？')) return;
+          b.disabled=true;
+          try{ var r=await sb.rpc('admin_revoke_invite_code',{p_id:b.getAttribute('data-rv')}); if(r.error) throw r.error; }
+          catch(e){ console.error('[Admin] revoke failed',e); alert('無効化に失敗しました。'); }
+          loadInvites(); loadOverview();
+        });
+      });
+    }catch(e){ console.error('[Admin] invites load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'招待コード'))+'</div>'; }
+  }
+
+  /* ---------- users ---------- */
+  async function loadUsers(){
+    var box=el('usersList');
+    try{
+      var r=await sb.rpc('admin_list_users');
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">ユーザーがまだいません。</div>'; return; }
+      box.innerHTML=r.data.map(function(u){
+        var name=u.display_name||u.clinic_name||'';
+        return '<div class="item"><b>'+esc(u.email)+'</b>'+(name?' <span class="badge dim">'+esc(name)+'</span>':'')+
+          ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+
+          (u.beta_access?' <span class="badge ok">招待済</span>':' <span class="badge warn">未招待</span>')+
+          (u.professional_confirmed?' <span class="badge ok">歯科従事者確認済</span>':'')+
+          (u.account_status!=='active'?' <span class="badge crit">'+esc(u.account_status)+'</span>':'')+
+          '<div class="meta">tokens: '+esc(u.tokens_remaining)+' / 登録 '+fmtTs(u.created_at)+' / 最終ログイン '+fmtTs(u.last_sign_in_at)+'</div>'+
+          '<div class="row">'+
+            '<select class="mini" data-role-sel><option value="">role変更…</option>'+
+              ['dentist','staff','viewer','co_developer','developer','admin','billing_manager'].map(function(ro){return '<option value="'+ro+'">'+ro+'</option>';}).join('')+'</select>'+
+            '<button class="btn small ghost" data-role-btn data-id="'+esc(u.id)+'">変更</button>'+
+            '<input class="mini" data-grant-amt type="number" placeholder="+tokens" style="width:90px">'+
+            '<button class="btn small" data-grant-btn data-id="'+esc(u.id)+'">付与</button>'+
+          '</div></div>';
+      }).join('');
+      box.querySelectorAll('[data-role-btn]').forEach(function(b){
+        b.addEventListener('click',async function(){
+          var sel=b.parentElement.querySelector('[data-role-sel]'), role=sel.value;
+          if(!role){ alert('変更先の role を選択してください。'); return; }
+          if(!confirm('このユーザーの role を「'+role+'」に変更します。\n権限・課金免除の扱いが変わります。\nこの操作を続けますか？')) return;
+          b.disabled=true;
+          try{ var r=await sb.rpc('admin_set_user_role',{p_user_id:b.getAttribute('data-id'),p_role:role}); if(r.error) throw r.error; }
+          catch(e){ console.error('[Admin] role change failed',e); alert(failText(e,'role変更')); }
+          loadUsers();
+        });
+      });
+      box.querySelectorAll('[data-grant-btn]').forEach(function(b){
+        b.addEventListener('click',async function(){
+          var amt=parseInt(b.parentElement.querySelector('[data-grant-amt]').value,10);
+          if(!amt){ alert('付与するトークン数を入力してください（負数で減算）。'); return; }
+          if(!confirm(amt+' トークンを手動付与します（reason: admin_grant・監査ログに記録）。\nこの操作を続けますか？')) return;
+          b.disabled=true;
+          try{ var r=await sb.rpc('admin_grant_tokens',{p_user_id:b.getAttribute('data-id'),p_amount:amt,p_note:'admin dashboard'}); if(r.error) throw r.error; }
+          catch(e){ console.error('[Admin] grant failed',e); alert(failText(e,'トークン付与')); }
+          loadUsers(); loadOverview();
+        });
+      });
+    }catch(e){ console.error('[Admin] users load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'ユーザー一覧'))+'</div>'; }
+  }
+
+  /* ---------- usage ---------- */
+  async function loadUsage(){
+    var ovBox=el('usageOv'), tBox=el('usageByType');
+    var ov=window.__ov||{};
+    ovBox.innerHTML=[
+      ['本日の生成回数',ov.generations_today],['本日の消費トークン',ov.tokens_consumed_today],
+      ['本日の付与トークン',ov.tokens_granted_today],['本日のイベント数',ov.events_today],
+      ['本日のエラー数',ov.errors_today],['アクティブユーザー(7日)',ov.active_users_7d]
+    ].map(function(o){ return '<div class="ov"><b>'+(o[1]==null?'—':esc(o[1]))+'</b><span>'+esc(o[0])+'</span></div>'; }).join('');
+    try{
+      var since=new Date(Date.now()-7*864e5).toISOString();
+      var r=await sb.from('usage_events').select('event_type').gte('created_at',since).limit(2000);
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ tBox.innerHTML='<div class="empty">使用状況データがまだありません。<br>ユーザーがログインまたは生成を行うと、ここに記録されます。</div>'; return; }
+      var counts={};
+      r.data.forEach(function(e){ counts[e.event_type]=(counts[e.event_type]||0)+1; });
+      tBox.innerHTML='<table><tr><th>event_type</th><th>count</th></tr>'+
+        Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];}).map(function(k){
+          return '<tr><td>'+esc(k)+(/_failed$/.test(k)?' <span class="badge crit">error</span>':'')+'</td><td><b>'+counts[k]+'</b></td></tr>';
+        }).join('')+'</table>';
+    }catch(e){ console.error('[Admin] usage load failed',e); tBox.innerHTML='<div class="empty">'+esc(failText(e,'使用状況'))+'</div>'; }
+  }
+
+  /* ---------- tokens ---------- */
+  async function loadTokens(){
+    var box=el('ledgerList');
+    try{
+      var r=await sb.from('token_ledger').select('user_id,delta,reason,balance_after,created_at').order('created_at',{ascending:false}).limit(50);
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">トークン履歴がまだありません。</div>'; return; }
+      box.innerHTML='<table><tr><th>日時</th><th>user</th><th>delta</th><th>reason</th><th>残高</th></tr>'+
+        r.data.map(function(l){
+          return '<tr><td>'+fmtTs(l.created_at)+'</td><td class="meta">'+esc(String(l.user_id||'').slice(0,8))+'…</td>'+
+            '<td style="color:'+(l.delta<0?'#c0303a':'#1a8f57')+';font-weight:800">'+(l.delta>0?'+':'')+l.delta+'</td>'+
+            '<td>'+esc(l.reason||'')+'</td><td>'+esc(l.balance_after==null?'—':l.balance_after)+'</td></tr>';
+        }).join('')+'</table>'+
+        '<p class="help" style="margin-top:10px">手動付与は Users セクションの「付与」から行えます（確認ダイアログ・監査ログ付き）。</p>';
+    }catch(e){ console.error('[Admin] ledger load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'トークン台帳'))+'</div>'; }
+  }
+
+  /* ---------- feedback ---------- */
+  async function loadFeedback(){
+    var box=el('fbList');
+    try{
+      try{ await sb.rpc('admin_log_feedback_view'); }catch(e){ console.error('[Admin] audit view log failed',e); }
+      var r=await sb.from('feedback_items').select('id,user_id,category,severity,status,message,page_path,user_agent,admin_notes,created_at').order('created_at',{ascending:false}).limit(50);
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">フィードバックがまだありません。<br>ユーザーから送信されると、ここに表示されます。</div>'; return; }
+      box.innerHTML=r.data.map(function(f){
+        var sev=f.severity==='critical'?'crit':f.severity==='high'?'warn':'dim';
+        return '<div class="item" data-fid="'+esc(f.id)+'">'+
+          '<span class="badge dim">'+esc(f.category)+'</span> <span class="badge '+sev+'">'+esc(f.severity)+'</span> <span class="badge '+(f.status==='new'?'crit':f.status==='resolved'?'ok':'warn')+'">'+esc(f.status)+'</span>'+
+          '<div style="margin:7px 0">'+esc(f.message)+'</div>'+
+          '<div class="meta">user '+esc(String(f.user_id||'').slice(0,8))+'… / '+fmtTs(f.created_at)+' / '+esc(f.page_path||'')+'</div>'+
+          '<div class="meta">'+esc((f.user_agent||'').slice(0,110))+'</div>'+
+          '<div class="row">'+
+            '<select class="mini" data-fst>'+['new','triaged','in_progress','resolved','archived'].map(function(s){
+              return '<option value="'+s+'"'+(s===f.status?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'+
+            '<input class="mini" data-fnote placeholder="admin_notes" value="'+esc(f.admin_notes||'')+'" style="flex:1;min-width:140px">'+
+            '<button class="btn small" data-fsave>更新</button>'+
+          '</div></div>';
+      }).join('');
+      box.querySelectorAll('[data-fsave]').forEach(function(b){
+        b.addEventListener('click',async function(){
+          var it=b.closest('.item');
+          b.disabled=true;
+          try{
+            var r=await sb.rpc('admin_update_feedback',{ p_id:it.getAttribute('data-fid'),
+              p_status:it.querySelector('[data-fst]').value, p_admin_notes:it.querySelector('[data-fnote]').value||null });
+            if(r.error) throw r.error;
+            b.textContent='更新済み';
+          }catch(e){ console.error('[Admin] feedback update failed',e); b.textContent='失敗'; }
+          setTimeout(function(){ b.textContent='更新'; b.disabled=false; loadOverview(); },1200);
+        });
+      });
+    }catch(e){ console.error('[Admin] feedback load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'フィードバック'))+'</div>'; }
+  }
+
+  /* ---------- audit ---------- */
+  async function loadAudit(){
+    var box=el('auditList');
+    try{
+      var r=await sb.from('admin_audit_logs').select('admin_user_id,action,target_type,target_id,metadata,created_at').order('created_at',{ascending:false}).limit(50);
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">監査ログがまだありません。<br>管理者操作が行われると、ここに記録されます。</div>'; return; }
+      box.innerHTML='<table><tr><th>日時</th><th>action</th><th>target</th><th>metadata</th></tr>'+
+        r.data.map(function(a){
+          return '<tr><td>'+fmtTs(a.created_at)+'</td><td><b>'+esc(a.action)+'</b></td>'+
+            '<td class="meta">'+esc(a.target_type||'')+' '+esc(String(a.target_id||'').slice(0,12))+'</td>'+
+            '<td class="meta">'+esc(a.metadata?JSON.stringify(a.metadata).slice(0,90):'')+'</td></tr>';
+        }).join('')+'</table>';
+    }catch(e){ console.error('[Admin] audit load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'監査ログ'))+'</div>'; }
+  }
+
+  /* ---------- settings ---------- */
+  async function loadSettings(){
+    el('settingsBody').innerHTML=[
+      ['Environment', envName()],
+      ['Invite-only（本番デフォルト）','OFF — caseflow_studio_v96.html の CF_BETA_GATE_DEFAULT で切替'],
+      ['このページの認可','role in (developer / co_developer / admin) + RLS'],
+      ['Supabase project','nuolihmfdjzofporhwkp（anon keyのみ使用・service_role はフロント不使用）'],
+      ['Stripe','Not Connected（Phase 2 で test mode から接続）'],
+      ['Usage events','usage_events テーブル（migration 20260701000003）']
+    ].map(function(s){ return '<div class="item"><div class="meta">'+esc(s[0])+'</div><b style="font-size:13px">'+esc(s[1])+'</b></div>'; }).join('');
+  }
+
+  /* ---------- deployment & smoke ---------- */
+  var DEP_ITEMS=['URLが開ける','ログイン画面が表示される','招待制文言が表示される','developer / admin でログインできる','招待コード判定が動く','トークン残高が表示される','Visual Simulation Studio が開く','Morphing Video Studio が開く','Photo Manager が開く','Library保存が壊れていない','Exportが壊れていない','Feedback送信ができる','Admin Feedback Inbox が見える','一般ユーザーは /admin に入れない'];
+  var SMOKE_ITEMS=['本番URLが開ける','ログイン画面が表示される','招待制文言が表示される','developer / admin がログインできる','招待コード判定が動く','トークン残高が表示される','ダミーデータで1回だけテスト生成できる','フィードバック送信ができる','管理者がFeedback Inboxを確認できる','Library / Export / Morphing の主要導線が壊れていない'];
+  function renderChecklist(elId,items,storeKey){
+    var box=el(elId), saved={};
+    try{ saved=JSON.parse(localStorage.getItem(storeKey)||'{}'); }catch(e){ saved={}; }
+    box.innerHTML=items.map(function(t,i){
+      return '<label><input type="checkbox" data-ck="'+i+'"'+(saved[i]?' checked':'')+'> '+esc(t)+'</label>';
+    }).join('');
+    box.querySelectorAll('[data-ck]').forEach(function(c){
+      c.addEventListener('change',function(){
+        saved[c.getAttribute('data-ck')]=c.checked;
+        try{ localStorage.setItem(storeKey,JSON.stringify(saved)); }catch(e){ console.error('[Admin] checklist save failed',e); }
+      });
+    });
+  }
+  function initDeploy(){
+    var env=envName();
+    el('depEnv').textContent=env.toUpperCase();
+    var prev=env==='preview'?location.origin+'/caseflow_studio_v96.html':'（Preview URL をここで開いてください）';
+    el('depPreviewUrl').textContent=prev;
+    el('depOpenPreview').addEventListener('click',function(){
+      window.open(env==='preview'?location.origin+'/caseflow_studio_v96.html?beta_gate=on':'https://caseflow-studio.vercel.app/caseflow_studio_v96.html','_blank');
+    });
+    el('depOpenBoth').addEventListener('click',function(){
+      window.open('https://caseflow-studio.vercel.app/caseflow_studio_v96.html','_blank');
+      if(env==='preview') window.open(location.origin+'/caseflow_studio_v96.html?beta_gate=on','_blank');
+    });
+    renderChecklist('depChecklist',DEP_ITEMS,'cf_admin_dep_ck_v1');
+    renderChecklist('smokeChecklist',SMOKE_ITEMS,'cf_admin_smoke_ck_v1');
+    el('smokeReset').addEventListener('click',function(){
+      try{ localStorage.removeItem('cf_admin_smoke_ck_v1'); }catch(e){ console.error(e); }
+      renderChecklist('smokeChecklist',SMOKE_ITEMS,'cf_admin_smoke_ck_v1');
+    });
+  }
+
+  /* ---------- auth flow ---------- */
+  async function evaluate(session){
+    if(!session){ show('gate'); return; }
+    uid=session.user.id; profile=null;
+    try{
+      var p=await sb.from('profiles').select('role,beta_access,display_name,tokens_remaining').eq('id',uid).single();
+      if(p.error) console.error('[Admin] profile load failed',p.error);
+      else profile=p.data;
+    }catch(e){ console.error('[Admin] profile exception',e); }
+    if(!profile || DASH_ROLES.indexOf(profile.role)<0){ show('denied'); return; }
+    show('dash'); renderHeader(); initDeployOnce();
+    await loadOverview(); renderNav();
+  }
+  var _depInit=false;
+  function initDeployOnce(){ if(_depInit) return; _depInit=true; initDeploy(); }
+
+  function start(){
+    if(!window.supabase||!window.supabase.createClient){
+      show('gate'); msg('gMsg','読み込みに失敗しました。通信環境を確認して再読み込みしてください。','err');
+      el('gLogin').disabled=true; return;
+    }
+    sb=window.supabase.createClient(SUPA_URL,SUPA_ANON);
+    el('gLogin').addEventListener('click',async function(){
+      var email=(el('gEmail').value||'').trim(), pass=el('gPass').value||'';
+      if(!email||!pass){ msg('gMsg','メールアドレスとパスワードを入力してください。','err'); return; }
+      this.disabled=true; msg('gMsg','処理中…','info');
+      try{
+        var r=await sb.auth.signInWithPassword({email:email,password:pass});
+        if(r.error) msg('gMsg','ログインに失敗しました: '+r.error.message,'err');
+        else await evaluate(r.data.session);
+      }catch(e){ console.error('[Admin] login failed',e); msg('gMsg','通信エラーが発生しました。','err'); }
+      this.disabled=false;
+    });
+    el('gPass').addEventListener('keydown',function(e){ if(e.key==='Enter') el('gLogin').click(); });
+    function doLogout(){ sb.auth.signOut().then(function(){ show('gate'); }).catch(function(e){ console.error(e); show('gate'); }); }
+    el('dLogout').addEventListener('click',doLogout);
+    el('hLogout').addEventListener('click',doLogout);
+    sb.auth.getSession().then(function(res){
+      return evaluate(res&&res.data?res.data.session:null);
+    }).catch(function(e){ console.error('[Admin] getSession failed',e); show('gate'); });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+</script>
+</body>
+</html>
