@@ -19,21 +19,55 @@ CASEFLOW_DEV_REPO=eternidad475/luks-professional
 CASEFLOW_DEV_BASE_BRANCH=claude/image-morphing-video-3kujgb
 ```
 
-Configure one AI provider:
+## Gemini 2.5 Flash setup
+
+If CaseFlow Studio already has a Gemini / Google API key in Vercel, Dev Console can reuse it.
+
+Preferred:
+
+```txt
+CASEFLOW_DEV_PROVIDER=gemini
+GEMINI_API_KEY=existing-gemini-key
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+Also supported:
+
+```txt
+GOOGLE_API_KEY=existing-google-key
+GOOGLE_GENERATIVE_AI_API_KEY=existing-google-key
+GOOGLE_MODEL=gemini-2.5-flash
+```
+
+日本語:
+既存のGemini 2.5 Flash用キーがVercelにある場合、`GEMINI_API_KEY` または `GOOGLE_API_KEY` としてDev Consoleで流用できます。明示的にGeminiを使う場合は `CASEFLOW_DEV_PROVIDER=gemini` を設定してください。
+
+## Other AI providers
+
+Anthropic:
 
 ```txt
 ANTHROPIC_API_KEY=...
 ANTHROPIC_MODEL=...
 ```
 
-or
+OpenAI:
 
 ```txt
 OPENAI_API_KEY=...
 OPENAI_MODEL=...
 ```
 
-Recommended first-use lock:
+Provider priority:
+
+```txt
+CASEFLOW_DEV_PROVIDER=gemini     # Gemini first
+CASEFLOW_DEV_PROVIDER=anthropic  # Anthropic first
+CASEFLOW_DEV_PROVIDER=openai     # OpenAI first
+CASEFLOW_DEV_PROVIDER=auto       # Default: Gemini, then Anthropic, then OpenAI
+```
+
+## Recommended first-use lock
 
 ```txt
 CASEFLOW_DEV_DRY_RUN_ONLY=1
@@ -62,6 +96,8 @@ Use a fine-grained token limited to the target repository.
 ## Current features
 
 - Health check
+- Gemini 2.5 Flash provider support
+- Anthropic / OpenAI fallback support
 - GitHub code search
 - Read file
 - Compare branch diff
@@ -97,10 +133,11 @@ Use a fine-grained token limited to the target repository.
 4. Open `/caseflow_dev_console.html`.
 5. Enter the admin key.
 6. Press **Health**.
-7. Keep mode as **Dry-run only**.
-8. Ask the agent to inspect a small, specific issue.
-9. Review the proposed actions in the raw JSON.
-10. Switch to **Apply + Draft PR** only after the actions are clearly correct.
+7. Confirm `Gemini: gemini-2.5-flash` is shown if Gemini is configured.
+8. Keep mode as **Dry-run only**.
+9. Ask the agent to inspect a small, specific issue.
+10. Review the proposed actions in the raw JSON.
+11. Switch to **Apply + Draft PR** only after the actions are clearly correct.
 
 ## Current limitation
 
