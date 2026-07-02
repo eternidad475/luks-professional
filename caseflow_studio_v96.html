@@ -4993,7 +4993,8 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="shareApp">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Share</h2><p class="subtitle">App link / アプリ共有</p></div><span style="font-size:22px;cursor:pointer" role="button" tabindex="0" aria-label="トップページを開く" onclick="cfOpenTopPage()">↗</span></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Invite</h2><p class="subtitle">招待 / Invite &amp; share</p></div><span style="font-size:22px;cursor:pointer" role="button" tabindex="0" aria-label="トップページを開く" onclick="cfOpenTopPage()">↗</span></div>
+  <div id="cfInvitePanelMount"></div>
   <div class="card shareCard">
     <img src="data:image/jpeg;base64,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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/Z" alt="CaseFlow Studio icon" class="shareHeroIcon">
     <p>Clinical beauty, visualized.</p>
@@ -5044,7 +5045,7 @@ button[id="localMLDetectButton"]{
   <button class="nav" onclick="go('upload')"><span class="ico">▣</span>Gallery</button>
   <button class="nav" id="navSimBtn" onclick="go('simulator')"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-1px"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z"/></svg></span>Sim</button>
   <button class="nav" onclick="go('library')"><span class="ico">☰</span>Library</button>
-  <button class="nav" onclick="go('shareApp')"><span class="ico">↗</span>Share</button>
+  <button class="nav" onclick="go('shareApp')"><span class="ico">✉</span>Invite</button>
 </nav>
 <div class="toast" id="toast"></div>
 </main>
@@ -9593,9 +9594,11 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));
     const navs=document.querySelectorAll('.bottom .nav');
     const projectIds=['home','start','align','preview','simulator','result','export','manualStudio','sampleResults'];
+    /* 5-button nav: 0=Project 1=Gallery 2=Sim 3=Library 4=Invite(shareApp).
+       (Was written for the old 4-button bar — Library lit up on the Share screen.) */
     if(id==='upload') navs[1]&&navs[1].classList.add('on');
-    else if(id==='library') navs[2]&&navs[2].classList.add('on');
-    else if(id==='shareApp') navs[3]&&navs[3].classList.add('on');
+    else if(id==='library') navs[3]&&navs[3].classList.add('on');
+    else if(id==='shareApp') navs[4]&&navs[4].classList.add('on');
     else if(projectIds.includes(id)) navs[0]&&navs[0].classList.add('on');
     if(id==='manualStudio') renderManualStudio();
     if(id==='library') renderLibrary();
@@ -25198,7 +25201,34 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfAdmRow{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}',
     '.cfAdmMini{padding:7px 10px;border-radius:9px;border:1.5px solid rgba(124,92,255,.3);background:#fff;font-size:12px;color:#231a3a}',
     '.cfAdmBtnS{padding:7px 12px;border:0;border-radius:9px;background:#5b3fd6;color:#fff;font-weight:800;font-size:12px;cursor:pointer}',
-    '.cfAdmSection{margin:14px 0 6px;font-weight:900;font-size:13px;color:#5b3fd6}'
+    '.cfAdmSection{margin:14px 0 6px;font-weight:900;font-size:13px;color:#5b3fd6}',
+    /* account icon + menu */
+    '#cfAcctBtn{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:2147482500;display:none;width:40px;height:40px;border:0;border-radius:999px;cursor:pointer;',
+    ' background:rgba(255,255,255,.90);color:#5b3fd6;font-weight:900;font-size:15px;box-shadow:0 5px 16px rgba(40,20,80,.22);backdrop-filter:blur(8px)}',
+    '#cfAcctMenuOv{position:fixed;inset:0;z-index:2147483000;display:none;background:rgba(30,20,50,.38)}',
+    '#cfAcctMenuOv.open{display:block}',
+    '#cfAcctMenu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);right:12px;z-index:2147483001;width:min(300px,86vw);max-height:76dvh;overflow:auto;',
+    ' background:rgba(255,255,255,.97);border-radius:18px;box-shadow:0 22px 60px rgba(40,20,80,.30);padding:14px 12px;color:#231a3a;',
+    " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
+    '.cfAcctHead{padding:6px 8px 12px;border-bottom:1px solid rgba(124,92,255,.14);margin-bottom:8px}',
+    '.cfAcctMail{font-size:12.5px;font-weight:800;word-break:break-all}',
+    '.cfAcctRole{font-size:10.5px;color:#7a7290;font-weight:700;margin-top:3px}',
+    '.cfAcctItem{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:none;text-align:left;',
+    ' padding:11px 8px;border-radius:11px;font:inherit;font-size:13.5px;font-weight:750;color:#231a3a;cursor:pointer}',
+    '.cfAcctItem:active{background:rgba(124,92,255,.08)}',
+    '.cfAcctItem .sub{font-size:11px;color:#7a7290;font-weight:700}',
+    '.cfAcctItem.danger{color:#c0303a}',
+    '.cfAcctSep{height:1px;background:rgba(124,92,255,.12);margin:7px 4px}',
+    '.cfAcctLangRow{display:flex;gap:6px;padding:4px 8px 8px}',
+    '.cfAcctLangBtn{flex:1;padding:8px 0;border-radius:9px;border:1.5px solid rgba(124,92,255,.25);background:#fff;font-size:12px;font-weight:850;color:#231a3a;cursor:pointer}',
+    '.cfAcctLangBtn.on{border:0;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff}',
+    /* invite panel on the Invite screen */
+    '#cfInvitePanel{background:rgba(255,255,255,.92);border-radius:18px;padding:16px 15px;margin:0 0 14px;box-shadow:0 14px 40px rgba(40,20,80,.12)}',
+    '#cfInvitePanel h3{margin:0 0 4px;font-size:14.5px;font-weight:900;color:#5b3fd6}',
+    '#cfInvitePanel .cfInvHelp{font-size:11.5px;color:#7a7290;line-height:1.7;margin:0 0 12px}',
+    '.cfInvCode{display:flex;align-items:center;gap:8px;border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12.5px}',
+    '.cfInvCode b{letter-spacing:.05em}',
+    '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:#5b3fd6;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -25220,12 +25250,44 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<input class="cfG2Input" id="cfG2Email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@clinic.jp">'+
         '<label class="cfG2Label">パスワード</label>'+
         '<input class="cfG2Input" id="cfG2Pass" type="password" autocomplete="current-password" placeholder="6文字以上">'+
+        '<div id="cfG2ForgotRow" style="text-align:right;margin:-4px 0 10px">'+
+          '<button type="button" id="cfG2Forgot" style="border:0;background:none;color:#5b3fd6;font-size:12px;font-weight:800;cursor:pointer;padding:0">パスワードをお忘れですか？</button></div>'+
+        '<div id="cfG2ProfTypeRow" style="display:none">'+
+          '<label class="cfG2Label">職種 / Profession</label>'+
+          '<select class="cfG2Input" id="cfG2ProfType">'+
+            '<option value="">選択してください</option>'+
+            '<option value="dentist">歯科医師</option>'+
+            '<option value="dental_technician">歯科技工士</option>'+
+            '<option value="dental_hygienist">歯科衛生士</option>'+
+            '<option value="dental_assistant">歯科助手</option>'+
+            '<option value="dental_student">歯科学生</option>'+
+            '<option value="clinic_staff">クリニックスタッフ</option>'+
+            '<option value="other_dental_professional">その他歯科医療関係者</option>'+
+          '</select></div>'+
         '<label id="cfG2ProfRow" style="display:none;align-items:flex-start;gap:8px;font-size:12px;color:#5a5470;line-height:1.7;margin:0 0 12px;cursor:pointer">'+
           '<input type="checkbox" id="cfG2Prof" style="width:auto;margin:3px 0 0">'+
           '<span>私は歯科医療関係者であり、利用規約・プライバシーポリシーに同意します。<br>I confirm I am a dental professional and agree to the Terms &amp; Privacy Policy.</span></label>'+
         '<div class="cfG2Msg" id="cfG2AuthMsg"></div>'+
         '<button type="button" class="cfG2Btn" id="cfG2Submit">ログイン</button>'+
-        '<button type="button" class="cfG2BtnGhost" id="cfG2Google">Googleで続ける</button>'+
+      '</div>'+
+      /* --- view: password reset request --- */
+      '<div id="cfG2ResetView" style="display:none">'+
+        '<div style="font-size:13px;color:#5a5470;line-height:1.8;margin-bottom:14px;text-align:center">パスワードをお忘れですか？<br>登録メールアドレスに再設定リンクを送信します。</div>'+
+        '<label class="cfG2Label">メールアドレス</label>'+
+        '<input class="cfG2Input" id="cfG2ResetEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@clinic.jp">'+
+        '<div class="cfG2Msg" id="cfG2ResetMsg"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfG2ResetSend">再設定リンクを送信</button>'+
+        '<button type="button" class="cfG2BtnGhost" id="cfG2ResetBack">ログインに戻る</button>'+
+      '</div>'+
+      /* --- view: set new password (after recovery link) --- */
+      '<div id="cfG2NewPassView" style="display:none">'+
+        '<div style="font-size:13px;color:#5a5470;line-height:1.8;margin-bottom:14px;text-align:center">新しいパスワードを設定してください。</div>'+
+        '<label class="cfG2Label">新しいパスワード</label>'+
+        '<input class="cfG2Input" id="cfG2NewPass" type="password" autocomplete="new-password" placeholder="6文字以上">'+
+        '<label class="cfG2Label">新しいパスワード（確認）</label>'+
+        '<input class="cfG2Input" id="cfG2NewPass2" type="password" autocomplete="new-password" placeholder="もう一度入力">'+
+        '<div class="cfG2Msg" id="cfG2NewPassMsg"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfG2NewPassSave">パスワードを更新</button>'+
       '</div>'+
       /* --- view: invite --- */
       '<div id="cfG2InviteView" style="display:none">'+
@@ -25241,9 +25303,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '</div>';
   document.body.appendChild(wrap);
 
-  var fbFab=document.createElement('button');
-  fbFab.id='cfFbFab'; fbFab.type='button'; fbFab.textContent='フィードバック';
-  document.body.appendChild(fbFab);
+  /* account icon（右上）— トークン/フィードバック/招待/言語/ログアウトを集約 */
+  var acctBtn=document.createElement('button');
+  acctBtn.id='cfAcctBtn'; acctBtn.type='button'; acctBtn.setAttribute('aria-label','アカウントメニュー');
+  acctBtn.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-3px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>';
+  document.body.appendChild(acctBtn);
+  window.__cfAcctBtn=acctBtn;
+  var acctOv=document.createElement('div');
+  acctOv.id='cfAcctMenuOv';
+  acctOv.innerHTML='<div id="cfAcctMenu" role="menu" aria-label="Account menu"></div>';
+  document.body.appendChild(acctOv);
+  acctOv.addEventListener('click',function(e){ if(e.target===acctOv) acctOv.classList.remove('open'); });
 
   var fbModal=document.createElement('div');
   fbModal.id='cfFbModal';
@@ -25252,8 +25322,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
       '<p class="cfFbTitle">フィードバックを送信 / Send feedback</p>'+
       '<div id="cfFbFormView">'+
         '<select class="cfFbSelect" id="cfFbCat">'+
-          ['Bug','UI Issue','Generation Quality','Clinical Accuracy','Morphing Quality','Account','Billing','Security','Other']
-            .map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
+          [['Bug','不具合'],['UI Issue','UIの問題'],['Generation Quality','生成品質'],['Clinical Accuracy','臨床的な精度'],
+           ['Morphing Quality','モーフィング品質'],['Account','アカウント'],['Billing','課金'],['Security','セキュリティ'],['Other','その他']]
+            .map(function(c){return '<option value="'+c[0]+'">'+c[1]+'</option>';}).join('')+
         '</select>'+
         '<select class="cfFbSelect" id="cfFbSev">'+
           '<option value="low">Low / 軽微</option><option value="normal" selected>Normal / 通常</option>'+
@@ -25411,11 +25482,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
   /* ---------------- gate open/close ---------------- */
   function showGate(view){
     wrap.classList.add('open');
-    el('cfG2AuthView').style.display=(view==='invite')?'none':'block';
-    el('cfG2InviteView').style.display=(view==='invite')?'block':'none';
+    ['cfG2AuthView','cfG2InviteView','cfG2ResetView','cfG2NewPassView'].forEach(function(id){
+      var v=el(id); if(v) v.style.display='none';
+    });
+    var map={ auth:'cfG2AuthView', invite:'cfG2InviteView', reset:'cfG2ResetView', newpass:'cfG2NewPassView' };
+    var t=el(map[view]||'cfG2AuthView'); if(t) t.style.display='block';
     if(logoutBtn) logoutBtn.style.display='none';
     if(badge) badge.style.display='none';
-    fbFab.style.display='none';
+    if(window.__cfAcctBtn) window.__cfAcctBtn.style.display='none';
   }
   var _exportHooked=false, _signinLogged=false;
   function hookExportLogging(){
@@ -25433,23 +25507,29 @@ body.cfPresent .cfPresentExit{display:flex!important}
     };
   }
   async function persistProfessionalConfirm(){
-    /* サインアップ時のチェックを profile に反映（own-profile update RLSで許可） */
-    if(lsGet('cf_prof_confirm_v1')!=='1'||!curSession) return;
+    /* サインアップ時のチェック・職種を profile に反映（own-profile update RLSで許可） */
+    if(!curSession) return;
+    var upd={};
+    if(lsGet('cf_prof_confirm_v1')==='1') upd.professional_confirmed=true;
+    var pt=lsGet('cf_prof_type_v1'); if(pt) upd.professional_type=pt;
+    if(!Object.keys(upd).length) return;
     try{
-      var r=await sb.from('profiles').update({ professional_confirmed:true }).eq('id',curSession.user.id);
+      var r=await sb.from('profiles').update(upd).eq('id',curSession.user.id);
       if(r.error){ if(!/column|does not exist|schema cache/i.test(String(r.error.message||''))) console.error('[CF Gate] prof confirm failed',r.error); }
-      else lsSet('cf_prof_confirm_v1',null);
+      else{ lsSet('cf_prof_confirm_v1',null); lsSet('cf_prof_type_v1',null); }
     }catch(e){ console.error('[CF Gate] prof confirm exception',e); }
   }
   function unlockApp(){
     wrap.classList.remove('open');
-    if(logoutBtn) logoutBtn.style.display='block';
-    if(badge) badge.style.display='block';
-    fbFab.style.display='block';
+    /* トップ画面のアート性を優先: 旧トークンバッジ/ログアウトは常時非表示、アカウントアイコンに集約 */
+    if(logoutBtn) logoutBtn.style.display='none';
+    if(badge) badge.style.display='none';
+    acctBtn.style.display='block';
     refreshTokens();
     hookExportLogging();
     if(!_signinLogged){ _signinLogged=true; cfLogEvent('user_signed_in','auth'); }
     persistProfessionalConfirm();
+    if(typeof window.__cfRenderInvitePanel==='function') window.__cfRenderInvitePanel();
   }
 
   /* ---------------- main flow ---------------- */
@@ -25462,6 +25542,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   function start(){
+    /* --- view切替はCDN失敗時も動くよう、supabase初期化前にバインド --- */
+    var mode='login';
+    function setMode(m){
+      mode=m; msgBox('cfG2AuthMsg','');
+      el('cfG2TabLogin').classList.toggle('on',m==='login');
+      el('cfG2TabSignup').classList.toggle('on',m==='signup');
+      el('cfG2Submit').textContent=(m==='login')?'ログイン':'登録する';
+      el('cfG2Pass').setAttribute('autocomplete',m==='login'?'current-password':'new-password');
+      var pr=el('cfG2ProfRow'); if(pr) pr.style.display=(m==='signup')?'flex':'none';
+      var pt=el('cfG2ProfTypeRow'); if(pt) pt.style.display=(m==='signup')?'block':'none';
+      var fg=el('cfG2ForgotRow'); if(fg) fg.style.display=(m==='login')?'block':'none';
+    }
+    el('cfG2TabLogin').addEventListener('click',function(){ setMode('login'); });
+    el('cfG2TabSignup').addEventListener('click',function(){ setMode('signup'); });
+    el('cfG2Forgot').addEventListener('click',function(){
+      var em=el('cfG2ResetEmail'); if(em&&!em.value) em.value=(el('cfG2Email').value||'').trim();
+      msgBox('cfG2ResetMsg',''); showGate('reset');
+    });
+    el('cfG2ResetBack').addEventListener('click',function(){ showGate('auth'); setMode('login'); });
+
     if(!window.supabase || !window.supabase.createClient){
       showGate('auth');
       msgBox('cfG2AuthMsg','読み込みに失敗しました。通信環境を確認して再読み込みしてください。','err');
@@ -25471,30 +25571,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
     sb=window.cfSupabase||window.supabase.createClient(SUPA_URL,SUPA_ANON);
     window.cfSupabase=sb;
 
-    /* --- auth view --- */
-    var mode='login';
-    function setMode(m){
-      mode=m; msgBox('cfG2AuthMsg','');
-      el('cfG2TabLogin').classList.toggle('on',m==='login');
-      el('cfG2TabSignup').classList.toggle('on',m==='signup');
-      el('cfG2Submit').textContent=(m==='login')?'ログイン':'登録する';
-      el('cfG2Pass').setAttribute('autocomplete',m==='login'?'current-password':'new-password');
-      var pr=el('cfG2ProfRow'); if(pr) pr.style.display=(m==='signup')?'flex':'none';
-    }
-    el('cfG2TabLogin').addEventListener('click',function(){ setMode('login'); });
-    el('cfG2TabSignup').addEventListener('click',function(){ setMode('signup'); });
-
     async function submitAuth(){
       var email=(el('cfG2Email').value||'').trim(), pass=el('cfG2Pass').value||'';
       if(!email||!pass){ msgBox('cfG2AuthMsg','メールアドレスとパスワードを入力してください。','err'); return; }
       var btn=el('cfG2Submit'); btn.disabled=true; var label=btn.textContent; btn.textContent='処理中…'; msgBox('cfG2AuthMsg','');
       if(mode==='signup'){
+        var pType=el('cfG2ProfType');
+        if(!pType||!pType.value){
+          msgBox('cfG2AuthMsg','職種を選択してください。','err');
+          btn.disabled=false; btn.textContent=label; return;
+        }
         var prof=el('cfG2Prof');
         if(!prof||!prof.checked){
           msgBox('cfG2AuthMsg','歯科医療関係者であることの確認と、利用規約・プライバシーポリシーへの同意が必要です。','err');
           btn.disabled=false; btn.textContent=label; return;
         }
         lsSet('cf_prof_confirm_v1','1');
+        lsSet('cf_prof_type_v1',pType.value);
       }
       try{
         if(mode==='signup'){
@@ -25512,13 +25605,33 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }
     el('cfG2Submit').addEventListener('click',submitAuth);
     el('cfG2Pass').addEventListener('keydown',function(e){ if(e.key==='Enter') submitAuth(); });
-    el('cfG2Google').addEventListener('click',async function(){
-      msgBox('cfG2AuthMsg','Googleに接続しています…','info');
+    /* --- password reset flow（Googleログインは廃止。view切替は上部でバインド済み） --- */
+    el('cfG2ResetSend').addEventListener('click',async function(){
+      var email=(el('cfG2ResetEmail').value||'').trim();
+      if(!email){ msgBox('cfG2ResetMsg','メールアドレスを入力してください。','err'); return; }
+      var btn=el('cfG2ResetSend'); btn.disabled=true; msgBox('cfG2ResetMsg','送信中…','info');
       try{
-        var r=await sb.auth.signInWithOAuth({ provider:'google',
-          options:{ redirectTo: location.origin+location.pathname+'?beta_gate=on' } });
-        if(r.error) msgBox('cfG2AuthMsg',translateAuthErr(r.error.message),'err');
-      }catch(e){ console.error('[CF Gate] oauth failed',e); msgBox('cfG2AuthMsg','外部ログインに接続できませんでした。','err'); }
+        var r=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.origin+location.pathname+'?beta_gate=on' });
+        if(r.error){ console.error('[CF Gate] reset email failed',r.error); msgBox('cfG2ResetMsg',translateAuthErr(r.error.message),'err'); }
+        else msgBox('cfG2ResetMsg','再設定リンクを送信しました。メールをご確認ください。','ok');
+      }catch(e){ console.error('[CF Gate] reset exception',e); msgBox('cfG2ResetMsg','通信エラーが発生しました。','err'); }
+      btn.disabled=false;
+    });
+    el('cfG2NewPassSave').addEventListener('click',async function(){
+      var p1=el('cfG2NewPass').value||'', p2=el('cfG2NewPass2').value||'';
+      if(p1.length<6){ msgBox('cfG2NewPassMsg','パスワードは6文字以上で設定してください。','err'); return; }
+      if(p1!==p2){ msgBox('cfG2NewPassMsg','パスワードが一致しません。','err'); return; }
+      var btn=el('cfG2NewPassSave'); btn.disabled=true; msgBox('cfG2NewPassMsg','更新中…','info');
+      try{
+        var r=await sb.auth.updateUser({ password:p1 });
+        if(r.error){ console.error('[CF Gate] password update failed',r.error); msgBox('cfG2NewPassMsg',translateAuthErr(r.error.message),'err'); }
+        else{
+          msgBox('cfG2NewPassMsg','パスワードを更新しました。','ok');
+          var s=await sb.auth.getSession();
+          setTimeout(function(){ evaluateSession(s&&s.data?s.data.session:null); },700);
+        }
+      }catch(e){ console.error('[CF Gate] password update exception',e); msgBox('cfG2NewPassMsg','通信エラーが発生しました。','err'); }
+      btn.disabled=false;
     });
 
     /* --- invite view --- */
@@ -25564,18 +25677,223 @@ body.cfPresent .cfPresentExit{display:flex!important}
       showGate('auth');
     });
 
-    /* --- feedback --- */
-    fbFab.addEventListener('click',function(){
+    /* --- i18n（日本語デフォルト。辞書追加で ja/en/pt/es/it/ar に拡張可能） --- */
+    var CF_I18N={
+      ja:{ account:'アカウント情報', tokens:'所有トークン', invite:'招待', feedback:'フィードバック',
+           language:'言語設定', security:'セキュリティ', changePass:'パスワード変更', changePhone:'電話番号認証',
+           adminDash:'Admin Dashboard（管理者）', fbInbox:'Feedback Inbox（管理者）', logout:'ログアウト',
+           phoneVerified:'認証済み', phoneUnverified:'未認証',
+           passResetSent:'パスワード再設定リンクをメールに送信しました。',
+           phonePrompt:'電話番号を国際形式（E.164）で入力してください。例: +819012345678',
+           otpPrompt:'SMSで届いた認証コードを入力してください。',
+           phoneDone:'電話番号を認証しました。',
+           smsUnavailable:'SMS認証は現在未設定です（SMSプロバイダ設定後に有効になります）。' },
+      en:{ account:'Account', tokens:'Tokens', invite:'Invite', feedback:'Feedback',
+           language:'Language', security:'Security', changePass:'Change password', changePhone:'Phone verification',
+           adminDash:'Admin Dashboard', fbInbox:'Feedback Inbox (admin)', logout:'Log out',
+           phoneVerified:'Verified', phoneUnverified:'Not verified',
+           passResetSent:'Password reset link sent to your email.',
+           phonePrompt:'Enter your phone number in E.164 format, e.g. +819012345678',
+           otpPrompt:'Enter the verification code sent by SMS.',
+           phoneDone:'Phone number verified.',
+           smsUnavailable:'SMS verification is not configured yet.' }
+    };
+    window.CF_I18N=CF_I18N;
+    function cfLang(){ var l=lsGet('cf_lang_v1'); return (l&&CF_I18N[l])?l:'ja'; }
+    function cfT(k){ var d=CF_I18N[cfLang()]||CF_I18N.ja; return d[k]||CF_I18N.ja[k]||k; }
+    window.cfT=cfT;
+
+    /* --- feedback modal open（アカウントメニューから呼ばれる） --- */
+    function openFeedback(){
+      acctOv.classList.remove('open');
       el('cfFbFormView').style.display='block'; el('cfFbDoneView').style.display='none';
       msgBox('cfFbErr',''); fbModal.classList.add('open');
-      /* 管理者にはInboxボタンを出す */
-      if(isAdmin() && !el('cfFbAdminOpen')){
-        var b=document.createElement('button');
-        b.type='button'; b.id='cfFbAdminOpen'; b.className='cfG2BtnGhost'; b.textContent='Feedback Inbox（管理者）';
-        b.addEventListener('click',function(){ fbModal.classList.remove('open'); openAdmin(); });
-        el('cfFbFormView').appendChild(b);
+    }
+
+    /* --- account menu --- */
+    function phoneState(){
+      var u=curSession&&curSession.user;
+      if(!u||!u.phone) return { has:false, verified:false, label:'—' };
+      return { has:true, verified:!!u.phone_confirmed_at, label:u.phone };
+    }
+    function menuItem(label,sub,cls,handler){
+      var b=document.createElement('button');
+      b.type='button'; b.className='cfAcctItem'+(cls?' '+cls:'');
+      b.innerHTML='<span>'+label+'</span>'+(sub?'<span class="sub">'+sub+'</span>':'');
+      b.addEventListener('click',handler);
+      return b;
+    }
+    function renderAcctMenu(){
+      var menu=el('cfAcctMenu'); if(!menu) return;
+      menu.innerHTML='';
+      var email=(curSession&&curSession.user&&curSession.user.email)||'—';
+      var role=(curProfile&&curProfile.role)||'—';
+      var profType=(curProfile&&curProfile.professional_type)||'';
+      var head=document.createElement('div');
+      head.className='cfAcctHead';
+      head.innerHTML='<div class="cfAcctMail">'+esc(email)+'</div>'+
+        '<div class="cfAcctRole">'+esc(role)+(profType?' / '+esc(profType):'')+'</div>';
+      menu.appendChild(head);
+      /* tokens */
+      var tok=(window.__cfTokens==null?'…':window.__cfTokens);
+      menu.appendChild(menuItem(cfT('tokens'),String(tok),null,function(){ refreshTokens(); }));
+      /* invite */
+      menu.appendChild(menuItem(cfT('invite'),'',null,function(){
+        acctOv.classList.remove('open');
+        if(typeof window.go==='function') window.go('shareApp');
+      }));
+      /* feedback */
+      menu.appendChild(menuItem(cfT('feedback'),'',null,openFeedback));
+      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
+      /* security: password / phone */
+      menu.appendChild(menuItem(cfT('changePass'),'',null,async function(){
+        try{
+          var r=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.origin+location.pathname+'?beta_gate=on' });
+          if(r.error) throw r.error;
+          alert(cfT('passResetSent'));
+        }catch(e){ console.error('[CF Acct] reset failed',e); alert('送信に失敗しました。'); }
+      }));
+      var ps=phoneState();
+      menu.appendChild(menuItem(cfT('changePhone'),
+        ps.has?(esc(ps.label)+' · '+(ps.verified?cfT('phoneVerified'):cfT('phoneUnverified'))):cfT('phoneUnverified'),
+        null,async function(){
+        /* Phase 1 scaffold: SupabaseにSMSプロバイダ未設定の間は案内のみ。
+           SIMスワップ耐性は限定的なため、本人確認の補助として扱う（過信しない）。 */
+        var phone=prompt(cfT('phonePrompt'), ps.has?ps.label:'+81');
+        if(!phone) return;
+        if(!/^\+[1-9]\d{6,14}$/.test(phone.trim())){ alert('E.164形式で入力してください（例: +819012345678）'); return; }
+        try{
+          var r=await sb.auth.updateUser({ phone: phone.trim() });
+          if(r.error) throw r.error;
+          var code=prompt(cfT('otpPrompt')); if(!code) return;
+          var v=await sb.auth.verifyOtp({ phone: phone.trim(), token: code.trim(), type:'phone_change' });
+          if(v.error) throw v.error;
+          alert(cfT('phoneDone'));
+        }catch(e){
+          console.error('[CF Acct] phone verify failed',e);
+          alert(/sms|provider|not enabled|disabled/i.test(String((e&&e.message)||''))?cfT('smsUnavailable'):'認証に失敗しました。');
+        }
+      }));
+      /* language */
+      var langWrap=document.createElement('div');
+      langWrap.innerHTML='<div class="cfAcctItem" style="cursor:default"><span>'+cfT('language')+'</span></div>'+
+        '<div class="cfAcctLangRow">'+
+          '<button type="button" class="cfAcctLangBtn'+(cfLang()==='ja'?' on':'')+'" data-lang="ja">日本語</button>'+
+          '<button type="button" class="cfAcctLangBtn'+(cfLang()==='en'?' on':'')+'" data-lang="en">English</button>'+
+        '</div>';
+      langWrap.querySelectorAll('[data-lang]').forEach(function(b){
+        b.addEventListener('click',function(){ lsSet('cf_lang_v1',b.getAttribute('data-lang')); location.reload(); });
+      });
+      menu.appendChild(langWrap);
+      /* role-based admin items（一般ユーザーには非表示） */
+      if(isAdmin()){
+        menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
+        menu.appendChild(menuItem(cfT('adminDash'),'',null,function(){
+          acctOv.classList.remove('open'); window.open('/admin','_blank');
+        }));
+        menu.appendChild(menuItem(cfT('fbInbox'),'',null,function(){
+          acctOv.classList.remove('open'); openAdmin();
+        }));
       }
+      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
+      menu.appendChild(menuItem(cfT('logout'),'','danger',async function(){
+        acctOv.classList.remove('open');
+        try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Acct] signOut failed',e); }
+        acctBtn.style.display='none';
+        showGate('auth'); setMode('login');
+      }));
+    }
+    acctBtn.addEventListener('click',function(){
+      renderAcctMenu();
+      acctOv.classList.toggle('open');
     });
+
+    /* --- Invite screen panel（下部ナビ Invite → shareApp 画面に注入） --- */
+    function inviteLink(code){
+      return location.origin+location.pathname+'?invite='+encodeURIComponent(code)+'&beta_gate=on';
+    }
+    async function renderInvitePanel(){
+      var mount=document.getElementById('cfInvitePanelMount');
+      if(!mount) return;
+      var p=document.getElementById('cfInvitePanel');
+      if(!p){ p=document.createElement('div'); p.id='cfInvitePanel'; mount.appendChild(p); }
+      if(!canUseApp()){ p.innerHTML=''; return; }
+      if(!isAdmin()){
+        p.innerHTML='<h3>招待 / Invite</h3>'+
+          '<p class="cfInvHelp">CASEFLOW STUDIO™ は招待制です。現在、招待コードの発行は管理者のみ可能です。<br>'+
+          'ご紹介をご希望の場合は管理者にお問い合わせください。招待が成立すると、あなたにも紹介ボーナストークンが付与されます。</p>';
+        return;
+      }
+      p.innerHTML='<h3>招待 / Invite</h3>'+
+        '<p class="cfInvHelp">招待コードを発行し、リンクをコピーして共有できます。招待可能人数: 無制限（管理者）。'+
+        '被招待者に100、あなたに100トークンが付与されます（開発者招待は1000/0）。</p>'+
+        '<div style="display:flex;gap:7px;margin-bottom:10px">'+
+          '<select class="cfG2Input" id="cfInvPreset" style="margin:0;flex:1;font-size:13px">'+
+            '<option value="clinical">臨床ベータ招待（dentist・100/100）</option>'+
+            '<option value="developer">開発者招待（developer・1000/0）</option>'+
+          '</select>'+
+          '<button type="button" class="cfInvCopy" id="cfInvCreate" style="padding:0 16px">発行</button>'+
+        '</div>'+
+        '<div class="cfG2Msg" id="cfInvMsg"></div>'+
+        '<div id="cfInvList" style="font-size:12px;color:#7a7290">読み込み中…</div>';
+      document.getElementById('cfInvCreate').addEventListener('click',async function(){
+        var preset=document.getElementById('cfInvPreset').value;
+        var dev=(preset==='developer');
+        this.disabled=true; msgBox('cfInvMsg','発行中…','info');
+        try{
+          var r=await sb.rpc('admin_create_invite_code',{
+            p_code:null, p_invited_email:null, p_role:dev?'developer':'dentist',
+            p_workspace_type:dev?'developer':'personal',
+            p_token_grant_invitee:dev?1000:100, p_token_grant_inviter:dev?0:100,
+            p_max_uses:1, p_expires_at:null });
+          if(r.error) throw r.error;
+          if(r.data&&r.data.ok){ msgBox('cfInvMsg','発行しました: '+r.data.code,'ok'); loadInviteList(); }
+          else msgBox('cfInvMsg','発行に失敗しました。','err');
+        }catch(e){ console.error('[CF Invite] create failed',e); msgBox('cfInvMsg','発行に失敗しました。','err'); }
+        this.disabled=false;
+      });
+      loadInviteList();
+    }
+    async function loadInviteList(){
+      var box=document.getElementById('cfInvList'); if(!box) return;
+      try{
+        var r=await sb.from('invite_codes')
+          .select('code,role,used_count,max_uses,revoked_at,expires_at')
+          .order('created_at',{ascending:false}).limit(10);
+        if(r.error) throw r.error;
+        if(!r.data||!r.data.length){ box.innerHTML='発行済みの招待コードはまだありません。'; return; }
+        box.innerHTML='<div style="font-weight:800;color:#5b3fd6;margin:4px 0 6px">招待履歴 / Recent codes</div>'+
+          r.data.map(function(c){
+            var dead=!!c.revoked_at||(c.expires_at&&new Date(c.expires_at)<=new Date())||c.used_count>=c.max_uses;
+            return '<div class="cfInvCode" style="'+(dead?'opacity:.55':'')+'"><b>'+esc(c.code)+'</b>'+
+              '<span>'+esc(c.role)+' · '+c.used_count+'/'+c.max_uses+(dead?' · 使用不可':'')+'</span>'+
+              (dead?'':'<button type="button" class="cfInvCopy" data-copy="'+esc(c.code)+'">リンクをコピー</button>')+'</div>';
+          }).join('');
+        box.querySelectorAll('[data-copy]').forEach(function(b){
+          b.addEventListener('click',async function(){
+            var link=inviteLink(b.getAttribute('data-copy'));
+            try{ await navigator.clipboard.writeText(link); b.textContent='コピーしました ✓'; }
+            catch(e){ console.error('[CF Invite] copy failed',e); prompt('リンクをコピーしてください', link); }
+            setTimeout(function(){ b.textContent='リンクをコピー'; },1600);
+          });
+        });
+      }catch(e){ console.error('[CF Invite] list failed',e); box.innerHTML='招待履歴を取得できませんでした。'; }
+    }
+    window.__cfRenderInvitePanel=renderInvitePanel;
+    /* Invite画面を開いたときにも再描画 */
+    (function(){
+      var prevGo=window.go;
+      if(typeof prevGo==='function' && !window.__cfInviteGoWrapped){
+        window.__cfInviteGoWrapped=true;
+        window.go=function(id){ var r=prevGo.apply(this,arguments); if(id==='shareApp') setTimeout(renderInvitePanel,60); return r; };
+      }
+    })();
+
+    /* --- 招待リンク（?invite=CODE）からのプレフィル --- */
+    try{
+      var invParam=new URLSearchParams(location.search).get('invite');
+      if(invParam){ var iv=el('cfG2Invite'); if(iv) iv.value=invParam.toUpperCase(); }
+    }catch(e){ console.error('[CF Gate] invite param parse failed',e); }
     el('cfFbClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
     el('cfFbDoneClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
     el('cfFbSend').addEventListener('click',async function(){
@@ -25694,7 +26012,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
     });
 
     /* --- session bootstrap --- */
-    sb.auth.onAuthStateChange(function(_evt,session){
+    sb.auth.onAuthStateChange(function(evt,session){
+      if(evt==='PASSWORD_RECOVERY'){ curSession=session||null; msgBox('cfG2NewPassMsg',''); showGate('newpass'); return; }
       evaluateSession(session).catch(function(e){ console.error('[CF Gate] evaluate failed',e); showGate('auth'); });
     });
     sb.auth.getSession().then(function(res){
