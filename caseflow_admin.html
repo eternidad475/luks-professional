@@ -465,11 +465,13 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
           /* 電話番号は初期表示マスク（+CC と下4桁のみ）。必要時のみ全文表示 */
           var masked=u.phone?String(u.phone).replace(/^(\+\d{1,3})(\d+)(\d{4})$/,function(_,cc,mid,tail){
             return cc+' '+'*'.repeat(Math.min(mid.length,6))+' '+tail; }):'—';
-          phoneHtml='<span data-phone-full="'+esc(u.phone||'')+'">'+esc(masked)+'</span>'+
-            (u.phone?' <button type="button" class="btn small ghost" data-phone-reveal style="padding:2px 8px;font-size:10px">表示</button>':'')+
-            (u.phone_verified?' <span class="badge ok">電話認証済</span>':' <span class="badge dim">電話未認証</span>');
+          /* Phase 2.1: SMS認証は不採用 — phone_verified バッジは非表示（電話番号自体は参考表示のみ） */
+          phoneHtml=u.phone
+            ? '<span data-phone-full="'+esc(u.phone)+'">'+esc(masked)+'</span>'+
+              ' <button type="button" class="btn small ghost" data-phone-reveal style="padding:2px 8px;font-size:10px">表示</button>'
+            : '';
         } else {
-          phoneHtml='<span class="badge dim">電話: 未接続（migration 4 未適用）</span>';
+          phoneHtml='';
         }
         return '<div class="item"><b>'+esc(u.email)+'</b>'+(name?' <span class="badge dim">'+esc(name)+'</span>':'')+
           ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+profBadge+
@@ -718,20 +720,8 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       else profile=p.data;
     }catch(e){ console.error('[Admin] profile exception',e); }
     if(!profile || DASH_ROLES.indexOf(profile.role)<0){ show('denied'); return; }
-    /* 電話番号認証ゲート: SMSプロバイダ設定後に true へ切替（現状は警告表示のみ）。
-       電話認証はSIMスワップ耐性が限定的なため、本人確認の補助として扱う。 */
-    var CF_REQUIRE_PHONE_FOR_ADMIN=false;
-    var phoneVerified=!!(session.user&&session.user.phone_confirmed_at);
-    if(CF_REQUIRE_PHONE_FOR_ADMIN && !phoneVerified){ show('denied'); return; }
+    /* Phase 2.1: SMS認証は不採用（UI・警告とも撤去）。将来採用時はここに再導入する */
     show('dash'); renderHeader(); initDeployOnce();
-    if(!phoneVerified && !el('phoneWarn')){
-      var w=document.createElement('div');
-      w.id='phoneWarn'; w.className='card';
-      w.style.cssText='background:rgba(255,244,214,.96);border:1px solid rgba(190,140,0,.3)';
-      w.innerHTML='<b style="font-size:13px;color:#b07a00">電話番号認証が未完了です</b>'+
-        '<p class="help" style="margin:4px 0 0">管理者アカウントの保護のため、アプリのアカウントメニュー →「電話番号認証」から SMS 認証を完了してください（SMSプロバイダ設定後に有効化されます）。</p>';
-      var dash=el('dashView'); dash.insertBefore(w,dash.firstChild);
-    }
     await loadOverview(); renderNav();
   }
   var _depInit=false;

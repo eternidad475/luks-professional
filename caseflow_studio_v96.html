@@ -26043,8 +26043,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
       sec.appendChild(card);
       return sec;
     }
+    /* Phase 2.1: SMS認証は不採用（プロバイダ契約・送信コスト・国内規制の複雑性のため）。
+       コードは flag で温存するが UI からは完全に外す。clinic_phone は別概念（医院代表電話）。 */
+    var CF_SMS_AUTH_ENABLED=false;
     async function changePhoneFlow(){
-      /* SMSプロバイダ未設定の間は案内のみ。SIMスワップ耐性は限定的なため補助認証として扱う */
+      if(!CF_SMS_AUTH_ENABLED) return;
       var ps=phoneState();
       var phone=prompt(cfT('phonePrompt'), ps.has?ps.label:'+81');
       if(!phone) return;
@@ -26070,8 +26073,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var clinic=(curProfile&&curProfile.clinic_name)||'';
       var profType=(curProfile&&curProfile.professional_type)||'';
       var profLabel=profType?(CF_PROF_JA[profType]||profType):'職種未設定';
-      var ps=phoneState();
-      var phoneLine=ps.has?(esc(ps.label)+' · '+(ps.verified?'認証済み':'未認証')):'SMS認証は準備中です';
       var tok=(window.__cfTokens==null?'…':window.__cfTokens);
 
       /* A. Identity */
@@ -26081,7 +26082,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
           (dispName?'<div class="cfShName">'+esc(dispName)+'</div>':'')+
           '<div class="cfShMail">'+esc(email)+'</div>'+
           '<div class="cfShMeta">'+esc(role)+' / '+esc(profLabel)+(clinic?'<span style="color:rgba(42,35,80,.5)"> · '+esc(clinic)+'</span>':'')+'</div>'+
-          '<div class="cfShSub">'+phoneLine+'</div>'+
         '</div></div>';
       menu.appendChild(idSec);
 
@@ -26110,7 +26110,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
             alert(cfT('passResetSent'));
           }catch(e){ console.error('[CF Acct] reset failed',e); alert('送信に失敗しました。'); }
         }),
-        shRow('電話番号 登録 / 変更',ps.has?esc(ps.label):'SMS認証は準備中です',null,changePhoneFlow)
       ]));
 
       /* D. Other（admin項目は権限者のみ） */
@@ -26156,7 +26155,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '</select>'+
         '<label class="cfG2Label">医院名 / Clinic（任意）</label>'+
         '<input class="cfG2Input" id="cfPeClinic" type="text" maxlength="80" placeholder="例：〇〇歯科クリニック" value="'+esc(p.clinic_name||'')+'">'+
-        '<div style="font-size:10.5px;color:rgba(42,35,80,.5);line-height:1.7;margin:2px 0 12px">電話番号の登録・変更はアカウント → Settings →「電話番号 登録 / 変更」から行えます（SMS認証は準備中です）。本名・住所などの入力は不要です。</div>'+
+        '<div style="font-size:10.5px;color:rgba(42,35,80,.5);line-height:1.7;margin:2px 0 12px">本名・住所などの入力は不要です。</div>'+
         '<div class="cfG2Msg" id="cfPeMsg"></div>'+
         '<button type="button" class="cfG2Btn" id="cfPeSave">保存</button>'+
         '<button type="button" class="cfG2BtnGhost" id="cfPeCancel">キャンセル</button>'+
