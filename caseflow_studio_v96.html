@@ -25418,10 +25418,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfShMail{font-size:11.5px;font-weight:650;color:rgba(42,35,80,.62);word-break:break-all;margin-top:1px}',
     '.cfShMeta{font-size:11px;font-weight:750;color:rgba(42,35,80,.72);margin-top:6px}',
     '.cfShSub{font-size:10px;font-weight:650;color:rgba(42,35,80,.45);margin-top:3px}',
-    '.cfShWallet{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-bottom:1px solid rgba(124,92,255,.10)}',
+    '.cfShWallet{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 13px;border-bottom:1px solid rgba(124,92,255,.10)}',
+    '.cfShWallet .l{min-width:0}',
     '.cfShWallet b{font-size:13px;font-weight:900;color:#241c46}',
-    '.cfShWallet .v{font-size:13px;font-weight:900;color:#3d2b8f}',
-    '.cfShWallet .s{display:block;font-size:10px;font-weight:650;color:rgba(42,35,80,.5);margin-top:2px}',
+    '.cfShWallet .v{font-size:17px;font-weight:900;color:#3d2b8f;white-space:nowrap;flex-shrink:0}',
+    '.cfShWallet .v .u{font-size:10px;font-weight:750;color:rgba(42,35,80,.5)}',
+    '.cfShWallet .s{display:block;font-size:10px;font-weight:650;color:rgba(42,35,80,.5);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.cfShRow{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:none;text-align:left;',
     ' padding:12px 13px;font:inherit;font-size:13px;font-weight:800;color:#241c46;cursor:pointer;border-bottom:1px solid rgba(124,92,255,.10);touch-action:manipulation}',
     '.cfShRow:last-child{border-bottom:0}',
@@ -25957,6 +25959,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
               expired:'この招待コードは有効期限切れです。管理者に再発行をご依頼ください。',
               exhausted:'この招待コードは使用上限に達しています。管理者に再発行をご依頼ください。',
               email_mismatch:'この招待コードは別のメールアドレス宛に発行されています。',
+              self_invite:'ご自身が発行した招待コードは使用できません。',
               already_used:'この招待コードは使用済みです。',
               email_unconfirmed:'メールアドレスの確認が完了していません。受信箱の確認メールのリンクを開いてから、再度お試しください。',
               not_authenticated:'ログインセッションが切れています。再度ログインしてからお試しください。',
@@ -26097,14 +26100,16 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '</div></div>';
       menu.appendChild(idSec);
 
-      /* B. Wallet */
-      var plan=(curBilling&&curBilling.plan)?(CF_PLAN_JA[curBilling.plan]||curBilling.plan):'招待ベータ';
+      /* B. Wallet — 主表示は保有トークン。プラン/ベータ状態は小さなサブテキスト */
+      var plan=(curBilling&&curBilling.plan)?(CF_PLAN_JA[curBilling.plan]||curBilling.plan):'未契約';
       var renew=(curBilling&&curBilling.current_period_end)?fmtDateJa(curBilling.current_period_end):'';
+      var planSub=esc(plan)+((curBilling&&curBilling.plan)?'':' · 招待ベータ')+
+        (renew?' · 次回更新 '+esc(renew)+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':''):'');
       var walletHead=document.createElement('div');
       walletHead.className='cfShWallet';
-      walletHead.innerHTML='<span><b>'+esc(plan)+'</b>'+
-        (renew?'<span class="s">次回更新 '+esc(renew)+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':'')+'</span>':'')+
-        '</span><span class="v">'+esc(tok)+' <span style="font-size:10px;font-weight:750;color:rgba(42,35,80,.5)">tokens</span></span>';
+      walletHead.innerHTML='<span class="l"><b>保有トークン</b>'+
+        '<span class="s">'+planSub+'</span></span>'+
+        '<span class="v">'+esc(tok)+' <span class="u">tokens</span></span>';
       menu.appendChild(shSection('Wallet',[
         walletHead,
         shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
@@ -26361,10 +26366,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
       p.innerHTML='<h3>招待 / Invite</h3>'+
         '<p class="cfInvHelp">招待コードを発行し、リンクをコピーして共有できます。招待可能人数: 無制限（管理者）。'+
-        '被招待者に100、あなたに100トークンが付与されます（開発者招待は1000/0）。</p>'+
+        '被招待者に10、あなたに5トークンが付与されます（開発者招待は1000/0）。</p>'+
         '<div style="display:flex;gap:7px;margin-bottom:10px">'+
           '<select class="cfG2Input" id="cfInvPreset" style="margin:0;flex:1;font-size:13px">'+
-            '<option value="clinical">臨床ベータ招待（dentist・100/100）</option>'+
+            '<option value="clinical">臨床ベータ招待（dentist・10/5）</option>'+
             '<option value="developer">開発者招待（developer・1000/0）</option>'+
           '</select>'+
           '<button type="button" class="cfInvCopy" id="cfInvCreate" style="padding:0 16px">発行</button>'+
@@ -26379,7 +26384,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           var r=await sb.rpc('admin_create_invite_code',{
             p_code:null, p_invited_email:null, p_role:dev?'developer':'dentist',
             p_workspace_type:dev?'developer':'personal',
-            p_token_grant_invitee:dev?1000:100, p_token_grant_inviter:dev?0:100,
+            p_token_grant_invitee:dev?1000:10, p_token_grant_inviter:dev?0:5,
             p_max_uses:1, p_expires_at:null });
           if(r.error) throw r.error;
           if(r.data&&r.data.ok){ msgBox('cfInvMsg','発行しました: '+r.data.code,'ok'); loadInviteList(); }
