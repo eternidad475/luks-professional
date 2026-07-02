@@ -1,7 +1,11 @@
 # Phase 1 Emergency Beta Gate — 調査結果・設計・ロードマップ
 
-> ステータス: 設計確定 / フロント実装済み（フラグOFF）/ DB migration は**提案のみ・未適用**
-> 最終更新: 2026-07-01
+> ステータス: 設計確定 / フロント実装済み（フラグOFF）/ **DB migration 3本適用済み（2026-07-02）**
+> 適用済み: phase1_beta_gate / phase1_security_hardening / usage_events_admin_dashboard
+> 開発者権限設定済み（eternidad475@gmail.com → role=developer, beta_access=true）
+> ブートストラップ招待コード: DEV-BETA-0001（developer・invitee 1000・max_uses 1）
+> 残る手動作業: ダッシュボードで Leaked Password Protection を有効化
+> 最終更新: 2026-07-02
 
 ---
 
