@@ -25355,9 +25355,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfG2Invited{margin:0 0 16px;padding:10px 12px;border-radius:12px;background:rgba(124,92,255,.10);color:#5b3fd6;font-size:12px;font-weight:700;line-height:1.7;text-align:center}',
     '.cfG2Label{display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px}',
     '.cfG2Input{width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:12px;background:#fff;color:#231a3a}',
-    '.cfG2Btn{width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px}',
+    '.cfG2Btn{width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(124,92,255,.2)}',
     '.cfG2Btn[disabled]{opacity:.55}',
-    '.cfG2BtnGhost{width:100%;padding:11px;border:1.5px solid rgba(32,27,53,.14);border-radius:12px;background:#fff;color:#3c4043;font-weight:800;font-size:14px;cursor:pointer;margin-top:10px}',
+    '.cfG2BtnGhost{width:100%;padding:11px;border:1.5px solid rgba(32,27,53,.14);border-radius:12px;background:#fff;color:#3c4043;font-weight:800;font-size:14px;cursor:pointer;margin-top:10px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(124,92,255,.15)}',
     '.cfG2Msg{display:none;font-size:12.5px;margin-bottom:12px;padding:9px 11px;border-radius:9px;line-height:1.6}',
     '.cfG2Tabs{display:flex;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:16px}',
     '.cfG2Tab{flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:transparent;color:#7a7290}',
@@ -25406,7 +25406,44 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '#cfInvitePanel .cfInvHelp{font-size:11.5px!important;color:#5a5470!important;line-height:1.7;margin:0 0 12px}',
     '.cfInvCode{display:flex;align-items:center;gap:8px;border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;color:#231a3a!important;background:#fff}',
     '.cfInvCode b{letter-spacing:.05em}',
-    '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:#5b3fd6;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}'
+    '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:#5b3fd6;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}',
+    /* ===== v9.8 Account Sheet（すりガラス・半透明白・薄い境界線・濃紺見出し） ===== */
+    '#cfAcctMenu{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);',
+    ' border:1px solid rgba(255,255,255,.55);box-shadow:0 24px 70px rgba(30,18,60,.35);padding:16px 14px!important}',
+    '.cfShSec{margin:2px 2px 10px}',
+    '.cfShHead{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:rgba(42,35,80,.55);margin:0 6px 6px}',
+    '.cfShCard{background:rgba(255,255,255,.62);border:1px solid rgba(124,92,255,.14);border-radius:14px;overflow:hidden}',
+    '.cfShId{padding:12px 13px}',
+    '.cfShName{font-size:14.5px;font-weight:900;color:#241c46}',
+    '.cfShMail{font-size:11.5px;font-weight:650;color:rgba(42,35,80,.62);word-break:break-all;margin-top:1px}',
+    '.cfShMeta{font-size:11px;font-weight:750;color:rgba(42,35,80,.72);margin-top:6px}',
+    '.cfShSub{font-size:10px;font-weight:650;color:rgba(42,35,80,.45);margin-top:3px}',
+    '.cfShWallet{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-bottom:1px solid rgba(124,92,255,.10)}',
+    '.cfShWallet b{font-size:13px;font-weight:900;color:#241c46}',
+    '.cfShWallet .v{font-size:13px;font-weight:900;color:#3d2b8f}',
+    '.cfShWallet .s{display:block;font-size:10px;font-weight:650;color:rgba(42,35,80,.5);margin-top:2px}',
+    '.cfShRow{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:none;text-align:left;',
+    ' padding:12px 13px;font:inherit;font-size:13px;font-weight:800;color:#241c46;cursor:pointer;border-bottom:1px solid rgba(124,92,255,.10);touch-action:manipulation}',
+    '.cfShRow:last-child{border-bottom:0}',
+    '.cfShRow:active{background:rgba(124,92,255,.10)}',
+    '.cfShRow .sub{font-size:10.5px;color:rgba(42,35,80,.5);font-weight:700}',
+    '.cfShRow.danger{color:#c0303a}',
+    '.cfShRow .chev{color:rgba(42,35,80,.35);font-size:13px}',
+    /* nav token badge */
+    '#navSimBtn{position:relative}',
+    '.cfNavTokBadge{position:absolute;top:3px;left:50%;transform:translateX(9px);min-width:16px;height:15px;line-height:15px;padding:0 4px;',
+    ' border-radius:999px;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-size:9px;font-weight:900;text-align:center;',
+    ' box-shadow:0 2px 8px rgba(90,60,220,.45);pointer-events:none;letter-spacing:0}',
+    '.cfNavTokBadge.big{transform:translateX(7px);padding:0 5px}',
+    /* pricing modal: in-modal message + button loading */
+    '#cfPriceMsg{display:none;font-size:12px;font-weight:750;margin:10px 0 0;padding:9px 11px;border-radius:10px;line-height:1.6}',
+    '.cfBtnBusy{opacity:.6;pointer-events:none}',
+    /* profile edit sheet */
+    '#cfProfEditOv{position:fixed;inset:0;z-index:2147483644;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.5);overflow:auto;',
+    " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
+    '#cfProfEditOv.open{display:flex}',
+    '.cfPeCard{width:100%;max-width:380px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55);border-radius:20px;padding:20px 18px;box-shadow:0 24px 70px rgba(30,18,60,.35);color:#241c46}',
+    '.cfPeTitle{font-weight:900;font-size:15px;color:#241c46;margin:0 0 12px}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -25563,7 +25600,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   var badge=el('cfTokenBadge'), logoutBtn=el('cfLogoutBtn');
+  /* 下部ナビ Account アイコン右上のトークン残高バッジ（0-9 / 10-99 / 99+） */
+  function cfUpdateNavTokBadge(n){
+    var nb=document.getElementById('cfNavTokBadge');
+    if(!nb) return;
+    var t=(n==null)?'…':(n>99?'99+':String(Math.max(0,n)));
+    nb.textContent=t;
+    nb.classList.toggle('big', t.length>=2);
+    nb.style.background=(n!=null&&n<=0)?'linear-gradient(135deg,#d0455a,#e0607a)':'linear-gradient(135deg,#7c5cff,#b06bff)';
+  }
+  window.cfUpdateNavTokBadge=cfUpdateNavTokBadge;
   function renderBadge(n){
+    cfUpdateNavTokBadge(n);
     if(!badge) return;
     badge.innerHTML='<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:2px;display:inline-block"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2"/></svg>'+(n==null?'…':n);
     badge.style.color=(n!=null&&n<=0)?'#c0303a':'#5b3fd6';
@@ -25980,94 +26028,161 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var d=new Date(iso); if(isNaN(d)) return '';
       return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
     }
+    function shRow(label,sub,cls,handler){
+      var b=document.createElement('button');
+      b.type='button'; b.className='cfShRow'+(cls?' '+cls:'');
+      b.innerHTML='<span>'+label+(sub?'<span class="sub" style="display:block;margin-top:1px">'+sub+'</span>':'')+'</span><span class="chev">›</span>';
+      b.addEventListener('click',handler);
+      return b;
+    }
+    function shSection(title,rows){
+      var sec=document.createElement('div'); sec.className='cfShSec';
+      sec.innerHTML='<div class="cfShHead">'+title+'</div>';
+      var card=document.createElement('div'); card.className='cfShCard';
+      rows.forEach(function(r){ card.appendChild(r); });
+      sec.appendChild(card);
+      return sec;
+    }
+    async function changePhoneFlow(){
+      /* SMSプロバイダ未設定の間は案内のみ。SIMスワップ耐性は限定的なため補助認証として扱う */
+      var ps=phoneState();
+      var phone=prompt(cfT('phonePrompt'), ps.has?ps.label:'+81');
+      if(!phone) return;
+      if(!/^\+[1-9]\d{6,14}$/.test(phone.trim())){ alert('E.164形式で入力してください（例: +819012345678）'); return; }
+      try{
+        var r=await sb.auth.updateUser({ phone: phone.trim() });
+        if(r.error) throw r.error;
+        var code=prompt(cfT('otpPrompt')); if(!code) return;
+        var v=await sb.auth.verifyOtp({ phone: phone.trim(), token: code.trim(), type:'phone_change' });
+        if(v.error) throw v.error;
+        alert(cfT('phoneDone'));
+      }catch(e){
+        console.error('[CF Acct] phone verify failed',e);
+        alert(/sms|provider|not enabled|disabled/i.test(String((e&&e.message)||''))?cfT('smsUnavailable'):'認証に失敗しました。');
+      }
+    }
     function renderAcctMenu(){
       var menu=el('cfAcctMenu'); if(!menu) return;
       menu.innerHTML='';
       var email=(curSession&&curSession.user&&curSession.user.email)||'—';
       var role=(curProfile&&curProfile.role)||'—';
       var dispName=(curProfile&&curProfile.display_name)||'';
+      var clinic=(curProfile&&curProfile.clinic_name)||'';
       var profType=(curProfile&&curProfile.professional_type)||'';
       var profLabel=profType?(CF_PROF_JA[profType]||profType):'職種未設定';
       var ps=phoneState();
-      var phoneLine=ps.has?(ps.verified?'電話認証済み':'電話未認証'):'SMS認証は準備中です';
+      var phoneLine=ps.has?(esc(ps.label)+' · '+(ps.verified?'認証済み':'未認証')):'SMS認証は準備中です';
       var tok=(window.__cfTokens==null?'…':window.__cfTokens);
-      var head=document.createElement('div');
-      head.className='cfAcctHead';
-      head.innerHTML=(dispName?'<div class="cfAcctMail" style="font-size:13.5px">'+esc(dispName)+'</div>':'')+
-        '<div class="cfAcctMail"'+(dispName?' style="font-weight:600;color:#7a7290;font-size:11.5px"':'')+'>'+esc(email)+'</div>'+
-        '<div class="cfAcctRole">'+esc(role)+' / '+esc(profLabel)+'</div>'+
-        '<div class="cfAcctRole">'+esc(phoneLine)+'</div>'+
-        '<div class="cfAcctRole" style="color:#3d2b8f;font-weight:850">所有トークン：'+esc(tok)+'</div>';
-      menu.appendChild(head);
-      /* plan（billing_subscriptions から。未接続時は Trial/招待ベータ表示） */
+
+      /* A. Identity */
+      var idSec=document.createElement('div'); idSec.className='cfShSec';
+      idSec.innerHTML='<div class="cfShHead">Account</div>'+
+        '<div class="cfShCard"><div class="cfShId">'+
+          (dispName?'<div class="cfShName">'+esc(dispName)+'</div>':'')+
+          '<div class="cfShMail">'+esc(email)+'</div>'+
+          '<div class="cfShMeta">'+esc(role)+' / '+esc(profLabel)+(clinic?'<span style="color:rgba(42,35,80,.5)"> · '+esc(clinic)+'</span>':'')+'</div>'+
+          '<div class="cfShSub">'+phoneLine+'</div>'+
+        '</div></div>';
+      menu.appendChild(idSec);
+
+      /* B. Wallet */
       var plan=(curBilling&&curBilling.plan)?(CF_PLAN_JA[curBilling.plan]||curBilling.plan):'招待ベータ';
-      var renew=(curBilling&&curBilling.current_period_end)?('次回更新：'+fmtDateJa(curBilling.current_period_end)):'';
-      var planSub=renew+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':'');
-      menu.appendChild(menuItem('現在のプラン：'+esc(plan),esc(planSub),null,function(){ loadBilling().then(renderAcctMenu); }));
-      menu.appendChild(menuItem('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
-      menu.appendChild(menuItem('トークンを追加購入','Mini 20 / Standard 100 / Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
-      menu.appendChild(menuItem('支払い管理','Stripeポータル',null,openPortal));
-      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
-      /* tokens */
-      menu.appendChild(menuItem(cfT('tokens'),String(tok),null,function(){ refreshTokens().then(renderAcctMenu); }));
-      /* invite */
-      menu.appendChild(menuItem(cfT('invite'),'',null,function(){
-        acctOv.classList.remove('open');
-        if(typeof window.go==='function') window.go('shareApp');
-      }));
-      /* feedback */
-      menu.appendChild(menuItem(cfT('feedback'),'',null,openFeedback));
-      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
-      /* security: password / phone */
-      menu.appendChild(menuItem(cfT('changePass'),'',null,async function(){
-        try{
-          var r=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.origin+location.pathname+'?beta_gate=on' });
-          if(r.error) throw r.error;
-          alert(cfT('passResetSent'));
-        }catch(e){ console.error('[CF Acct] reset failed',e); alert('送信に失敗しました。'); }
-      }));
-      var ps=phoneState();
-      menu.appendChild(menuItem(cfT('changePhone'),
-        ps.has?(esc(ps.label)+' · '+(ps.verified?cfT('phoneVerified'):cfT('phoneUnverified'))):cfT('phoneUnverified'),
-        null,async function(){
-        /* Phase 1 scaffold: SupabaseにSMSプロバイダ未設定の間は案内のみ。
-           SIMスワップ耐性は限定的なため、本人確認の補助として扱う（過信しない）。 */
-        var phone=prompt(cfT('phonePrompt'), ps.has?ps.label:'+81');
-        if(!phone) return;
-        if(!/^\+[1-9]\d{6,14}$/.test(phone.trim())){ alert('E.164形式で入力してください（例: +819012345678）'); return; }
-        try{
-          var r=await sb.auth.updateUser({ phone: phone.trim() });
-          if(r.error) throw r.error;
-          var code=prompt(cfT('otpPrompt')); if(!code) return;
-          var v=await sb.auth.verifyOtp({ phone: phone.trim(), token: code.trim(), type:'phone_change' });
-          if(v.error) throw v.error;
-          alert(cfT('phoneDone'));
-        }catch(e){
-          console.error('[CF Acct] phone verify failed',e);
-          alert(/sms|provider|not enabled|disabled/i.test(String((e&&e.message)||''))?cfT('smsUnavailable'):'認証に失敗しました。');
-        }
-      }));
-      /* role-based admin items（一般ユーザーには非表示） */
+      var renew=(curBilling&&curBilling.current_period_end)?fmtDateJa(curBilling.current_period_end):'';
+      var walletHead=document.createElement('div');
+      walletHead.className='cfShWallet';
+      walletHead.innerHTML='<span><b>'+esc(plan)+'</b>'+
+        (renew?'<span class="s">次回更新 '+esc(renew)+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':'')+'</span>':'')+
+        '</span><span class="v">'+esc(tok)+' <span style="font-size:10px;font-weight:750;color:rgba(42,35,80,.5)">tokens</span></span>';
+      menu.appendChild(shSection('Wallet',[
+        walletHead,
+        shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
+        shRow('トークンを追加購入','Mini 20 · Standard 100 · Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
+        shRow('支払い管理',(curBilling?'Stripeポータル':'未契約'),null,openPortal)
+      ]));
+
+      /* C. Settings */
+      menu.appendChild(shSection('Settings',[
+        shRow('プロフィールを編集','表示名・職種・医院名',null,function(){ acctOv.classList.remove('open'); openProfileEdit(); }),
+        shRow('パスワード変更','再設定リンクをメール送信',null,async function(){
+          try{
+            var r=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.origin+location.pathname+'?beta_gate=on' });
+            if(r.error) throw r.error;
+            alert(cfT('passResetSent'));
+          }catch(e){ console.error('[CF Acct] reset failed',e); alert('送信に失敗しました。'); }
+        }),
+        shRow('電話番号 登録 / 変更',ps.has?esc(ps.label):'SMS認証は準備中です',null,changePhoneFlow)
+      ]));
+
+      /* D. Other（admin項目は権限者のみ） */
+      var otherRows=[
+        shRow('招待','',null,function(){ acctOv.classList.remove('open'); if(typeof window.go==='function') window.go('shareApp'); }),
+        shRow('フィードバック','',null,openFeedback)
+      ];
       if(isAdmin()){
-        menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
-        menu.appendChild(menuItem(cfT('adminDash'),'',null,function(){
-          acctOv.classList.remove('open'); window.open('/admin','_blank');
-        }));
-        menu.appendChild(menuItem(cfT('fbInbox'),'',null,function(){
-          acctOv.classList.remove('open'); openAdmin();
-        }));
+        otherRows.push(shRow('Admin Dashboard','管理者専用',null,function(){ acctOv.classList.remove('open'); window.open('/admin','_blank'); }));
+        otherRows.push(shRow('Feedback Inbox','管理者専用',null,function(){ acctOv.classList.remove('open'); openAdmin(); }));
       }
-      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
-      menu.appendChild(menuItem(cfT('logout'),'','danger',async function(){
+      otherRows.push(shRow('ログアウト','','danger',async function(){
         acctOv.classList.remove('open');
         try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Acct] signOut failed',e); }
-        location.reload(); /* ナビ中央ボタン等の状態を初期化してgateへ */
+        location.reload();
       }));
+      menu.appendChild(shSection('Other',otherRows));
     }
     acctBtn.addEventListener('click',function(){
       renderAcctMenu();
       acctOv.classList.toggle('open');
     });
+
+    /* --- プロフィール編集シート（profiles の own-row update RLS で保存） --- */
+    var profEditOv=null;
+    function openProfileEdit(){
+      if(!profEditOv){
+        profEditOv=document.createElement('div');
+        profEditOv.id='cfProfEditOv';
+        document.body.appendChild(profEditOv);
+        profEditOv.addEventListener('click',function(e){ if(e.target===profEditOv) profEditOv.classList.remove('open'); });
+      }
+      var p=curProfile||{};
+      profEditOv.innerHTML='<div class="cfPeCard">'+
+        '<p class="cfPeTitle">プロフィールを編集</p>'+
+        '<label class="cfG2Label">表示名 / Display name</label>'+
+        '<input class="cfG2Input" id="cfPeName" type="text" maxlength="60" placeholder="例：上田 智隆" value="'+esc(p.display_name||'')+'">'+
+        '<label class="cfG2Label">職種 / Profession</label>'+
+        '<select class="cfG2Input" id="cfPeProf">'+
+          Object.keys(CF_PROF_JA).map(function(k){
+            return '<option value="'+k+'"'+(p.professional_type===k?' selected':'')+'>'+CF_PROF_JA[k]+'</option>';
+          }).join('')+
+        '</select>'+
+        '<label class="cfG2Label">医院名 / Clinic（任意）</label>'+
+        '<input class="cfG2Input" id="cfPeClinic" type="text" maxlength="80" placeholder="例：〇〇歯科クリニック" value="'+esc(p.clinic_name||'')+'">'+
+        '<div style="font-size:10.5px;color:rgba(42,35,80,.5);line-height:1.7;margin:2px 0 12px">電話番号の登録・変更はアカウント → Settings →「電話番号 登録 / 変更」から行えます（SMS認証は準備中です）。本名・住所などの入力は不要です。</div>'+
+        '<div class="cfG2Msg" id="cfPeMsg"></div>'+
+        '<button type="button" class="cfG2Btn" id="cfPeSave">保存</button>'+
+        '<button type="button" class="cfG2BtnGhost" id="cfPeCancel">キャンセル</button>'+
+      '</div>';
+      profEditOv.classList.add('open');
+      el('cfPeCancel').addEventListener('click',function(){ profEditOv.classList.remove('open'); });
+      el('cfPeSave').addEventListener('click',async function(){
+        var btn=el('cfPeSave'); btn.disabled=true; btn.classList.add('cfBtnBusy'); btn.textContent='保存中…';
+        try{
+          var upd={
+            display_name:(el('cfPeName').value||'').trim().slice(0,60)||null,
+            professional_type:el('cfPeProf').value||null,
+            clinic_name:(el('cfPeClinic').value||'').trim().slice(0,80)||null
+          };
+          var r=await sb.from('profiles').update(upd).eq('id',curSession.user.id);
+          if(r.error) throw r.error;
+          curProfile=Object.assign(curProfile||{},upd);
+          profEditOv.classList.remove('open');
+          if(typeof toast==='function') toast('プロフィールを保存しました');
+        }catch(e){
+          console.error('[CF Acct] profile save failed',e);
+          msgBox('cfPeMsg','保存に失敗しました。時間をおいて再度お試しください。','err');
+        }
+        btn.disabled=false; btn.classList.remove('cfBtnBusy'); btn.textContent='保存';
+      });
+    }
 
     /* --- 下部ナビ中央: Sim → Account（gate有効時のみ差し替え。右上固定表示は廃止） --- */
     function installNavAccount(){
@@ -26075,8 +26190,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(!btn||btn.dataset.cfAcct==='1') return;
       btn.dataset.cfAcct='1';
       btn.removeAttribute('onclick');
-      btn.innerHTML='<span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-1px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>Account';
+      btn.innerHTML='<span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-1px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>Account'+
+        '<span class="cfNavTokBadge" id="cfNavTokBadge">…</span>';
       btn.onclick=function(){ renderAcctMenu(); acctOv.classList.toggle('open'); };
+      cfUpdateNavTokBadge(window.__cfTokens);
     }
     window.__cfInstallNavAccount=installNavAccount;
 
@@ -26120,58 +26237,93 @@ body.cfPresent .cfPresentExit{display:flex!important}
           addonBtn('addon_standard','Standard — 100 tokens / 2,000円')+
           addonBtn('addon_plus','Plus — 300 tokens / 5,000円')+
         '</div>'+
+        '<div id="cfPriceMsg"></div>'+
         '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:12px">閉じる</button>'+
       '</div>';
       pricingOv.style.display='flex';
       var closeB=pricingOv.querySelector('[data-close]');
       if(closeB) closeB.addEventListener('click',function(){ pricingOv.style.display='none'; });
+      /* エラーはトーストではなくモーダル内に表示（トーストはオーバーレイの背面に隠れるため） */
+      function priceMsg(text,kind){
+        var m=pricingOv.querySelector('#cfPriceMsg'); if(!m) return;
+        if(!text){ m.style.display='none'; return; }
+        m.style.display='block'; m.textContent=text;
+        m.style.background=kind==='err'?'rgba(220,50,60,.10)':kind==='ok'?'rgba(30,160,90,.12)':'rgba(124,92,255,.10)';
+        m.style.color=kind==='err'?'#c0303a':kind==='ok'?'#1a8f57':'#5b3fd6';
+      }
+      function busy(b,on,label){
+        if(!b) return;
+        b.disabled=on; b.classList.toggle('cfBtnBusy',on);
+        if(on){ b.dataset.cfLabel=b.textContent; b.textContent=label||'処理中…'; }
+        else if(b.dataset.cfLabel){ b.textContent=b.dataset.cfLabel; }
+      }
       var trialB=pricingOv.querySelector('[data-trial]');
       if(trialB) trialB.addEventListener('click',async function(){
-        trialB.disabled=true;
+        if(window.__cfCheckoutBusy) return;
+        window.__cfCheckoutBusy=true; busy(trialB,true,'付与中…'); priceMsg('');
         try{
           var r=await sb.rpc('claim_trial_tokens');
           if(r.error) throw r.error;
           var d=r.data||{};
-          if(d.ok){ if(typeof toast==='function') toast('Trialトークンを付与しました（10）'); await loadAccess(curSession.user.id); refreshTokens(); openPricing(); }
-          else if(typeof toast==='function') toast(d.reason==='already_granted'?'Trialは取得済みです':'取得できませんでした');
-        }catch(e){ console.error('[CF Billing] trial failed',e); if(typeof toast==='function') toast('Trial機能は準備中です（migration未適用）'); }
-        trialB.disabled=false;
+          if(d.ok){ priceMsg('Trialトークンを付与しました（+10）','ok'); await loadAccess(curSession.user.id); await refreshTokens(); setTimeout(openPricing,700); }
+          else priceMsg(d.reason==='already_granted'?'Trialは取得済みです。':'取得できませんでした。','err');
+        }catch(e){ console.error('[CF Billing] trial failed',e); priceMsg('Trialを取得できませんでした。時間をおいて再度お試しください。','err'); }
+        window.__cfCheckoutBusy=false; busy(trialB,false);
       });
       pricingOv.querySelectorAll('[data-buy]').forEach(function(b){
-        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), b); });
+        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), b, priceMsg, busy); });
       });
     }
-    async function startCheckout(plan,btn){
-      if(btn) btn.disabled=true;
+    async function startCheckout(plan,btn,priceMsg,busy){
+      if(window.__cfCheckoutBusy) return;   /* 二重押し防止 */
+      window.__cfCheckoutBusy=true;
+      if(busy) busy(btn,true,'決済画面へ…');
+      if(priceMsg) priceMsg('Stripeの決済画面を準備しています…','info');
+      var show=function(t){ if(priceMsg) priceMsg(t,'err'); else if(typeof toast==='function') toast(t); };
       try{
         var s=await sb.auth.getSession();
         var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
-        if(!jwt) throw new Error('no session');
+        if(!jwt){ show('セッションが切れています。再ログインしてください。'); window.__cfCheckoutBusy=false; if(busy) busy(btn,false); return; }
         var res=await fetch('/api/stripe/create-checkout-session',{
           method:'POST',
           headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+jwt },
           body:JSON.stringify({ plan:plan })
         });
         var j=await res.json().catch(function(){ return {}; });
-        if(res.ok&&j.url){ location.href=j.url; return; }
+        if(res.ok&&j.url){ location.href=j.url; return; } /* 遷移するので busy は解除しない */
         console.error('[CF Billing] checkout failed',res.status,j);
-        if(typeof toast==='function') toast(j.error==='price_not_configured'?'このプランは現在準備中です':'決済画面を開けませんでした（Stripe未設定の可能性）');
-      }catch(e){ console.error('[CF Billing] checkout exception',e); if(typeof toast==='function') toast('決済画面を開けませんでした'); }
-      if(btn) btn.disabled=false;
+        if(j.error==='price_not_configured') show('このプランは現在準備中です（価格ID未設定）。');
+        else if(j.error==='server_not_configured') show('決済システムの設定が完了していません（環境変数）。管理者にお問い合わせください。');
+        else if(res.status===401) show('セッションが切れています。再ログインしてください。');
+        else show('決済画面を開けませんでした（HTTP '+res.status+'）。時間をおいて再度お試しください。');
+      }catch(e){ console.error('[CF Billing] checkout exception',e); show('通信エラーで決済画面を開けませんでした。'); }
+      window.__cfCheckoutBusy=false;
+      if(busy) busy(btn,false);
     }
     async function openPortal(){
       acctOv.classList.remove('open');
+      /* Stripe customer が無い場合は失敗扱いにせず、プラン選択へ自然に誘導する */
+      if(!curBilling){
+        if(typeof toast==='function') toast('まだ課金プランの契約がありません。先にプランを選択してください');
+        setTimeout(openPricing,600);
+        return;
+      }
       try{
         var s=await sb.auth.getSession();
         var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
-        if(!jwt) return;
+        if(!jwt){ if(typeof toast==='function') toast('セッションが切れています。再ログインしてください'); return; }
         var res=await fetch('/api/stripe/create-portal-session',{
           method:'POST', headers:{ 'Authorization':'Bearer '+jwt } });
         var j=await res.json().catch(function(){ return {}; });
         if(res.ok&&j.url){ location.href=j.url; return; }
         console.error('[CF Billing] portal failed',res.status,j);
-        if(typeof toast==='function') toast(j.error==='no_customer'?'まだ有料プランのご契約がありません':'支払い管理を開けませんでした');
-      }catch(e){ console.error('[CF Billing] portal exception',e); if(typeof toast==='function') toast('支払い管理を開けませんでした'); }
+        if(j.error==='no_customer'){
+          if(typeof toast==='function') toast('まだ課金プランの契約がありません。先にプランを選択してください');
+          setTimeout(openPricing,600);
+        }
+        else if(j.error==='server_not_configured'){ if(typeof toast==='function') toast('決済システムの設定が完了していません（環境変数）'); }
+        else if(typeof toast==='function') toast('支払い管理を開けませんでした（HTTP '+res.status+'）');
+      }catch(e){ console.error('[CF Billing] portal exception',e); if(typeof toast==='function') toast('通信エラーで支払い管理を開けませんでした'); }
     }
     /* Checkoutからの復帰通知 */
     try{
