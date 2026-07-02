@@ -25203,7 +25203,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
     ' background:rgba(255,255,255,.90);color:#5b3fd6;font-weight:900;font-size:15px;box-shadow:0 5px 16px rgba(40,20,80,.22);backdrop-filter:blur(8px)}',
     '#cfAcctMenuOv{position:fixed;inset:0;z-index:2147483000;display:none;background:rgba(30,20,50,.38)}',
     '#cfAcctMenuOv.open{display:block}',
-    '#cfAcctMenu{position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);right:12px;z-index:2147483001;width:min(300px,86vw);max-height:76dvh;overflow:auto;',
+    /* 下部ナビ中央のAccountボタンから開くボトムシート */
+    '#cfAcctMenu{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 82px);left:50%;transform:translateX(-50%);z-index:2147483001;width:min(320px,90vw);max-height:66dvh;overflow:auto;',
     ' background:rgba(255,255,255,.97);border-radius:18px;box-shadow:0 22px 60px rgba(40,20,80,.30);padding:14px 12px;color:#231a3a;',
     " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
     '.cfAcctHead{padding:6px 8px 12px;border-bottom:1px solid rgba(124,92,255,.14);margin-bottom:8px}',
@@ -25450,11 +25451,30 @@ body.cfPresent .cfPresentExit{display:flex!important}
   window.cfLogEvent=cfLogEvent;
 
   /* ---------------- can_use_app ---------------- */
+  var curBilling=null;
+  async function loadBilling(){
+    curBilling=null;
+    if(!sb||!curSession) return;
+    try{
+      var b=await sb.from('billing_subscriptions')
+        .select('plan,status,price_id,current_period_end,cancel_at_period_end')
+        .eq('user_id',curSession.user.id)
+        .in('status',['active','trialing','past_due'])
+        .order('updated_at',{ascending:false}).limit(1);
+      if(b.error){ if(!/does not exist|schema cache/i.test(String(b.error.message||''))) console.error('[CF Billing] load failed',b.error); }
+      else if(b.data&&b.data.length) curBilling=b.data[0];
+    }catch(e){ console.error('[CF Billing] exception',e); }
+  }
   async function loadAccess(uid){
     curProfile=null; subActive=false;
     try{
-      var p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type').eq('id',uid).single();
-      if(p.error){ console.error('[CF Gate] profile load failed',p.error); }
+      var p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type,display_name,trial_tokens_granted').eq('id',uid).single();
+      if(p.error){
+        /* 新列未適用の環境向けフォールバック */
+        var p2=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type').eq('id',uid).single();
+        if(p2.error) console.error('[CF Gate] profile load failed',p2.error);
+        else curProfile=p2.data||null;
+      }
       else curProfile=p.data||null;
     }catch(e){ console.error('[CF Gate] profile load exception',e); }
     try{
@@ -25465,12 +25485,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
         subActive=!row.current_period_end || (new Date(row.current_period_end).getTime()>Date.now());
       }
     }catch(e){ console.error('[CF Gate] subscription check exception',e); }
+    await loadBilling();
   }
   function canUseApp(){
     if(!curProfile) return false;
     if(PRIVILEGED.indexOf(curProfile.role)>=0) return true;   /* 課金免除ロール */
-    if(subActive) return true;                                 /* 有効サブスク */
+    if(subActive) return true;                                 /* 有効サブスク（旧subscriptionsテーブル） */
+    if(curBilling && (curBilling.status==='active'||curBilling.status==='trialing'||curBilling.status==='past_due')) return true; /* Stripe連携（past_dueは警告のみで利用継続） */
     if(curProfile.beta_access===true) return true;             /* 招待承認済み */
+    if(curProfile.trial_tokens_granted===true && (curProfile.tokens_remaining||0)>0) return true; /* Trial */
     return false;
   }
   function isAdmin(){ return !!(curProfile && ADMIN_ROLES.indexOf(curProfile.role)>=0); }
@@ -25497,7 +25520,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     window.setExportBlob=function(blob,name,type){
       var r=prev.apply(this,arguments);
       try{
-        if(type&&String(type).indexOf('video')===0) cfLogEvent('morphing_video_exported','morphing-video',{ mime:String(type).slice(0,40) });
+        if(type&&String(type).indexOf('video')===0){
+          cfLogEvent('morphing_video_exported','morphing-video',{ mime:String(type).slice(0,40) });
+          /* Morphing Video generation: 1 token（成功時消費。残0でも完成済み動画は失わせない） */
+          if(typeof window.cfConsumeToken==='function'){
+            window.cfConsumeToken('morphing_video').then(function(tk){
+              if(tk&&tk.ok===false&&tk.reason==='insufficient'&&typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+            });
+          }
+        }
         else cfLogEvent('export_completed','export',{ mime:String(type||'').slice(0,40) });
       }catch(e){ console.error('[CF Usage] export log failed',e); }
       return r;
@@ -25518,10 +25549,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
   function unlockApp(){
     wrap.classList.remove('open');
-    /* トップ画面のアート性を優先: 旧トークンバッジ/ログアウトは常時非表示、アカウントアイコンに集約 */
+    /* トップ画面のアート性を優先: 旧トークンバッジ/ログアウト/右上アイコンは非表示。
+       アカウントは下部ナビ中央（旧Sim位置）に集約 */
     if(logoutBtn) logoutBtn.style.display='none';
     if(badge) badge.style.display='none';
-    acctBtn.style.display='block';
+    acctBtn.style.display='none';
+    if(typeof window.__cfInstallNavAccount==='function') window.__cfInstallNavAccount();
     refreshTokens();
     hookExportLogging();
     if(!_signinLogged){ _signinLogged=true; cfLogEvent('user_signed_in','auth'); }
@@ -25695,9 +25728,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
            phoneDone:'Phone number verified.',
            smsUnavailable:'SMS verification is not configured yet.' }
     };
-    window.CF_I18N=CF_I18N;
-    function cfLang(){ var l=lsGet('cf_lang_v1'); return (l&&CF_I18N[l])?l:'ja'; }
-    function cfT(k){ var d=CF_I18N[cfLang()]||CF_I18N.ja; return d[k]||CF_I18N.ja[k]||k; }
+    window.CF_I18N=CF_I18N; /* 辞書は将来拡張用に保持（切替UIは廃止・日本語固定） */
+    function cfLang(){ return 'ja'; }
+    function cfT(k){ return CF_I18N.ja[k]||k; }
     window.cfT=cfT;
 
     /* --- feedback modal open（アカウントメニューから呼ばれる） --- */
@@ -25723,21 +25756,41 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var CF_PROF_JA={dentist:'歯科医師',dental_technician:'歯科技工士',dental_hygienist:'歯科衛生士',
       dental_assistant:'歯科助手',dental_student:'歯科学生',clinic_staff:'クリニックスタッフ',
       other_dental_professional:'その他歯科医療関係者'};
+    var CF_PLAN_JA={ sketch:'Sketch', studio:'Studio', trial:'Trial', developer:'Developer' };
+    function fmtDateJa(iso){
+      if(!iso) return '';
+      var d=new Date(iso); if(isNaN(d)) return '';
+      return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+    }
     function renderAcctMenu(){
       var menu=el('cfAcctMenu'); if(!menu) return;
       menu.innerHTML='';
       var email=(curSession&&curSession.user&&curSession.user.email)||'—';
       var role=(curProfile&&curProfile.role)||'—';
+      var dispName=(curProfile&&curProfile.display_name)||'';
       var profType=(curProfile&&curProfile.professional_type)||'';
-      var profLabel=profType?(CF_PROF_JA[profType]||profType):(cfLang()==='en'?'Profession not set':'職種未設定');
+      var profLabel=profType?(CF_PROF_JA[profType]||profType):'職種未設定';
+      var ps=phoneState();
+      var phoneLine=ps.has?(ps.verified?'電話認証済み':'電話未認証'):'SMS認証は準備中です';
+      var tok=(window.__cfTokens==null?'…':window.__cfTokens);
       var head=document.createElement('div');
       head.className='cfAcctHead';
-      head.innerHTML='<div class="cfAcctMail">'+esc(email)+'</div>'+
-        '<div class="cfAcctRole">'+esc(role)+' / '+esc(profLabel)+'</div>';
+      head.innerHTML=(dispName?'<div class="cfAcctMail" style="font-size:13.5px">'+esc(dispName)+'</div>':'')+
+        '<div class="cfAcctMail"'+(dispName?' style="font-weight:600;color:#7a7290;font-size:11.5px"':'')+'>'+esc(email)+'</div>'+
+        '<div class="cfAcctRole">'+esc(role)+' / '+esc(profLabel)+'</div>'+
+        '<div class="cfAcctRole">'+esc(phoneLine)+'</div>'+
+        '<div class="cfAcctRole" style="color:#3d2b8f;font-weight:850">所有トークン：'+esc(tok)+'</div>';
       menu.appendChild(head);
+      /* plan（billing_subscriptions から。未接続時は Trial/招待ベータ表示） */
+      var plan=(curBilling&&curBilling.plan)?(CF_PLAN_JA[curBilling.plan]||curBilling.plan):'招待ベータ';
+      var renew=(curBilling&&curBilling.current_period_end)?('次回更新：'+fmtDateJa(curBilling.current_period_end)):'';
+      var planSub=renew+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':'');
+      menu.appendChild(menuItem('現在のプラン：'+esc(plan),esc(planSub),null,function(){ loadBilling().then(renderAcctMenu); }));
+      menu.appendChild(menuItem('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
+      menu.appendChild(menuItem('支払い管理','Stripeポータル',null,openPortal));
+      menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
       /* tokens */
-      var tok=(window.__cfTokens==null?'…':window.__cfTokens);
-      menu.appendChild(menuItem(cfT('tokens'),String(tok),null,function(){ refreshTokens(); }));
+      menu.appendChild(menuItem(cfT('tokens'),String(tok),null,function(){ refreshTokens().then(renderAcctMenu); }));
       /* invite */
       menu.appendChild(menuItem(cfT('invite'),'',null,function(){
         acctOv.classList.remove('open');
@@ -25775,17 +25828,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
           alert(/sms|provider|not enabled|disabled/i.test(String((e&&e.message)||''))?cfT('smsUnavailable'):'認証に失敗しました。');
         }
       }));
-      /* language */
-      var langWrap=document.createElement('div');
-      langWrap.innerHTML='<div class="cfAcctItem" style="cursor:default"><span>'+cfT('language')+'</span></div>'+
-        '<div class="cfAcctLangRow">'+
-          '<button type="button" class="cfAcctLangBtn'+(cfLang()==='ja'?' on':'')+'" data-lang="ja">日本語</button>'+
-          '<button type="button" class="cfAcctLangBtn'+(cfLang()==='en'?' on':'')+'" data-lang="en">English</button>'+
-        '</div>';
-      langWrap.querySelectorAll('[data-lang]').forEach(function(b){
-        b.addEventListener('click',function(){ lsSet('cf_lang_v1',b.getAttribute('data-lang')); location.reload(); });
-      });
-      menu.appendChild(langWrap);
       /* role-based admin items（一般ユーザーには非表示） */
       if(isAdmin()){
         menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
@@ -25800,14 +25842,125 @@ body.cfPresent .cfPresentExit{display:flex!important}
       menu.appendChild(menuItem(cfT('logout'),'','danger',async function(){
         acctOv.classList.remove('open');
         try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Acct] signOut failed',e); }
-        acctBtn.style.display='none';
-        showGate('auth'); setMode('login');
+        location.reload(); /* ナビ中央ボタン等の状態を初期化してgateへ */
       }));
     }
     acctBtn.addEventListener('click',function(){
       renderAcctMenu();
       acctOv.classList.toggle('open');
     });
+
+    /* --- 下部ナビ中央: Sim → Account（gate有効時のみ差し替え。右上固定表示は廃止） --- */
+    function installNavAccount(){
+      var btn=document.getElementById('navSimBtn');
+      if(!btn||btn.dataset.cfAcct==='1') return;
+      btn.dataset.cfAcct='1';
+      btn.removeAttribute('onclick');
+      btn.innerHTML='<span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-1px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></span>Account';
+      btn.onclick=function(){ renderAcctMenu(); acctOv.classList.toggle('open'); };
+    }
+    window.__cfInstallNavAccount=installNavAccount;
+
+    /* --- Pricing / Checkout / Portal --- */
+    var pricingOv=null;
+    function planCard(name,price,tokens,desc,btnHtml){
+      return '<div style="border:1px solid rgba(124,92,255,.2);border-radius:16px;padding:14px;background:#fff">'+
+        '<div style="font-weight:900;font-size:15px;color:#3d2b8f">'+name+'</div>'+
+        '<div style="font-weight:900;font-size:19px;margin:4px 0">'+price+'</div>'+
+        '<div style="font-size:12px;color:#5a5470;line-height:1.7;margin-bottom:10px">'+tokens+'<br>'+desc+'</div>'+btnHtml+'</div>';
+    }
+    function openPricing(){
+      if(!pricingOv){
+        pricingOv=document.createElement('div');
+        pricingOv.id='cfPricingOv';
+        pricingOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.55);overflow:auto;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif';
+        document.body.appendChild(pricingOv);
+        pricingOv.addEventListener('click',function(e){ if(e.target===pricingOv) pricingOv.style.display='none'; });
+      }
+      var interval=window.__cfPriceInterval||'month';
+      function tglBtn(v,label){
+        return '<button type="button" data-int="'+v+'" style="flex:1;padding:8px 0;border-radius:9px;border:'+(interval===v?'0':'1.5px solid rgba(124,92,255,.25)')+';'+
+          'background:'+(interval===v?'linear-gradient(135deg,#7c5cff,#b06bff)':'#fff')+';color:'+(interval===v?'#fff':'#231a3a')+';font-size:12px;font-weight:850;cursor:pointer">'+label+'</button>';
+      }
+      var buyBtn=function(plan){
+        return '<button type="button" data-buy="'+plan+'" class="cfG2Btn" style="font-size:13px;padding:10px">このプランにする</button>';
+      };
+      var trialDone=!!(curProfile&&curProfile.trial_tokens_granted);
+      pricingOv.innerHTML='<div style="width:100%;max-width:420px;max-height:88dvh;overflow:auto;background:rgba(255,255,255,.97);border-radius:20px;padding:20px 18px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">'+
+        '<div style="font-weight:900;font-size:15px;color:#3d2b8f;margin-bottom:4px">プラン / Pricing</div>'+
+        '<div style="font-size:11.5px;color:#7a7290;line-height:1.7;margin-bottom:12px">生成に使用するトークンのプランです。決済はStripeの安全な画面で行われます（テストモード）。</div>'+
+        '<div style="display:flex;gap:6px;margin-bottom:12px">'+tglBtn('month','月額')+tglBtn('year','年額（15% off）')+'</div>'+
+        '<div style="display:grid;gap:10px">'+
+          planCard('Trial','無料','10トークン（初回のみ）','初回確認用。支払い方法は不要です。',
+            trialDone?'<div style="font-size:12px;color:#1a8f57;font-weight:800">取得済み ✓</div>'
+                     :'<button type="button" data-trial="1" class="cfG2BtnGhost" style="font-size:13px;margin:0">無料で試す</button>')+
+          planCard('Sketch',interval==='month'?'月額 1,500円':'年額 15,300円',
+            '100トークン / 月','若手歯科医師・大学関係者向け',buyBtn('sketch'))+
+          planCard('Studio',interval==='month'?'月額 3,000円':'年額 30,600円',
+            '500トークン / 月','症例ビジュアル作成を継続的に行う方向け',buyBtn('studio'))+
+        '</div>'+
+        '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:12px">閉じる</button>'+
+      '</div>';
+      pricingOv.style.display='flex';
+      pricingOv.querySelectorAll('[data-int]').forEach(function(b){
+        b.addEventListener('click',function(){ window.__cfPriceInterval=b.getAttribute('data-int'); openPricing(); });
+      });
+      var closeB=pricingOv.querySelector('[data-close]');
+      if(closeB) closeB.addEventListener('click',function(){ pricingOv.style.display='none'; });
+      var trialB=pricingOv.querySelector('[data-trial]');
+      if(trialB) trialB.addEventListener('click',async function(){
+        trialB.disabled=true;
+        try{
+          var r=await sb.rpc('claim_trial_tokens');
+          if(r.error) throw r.error;
+          var d=r.data||{};
+          if(d.ok){ if(typeof toast==='function') toast('Trialトークンを付与しました（10）'); await loadAccess(curSession.user.id); refreshTokens(); openPricing(); }
+          else if(typeof toast==='function') toast(d.reason==='already_granted'?'Trialは取得済みです':'取得できませんでした');
+        }catch(e){ console.error('[CF Billing] trial failed',e); if(typeof toast==='function') toast('Trial機能は準備中です（migration未適用）'); }
+        trialB.disabled=false;
+      });
+      pricingOv.querySelectorAll('[data-buy]').forEach(function(b){
+        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), window.__cfPriceInterval||'month', b); });
+      });
+    }
+    async function startCheckout(plan,interval,btn){
+      if(btn) btn.disabled=true;
+      try{
+        var s=await sb.auth.getSession();
+        var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+        if(!jwt) throw new Error('no session');
+        var res=await fetch('/api/stripe/create-checkout-session',{
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+jwt },
+          body:JSON.stringify({ plan:plan, interval:interval })
+        });
+        var j=await res.json().catch(function(){ return {}; });
+        if(res.ok&&j.url){ location.href=j.url; return; }
+        console.error('[CF Billing] checkout failed',res.status,j);
+        if(typeof toast==='function') toast(j.error==='price_not_configured'?'このプランは現在準備中です':'決済画面を開けませんでした（Stripe未設定の可能性）');
+      }catch(e){ console.error('[CF Billing] checkout exception',e); if(typeof toast==='function') toast('決済画面を開けませんでした'); }
+      if(btn) btn.disabled=false;
+    }
+    async function openPortal(){
+      acctOv.classList.remove('open');
+      try{
+        var s=await sb.auth.getSession();
+        var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+        if(!jwt) return;
+        var res=await fetch('/api/stripe/create-portal-session',{
+          method:'POST', headers:{ 'Authorization':'Bearer '+jwt } });
+        var j=await res.json().catch(function(){ return {}; });
+        if(res.ok&&j.url){ location.href=j.url; return; }
+        console.error('[CF Billing] portal failed',res.status,j);
+        if(typeof toast==='function') toast(j.error==='no_customer'?'まだ有料プランのご契約がありません':'支払い管理を開けませんでした');
+      }catch(e){ console.error('[CF Billing] portal exception',e); if(typeof toast==='function') toast('支払い管理を開けませんでした'); }
+    }
+    /* Checkoutからの復帰通知 */
+    try{
+      var co=new URLSearchParams(location.search).get('checkout');
+      if(co==='success'&&typeof toast==='function') setTimeout(function(){ toast('ご登録ありがとうございます。反映まで数十秒かかる場合があります'); },800);
+      else if(co==='cancel'&&typeof toast==='function') setTimeout(function(){ toast('お手続きはキャンセルされました'); },800);
+    }catch(e){ console.error('[CF Billing] checkout param failed',e); }
 
     /* --- Invite screen panel（下部ナビ Invite → shareApp 画面に注入） --- */
     function inviteLink(code){
