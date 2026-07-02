@@ -1,7 +1,7 @@
 # Phase 2.1 設計書 — Personal / Clinic・患者/Library 紐付け・退会導線
 
-> ステータス: **レビュー承認済み（2026-07-02）→ 2.1a migration 7 確定版作成済み**
-> （`supabase/migrations/20260705000007_workspaces_foundation.sql` — 適用待ち）
+> ステータス: **レビュー承認済み（2026-07-02）→ 2.1a migration 7 適用済み（2026-07-02）**
+> （`supabase/migrations/20260705000007_workspaces_foundation.sql` — 本番DB適用完了・バックフィル検証OK）
 >
 > **レビュー確定事項:**
 > 1. 財布移行 = コピー＋旧RPC委譲。**残高コピーは 2.1b の RPC 切替と同一Txで実施**（2.1a〜2.1b 間のドリフト・二重消費を防止。それまで profiles が正）
@@ -252,7 +252,7 @@ create function public.close_clinic_workspace(p_ws uuid) returns jsonb;         
 
 ## 11. 実装順序（案）
 
-1. **2.1a 基盤**: migration 7（tables/RLS/helpers/personal自動作成/バックフィル）→ 検証（既存機能は無影響のはず）
+1. **2.1a 基盤**: migration 7（tables/RLS/helpers/personal自動作成/バックフィル）→ **適用・検証済み（2026-07-02、本番DB）**
 2. **2.1b 財布切替**: consume/refund/webhook を workspace 経路へ。Account Sheet に残高=workspace 表示
 3. **2.1c Clinic**: Clinic作成フロー・メンバー招待/削除/退出・Sheet 3分岐・個人情報遮蔽の検証
 4. **2.1d Library**: patients/cases UI・保存時ピッカー・DB/Storage 二重書き・フィルタ・未整理紐付け
@@ -271,4 +271,4 @@ create function public.close_clinic_workspace(p_ws uuid) returns jsonb;         
 
 ---
 
-**次のアクション**: 本設計のレビュー（特に §12 の 7 点）→ OK なら 2.1a の migration 7 を確定版として作成・適用から着手します。
+**次のアクション**: migration 7 適用済み。次は §12 の 7 点確定を経て 2.1b（財布切替: consume/refund/webhook の workspace 経路化）に着手します。
