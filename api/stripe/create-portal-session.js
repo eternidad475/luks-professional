@@ -11,7 +11,17 @@ module.exports = async (req, res) => {
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     const supaUrl = process.env.SUPABASE_URL;
     const srKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!stripeKey || !supaUrl || !srKey) { res.status(500).json({ error: 'server_not_configured' }); return; }
+    if (!stripeKey || !supaUrl || !srKey) {
+      // 診断: 値は出力しない。存在有無のみ。
+      const missing = [
+        !stripeKey && 'STRIPE_SECRET_KEY',
+        !supaUrl && 'SUPABASE_URL',
+        !srKey && 'SUPABASE_SERVICE_ROLE_KEY'
+      ].filter(Boolean);
+      console.error('[portal] server_not_configured', JSON.stringify({ missing: missing, vercelEnv: process.env.VERCEL_ENV || null }));
+      res.status(500).json({ error: 'server_not_configured', missing: missing });
+      return;
+    }
 
     const jwt = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!jwt) { res.status(401).json({ error: 'unauthorized' }); return; }

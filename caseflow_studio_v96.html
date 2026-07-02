@@ -26292,8 +26292,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var j=await res.json().catch(function(){ return {}; });
         if(res.ok&&j.url){ location.href=j.url; return; } /* 遷移するので busy は解除しない */
         console.error('[CF Billing] checkout failed',res.status,j);
-        if(j.error==='price_not_configured') show('このプランは現在準備中です（価格ID未設定）。');
-        else if(j.error==='server_not_configured') show('決済システムの設定が完了していません（環境変数）。管理者にお問い合わせください。');
+        if(j.error==='price_not_configured') show('このプランの価格IDが未設定です'+(j.envName?('（'+j.envName+'）'):'')+'。');
+        else if(j.error==='server_not_configured') show('決済サーバー設定が未完了です。不足: '+((j.missing&&j.missing.join(', '))||'不明')+'（Vercel Production 環境変数をご確認ください）');
         else if(res.status===401) show('セッションが切れています。再ログインしてください。');
         else show('決済画面を開けませんでした（HTTP '+res.status+'）。時間をおいて再度お試しください。');
       }catch(e){ console.error('[CF Billing] checkout exception',e); show('通信エラーで決済画面を開けませんでした。'); }
@@ -26321,7 +26321,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           if(typeof toast==='function') toast('まだ課金プランの契約がありません。先にプランを選択してください');
           setTimeout(openPricing,600);
         }
-        else if(j.error==='server_not_configured'){ if(typeof toast==='function') toast('決済システムの設定が完了していません（環境変数）'); }
+        else if(j.error==='server_not_configured'){ if(typeof toast==='function') toast('決済サーバー設定が未完了です（不足: '+((j.missing&&j.missing.join(', '))||'不明')+'）'); }
         else if(typeof toast==='function') toast('支払い管理を開けませんでした（HTTP '+res.status+'）');
       }catch(e){ console.error('[CF Billing] portal exception',e); if(typeof toast==='function') toast('通信エラーで支払い管理を開けませんでした'); }
     }

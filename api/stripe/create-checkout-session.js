@@ -24,7 +24,30 @@ module.exports = async (req, res) => {
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     const supaUrl = process.env.SUPABASE_URL;
     const srKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!stripeKey || !supaUrl || !srKey) { res.status(500).json({ error: 'server_not_configured' }); return; }
+    if (!stripeKey || !supaUrl || !srKey) {
+      // 診断: 値は絶対に出力しない。存在有無（boolean / 変数名）のみ。
+      const diag = {
+        hasStripeKey: !!stripeKey,
+        hasSupabaseUrl: !!supaUrl,
+        hasServiceRoleKey: !!srKey,
+        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        hasPersonalPrice: !!process.env.STRIPE_PRICE_PERSONAL_MONTHLY,
+        hasClinicPrice: !!process.env.STRIPE_PRICE_CLINIC_MONTHLY,
+        hasAddonMini: !!process.env.STRIPE_PRICE_ADDON_MINI,
+        hasAddonStandard: !!process.env.STRIPE_PRICE_ADDON_STANDARD,
+        hasAddonPlus: !!process.env.STRIPE_PRICE_ADDON_PLUS,
+        hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
+        vercelEnv: process.env.VERCEL_ENV || null
+      };
+      console.error('[checkout] server_not_configured', JSON.stringify(diag));
+      const missing = [
+        !stripeKey && 'STRIPE_SECRET_KEY',
+        !supaUrl && 'SUPABASE_URL',
+        !srKey && 'SUPABASE_SERVICE_ROLE_KEY'
+      ].filter(Boolean);
+      res.status(500).json({ error: 'server_not_configured', missing: missing, diag: diag });
+      return;
+    }
 
     const jwt = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!jwt) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -38,7 +61,11 @@ module.exports = async (req, res) => {
     if (LEGACY_ALIAS[plan]) plan = LEGACY_ALIAS[plan];
     const conf = PLANS[plan];
     const priceId = conf && process.env[conf.env];
-    if (!conf || !priceId) { res.status(400).json({ error: 'price_not_configured' }); return; }
+    if (!conf || !priceId) {
+      console.error('[checkout] price_not_configured', JSON.stringify({ plan: plan, envName: conf ? conf.env : null }));
+      res.status(400).json({ error: 'price_not_configured', envName: conf ? conf.env : null });
+      return;
+    }
 
     const stripe = Stripe(stripeKey);
 
