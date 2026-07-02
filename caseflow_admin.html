@@ -446,11 +446,27 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">ユーザーがまだいません。</div>'; return; }
       box.innerHTML=r.data.map(function(u){
         var name=u.display_name||u.clinic_name||'';
+        var PROF_JA={dentist:'歯科医師',dental_technician:'歯科技工士',dental_hygienist:'歯科衛生士',
+          dental_assistant:'歯科助手',dental_student:'歯科学生',clinic_staff:'クリニックスタッフ',
+          other_dental_professional:'その他歯科医療関係者'};
+        var profBadge=u.professional_type?' <span class="badge dim">'+esc(PROF_JA[u.professional_type]||u.professional_type)+'</span>':'';
+        var phoneHtml='';
+        if(u.phone!==undefined){
+          /* 電話番号は初期表示マスク（+CC と下4桁のみ）。必要時のみ全文表示 */
+          var masked=u.phone?String(u.phone).replace(/^(\+\d{1,3})(\d+)(\d{4})$/,function(_,cc,mid,tail){
+            return cc+' '+'*'.repeat(Math.min(mid.length,6))+' '+tail; }):'—';
+          phoneHtml='<span data-phone-full="'+esc(u.phone||'')+'">'+esc(masked)+'</span>'+
+            (u.phone?' <button type="button" class="btn small ghost" data-phone-reveal style="padding:2px 8px;font-size:10px">表示</button>':'')+
+            (u.phone_verified?' <span class="badge ok">電話認証済</span>':' <span class="badge dim">電話未認証</span>');
+        } else {
+          phoneHtml='<span class="badge dim">電話: 未接続（migration 4 未適用）</span>';
+        }
         return '<div class="item"><b>'+esc(u.email)+'</b>'+(name?' <span class="badge dim">'+esc(name)+'</span>':'')+
-          ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+
+          ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+profBadge+
           (u.beta_access?' <span class="badge ok">招待済</span>':' <span class="badge warn">未招待</span>')+
           (u.professional_confirmed?' <span class="badge ok">歯科従事者確認済</span>':'')+
           (u.account_status!=='active'?' <span class="badge crit">'+esc(u.account_status)+'</span>':'')+
+          '<div class="meta">'+phoneHtml+'</div>'+
           '<div class="meta">tokens: '+esc(u.tokens_remaining)+' / 登録 '+fmtTs(u.created_at)+' / 最終ログイン '+fmtTs(u.last_sign_in_at)+'</div>'+
           '<div class="row">'+
             '<select class="mini" data-role-sel><option value="">role変更…</option>'+
@@ -460,6 +476,17 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
             '<button class="btn small" data-grant-btn data-id="'+esc(u.id)+'">付与</button>'+
           '</div></div>';
       }).join('');
+      box.querySelectorAll('[data-phone-reveal]').forEach(function(b){
+        b.addEventListener('click',function(){
+          var sp=b.parentElement.querySelector('[data-phone-full]');
+          if(!sp) return;
+          if(b.textContent==='表示'){ sp.textContent=sp.getAttribute('data-phone-full'); b.textContent='隠す'; }
+          else{ var full=sp.getAttribute('data-phone-full');
+            sp.textContent=full.replace(/^(\+\d{1,3})(\d+)(\d{4})$/,function(_,cc,mid,tail){
+              return cc+' '+'*'.repeat(Math.min(mid.length,6))+' '+tail; });
+            b.textContent='表示'; }
+        });
+      });
       box.querySelectorAll('[data-role-btn]').forEach(function(b){
         b.addEventListener('click',async function(){
           var sel=b.parentElement.querySelector('[data-role-sel]'), role=sel.value;
@@ -637,7 +664,20 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       else profile=p.data;
     }catch(e){ console.error('[Admin] profile exception',e); }
     if(!profile || DASH_ROLES.indexOf(profile.role)<0){ show('denied'); return; }
+    /* 電話番号認証ゲート: SMSプロバイダ設定後に true へ切替（現状は警告表示のみ）。
+       電話認証はSIMスワップ耐性が限定的なため、本人確認の補助として扱う。 */
+    var CF_REQUIRE_PHONE_FOR_ADMIN=false;
+    var phoneVerified=!!(session.user&&session.user.phone_confirmed_at);
+    if(CF_REQUIRE_PHONE_FOR_ADMIN && !phoneVerified){ show('denied'); return; }
     show('dash'); renderHeader(); initDeployOnce();
+    if(!phoneVerified && !el('phoneWarn')){
+      var w=document.createElement('div');
+      w.id='phoneWarn'; w.className='card';
+      w.style.cssText='background:rgba(255,244,214,.96);border:1px solid rgba(190,140,0,.3)';
+      w.innerHTML='<b style="font-size:13px;color:#b07a00">電話番号認証が未完了です</b>'+
+        '<p class="help" style="margin:4px 0 0">管理者アカウントの保護のため、アプリのアカウントメニュー →「電話番号認証」から SMS 認証を完了してください（SMSプロバイダ設定後に有効化されます）。</p>';
+      var dash=el('dashView'); dash.insertBefore(w,dash.firstChild);
+    }
     await loadOverview(); renderNav();
   }
   var _depInit=false;
