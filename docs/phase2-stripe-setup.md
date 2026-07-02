@@ -1,95 +1,81 @@
-# Phase 2 — Stripe 連携セットアップ手順（test mode）
+# Phase 2 — Stripe 連携セットアップ手順（test mode / 料金確定版）
 
 > 本番課金は未開始。すべて **Stripe test mode** 前提。
 > Secret key / Webhook secret / service_role key は Vercel 環境変数のみ（フロント・リポジトリに置かない）。
+> 旧 Sketch/Studio・年額プランは廃止（コード上は表示互換のみ残存）。
 
-## 1. Stripe Dashboard で作成するもの（test mode）
+## 1. 確定プラン
 
-### Products / Prices
-
-| Product | Price | 金額 | 種別 | env 変数名 |
+| プラン | 価格 | tokens | 種別 | 処理 |
 |---|---|---|---|---|
-| CaseFlow Sketch | Sketch Monthly | 1,500 JPY | recurring / month | `STRIPE_PRICE_SKETCH_MONTHLY` |
-| CaseFlow Sketch | Sketch Annual | 15,300 JPY | recurring / year | `STRIPE_PRICE_SKETCH_ANNUAL` |
-| CaseFlow Studio | Studio Monthly | 3,000 JPY | recurring / month | `STRIPE_PRICE_STUDIO_MONTHLY` |
-| CaseFlow Studio | Studio Annual | 30,600 JPY | recurring / year | `STRIPE_PRICE_STUDIO_ANNUAL` |
+| Trial | 0円 | 10（初回のみ・約5回分） | — | `claim_trial_tokens()` RPC（Stripe不使用・支払い方法不要） |
+| Personal | 1,500円/月 | 100/月（約50回分） | subscription | invoice.payment_succeeded で付与 |
+| Clinic | 5,000円/月 | 500/月（約250回分） | subscription | 同上 |
+| Add-on Mini | 500円 | +20 | one-time payment | checkout.session.completed で即時付与 |
+| Add-on Standard | 2,000円 | +100 | one-time payment | 同上 |
+| Add-on Plus | 5,000円 | +300 | one-time payment | 同上 |
+| Developer | 無料 | 管理者付与 | — | 非公開（role免除＋admin_grant） |
+| Enterprise | 個別契約 | — | — | UI非表示（問い合わせ） |
 
-- Developer プランは Stripe に作らない（role による課金免除で対応）
-- Trial は Stripe を使わない（`claim_trial_tokens()` RPC・支払い方法不要）
-- 年額 price を作らなければ、Pricing UI の年額ボタンは「準備中」トーストになる（env 未設定→ `price_not_configured`）
+**トークン消費**: Visual Simulation 作成 = 2 tokens ／ Morphing Video 書き出し = 2 tokens ／ 再生成 = 2 tokens。
+スライダー調整・比較・保存・Library/Gallery/Project閲覧・生成前プレビューは消費なし。
+**失敗生成**: 原則消費なし — 消費後に失敗した場合は `refund_generation_tokens()` が自動返却（15分以内・二重返却防止付き）。
 
-### Customer Portal
-Settings → Billing → Customer portal を有効化（解約・カード変更・領収書）。
+## 2. Stripe Dashboard で作成するもの（test mode）
 
-### Webhook
-Developers → Webhooks → Add endpoint:
-
-- **URL**: `https://<デプロイURL>/api/stripe/webhook`
-  - Production: `https://caseflow-studio.vercel.app/api/stripe/webhook`
-  - Preview 検証時は Preview URL でもよい（そのデプロイに対して署名secretを発行）
-- **イベント**: `checkout.session.completed` / `customer.subscription.created` / `customer.subscription.updated` / `customer.subscription.deleted` / `invoice.payment_succeeded` / `invoice.payment_failed`
-- 発行された `whsec_...` を `STRIPE_WEBHOOK_SECRET` に設定
-
-## 2. Vercel 環境変数
-
-| 変数 | 用途 | 公開可否 |
+| Product | Price | env 変数名 |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | `sk_test_...` | **server only** |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_...` | **server only** |
-| `SUPABASE_URL` | `https://nuolihmfdjzofporhwkp.supabase.co` | server（値自体は公開情報） |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role | **server only・絶対にフロント禁止** |
-| `NEXT_PUBLIC_APP_URL` | 例 `https://caseflow-studio.vercel.app` | 公開可（successリダイレクト先） |
-| `STRIPE_PRICE_SKETCH_MONTHLY` ほか価格ID 4種 | `price_...` | server only |
-| `STRIPE_PUBLISHABLE_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 現状 Hosted Checkout のみのため未使用（Embedded 化時に使用） | 公開可 |
+| CaseFlow Personal | 1,500 JPY recurring/month | `STRIPE_PRICE_PERSONAL_MONTHLY` |
+| CaseFlow Clinic | 5,000 JPY recurring/month | `STRIPE_PRICE_CLINIC_MONTHLY` |
+| CaseFlow Add-on Mini | 500 JPY one-time | `STRIPE_PRICE_ADDON_MINI` |
+| CaseFlow Add-on Standard | 2,000 JPY one-time | `STRIPE_PRICE_ADDON_STANDARD` |
+| CaseFlow Add-on Plus | 5,000 JPY one-time | `STRIPE_PRICE_ADDON_PLUS` |
 
-## 3. Supabase migration
+- Customer Portal を有効化（Settings → Billing → Customer portal）
+- Webhook endpoint: `https://<デプロイURL>/api/stripe/webhook`
+  イベント: `checkout.session.completed` / `customer.subscription.created` / `customer.subscription.updated` / `customer.subscription.deleted` / `invoice.payment_succeeded` / `invoice.payment_failed`
 
-`supabase/migrations/20260703000005_billing_stripe.sql` を適用:
-- `profiles.trial_tokens_granted`
-- `billing_customers` / `billing_subscriptions` / `billing_events`（RLS: own-read + admin-read、書き込みは service_role のみ）
-- `claim_trial_tokens()`（10トークン・1回のみ）
-- `admin_list_billing()`（/admin Billing セクション用）
+## 3. Vercel 環境変数
 
-## 4. トークン付与ルール（Webhook 実装済み）
+| 変数 | 公開可否 |
+|---|---|
+| `STRIPE_SECRET_KEY`（sk_test） | **server only** |
+| `STRIPE_WEBHOOK_SECRET` | **server only** |
+| `SUPABASE_URL` | server |
+| `SUPABASE_SERVICE_ROLE_KEY` | **server only・絶対にフロント禁止** |
+| `NEXT_PUBLIC_APP_URL` | 公開可 |
+| `STRIPE_PRICE_PERSONAL_MONTHLY` / `STRIPE_PRICE_CLINIC_MONTHLY` / `STRIPE_PRICE_ADDON_MINI` / `STRIPE_PRICE_ADDON_STANDARD` / `STRIPE_PRICE_ADDON_PLUS` | server only |
 
-| トリガー | 付与 | ledger reason |
-|---|---|---|
-| Trial（RPC） | +10（1回のみ） | `trial_grant` |
-| invoice.payment_succeeded（月額） | Sketch +100 / Studio +500 | `subscription_monthly_grant` |
-| invoice.payment_succeeded（年額） | Sketch +1200 / Studio +6000 一括 | `subscription_annual_grant` |
-| 招待承認 | +100 / +100 | `invitee_initial_beta_grant` / `inviter_referral_beta_bonus` |
-| 管理者手動 | 任意 | `admin_grant` |
+旧 env（`STRIPE_PRICE_SKETCH_*` / `STRIPE_PRICE_STUDIO_*`）は廃止。webhook は互換のため設定が残っていれば personal/clinic として解釈する。
 
-- 冪等性: `billing_events.stripe_event_id` unique + `token_ledger.idempotency_key`（`stripe:<event_id>`）の二段構え
-- **年額の注意**: 現状は一括付与。返金・途中解約時の残トークン扱いが複雑になるため、月次ドリップ（cron）への移行を Phase 2.1 で検討。それまで年額 price を作らず月額のみで運用するのも可
-- 解約: 既存トークンは没収しない。invoice が止まることで次回付与が自然停止
-- past_due: 利用制限はかけず警告表示のみ（canUseApp は past_due も通す）
+## 4. Supabase migration
 
-## 5. 消費ルール（実装済み）
+- **migration 5（適用済み）**: billing_customers / billing_subscriptions / billing_events / claim_trial_tokens / admin_list_billing / trial_tokens_granted
+- **migration 6（新規・要適用）** `20260704000006_multi_token_consume_refund.sql`:
+  - `consume_tokens(p_amount, p_reason)` — 原子的な複数トークン消費（ledger_id を返す）
+  - `refund_generation_tokens(p_ledger_id)` — 失敗時返却（本人・消費行・generation系reason・15分以内・`refund:<id>` idempotency）
+  - 旧 `consume_token()`（1消費）は互換のため残置。migration 6 未適用でもフロントは自動フォールバック（1トークン消費）で動作
 
-- Visual Simulation 生成: 1 token（`generateViaAI` / `generateRefinedViaAI` — 生成前消費）
-- Morphing Video 生成: 1 token（`setExportBlob` ラップ — 書き出し成功時消費。残0でも完成動画は失わせず、トークン切れモーダル表示）
-- ローカル編集・閲覧・保存・比較スライダー: 消費なし
-- 将来: 高コスト処理（AI中割り等）は reason/金額を変えるだけで 2〜3 tokens に変更可能
+## 5. token_ledger reason 一覧
 
-## 6. テスト手順（Preview / test mode）
+`trial_grant` / `subscription_personal_monthly` / `subscription_clinic_monthly` / `token_addon_mini` / `token_addon_standard` / `token_addon_plus` / `admin_grant` / `invitee_initial_beta_grant`・`inviter_referral_beta_bonus`（invite bonus） / `generation`・`morphing_video`（消費） / `generation_refund`（返却）。
+Stripe 由来の付与はすべて `idempotency_key='stripe:<event_id>'`、返却は `'refund:<ledger_id>'` で二重処理を防止。
 
-1. migration 5 適用 → Vercel に環境変数設定 → 再デプロイ
-2. Preview URL + `?beta_gate=on` でログイン
-3. 下部ナビ中央 **Account** → 「プランを変更」→ Pricing 表示
-4. Trial「無料で試す」→ +10 tokens / ledger `trial_grant` を確認
-5. Sketch 月額 →「このプランにする」→ Stripe Checkout（test）
-6. テストカード `4242 4242 4242 4242` / 任意の未来日付 / 任意CVC で支払い
-7. `?checkout=success` で復帰 → 数十秒後 Account メニューに `現在のプラン：Sketch`・tokens +100
-8. Supabase で確認: `billing_customers` / `billing_subscriptions(status=active)` / `billing_events` / `token_ledger(subscription_monthly_grant)`
-9. 「支払い管理」→ Customer Portal → 解約予約 → `cancel_at_period_end=true` が menu と /admin Billing に反映
-10. 失敗カード `4000 0000 0000 0341` で更新失敗 → `past_due` 反映を確認
-11. /admin → Billing セクションで一覧確認
+## 6. テスト手順（Preview / test mode — 依頼書§12対応）
 
-## 7. 本番反映前の注意
+1. migration 6 適用 → Stripe products/prices 作成 → Vercel env 設定 → 再デプロイ
+2. `?beta_gate=on` でログイン → Account →「プランを変更」
+3. **Trial** → +10 tokens（ledger `trial_grant`）
+4. **Visual Simulation 作成** → −2 tokens（ledger `generation`、パネルに「作成：2 tokens」表示）
+5. **Morphing Video 書き出し** → −2 tokens（ledger `morphing_video`、保存ボタン下に表示）
+6. 生成失敗（エンドポイント一時停止等）→ +2 tokens 返却（ledger `generation_refund`）
+7. **Personal** checkout（4242…）→ webhook で +100（`subscription_personal_monthly`）
+8. **Clinic** checkout → +500（`subscription_clinic_monthly`）
+9. **Add-on Mini/Standard/Plus**（mode:payment）→ 即時 +20/+100/+300（`token_addon_*`）
+10. billing_events に全 Stripe event、/admin Billing に plan・status・Add-on購入履歴が反映
+11. Customer Portal → 解約予約 → `cancel_at_period_end` 反映、失敗カード `4000 0000 0000 0341` → `past_due`
 
-- 本番課金開始まで `sk_live` は設定しない（test キーのまま）
-- Webhook は **デプロイURLごとに** endpoint + secret が必要（Preview で検証した secret は Production と別）
-- `CF_BETA_GATE_DEFAULT` はまだ false（Phase 1e スイッチと独立）
-- 特商法表記・利用規約の課金条項を本番課金開始前に整備
-- Vercel の Deployment Protection が Preview の `/api/*` を保護している場合、Stripe からの Webhook が 401 になる → Preview 検証時は Protection Bypass for Automation を設定するか、Production の Webhook のみ使う
+## 7. 本番反映前に別途整備（ユーザー側タスク）
+
+特商法表記 / 利用規約 / プライバシーポリシー / キャンセル・返金方針 / SMS provider / Leaked Password Protection。
+本番課金開始まで `sk_live` は設定しない。Preview の `/api/*` に Deployment Protection がかかる場合は Protection Bypass for Automation を設定（Stripe webhook が 401 になるため）。

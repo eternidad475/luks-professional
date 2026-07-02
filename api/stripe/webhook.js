@@ -1,6 +1,8 @@
 // POST /api/stripe/webhook
 // Stripe Webhook 受信。必ず raw body で署名検証し、stripe_event_id で二重処理を防止する。
 // トークン残高・サブスク状態の「正」は本Webhookが更新する（フロント反映は表示のみ）。
+// - subscription (personal/clinic): トークン付与は invoice.payment_succeeded 側
+// - payment (addon_*): checkout.session.completed で即時付与
 
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
@@ -12,16 +14,25 @@ async function rawBody(req) {
   return Buffer.concat(chunks);
 }
 
-const PLAN_TOKENS = { sketch: 100, studio: 500 };
+// plan → 月次付与トークン / ledger reason
+const SUB_PLANS = {
+  personal: { tokens: 100, reason: 'subscription_personal_monthly' },
+  clinic:   { tokens: 500, reason: 'subscription_clinic_monthly' }
+};
+const ADDONS = {
+  addon_mini:     { tokens: 20,  reason: 'token_addon_mini' },
+  addon_standard: { tokens: 100, reason: 'token_addon_standard' },
+  addon_plus:     { tokens: 300, reason: 'token_addon_plus' }
+};
 
 function planFromPriceId(priceId) {
   if (!priceId) return null;
-  if (priceId === process.env.STRIPE_PRICE_SKETCH_MONTHLY || priceId === process.env.STRIPE_PRICE_SKETCH_ANNUAL) return 'sketch';
-  if (priceId === process.env.STRIPE_PRICE_STUDIO_MONTHLY || priceId === process.env.STRIPE_PRICE_STUDIO_ANNUAL) return 'studio';
+  if (priceId === process.env.STRIPE_PRICE_PERSONAL_MONTHLY) return 'personal';
+  if (priceId === process.env.STRIPE_PRICE_CLINIC_MONTHLY) return 'clinic';
+  // 旧env互換（設定が残っている場合のみ）
+  if (priceId === process.env.STRIPE_PRICE_SKETCH_MONTHLY) return 'personal';
+  if (priceId === process.env.STRIPE_PRICE_STUDIO_MONTHLY) return 'clinic';
   return null;
-}
-function isAnnualPrice(priceId) {
-  return priceId === process.env.STRIPE_PRICE_SKETCH_ANNUAL || priceId === process.env.STRIPE_PRICE_STUDIO_ANNUAL;
 }
 function ts(sec) { return sec ? new Date(sec * 1000).toISOString() : null; }
 
@@ -55,7 +66,6 @@ module.exports = async (req, res) => {
   if (ins.error) {
     if (String(ins.error.code) === '23505') { res.status(200).send('duplicate_skipped'); return; }
     console.error('[webhook] billing_events insert failed', ins.error);
-    // イベント記録に失敗しても処理は続行（テーブル未作成時などは処理だけ通す）
   }
 
   async function userIdFromCustomer(customerId) {
@@ -67,7 +77,9 @@ module.exports = async (req, res) => {
 
   async function upsertSubscription(sub) {
     const priceId = sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].price && sub.items.data[0].price.id;
-    const plan = (sub.metadata && sub.metadata.plan) || planFromPriceId(priceId);
+    let plan = (sub.metadata && sub.metadata.plan) || planFromPriceId(priceId);
+    if (plan === 'sketch') plan = 'personal';
+    if (plan === 'studio') plan = 'clinic';
     let userId = (sub.metadata && sub.metadata.supabase_user_id) || await userIdFromCustomer(sub.customer);
     if (!userId) { console.error('[webhook] user not resolved for subscription', sub.id); return null; }
     const row = {
@@ -109,14 +121,24 @@ module.exports = async (req, res) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
-        const userId = session.metadata && session.metadata.supabase_user_id;
+        const userId = (session.metadata && session.metadata.supabase_user_id) || await userIdFromCustomer(session.customer);
         if (userId && session.customer) {
           const up = await admin.from('billing_customers').upsert(
             { user_id: userId, stripe_customer_id: session.customer, updated_at: new Date().toISOString() },
             { onConflict: 'user_id' });
           if (up.error) console.error('[webhook] billing_customers upsert failed', up.error);
         }
-        // subscription の詳細反映は customer.subscription.created / invoice で行う
+        if (session.mode === 'payment') {
+          // Add-on one-time purchase → 即時付与（idempotency: event id）
+          const plan = session.metadata && session.metadata.plan;
+          const addon = ADDONS[plan];
+          if (addon && userId && session.payment_status === 'paid') {
+            await grantTokens(userId, addon.tokens, addon.reason, 'stripe:' + event.id);
+          } else if (!addon) {
+            console.log('[webhook] payment session without known addon plan', session.id, plan);
+          }
+        }
+        // subscription の詳細反映は customer.subscription.* / invoice 側で行う
         break;
       }
       case 'customer.subscription.created':
@@ -130,7 +152,7 @@ module.exports = async (req, res) => {
           .update({ status: 'canceled', cancel_at_period_end: false, updated_at: new Date().toISOString() })
           .eq('stripe_subscription_id', sub.id);
         if (up.error) console.error('[webhook] cancel update failed', up.error);
-        // 既存トークンは没収しない（初期方針）。次回付与は invoice が来なくなるため自然停止。
+        // 既存トークンは没収しない。invoice が止まることで次回付与が自然停止。
         break;
       }
       case 'invoice.payment_succeeded': {
@@ -138,13 +160,10 @@ module.exports = async (req, res) => {
         const line = inv.lines && inv.lines.data && inv.lines.data[0];
         const priceId = line && line.price && line.price.id;
         const plan = planFromPriceId(priceId);
+        const conf = plan && SUB_PLANS[plan];
         const userId = await userIdFromCustomer(inv.customer);
-        if (plan && userId) {
-          const monthly = PLAN_TOKENS[plan] || 0;
-          // 年額は12ヶ月分を一括付与（初期実装。返金時の扱いは docs 参照。月次ドリップ化は Phase 2.1）
-          const amount = isAnnualPrice(priceId) ? monthly * 12 : monthly;
-          const reason = isAnnualPrice(priceId) ? 'subscription_annual_grant' : 'subscription_monthly_grant';
-          await grantTokens(userId, amount, reason, 'stripe:' + event.id);
+        if (conf && userId) {
+          await grantTokens(userId, conf.tokens, conf.reason, 'stripe:' + event.id);
         } else {
           console.log('[webhook] invoice without known plan/user', inv.id, priceId);
         }
@@ -164,14 +183,12 @@ module.exports = async (req, res) => {
       default:
         break;
     }
-    // 処理完了マーク
     await admin.from('billing_events')
       .update({ processed_at: new Date().toISOString() })
       .eq('stripe_event_id', event.id);
     res.status(200).send('ok');
   } catch (e) {
     console.error('[webhook] handler error', event.type, e);
-    // Stripe に再送させる
     res.status(500).send('handler_error');
   }
 };

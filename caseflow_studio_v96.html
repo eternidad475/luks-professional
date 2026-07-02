@@ -19909,7 +19909,8 @@ body[data-ui-tone="dark"]{
 
   async function generateViaAI(source){
     const epRaw=aiEndpoint(); if(!epRaw) return null;
-    // Token gate: 1 token per AI generation call. Blocks (no local fallback) when empty.
+    // Token gate: 1回作成 = 2 tokens。失敗時は refund_generation_tokens で返却。
+    let _ledgerId=null;
     if(typeof window.cfConsumeToken==='function'){
       const _tk = await window.cfConsumeToken('generation');
       if(_tk && _tk.ok===false){
@@ -19917,16 +19918,26 @@ body[data-ui-tone="dark"]{
         const _e=new Error(_tk.reason==='insufficient'?'トークンが不足しています':'トークンの確認に失敗しました');
         _e.cfNoTokens=true; throw _e;
       }
+      _ledgerId=(_tk&&_tk.ledgerId)||null;
     }
-    let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
-    const res=await fetchSimWithRetry(ep, JSON.stringify(buildSimulationPayload(source)));
-    const j=await res.json();
-    if(j && j.error) throw new Error(String(j.error).slice(0,400));
-    const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
-    if(!out) throw new Error('画像が返りませんでした (no image in response)');
-    const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
-    try{ return await finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}); }
-    catch(e){ console.warn('finalize failed, using raw AI image', e); return out; }
+    try{
+      let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
+      const res=await fetchSimWithRetry(ep, JSON.stringify(buildSimulationPayload(source)));
+      const j=await res.json();
+      if(j && j.error) throw new Error(String(j.error).slice(0,400));
+      const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
+      if(!out) throw new Error('画像が返りませんでした (no image in response)');
+      const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
+      try{ return await finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}); }
+      catch(e){ console.warn('finalize failed, using raw AI image', e); return out; }
+    }catch(genErr){
+      // 生成失敗 → トークン返却（失敗生成は原則消費なし）
+      if(_ledgerId!=null && typeof window.cfRefundGeneration==='function'){
+        try{ window.cfRefundGeneration(_ledgerId); }catch(e){ console.error('[CF Gate] refund call failed',e); }
+      }
+      if(typeof window.cfLogEvent==='function') window.cfLogEvent('generation_failed','visual-simulation',{ message:String((genErr&&genErr.message)||'').slice(0,120) });
+      throw genErr;
+    }
   }
   // AI is used whenever a backend endpoint is configured (the legacy #aiMode toggle is
   // hidden in the rebuilt studio, so configuring an endpoint is what turns AI on).
@@ -20455,7 +20466,8 @@ body[data-ui-tone="dark"]{
     const grid=$id('simV96EditGrid');
     if(!grid) return;
     state.simV96=Object.assign({}, DEF, state.simV96||{});
-    const legend=`<div class="simV96Legend"><span>現状 / none</span><span>EBM</span><span>最大 / max</span></div>`;
+    const legend=`<div class="simV96Legend"><span>現状 / none</span><span>EBM</span><span>最大 / max</span></div>`+
+      `<div style="font-size:11px;font-weight:800;color:var(--cfUiSub,rgba(32,27,53,.6));margin:2px 0 8px;text-align:right">シミュレーション作成：2 tokens ／ 再生成：2 tokens</div>`;
     const cpVal=String(state.simCustomPrompt||'');
     const cpEsc=cpVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     // NOTE: the "AI backend" status line and endpoint-URL input were intentionally removed
@@ -22935,6 +22947,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button class="cfCapRat" data-ratio="16:9">16:9<span>横</span></button>'+
       '</div>'+
       '<button id="cfCapSaveBtn">&#9660;&nbsp; プレビュー動画を保存</button>'+
+      '<div style="font-size:11px;font-weight:800;color:rgba(32,27,53,.55);text-align:center;margin-top:6px">モーフィング動画作成：2 tokens</div>'+
       '<div id="cfCapHint">&#9654; で往復再生。3つのプレビューパターンを切り替えて、最適なものを保存してください。</div>'+
       '';
     /* Resize popup — injected once */
@@ -24207,6 +24220,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   async function generateRefinedViaAI(imageDataUrl, imageType){
     var epRaw = getAiEndpoint();
     if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
+    var _refineLedgerId=null;
     if(typeof window.cfConsumeToken==='function'){
       var tk = await window.cfConsumeToken('generation');
       if(tk && tk.ok===false){
@@ -24214,6 +24228,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var err = new Error(tk.reason==='insufficient' ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
         err.cfNoTokens = true; throw err;
       }
+      _refineLedgerId=(tk&&tk.ledgerId)||null;
     }
     var ep = epRaw.replace(/\/+$/,'');
     if(!/\/simulate$/.test(ep)) ep += '/simulate';
@@ -24244,12 +24259,20 @@ body.cfPresent .cfPresentExit{display:flex!important}
         'changed face, changed lips, changed skin, deformed teeth, cartoon, painting, sketch, anime'
       ].join(' ')
     });
-    var res = await fetchWithRetry(ep, JSON.stringify(payload));
-    var j = await res.json();
-    if(j && j.error) throw new Error(String(j.error).slice(0,300));
-    var out = j.image || j.dataUrl || j.output || (Array.isArray(j.images) ? j.images[0] : null) || null;
-    if(!out) throw new Error('二次生成で画像が返りませんでした');
-    return out;
+    try{
+      var res = await fetchWithRetry(ep, JSON.stringify(payload));
+      var j = await res.json();
+      if(j && j.error) throw new Error(String(j.error).slice(0,300));
+      var out = j.image || j.dataUrl || j.output || (Array.isArray(j.images) ? j.images[0] : null) || null;
+      if(!out) throw new Error('二次生成で画像が返りませんでした');
+      return out;
+    }catch(refErr){
+      // 生成失敗 → トークン返却
+      if(_refineLedgerId!=null && typeof window.cfRefundGeneration==='function'){
+        try{ window.cfRefundGeneration(_refineLedgerId); }catch(e){ console.error('[CF Gate] refine refund failed',e); }
+      }
+      throw refErr;
+    }
   }
 
   function toneMatchSimple(refCtx, srcCtx, w, h, str){
@@ -25559,23 +25582,60 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
   window.cfRefreshTokens=refreshTokens;
 
-  /* 1生成=1トークン。既存の generateViaAI / generateRefinedViaAI から呼ばれる */
-  window.cfConsumeToken=async function(reason){
+  /* 1回作成 = 2 tokens（Visual Simulation / Morphing Video / 再生成）。
+     consume_tokens RPC（migration 6）を優先し、未適用環境では旧 consume_token(1) にフォールバック。 */
+  var CF_GEN_COST=2;
+  window.cfGenCost=CF_GEN_COST;
+  window.cfConsumeToken=async function(reason,amount){
     if(!sb) return { ok:false, reason:'error', message:'supabase not ready' };
+    var amt=(amount==null)?CF_GEN_COST:amount;
     try{
-      var r=await sb.rpc('consume_token',{ p_reason: reason||'generation' });
+      var r=await sb.rpc('consume_tokens',{ p_amount:amt, p_reason: reason||'generation' });
       if(r.error){
         var m=String(r.error.message||'');
-        if(/insufficient/i.test(m)){ renderBadge(0); return { ok:false, reason:'insufficient' }; }
+        if(/does not exist|schema cache|Could not find/i.test(m)){
+          /* migration 6 未適用 → 旧RPC（1トークン）フォールバック */
+          console.warn('[CF Gate] consume_tokens missing — falling back to consume_token(1)');
+          var r0=await sb.rpc('consume_token',{ p_reason: reason||'generation' });
+          if(r0.error){
+            var m0=String(r0.error.message||'');
+            if(/insufficient/i.test(m0)){ renderBadge(0); return { ok:false, reason:'insufficient' }; }
+            if(/not authenticated|28000/i.test(m0)) return { ok:false, reason:'auth' };
+            return { ok:false, reason:'error', message:m0 };
+          }
+          window.__cfTokens=r0.data; renderBadge(r0.data);
+          cfLogEvent('token_consumed','token',{ reason:reason||'generation', amount:1, balance:r0.data });
+          if((reason||'generation')==='generation') cfLogEvent('visual_simulation_generated','visual-simulation');
+          return { ok:true, remaining:r0.data, ledgerId:null };
+        }
         if(/not authenticated|28000/i.test(m)) return { ok:false, reason:'auth' };
-        console.error('[CF Gate] consume_token failed',r.error);
+        console.error('[CF Gate] consume_tokens failed',r.error);
         return { ok:false, reason:'error', message:m };
       }
-      var n=r.data; window.__cfTokens=n; renderBadge(n);
-      cfLogEvent('token_consumed','token',{ reason:reason||'generation', balance:n });
+      var d=r.data||{};
+      if(d.ok===false){
+        if(d.reason==='insufficient'){ renderBadge(window.__cfTokens); return { ok:false, reason:'insufficient' }; }
+        return { ok:false, reason:'error', message:String(d.reason||'') };
+      }
+      window.__cfTokens=d.balance; renderBadge(d.balance);
+      cfLogEvent('token_consumed','token',{ reason:reason||'generation', amount:amt, balance:d.balance });
       if((reason||'generation')==='generation') cfLogEvent('visual_simulation_generated','visual-simulation');
-      return { ok:true, remaining:n };
-    }catch(e){ console.error('[CF Gate] consume_token exception',e); return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+      return { ok:true, remaining:d.balance, ledgerId:d.ledger_id||null };
+    }catch(e){ console.error('[CF Gate] consume_tokens exception',e); return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+  };
+  /* 生成失敗時の返却（migration 6 の refund_generation_tokens。15分以内・二重返却防止付き） */
+  window.cfRefundGeneration=async function(ledgerId){
+    if(!sb||ledgerId==null) return { ok:false };
+    try{
+      var r=await sb.rpc('refund_generation_tokens',{ p_ledger_id: ledgerId });
+      if(r.error){ console.error('[CF Gate] refund failed',r.error); return { ok:false }; }
+      var d=r.data||{};
+      if(d.ok){
+        window.__cfTokens=d.balance; renderBadge(d.balance);
+        cfLogEvent('token_refunded','token',{ amount:d.refunded, balance:d.balance });
+      }
+      return d;
+    }catch(e){ console.error('[CF Gate] refund exception',e); return { ok:false }; }
   };
   var emptyModal=el('cfTokenEmpty'), emptyClose=el('cfTokenEmptyClose');
   window.cfShowTokenEmpty=function(){ if(emptyModal) emptyModal.style.display='flex'; cfLogEvent('token_empty','token'); };
@@ -25676,7 +25736,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       try{
         if(type&&String(type).indexOf('video')===0){
           cfLogEvent('morphing_video_exported','morphing-video',{ mime:String(type).slice(0,40) });
-          /* Morphing Video generation: 1 token（成功時消費。残0でも完成済み動画は失わせない） */
+          /* Morphing Video generation: 2 tokens（成功時消費。残0でも完成済み動画は失わせない） */
           if(typeof window.cfConsumeToken==='function'){
             window.cfConsumeToken('morphing_video').then(function(tk){
               if(tk&&tk.ok===false&&tk.reason==='insufficient'&&typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
@@ -25910,7 +25970,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var CF_PROF_JA={dentist:'歯科医師',dental_technician:'歯科技工士',dental_hygienist:'歯科衛生士',
       dental_assistant:'歯科助手',dental_student:'歯科学生',clinic_staff:'クリニックスタッフ',
       other_dental_professional:'その他歯科医療関係者'};
-    var CF_PLAN_JA={ sketch:'Sketch', studio:'Studio', trial:'Trial', developer:'Developer' };
+    /* 表示は Personal / Clinic に統一（sketch/studio は旧データ互換の表示マッピングのみ） */
+    var CF_PLAN_JA={ personal:'Personal', clinic:'Clinic', trial:'Trial', developer:'Developer', enterprise:'Enterprise', sketch:'Personal', studio:'Clinic' };
     function fmtDateJa(iso){
       if(!iso) return '';
       var d=new Date(iso); if(isNaN(d)) return '';
@@ -25941,6 +26002,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var planSub=renew+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':'');
       menu.appendChild(menuItem('現在のプラン：'+esc(plan),esc(planSub),null,function(){ loadBilling().then(renderAcctMenu); }));
       menu.appendChild(menuItem('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
+      menu.appendChild(menuItem('トークンを追加購入','Mini 20 / Standard 100 / Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
       menu.appendChild(menuItem('支払い管理','Stripeポータル',null,openPortal));
       menu.appendChild(Object.assign(document.createElement('div'),{className:'cfAcctSep'}));
       /* tokens */
@@ -26031,34 +26093,33 @@ body.cfPresent .cfPresentExit{display:flex!important}
         document.body.appendChild(pricingOv);
         pricingOv.addEventListener('click',function(e){ if(e.target===pricingOv) pricingOv.style.display='none'; });
       }
-      var interval=window.__cfPriceInterval||'month';
-      function tglBtn(v,label){
-        return '<button type="button" data-int="'+v+'" style="flex:1;padding:8px 0;border-radius:9px;border:'+(interval===v?'0':'1.5px solid rgba(124,92,255,.25)')+';'+
-          'background:'+(interval===v?'linear-gradient(135deg,#7c5cff,#b06bff)':'#fff')+';color:'+(interval===v?'#fff':'#231a3a')+';font-size:12px;font-weight:850;cursor:pointer">'+label+'</button>';
-      }
-      var buyBtn=function(plan){
-        return '<button type="button" data-buy="'+plan+'" class="cfG2Btn" style="font-size:13px;padding:10px">このプランにする</button>';
+      /* 年額は初期では提供しない（Annual UI/Price/Env は無効化） */
+      var buyBtn=function(plan,label){
+        return '<button type="button" data-buy="'+plan+'" class="cfG2Btn" style="font-size:13px;padding:10px">'+(label||'このプランにする')+'</button>';
+      };
+      var addonBtn=function(plan,label){
+        return '<button type="button" data-buy="'+plan+'" class="cfG2BtnGhost" style="font-size:12.5px;margin:0;padding:9px">'+label+'</button>';
       };
       var trialDone=!!(curProfile&&curProfile.trial_tokens_granted);
       pricingOv.innerHTML='<div style="width:100%;max-width:420px;max-height:88dvh;overflow:auto;background:rgba(255,255,255,.97);border-radius:20px;padding:20px 18px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">'+
         '<div style="font-weight:900;font-size:15px;color:#3d2b8f;margin-bottom:4px">プラン / Pricing</div>'+
-        '<div style="font-size:11.5px;color:#7a7290;line-height:1.7;margin-bottom:12px">生成に使用するトークンのプランです。決済はStripeの安全な画面で行われます（テストモード）。</div>'+
-        '<div style="display:flex;gap:6px;margin-bottom:12px">'+tglBtn('month','月額')+tglBtn('year','年額（15% off）')+'</div>'+
+        '<div style="font-size:11.5px;color:#7a7290;line-height:1.7;margin-bottom:12px">Visual Simulation と Morphing Video は、1回作成につき 2 tokens 消費します。決済はStripeの安全な画面で行われます（テストモード）。</div>'+
         '<div style="display:grid;gap:10px">'+
-          planCard('Trial','無料','10トークン（初回のみ）','初回確認用。支払い方法は不要です。',
+          planCard('Trial','無料','10 tokens（初回のみ・約5回作成分）','初回確認用。支払い方法は不要です。',
             trialDone?'<div style="font-size:12px;color:#1a8f57;font-weight:800">取得済み ✓</div>'
                      :'<button type="button" data-trial="1" class="cfG2BtnGhost" style="font-size:13px;margin:0">無料で試す</button>')+
-          planCard('Sketch',interval==='month'?'月額 1,500円':'年額 15,300円',
-            '100トークン / 月','若手歯科医師・大学関係者向け',buyBtn('sketch'))+
-          planCard('Studio',interval==='month'?'月額 3,000円':'年額 30,600円',
-            '500トークン / 月','症例ビジュアル作成を継続的に行う方向け',buyBtn('studio'))+
+          planCard('Personal','月額 1,500円','100 tokens / 月（約50回作成分）','個人歯科医師向け',buyBtn('personal'))+
+          planCard('Clinic','月額 5,000円','500 tokens / 月（約250回作成分）','1医院向け',buyBtn('clinic'))+
+        '</div>'+
+        '<div style="font-weight:900;font-size:13.5px;color:#3d2b8f;margin:14px 0 8px">追加トークン / Add-on（買い切り）</div>'+
+        '<div style="display:grid;gap:8px">'+
+          addonBtn('addon_mini','Mini — 20 tokens / 500円')+
+          addonBtn('addon_standard','Standard — 100 tokens / 2,000円')+
+          addonBtn('addon_plus','Plus — 300 tokens / 5,000円')+
         '</div>'+
         '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:12px">閉じる</button>'+
       '</div>';
       pricingOv.style.display='flex';
-      pricingOv.querySelectorAll('[data-int]').forEach(function(b){
-        b.addEventListener('click',function(){ window.__cfPriceInterval=b.getAttribute('data-int'); openPricing(); });
-      });
       var closeB=pricingOv.querySelector('[data-close]');
       if(closeB) closeB.addEventListener('click',function(){ pricingOv.style.display='none'; });
       var trialB=pricingOv.querySelector('[data-trial]');
@@ -26074,10 +26135,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
         trialB.disabled=false;
       });
       pricingOv.querySelectorAll('[data-buy]').forEach(function(b){
-        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), window.__cfPriceInterval||'month', b); });
+        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), b); });
       });
     }
-    async function startCheckout(plan,interval,btn){
+    async function startCheckout(plan,btn){
       if(btn) btn.disabled=true;
       try{
         var s=await sb.auth.getSession();
@@ -26086,7 +26147,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var res=await fetch('/api/stripe/create-checkout-session',{
           method:'POST',
           headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+jwt },
-          body:JSON.stringify({ plan:plan, interval:interval })
+          body:JSON.stringify({ plan:plan })
         });
         var j=await res.json().catch(function(){ return {}; });
         if(res.ok&&j.url){ location.href=j.url; return; }

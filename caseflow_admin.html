@@ -610,11 +610,12 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       if(!r.data||!r.data.length){
         box.innerHTML='<div class="empty">課金データがまだありません。<br>ユーザーがStripe Checkoutで登録すると、ここに表示されます。</div>'; return;
       }
+      var PLAN_DISP={personal:'Personal',clinic:'Clinic',sketch:'Personal',studio:'Clinic',trial:'Trial',developer:'Developer'};
       box.innerHTML=r.data.map(function(b){
         var st=b.status||'—';
         var stCls=st==='active'?'ok':st==='past_due'?'crit':st==='canceled'?'dim':'warn';
         return '<div class="item"><b>'+esc(b.email)+'</b>'+
-          ' <span class="badge dim">'+esc(b.plan||'—')+'</span>'+
+          ' <span class="badge dim">'+esc(PLAN_DISP[b.plan]||b.plan||'—')+'</span>'+
           ' <span class="badge '+stCls+'">'+esc(st)+'</span>'+
           (b.cancel_at_period_end?' <span class="badge warn">期末解約予定</span>':'')+
           '<div class="meta">tokens: '+esc(b.tokens_remaining==null?'—':b.tokens_remaining)+
@@ -622,6 +623,24 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
           '<div class="meta">customer: '+esc(shortId(b.stripe_customer_id))+' / sub: '+esc(shortId(b.stripe_subscription_id))+'</div>'+
           '</div>';
       }).join('');
+      /* Add-on 購入履歴（token_ledger の admin read policy 経由） */
+      try{
+        var a=await sb.from('token_ledger')
+          .select('user_id,delta,reason,created_at')
+          .in('reason',['token_addon_mini','token_addon_standard','token_addon_plus'])
+          .order('created_at',{ascending:false}).limit(20);
+        if(!a.error&&a.data){
+          var ADDON_DISP={token_addon_mini:'Mini (+20)',token_addon_standard:'Standard (+100)',token_addon_plus:'Plus (+300)'};
+          box.innerHTML+='<div class="cfAdmSection" style="margin-top:14px">Add-on購入履歴 / Add-on purchases</div>'+
+            (a.data.length
+              ? '<table><tr><th>日時</th><th>user</th><th>Add-on</th><th>delta</th></tr>'+
+                a.data.map(function(l){
+                  return '<tr><td>'+fmtTs(l.created_at)+'</td><td class="meta">'+esc(String(l.user_id||'').slice(0,8))+'…</td>'+
+                    '<td>'+esc(ADDON_DISP[l.reason]||l.reason)+'</td><td style="color:#1a8f57;font-weight:800">+'+l.delta+'</td></tr>';
+                }).join('')+'</table>'
+              : '<div class="empty">Add-on購入はまだありません。</div>');
+        }
+      }catch(e){ console.error('[Admin] addon history failed',e); }
     }catch(e){ console.error('[Admin] billing load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'課金データ'))+'</div>'; }
   }
 
