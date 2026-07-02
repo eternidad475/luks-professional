@@ -217,6 +217,13 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       <div class="checklist" id="depChecklist"></div>
     </div>
 
+    <div class="card section" id="sec-billing">
+      <button class="back" data-back>&larr; トップに戻る</button>
+      <h2>Billing<small>課金管理</small></h2>
+      <p class="help">Stripe test mode のサブスクリプション状態を確認します。カード情報はStripe側にのみ保存され、アプリには保持しません。手動トークン付与は Users セクションから行えます。</p>
+      <div id="billingList"><div class="empty">読み込み中…</div></div>
+    </div>
+
     <div class="card section" id="sec-audit">
       <button class="back" data-back>&larr; トップに戻る</button>
       <h2>Audit Logs<small>監査ログ</small></h2>
@@ -290,7 +297,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       ['Supabase: Connected','ok'],
       ['Auth: ON (this page)','ok'],
       ['Invite-only: '+(env==='production'?'OFF（CF_BETA_GATE_DEFAULT=false）':'flag制御（?beta_gate=on）'),env==='production'?'warn':'dim'],
-      ['Stripe: Not Connected（Phase 2 / test mode予定）','dim'],
+      ['Stripe: Test Mode（env設定後に有効）','dim'],
       ['Role: '+(profile?profile.role:'—'),'dim'],
       ['Environment: '+env,'dim']
     ];
@@ -350,6 +357,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
     ['Tokens','トークン管理','トークンを追加したい。台帳確認と手動付与を行います。','sec-tokens'],
     ['Feedback Inbox','フィードバック受信箱','不具合や要望を確認したい。ユーザーには非公開です。','sec-feedback'],
     ['Deployment Compare','デプロイ比較','本番とプレビューを比べたい。','sec-deploy'],
+    ['Billing','課金管理','プラン・サブスク状態・トークン残高を確認したい。','sec-billing'],
     ['Audit Logs','監査ログ','管理者操作の履歴を見たい。','sec-audit'],
     ['Production Smoke Test','本番スモークテスト','本番反映後に最低限確認したい。','sec-smoke'],
     ['Settings','設定','環境フラグと接続状態を確認します。','sec-settings']
@@ -374,7 +382,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
     });
   }
   var LOADERS={ 'sec-invites':loadInvites,'sec-users':loadUsers,'sec-usage':loadUsage,'sec-tokens':loadTokens,
-                'sec-feedback':loadFeedback,'sec-audit':loadAudit,'sec-settings':loadSettings };
+                'sec-feedback':loadFeedback,'sec-audit':loadAudit,'sec-settings':loadSettings,'sec-billing':loadBillingAdmin };
   function openSection(id){
     document.querySelectorAll('.section').forEach(function(s){ s.classList.toggle('on',s.id===id); });
     var s=el(id); if(s) s.scrollIntoView({behavior:'smooth',block:'start'});
@@ -592,6 +600,31 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
     }catch(e){ console.error('[Admin] feedback load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'フィードバック'))+'</div>'; }
   }
 
+  /* ---------- billing ---------- */
+  function shortId(s){ s=String(s||''); return s.length>14?(s.slice(0,10)+'…'+s.slice(-4)):s||'—'; }
+  async function loadBillingAdmin(){
+    var box=el('billingList');
+    try{
+      var r=await sb.rpc('admin_list_billing');
+      if(r.error) throw r.error;
+      if(!r.data||!r.data.length){
+        box.innerHTML='<div class="empty">課金データがまだありません。<br>ユーザーがStripe Checkoutで登録すると、ここに表示されます。</div>'; return;
+      }
+      box.innerHTML=r.data.map(function(b){
+        var st=b.status||'—';
+        var stCls=st==='active'?'ok':st==='past_due'?'crit':st==='canceled'?'dim':'warn';
+        return '<div class="item"><b>'+esc(b.email)+'</b>'+
+          ' <span class="badge dim">'+esc(b.plan||'—')+'</span>'+
+          ' <span class="badge '+stCls+'">'+esc(st)+'</span>'+
+          (b.cancel_at_period_end?' <span class="badge warn">期末解約予定</span>':'')+
+          '<div class="meta">tokens: '+esc(b.tokens_remaining==null?'—':b.tokens_remaining)+
+          ' / 次回更新: '+fmtTs(b.current_period_end)+'</div>'+
+          '<div class="meta">customer: '+esc(shortId(b.stripe_customer_id))+' / sub: '+esc(shortId(b.stripe_subscription_id))+'</div>'+
+          '</div>';
+      }).join('');
+    }catch(e){ console.error('[Admin] billing load failed',e); box.innerHTML='<div class="empty">'+esc(failText(e,'課金データ'))+'</div>'; }
+  }
+
   /* ---------- audit ---------- */
   async function loadAudit(){
     var box=el('auditList');
@@ -615,7 +648,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       ['Invite-only（本番デフォルト）','OFF — caseflow_studio_v96.html の CF_BETA_GATE_DEFAULT で切替'],
       ['このページの認可','role in (developer / co_developer / admin) + RLS'],
       ['Supabase project','nuolihmfdjzofporhwkp（anon keyのみ使用・service_role はフロント不使用）'],
-      ['Stripe','Not Connected（Phase 2 で test mode から接続）'],
+      ['Stripe','Test Mode（/api/stripe/* + STRIPE_* 環境変数。本番課金は未開始）'],
       ['Usage events','usage_events テーブル（migration 20260701000003）']
     ].map(function(s){ return '<div class="item"><div class="meta">'+esc(s[0])+'</div><b style="font-size:13px">'+esc(s[1])+'</b></div>'; }).join('');
   }

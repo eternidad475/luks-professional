@@ -1,0 +1,10 @@
+{
+  "name": "caseflow-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CASEFLOW STUDIO - static app + Vercel serverless functions (Stripe billing)",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "stripe": "^16.12.0"
+  }
+}
