@@ -1,6 +1,20 @@
 # Phase 2.1 設計書 — Personal / Clinic・患者/Library 紐付け・退会導線
 
-> ステータス: **設計案（実装前・レビュー待ち）**。SMS認証UIの撤去（優先度A-1）のみ先行実装済み。
+> ステータス: **レビュー承認済み（2026-07-02）→ 2.1a migration 7 確定版作成済み**
+> （`supabase/migrations/20260705000007_workspaces_foundation.sql` — 適用待ち）
+>
+> **レビュー確定事項:**
+> 1. 財布移行 = コピー＋旧RPC委譲。**残高コピーは 2.1b の RPC 切替と同一Txで実施**（2.1a〜2.1b 間のドリフト・二重消費を防止。それまで profiles が正）
+> 2. **Library は 48時間一時保存で固定**。長期クラウド保存・保存期間延長プランは将来も作らない（プロダクト思想）。48h後は実ファイル削除・metadata/ledger/audit は保持・UI は「ファイル削除済み」表示
+> 3. 既存 Stripe 契約は personal workspace 帰属。Clinic への自動移管は非対応（必要時は admin 手動）
+> 4. 複数Clinic所属は表示のみ。ただし **active_workspace_id の概念は 2.1 から導入**（保存・生成・Library閲覧はこれを使用）
+> 5. 退出/削除された member の作成データは Clinic に残る（規約明記）。表示は「削除済みメンバー」等
+> 6. `/api/account/deactivate` serverless 新設（service_role 処理はサーバー側）
+> 7. 患者画像はクラウド長期保存しない前提で規約整備。「患者同意を得た画像のみ使用」確認導線を将来追加
+> 8. SMS認証は完全撤去（実施済み・`CF_SMS_AUTH_ENABLED=false` でコード温存）
+> 9. DB整合性14項目 → migration 7 に複合FK/トリガー/CHECKで実装（下記追記）
+>
+> **migration 7 での設計変更:** `workspaces` に stripe_customer_id / stripe_subscription_id を**持たせない**ことに変更。Stripe参照は `billing_customers` / `billing_subscriptions` に `workspace_id` を追加して管理する — member への支払い情報露出が RLS 設定ミスでも起こり得ない構造にするため。
 > 対象: workspaces / メンバー管理 / patients / cases / library_items / トークン財布の workspace 化 / 退会・退出・削除・解約
 
 ---
