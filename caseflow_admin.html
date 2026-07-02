@@ -449,7 +449,9 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
         var PROF_JA={dentist:'歯科医師',dental_technician:'歯科技工士',dental_hygienist:'歯科衛生士',
           dental_assistant:'歯科助手',dental_student:'歯科学生',clinic_staff:'クリニックスタッフ',
           other_dental_professional:'その他歯科医療関係者'};
-        var profBadge=u.professional_type?' <span class="badge dim">'+esc(PROF_JA[u.professional_type]||u.professional_type)+'</span>':'';
+        var profBadge=u.professional_type
+          ?' <span class="badge dim">'+esc(PROF_JA[u.professional_type]||u.professional_type)+'</span>'
+          :' <span class="badge warn">職種未設定</span>';
         var phoneHtml='';
         if(u.phone!==undefined){
           /* 電話番号は初期表示マスク（+CC と下4桁のみ）。必要時のみ全文表示 */
