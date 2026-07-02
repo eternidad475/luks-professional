@@ -18678,6 +18678,88 @@ body[data-ui-tone="dark"]{
   var CASEFLOW_DEFAULT_AI_ENDPOINT='https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
   function aiEndpoint(){ try{ return window.CASEFLOW_AI_ENDPOINT || localStorage.getItem('caseflow_ai_endpoint') || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; }catch(e){ return window.CASEFLOW_AI_ENDPOINT || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; } }
   window.caseflowSetAIEndpoint=function(url){ try{ localStorage.setItem('caseflow_ai_endpoint', url||''); }catch(e){} window.CASEFLOW_AI_ENDPOINT=url||''; toastFn(url?'AI endpoint を設定しました':'AI endpoint を解除しました'); };
+  // ===== v9.7 Intent-first prompt refinement ==================================
+  // 優先順位: (1)ユーザー明示指示 (2)視認できる所見 (3)顔貌/口唇/歯列/歯肉の調和
+  // (4)自然な審美 (5)理想比率は参考値。矯正的問題と補綴的問題を明確に分離し、
+  // 未指定の自動補正を最小化するガードレールを生成プロンプトに注入する。
+  const CF_ORTHO_KEYS=/crossbite|overjet|crowding|spacing|diastema|rotation|axial|midline|asymmetr|cant|open bite|deep bite|narrow arch/i;
+  const CF_RESTOR_KEYS=/missing|peg|size|discolou?r|fractur|worn|wear|restoration|crown|defect|lesion/i;
+  const CF_ROLE_FOCUS={
+    frontal_smile:'facial harmony, lip line, smile arc, incisal edge line, commissure symmetry, smile width, tooth display and gingival display',
+    intraoral_retracted_frontal:'crowding, spacing, rotations, tooth axes, midline, overjet/overbite tendency, crossbite, missing or undersized teeth and the gingival line',
+    contrastor_anterior_closeup:'the incisal edge line and length, translucency, crown form, left-right differences, wear, chipping, tooth axes and central/lateral/canine size relationships — high-precision anterior esthetics',
+    anterior_closeup:'crown form, shade and incisal edges of the visible anterior teeth'
+  };
+  function cfImageRole(srcP,isFacial,isIntraoral,isIntraoralDark){
+    if(isIntraoralDark) return 'contrastor_anterior_closeup';
+    if(isIntraoral) return 'intraoral_retracted_frontal';
+    if(isFacial) return 'frontal_smile';
+    return 'anterior_closeup';
+  }
+  function cfClassifyLegacy(pl){
+    const ortho=[],restor=[];
+    (pl||[]).forEach(f=>{
+      const t=String((f&&f.en)||f||''); if(!t) return;
+      if(CF_ORTHO_KEYS.test(t)) ortho.push(t);
+      else if(CF_RESTOR_KEYS.test(t)) restor.push(t);
+    });
+    return {ortho,restor,uncertain:[]};
+  }
+  function cfComposeIntentBlock(srcP,isFacial,isIntraoral,isIntraoralDark){
+    try{
+      const mode=state.simIntentMode||'balanced';
+      const minimal=!!state.simMinimalChange;
+      const scope=state.simCorrectionScope||'combined';
+      const sf=(srcP&&srcP.structuredFindings)||null;
+      const pl=(srcP&&Array.isArray(srcP.problemList))?srcP.problemList:[];
+      let cls;
+      if(sf&&sf.priorityClassification){
+        const pc=sf.priorityClassification;
+        cls={ ortho:(pc.orthodonticPriority||[]).map(String),
+              restor:(pc.restorativePriority||[]).map(String),
+              uncertain:(pc.uncertainVisibility||[]).map(String) };
+      } else cls=cfClassifyLegacy(pl);
+      const parts=[];
+      parts.push('PRIORITY ORDER for this simulation: (1) the clinician\'s explicit request and slider settings, (2) clinically VISIBLE findings, (3) harmony of the face, lips, dentition and gingiva, (4) natural esthetic balance. Ideal ratios such as the golden proportion are SOFT reference values only — never rigid rules, and deviation alone is not an indication for correction.');
+      const role=cfImageRole(srcP,isFacial,isIntraoral,isIntraoralDark);
+      parts.push('IMAGE ROLE ('+role.replace(/_/g,' ')+'): weight the evaluation and the edit toward '+CF_ROLE_FOCUS[role]+'.');
+      if(cls.ortho.length) parts.push('ORTHODONTIC-PRIORITY findings ['+cls.ortho.slice(0,6).join('; ')+']: these must be expressed as tooth POSITION / axis / arch-relationship corrections. Do NOT mask or "solve" them with whitening, crown re-shaping or a veneer-like disguise alone.');
+      if(cls.restor.length) parts.push('RESTORATIVE-PRIORITY findings ['+cls.restor.slice(0,6).join('; ')+']: these must be expressed as crown FORM / SIZE / SHADE / restoration corrections. Do NOT present them as if solved purely by tooth movement.');
+      if(cls.uncertain.length) parts.push('LOW-VISIBILITY / UNCERTAIN items ['+cls.uncertain.slice(0,5).join('; ')+']: do NOT invent details or aggressively correct areas that are hidden by lips, shadow or low resolution — use a conservative strategy there.');
+      else parts.push('For any area hidden by the lips or unclear in this photo, use a conservative strategy — do not aggressively invent or correct what cannot be seen.');
+      /* confidence-based modulation */
+      if(sf&&typeof sf.confidence==='number'&&sf.confidence>0&&sf.confidence<0.55){
+        parts.push('Overall finding confidence is LOW ('+Math.round(sf.confidence*100)+'%): avoid strong corrections that rely on those findings; prefer the clinician\'s explicit request and the clearly visible structures.');
+      }
+      /* structured guidance passthrough */
+      if(sf&&sf.simulationGuidance){
+        const g=sf.simulationGuidance;
+        if(Array.isArray(g.preserve)&&g.preserve.length) parts.push('PRESERVE (from screening): '+g.preserve.slice(0,6).join('; ')+'.');
+        if(Array.isArray(g.avoid)&&g.avoid.length) parts.push('AVOID (from screening): '+g.avoid.slice(0,6).join('; ')+'.');
+      }
+      const custom=String(state.simCustomPrompt||'').trim();
+      if(mode==='user-first'){
+        parts.push('USER-FIRST MODE: the clinician\'s written request'+(custom?' ("'+custom.slice(0,180)+'")':'')+' and slider settings define the ONLY intended changes. Apply automated findings ONLY where they directly support that request. Add NO corrections beyond it — items the clinician chose to keep (e.g. a peg lateral to preserve, residual character to retain, brackets to keep) must be kept exactly.');
+      } else if(mode==='auto'){
+        parts.push('AUTO MODE: where the clinician has not specified details, the automated findings may guide the correction — still within the treatment concept, slider strengths and all constraints above.');
+      } else {
+        parts.push('BALANCED MODE: reconcile the clinician\'s request with the visible findings. Where they conflict, the clinician\'s request always wins; unrequested corrections stay minimal.');
+      }
+      if(minimal) parts.push('MINIMAL-CHANGE MODE (strict): change ONLY what the request, sliders and concept clearly imply, at the smallest believable magnitude. Explicitly FORBIDDEN: unrequested whitening; unrequested reshaping or idealisation; excessive uniformity of the teeth; lip, skin or facial beautification; and any large cosmetic change the clinician did not ask for.');
+      const scopeMap={
+        alignment:'CORRECTION SCOPE = ALIGNMENT ONLY: change tooth position, axis and arch relationships; keep crown form, shade and gingiva unchanged apart from what repositioning physically implies.',
+        shape:'CORRECTION SCOPE = SHAPE ONLY: refine crown form and contours; keep tooth positions, shade and gingiva unchanged.',
+        shade:'CORRECTION SCOPE = SHADE ONLY: adjust colour, value and translucency; keep tooth positions, crown forms and gingiva unchanged.',
+        gingiva:'CORRECTION SCOPE = GINGIVA ONLY: harmonise the gingival line and papillae; keep tooth position, form and shade unchanged.',
+        preserve:'CORRECTION SCOPE = PRESERVE CURRENT CHARACTER: keep the patient\'s existing tooth character and arrangement; perform only the minimal cleanup the request clearly implies.'
+      };
+      if(scopeMap[scope]) parts.push(scopeMap[scope]);
+      parts.push('ALWAYS AVOID: unnecessary whitening; an over-idealised "veneer-perfect" uniform look; unnatural left-right symmetry; masking orthodontic problems with purely restorative-looking changes; masking restorative problems with tooth movement alone; altering the face, lips, skin, expression, lighting or background beyond what the clinician explicitly allowed; and any unrequested large-scale change. The final result must remain natural, biologically plausible, clinically believable, patient-specific and identity-preserving.');
+      return parts.join(' ');
+    }catch(e){ console.error('[CF Intent] compose failed',e); return ''; }
+  }
+  window.cfComposeIntentBlock=cfComposeIntentBlock;
+
   function buildClinicalPrompt(){
     const v=state.simV82||{}, concept=v.concept||'ortho', s=state.simV96||{};
     const conceptMap={ortho:'orthodontic alignment only (no veneers or crowns)',prosthetic:'prosthetic restoration with veneers/crowns',hybrid:'combined orthodontic and prosthetic treatment'};
@@ -18763,6 +18845,7 @@ body[data-ui-tone="dark"]{
           : 'Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.'));
       const customI=String(state.simCustomPrompt||'').trim();
       if(customI) ip.push('Clinician note (stay strictly within the above constraints): '+customI);
+      { const ib=cfComposeIntentBlock(srcP,false,true,isIntraoralDark); if(ib) ip.push(ib); }
       if(orthoGoal && !isIntraoralDark){
         ip.push('Output: the SAME photograph with the teeth re-aligned as specified (positions/axes may change for the alignment, enamel adjusted) — photorealistic, identical crop, resolution, lighting and white balance. No new smile, no added lips/face/gingiva, no text or watermark.');
       } else {
@@ -18902,6 +18985,7 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
+    { const ib=cfComposeIntentBlock(srcP,isFacial,isIntraoral,isIntraoralDark); if(ib) parts.push(ib); }
     // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
     // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
     // WIDTH (not orthodontic movement). The face stays the patient's own pixels.
@@ -19187,7 +19271,23 @@ body[data-ui-tone="dark"]{
       '• Black triangles / gingival recession (NOT appliance shadow) → {"en":"black triangles / gingival recession","ja":"ブラックトライアングル（歯肉の隙間）"}\n'+
       '• Tooth discolouration / uneven shade → {"en":"tooth discolouration / uneven shade","ja":"歯の変色・明度低下（黄ばみ／色ムラ）"}\n'+
       '• Crown W/H ratio outside ideal ~75–85% → {"en":"crown width-to-height ratio anomaly","ja":"歯冠幅/高さ比の異常（短い歯冠・過剰歯肉露出）"}\n\n'+
-      'Output: raw JSON only, no markdown, no code fences, no explanation text.'
+      'STEP 5 — STRUCTURED 4-LAYER OUTPUT (fill the "structured" object in addition to the findings array):\n'+
+      'Principles: describe ONLY clinically visible findings; areas hidden by lips, shadow, blur or low resolution go to uncertainVisibility — never overdiagnose them. '+
+      'Golden proportion and ideal ratios are SOFT references, never rigid rules. Not every deviation needs correction. Respect natural facial identity and biological plausibility.\n'+
+      'Layers:\n'+
+      '1. facialBalance {midlineAlignment, symmetry, interpupillaryOcclusalRelation, smileCant, facialType, profileType(straight/convex/concave), lipProtrusion, chinLipBalance, confidence 0-1}\n'+
+      '2. dentolabialBalance {lipLine, incisalDisplay, smileArc, lowerLipRelation, commissureSymmetry, smileWidth, buccalCorridor, confidence}\n'+
+      '3. orthodonticFindings {anteriorCrossbite, reverseOverjet, excessiveOverjet, deepBite, openBite, crowding{present,severity}, spacing{present,severity}, rotation{present,details}, axialInclinationIssue{present,details}, midlineDiscrepancy{present,details}, archAsymmetry{present,details}, confidence}\n'+
+      '4. restorativeFindings {missingTooth, pegLateral, toothSizeDiscrepancy, discoloration, fracture, wear, oldRestorationMismatch, crownProportionIssue — each {present,details}; confidence}\n'+
+      'plus gingivalFindings {gingivalMarginDisharmony, papillaIssue, blackTriangle, gummySmile, confidence}, '+
+      'priorityClassification {orthodonticPriority[], restorativePriority[], gingivalPriority[], lipFacialPriority[], uncertainVisibility[]}, '+
+      'additionalImageRecommendations {needsProfileImage, needsRetractedImage, needsContrastorCloseup, needsHigherResolution}, '+
+      'simulationGuidance {preserve[], modify[], avoid[]}, summary, confidence.\n'+
+      'CLASSIFICATION RULES (critical): anterior crossbite, reverse overjet, excessive overjet, crowding, spacing, rotation, axial problems, midline discrepancy and arch asymmetry are orthodonticPriority — NEVER treat them as purely restorative. '+
+      'Missing teeth, peg laterals, tooth-size discrepancy, discoloration, fracture, wear and restoration mismatch are restorativePriority — NEVER treat them as purely orthodontic. The same issue may appear in more than one list when clinically appropriate.\n'+
+      'Image types you may receive: frontal_smile, frontal_rest, profile, intraoral_retracted_frontal, intraoral_occlusal, contrastor_anterior_closeup — weight your evaluation to what that view can reliably show.\n\n'+
+      'FINAL OUTPUT — ONE raw JSON object only, no markdown, no code fences, no explanation:\n'+
+      '{"findings":[{"en":"...","ja":"..."}], "structured":{ ...layers as specified above... }}'
     );
   }
   window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
@@ -19212,7 +19312,15 @@ body[data-ui-tone="dark"]{
           if(res.ok){
             const j=await res.json();
             const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);
-            if(arr&&arr.length) return arr.slice(0,6);
+            if(arr&&arr.length){
+              const out=arr.slice(0,6);
+              // v9.7: structured 4-layer findings (backwards compatible — old backends return only the array)
+              if(j&&j.structured&&typeof j.structured==='object'){
+                try{ Object.defineProperty(out,'__structured',{value:j.structured,enumerable:false}); }
+                catch(e){ out.__structured=j.structured; }
+              }
+              return out;
+            }
           }
         }catch(e){ /* no /screen endpoint or timeout → fall through */ }
       }
@@ -19313,6 +19421,9 @@ body[data-ui-tone="dark"]{
     if(!src || !src.dataUrl) return [];
     if(Array.isArray(src.problemList)) return src.problemList;
     src.problemList = await buildProblemList(src.dataUrl);
+    if(src.problemList && src.problemList.__structured && !src.structuredFindings){
+      src.structuredFindings = src.problemList.__structured;
+    }
     return src.problemList;
   }
   window.caseflowEnsureProblemList = ensureProblemList;
@@ -19773,6 +19884,25 @@ body[data-ui-tone="dark"]{
     }
     if(control_weight!==undefined) payload.control_weight=control_weight;
     if(prompt_weights) payload.prompt_weights=prompt_weights;
+    // ── v9.7 intent-first modulation ──────────────────────────────────────────
+    // Minimal-Change ON: 未指定領域の過剰変化を抑えるため denoising に上限を掛ける。
+    // 抜歯矯正・ブラケット除去は必要変化量が大きいので対象外（プロンプト側ガードのみ）。
+    const intentMode=state.simIntentMode||'balanced';
+    const minimalChange=!!state.simMinimalChange;
+    if(minimalChange && !isExtraction && !hasBracketsFlag){
+      payload.denoising_strength=Math.min(payload.denoising_strength,0.60);
+    }
+    if(minimalChange){
+      payload.negative_prompt=(payload.negative_prompt?payload.negative_prompt+', ':'')+
+        'over-whitened teeth, uniform veneer-perfect teeth, plastic denture look, over-beautified smile, excessive symmetry';
+    }
+    payload.intent_mode=intentMode;
+    payload.minimal_change=minimalChange;
+    payload.correction_scope=state.simCorrectionScope||'combined';
+    payload.image_role=(source&&source.intraoralDark)?'contrastor_anterior_closeup'
+      :(source&&source.intraoral)?'intraoral_retracted_frontal'
+      :(isFacialSrc?'frontal_smile':'anterior_closeup');
+    if(source&&source.structuredFindings) payload.structured_findings=source.structuredFindings;
     return payload;
   }
   window.buildSimulationPayload=buildSimulationPayload;
@@ -20334,7 +20464,23 @@ body[data-ui-tone="dark"]{
     // built-in default endpoint, so generation works silently without any visible control.
     const aiRow=`<div class="simV96AiRow">
         <div class="simV96AiHead"><b>追加指示 / 主訴メモ</b><span id="simV96CpCount">${cpVal.length}/500</span></div>
-        <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：右上1番の変色を改善。切縁の摩耗を補正して整える。犬歯のラインは保つ。正中を合わせる。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
+        <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：正中離開だけ閉じたい。矮小歯は残す。歯列は少し野暮ったさを残す。右上1番の変色を改善。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
+      </div>`;
+    // v9.7 intent controls — 反映モード / 最小変更 / 補正範囲
+    state.simIntentMode=state.simIntentMode||'balanced';
+    state.simCorrectionScope=state.simCorrectionScope||'combined';
+    const imBtn=(v,label)=>`<button type="button" data-cfim="${v}" style="flex:1;padding:8px 4px;border-radius:10px;font:inherit;font-size:11px;font-weight:850;cursor:pointer;border:${state.simIntentMode===v?'0':'1.5px solid var(--cfUiBorder,rgba(32,27,53,.16))'};background:${state.simIntentMode===v?'linear-gradient(135deg,#6a3de8,#7c5cfc)':'var(--cfUiPanelStrong,rgba(255,255,255,.9))'};color:${state.simIntentMode===v?'#fff':'var(--cfUiText,#201b35)'}">${label}</button>`;
+    const intentRow=`<div class="simV96AiRow" id="cfIntentRow">
+        <div class="simV96AiHead"><b>意図の反映 / User Intent</b></div>
+        <div style="display:flex;gap:6px;margin-bottom:8px" id="cfIntentModeBtns">${imBtn('auto','Auto<br><span style="font-weight:700;font-size:9.5px">AI所見を優先</span>')}${imBtn('balanced','Balanced<br><span style="font-weight:700;font-size:9.5px">両立（推奨）</span>')}${imBtn('user-first','User-first<br><span style="font-weight:700;font-size:9.5px">指示を最優先</span>')}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:800;color:var(--cfUiText,#201b35);cursor:pointer;margin:0">
+            <input type="checkbox" id="cfMinimalChange" ${state.simMinimalChange?'checked':''} style="width:auto;margin:0">最小変更モード<span style="font-weight:700;color:var(--cfUiSub,rgba(32,27,53,.6))">（指定外の補正を強く抑制）</span></label>
+          <select id="cfCorrectionScope" style="flex:1;min-width:150px;padding:8px 10px;border-radius:10px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:11.5px">
+            ${[['combined','補正範囲: 総合（既定）'],['alignment','歯列位置のみ'],['shape','歯冠形態のみ'],['shade','色調のみ'],['gingiva','歯肉のみ'],['preserve','現在の個性を保持']]
+              .map(o=>`<option value="${o[0]}"${state.simCorrectionScope===o[0]?' selected':''}>${o[1]}</option>`).join('')}
+          </select>
+        </div>
       </div>`;
     // Automated pre-generation problem list (shown read-only; also folded into the prompt).
     const src0 = state._simSource || pickSource();
@@ -20383,7 +20529,7 @@ body[data-ui-tone="dark"]{
         <div class="simV96Track"><input id="simV96_${key}" type="range" min="0" max="100" value="${v}">${hint}</div>
         <b id="simV96_${key}_val" style="display:none">${disp}</b>
       </div>`;
-    }).join('') + aiRow;
+    }).join('') + intentRow + aiRow;
     rowAxes.forEach(([key])=>{
       const el=$id('simV96_'+key), val=$id('simV96_'+key+'_val');
       if(!el) return;
@@ -20413,6 +20559,14 @@ body[data-ui-tone="dark"]{
       // Store the text, but do not auto-generate (wait for the 再生成 / Again button).
       cp.addEventListener('change',()=>{ state.simCustomPrompt=cp.value.slice(0,500); });
     }
+    // v9.7 intent control bindings（生成は再生成ボタン待ち — sliders と同じ挙動）
+    document.querySelectorAll('#cfIntentModeBtns [data-cfim]').forEach(b=>{
+      b.addEventListener('click',()=>{ state.simIntentMode=b.getAttribute('data-cfim'); buildEditGrid(); });
+    });
+    const mc=$id('cfMinimalChange');
+    if(mc) mc.addEventListener('change',()=>{ state.simMinimalChange=!!mc.checked; });
+    const cs=$id('cfCorrectionScope');
+    if(cs) cs.addEventListener('change',()=>{ state.simCorrectionScope=cs.value; });
   }
   window.buildSimV96EditGrid = buildEditGrid;
 
