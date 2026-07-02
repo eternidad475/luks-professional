@@ -25405,7 +25405,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '#cfInvitePanel h3{margin:0 0 4px!important;font-size:14.5px!important;font-weight:900!important;color:#3d2b8f!important}',
     '#cfInvitePanel .cfInvHelp{font-size:11.5px!important;color:#5a5470!important;line-height:1.7;margin:0 0 12px}',
     '.cfInvCode{display:flex;align-items:center;gap:8px;border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;color:#231a3a!important;background:#fff}',
-    '.cfInvCode b{letter-spacing:.05em}',
+    '.cfInvCode b{letter-spacing:.08em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-feature-settings:"zero" 1}',
     '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:#5b3fd6;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}',
     /* ===== v9.8 Account Sheet（すりガラス・半透明白・薄い境界線・濃紺見出し） ===== */
     '#cfAcctMenu{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);',
@@ -25931,7 +25931,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
     /* --- invite view --- */
     async function submitInvite(){
-      var code=(el('cfG2Invite').value||'').trim();
+      var code=(el('cfG2Invite').value||'').trim().toUpperCase();
       if(!code){ msgBox('cfG2InviteMsg','招待コードを入力してください。','err'); return; }
       var btn=el('cfG2InviteSubmit'); btn.disabled=true; msgBox('cfG2InviteMsg','確認中…','info');
       try{
@@ -25941,7 +25941,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           var em=String(r.error.message||'');
           msgBox('cfG2InviteMsg',/does not exist|not find|schema cache/i.test(em)
             ?'招待コード機能がまだ有効化されていません（管理者にお問い合わせください）。'
-            :'コードの確認に失敗しました。時間をおいて再度お試しください。','err');
+            :'サーバーでエラーが発生し、コードを確認できませんでした。時間をおいて再度お試しいただくか、管理者にお問い合わせください。','err');
         } else {
           var d=r.data||{};
           if(d.ok){
@@ -25952,10 +25952,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
             if(d.granted) cfLogEvent('token_granted','token',{ reason:'invitee_initial_beta_grant', amount:d.granted });
             await evaluateSession(s&&s.data?s.data.session:null);
           } else {
-            var reasons={ invalid:'招待コードが見つかりません。', revoked:'この招待コードは無効化されています。',
-              expired:'この招待コードは期限切れです。', exhausted:'この招待コードは使用上限に達しています。',
-              email_mismatch:'この招待コードは別のメールアドレス宛です。', already_used:'この招待コードは使用済みです。' };
+            var reasons={ invalid:'招待コードが見つかりません。入力内容をご確認ください（O と 0 の見間違いにご注意ください）。',
+              revoked:'この招待コードは無効化されています。管理者にお問い合わせください。',
+              expired:'この招待コードは有効期限切れです。管理者に再発行をご依頼ください。',
+              exhausted:'この招待コードは使用上限に達しています。管理者に再発行をご依頼ください。',
+              email_mismatch:'この招待コードは別のメールアドレス宛に発行されています。',
+              already_used:'この招待コードは使用済みです。',
+              email_unconfirmed:'メールアドレスの確認が完了していません。受信箱の確認メールのリンクを開いてから、再度お試しください。',
+              not_authenticated:'ログインセッションが切れています。再度ログインしてからお試しください。',
+              db_error:'登録処理でエラーが発生しました。お手数ですが管理者にお問い合わせください。'+(d.code?('（コード: '+d.code+'）'):'') };
             msgBox('cfG2InviteMsg',reasons[d.reason]||'コードを確認できませんでした。','err');
+            if(d.reason==='db_error') console.error('[CF Gate] accept_invite_code db_error',d);
           }
         }
       }catch(e){ console.error('[CF Gate] invite exception',e); msgBox('cfG2InviteMsg','通信エラーが発生しました。','err'); }
@@ -25963,6 +25970,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
     }
     el('cfG2InviteSubmit').addEventListener('click',submitInvite);
     el('cfG2Invite').addEventListener('keydown',function(e){ if(e.key==='Enter') submitInvite(); });
+    /* 誤入力防止: 入力中に自動で大文字化（O/0 の置換は行わない — RPC側で安全なfallbackのみ） */
+    el('cfG2Invite').addEventListener('input',function(){
+      var v=this.value, u=v.toUpperCase();
+      if(v!==u){ var p=this.selectionStart; this.value=u; try{ this.setSelectionRange(p,p); }catch(e){} }
+    });
     el('cfG2InviteLogout').addEventListener('click',async function(){
       try{ await sb.auth.signOut(); }catch(e){ console.error('[CF Gate] signOut failed',e); }
       showGate('auth'); setMode('login');
