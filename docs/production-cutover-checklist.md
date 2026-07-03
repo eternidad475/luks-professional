@@ -4,7 +4,16 @@
 - [x] Production = `b8b7aa9`（migration 11 まで反映）— `dpl_8UqsXXjoHgPbfqJZcVhznB9CApQm`
 - [x] caseflow-studio.vercel.app が新ビルドを配信（Wallet新UI・10/5・self_invite 文言を実測確認）
 - [x] Resend DNS 3件（DKIM / MX / SPF @ auth サブドメイン）公開済み・実測確認
-- [x] DB migrations 7〜11 適用済み
+- [x] DB migrations 7〜12 適用済み
+
+### DB migration ログ
+| repo file | 本番 schema_migrations version | name | 適用日 | 備考 |
+|---|---|---|---|---|
+| `20260710000012_lock_down_profiles_column_updates.sql` | `20260703105817` | `lock_down_profiles_column_updates` | 2026-07-10 | **セキュリティ修正**: profiles の列 UPDATE 権限を最小化。role/tokens_remaining/beta_access 等の自己書き換え（権限昇格・トークン水増し）を遮断。authenticated の UPDATE は display_name/clinic_name/professional_type/professional_confirmed のみ。本番で BLOCKED(42501) を実測確認済み。|
+
+> リポジトリの migration ファイル名は連番ベースの合成タイムスタンプ（`2026070X00000N`）で、
+> 本番 `supabase_migrations.schema_migrations` の実適用タイムスタンプとは一致しない運用（name で対応）。
+> migration 12 の実適用版は `20260703105817 lock_down_profiles_column_updates`。
 
 ## 1. Vercel ドメイン追加（Dashboard 操作 — MCP からは不可）
 Vercel → caseflow-studio → Settings → **Domains** で追加:
