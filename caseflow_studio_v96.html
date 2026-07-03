@@ -26155,33 +26155,42 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var t=(curWorkspace&&curWorkspace.type)||'personal';
       var uid=(curSession&&curSession.user&&curSession.user.id)||null;
       var isOwner=!!(curWorkspace&&uid&&curWorkspace.owner_user_id===uid);
+      /* Labels are English; descriptions Japanese. workspaces.type stays
+         personal/clinic in the DB — clinic_member / clinic_shared_seat are
+         UI-only classifications derived from membership / future seat type. */
+      if(t==='clinic_shared_seat'){
+        return { key:'clinic_shared_seat', label:'Shared Clinic Seat', desc:'共有端末用の制限付きアカウントです' };
+      }
       if(t==='clinic'){
         return isOwner
-          ? { key:'clinic', label:'クリニック', desc:'医院・チーム利用のアカウントです' }
-          : { key:'clinic_member', label:'クリニックメンバー', desc:'医院に所属して利用中です' };
+          ? { key:'clinic', label:'Clinic Account', desc:'医院・チーム単位で利用するアカウントです' }
+          : { key:'clinic_member', label:'Clinic Member', desc:'医院のメンバーとして利用中です' };
       }
-      if(t==='clinic_shared_seat'){
-        return { key:'clinic_shared_seat', label:'共有端末用アカウント', desc:'クリニック内の共有端末で利用する制限付きアカウントです' };
-      }
-      return { key:'personal', label:'パーソナル', desc:'個人利用のアカウントです' };
+      return { key:'personal', label:'Personal Account', desc:'個人利用のアカウントです' };
     }
-    /* PLAN — resolve in priority order; never conflated with account type or role. */
+    /* PLAN — user-facing name is ALWAYS one of Free / Sketch / Clinic Studio.
+       Only a paid Stripe subscription (active/trialing/past_due) shows Sketch
+       or Clinic Studio; everything else (no subscription, invite/beta_access,
+       developer role, trial-only) shows Free. beta / invite beta / 招待ベータ /
+       Developer / Trial are never shown as a PLAN name. */
     function cfCurrentPlan(){
       var active = curBilling && (curBilling.status==='active'||curBilling.status==='trialing'||curBilling.status==='past_due');
       if(active){
         var key=String(curBilling.plan||'').toLowerCase();
-        var label = CF_PLAN_DISP[key] || (curBilling.plan||'—');
-        var renew=curBilling.current_period_end?fmtDateJa(curBilling.current_period_end):'';
-        var sub='ご利用中'+(renew?' · 次回更新 '+renew:'')+(curBilling.cancel_at_period_end?' · 期末で解約予定':'');
-        return { key:key, label:label, sub:sub };
+        // normalise to the two paid display plans; anything unrecognised = Free
+        var paid = (key==='clinic'||key==='clinic_studio'||key==='clinic_plan'||key==='studio')
+          ? { key:'clinic', label:'Clinic Studio', sub:'月額 5,000円 / 500 tokens' }
+          : (key==='sketch'||key==='personal'||key==='personal_plan')
+            ? { key:'sketch', label:'Sketch', sub:'月額 1,500円 / 100 tokens' }
+            : null;
+        if(paid){
+          var renew=curBilling.current_period_end?fmtDateJa(curBilling.current_period_end):'';
+          if(renew) paid.sub += ' · 次回更新 '+renew;
+          if(curBilling.cancel_at_period_end) paid.sub += ' · 期末で解約予定';
+          return paid;
+        }
       }
-      if(curProfile && curProfile.beta_access===true){
-        return { key:'invite_beta', label:'Invite Beta', sub:'招待ベータ / 月額契約なし' };
-      }
-      if(curProfile && ADMIN_ROLES.indexOf(curProfile.role)>=0){
-        return { key:'developer', label:'Developer', sub:'開発者用プラン / 月額契約なし' };
-      }
-      return { key:'free', label:'Free', sub:'無料プラン' };
+      return { key:'free', label:'Free', sub:'無料プラン / 月額契約なし' };
     }
     function renderAcctMenu(){
       var menu=el('cfAcctMenu'); if(!menu) return;
