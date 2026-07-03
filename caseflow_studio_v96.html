@@ -4737,7 +4737,7 @@ button[id="localMLDetectButton"]{
         </button>
 
       </div>
-      <button class="primary" data-i18n="home.cta" onclick="go('start')">Create a Caseflow<br>はじめる</button>
+      <button class="primary" data-i18n="home.cta" onclick="go('start')"><span class="ctaEn">Create a CaseFlow</span><br>はじめる</button>
       <div class="sampleSplit homeSampleButtons"><button class="secondary morphingSampleButton" onclick="openMorphingVideoSample()"><span class="sampleBtnTitle">Morphing Video Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()"><span class="sampleBtnTitle">Visual Simulation Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button></div>
       <p class="note">v9.6</p>
       <p class="brandCredit">CASEFLOW STUDIO™ provided by NARRATIVE CHERISH</p>
@@ -26362,12 +26362,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(!p){ p=document.createElement('div'); p.id='cfInvitePanel'; mount.appendChild(p); }
       if(!canUseApp()){ p.innerHTML=''; return; }
       if(!isAdmin()){
-        p.innerHTML='<h3>招待 / Invite</h3>'+
+        p.innerHTML='<div class="brandLogo cfInvLogo" role="img" aria-label="CASEFLOW STUDIO™"></div>'+
           '<p class="cfInvHelp">CASEFLOW STUDIO™ は招待制です。現在、招待コードの発行は管理者のみ可能です。<br>'+
           'ご紹介をご希望の場合は管理者にお問い合わせください。招待が成立すると、あなたにも紹介ボーナストークンが付与されます。</p>';
         return;
       }
-      p.innerHTML='<h3>招待 / Invite</h3>'+
+      p.innerHTML='<div class="brandLogo cfInvLogo" role="img" aria-label="CASEFLOW STUDIO™"></div>'+
         '<p class="cfInvHelp">招待コードを発行し、リンクをコピーして共有できます。招待可能人数: 無制限（管理者）。'+
         '被招待者に10、あなたに5トークンが付与されます（開発者招待は1000/0）。</p>'+
         '<div style="display:flex;gap:7px;margin-bottom:10px">'+
@@ -26713,7 +26713,14 @@ input:focus-visible,textarea:focus-visible,a:focus-visible{
   cursor:pointer;
 }
 .cfLangBtn::after{content:"▾";font-size:8px;opacity:.65;letter-spacing:0}
-#home .cfLangBtn{margin-right:10px;color:var(--homeText,#fff)}
+/* top page: legibility first — black regular gothic on a slightly more
+   opaque pill so the code always reads against the gradient */
+#home .cfLangBtn{
+  margin-right:10px;
+  color:#1c1428!important;
+  font-weight:600;
+  background:rgba(255,255,255,.46);
+}
 html[dir=rtl] #home .cfLangBtn{margin-right:0;margin-left:10px}
 #home .homeUtility .cfPaletteButton{margin-left:0!important}
 .cfLangFixed{
@@ -26786,10 +26793,23 @@ html[dir=rtl] .cfLangSheet,html[dir=rtl] .cfLangOpt{text-align:right}
   font-size:10px;letter-spacing:.02em;text-transform:none;opacity:.8;
   font-weight:500;
 }
-/* top page: bold titles over regular supporting lines */
-.homeSampleButtons .sampleBtnSub{font-weight:500}
+/* top page: bold titles over regular supporting lines.
+   サンプルをみる keeps its original bold gothic weight, just a touch smaller. */
+.homeSampleButtons .sampleBtnSub{font-weight:800;font-size:12px}
 #home .panel > .note{font-weight:500;letter-spacing:.02em}
 #home .brandCredit{font-weight:650}
+/* main CTA: English line slightly larger; はじめる keeps the base 15px */
+.primary .ctaEn{font-size:17px;letter-spacing:-.01em}
+/* Invite panel: brand wordmark replaces the duplicated 招待 / Invite heading
+   (reuses the .brandLogo mask so the logo inherits no black background) */
+#cfInvitePanel .cfInvLogo{
+  width:176px!important;min-width:0!important;max-width:62%!important;
+  height:20px!important;min-height:20px!important;
+  background:#251735!important;
+  filter:none!important;transform:none!important;
+  margin:3px 0 12px!important;
+}
+#cfInvitePanel .cfInvLogo::after{font-size:15px!important}
 /* app-wide supporting copy returns to regular */
 .subtitle{font-weight:500}
 .option p{font-weight:500}
@@ -26820,9 +26840,13 @@ var LANGS=[
 /* ja values mirror the original markup so the default look never changes. */
 var STR={
   'home.cta':{
-    ja:'Create a Caseflow<br>はじめる', en:'Create a Caseflow',
-    pt:'Criar um Caseflow<br>Começar', it:'Crea un Caseflow<br>Inizia',
-    ar:'إنشاء Caseflow<br>ابدأ', zh:'创建 Caseflow<br>开始', ko:'Create a Caseflow<br>시작하기'},
+    ja:'<span class="ctaEn">Create a CaseFlow</span><br>はじめる',
+    en:'<span class="ctaEn">Create a CaseFlow</span>',
+    pt:'<span class="ctaEn">Criar um CaseFlow</span><br>Começar',
+    it:'<span class="ctaEn">Crea un CaseFlow</span><br>Inizia',
+    ar:'<span class="ctaEn">إنشاء CaseFlow</span><br>ابدأ',
+    zh:'<span class="ctaEn">创建 CaseFlow</span><br>开始',
+    ko:'<span class="ctaEn">Create a CaseFlow</span><br>시작하기'},
   'common.viewSample':{
     ja:'サンプルをみる', en:'View sample', pt:'Ver amostra', it:'Vedi esempio',
     ar:'عرض نموذج', zh:'查看示例', ko:'샘플 보기'},
