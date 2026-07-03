@@ -10,6 +10,7 @@
 | repo file | 本番 schema_migrations version | name | 適用日 | 備考 |
 |---|---|---|---|---|
 | `20260710000012_lock_down_profiles_column_updates.sql` | `20260703105817` | `lock_down_profiles_column_updates` | 2026-07-10 | **セキュリティ修正**: profiles の列 UPDATE 権限を最小化。role/tokens_remaining/beta_access 等の自己書き換え（権限昇格・トークン水増し）を遮断。authenticated の UPDATE は display_name/clinic_name/professional_type/professional_confirmed のみ。本番で BLOCKED(42501) を実測確認済み。|
+| `20260711000013_clamp_accept_invite_code_role_escalation.sql` | `20260703113150` | `clamp_accept_invite_code_role_escalation` | 2026-07-11 | **セキュリティ hardening**: 公開RPC accept_invite_code() が付与できる role を非特権職種（dentist/staff/viewer/billing_manager/patient_link_viewer）に限定。developer/admin/co_developer/owner はコード redeem 経由で付与不可（admin_set_user_role 経由のみ）。潜在的権限昇格経路を恒久封鎖。|
 
 > リポジトリの migration ファイル名は連番ベースの合成タイムスタンプ（`2026070X00000N`）で、
 > 本番 `supabase_migrations.schema_migrations` の実適用タイムスタンプとは一致しない運用（name で対応）。
