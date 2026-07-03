@@ -166,98 +166,117 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <body>
 
 <style id="cf-lp-2025">
-/* CaseFlow Studio landing — 2025 rebuild v2. Reuses the landing gradient/glass/
-   accent tokens; adds a live theme switcher, a slow breathing gradient, an
-   inline current-UI phone mock, a 7-language switch, product samples,
-   philosophy + ethics + invitation-only blocks, Global by Design, and
-   Free/Sketch/Clinic Studio plans. */
+/* CaseFlow Studio landing — 2025 rebuild v3. No sticky toolbar; palette + language
+   appear only in their own sections; draggable Facial/Focus compare; centered
+   morphing card; full Gradient Palette; accent auto-follows the palette;
+   clearly-breathing (but calm) background. */
 
-/* slow, calm breathing of the page gradient (paused for reduced motion) */
-@keyframes lpBreath{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
-html{background-size:180% 180% !important;animation:lpBreath 34s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){html{animation:none}}
+html{background:linear-gradient(150deg,var(--c1,#7c5cff),color-mix(in srgb,var(--c1,#7c5cff) calc(var(--blend,50)*1%),var(--c2,#ff9fd6)) 50%,var(--c2,#ff9fd6)) fixed !important;background-color:#be7ed6}
+/* ---- accent auto-follows the live palette (stays mint-biased & readable) ---- */
+:root{ --accent: color-mix(in srgb, #9ff6c8 62%, var(--c2,#ff9fd6) 38%); }
+
+/* ---- clearly breathing background (calm) ---- */
+body::before{
+  content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(48% 42% at 20% 18%, color-mix(in srgb,var(--c1,#7c5cff) 55%,transparent), transparent 62%),
+    radial-gradient(50% 46% at 82% 26%, color-mix(in srgb,var(--c2,#ff9fd6) 55%,transparent), transparent 64%),
+    radial-gradient(52% 48% at 58% 88%, color-mix(in srgb,var(--c1,#7c5cff) 40%,var(--c2,#ff9fd6)), transparent 66%);
+  background-repeat:no-repeat;background-size:160% 160%,150% 150%,170% 170%;
+  filter:saturate(1.15);animation:lpDrift 26s ease-in-out infinite alternate;will-change:background-position,transform}
+@keyframes lpDrift{
+  0%{background-position:0% 0%,100% 0%,50% 100%;transform:scale(1)}
+  100%{background-position:30% 20%,70% 30%,40% 70%;transform:scale(1.06)}}
+@media (prefers-reduced-motion:reduce){body::before{animation:none}}
 
 .lpGlass{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.30);
   border-radius:28px;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
   box-shadow:0 24px 64px rgba(40,20,80,.22)}
 .lpEyebrow{font-size:12px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--accent,#9ff6c8);opacity:.95;margin:0 0 12px}
-.lpSection{padding:72px 0}
+.lpSection{padding:70px 0}
 .lpSection h2{font-size:clamp(26px,4.4vw,40px);font-weight:900;line-height:1.12;letter-spacing:-.03em;margin:0 0 14px;text-shadow:0 6px 24px rgba(40,26,70,.3)}
 .lpSection .lpBody{font-size:15px;line-height:1.85;color:rgba(255,255,255,.86);max-width:640px;margin:14px 0 0;font-weight:500}
 .lpHeadWrap{max-width:720px;margin:0 0 30px}
 
-/* nav controls: theme + language */
-.lpNavTools{display:flex;align-items:center;gap:8px}
-.lpThemeDots{display:flex;gap:6px}
-.lpDot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.55);cursor:pointer;padding:0;background-clip:padding-box}
-.lpDot[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
-.lpDot.purple{background:linear-gradient(135deg,#7c5cff,#ff9fd6)}
-.lpDot.orange{background:linear-gradient(135deg,#ff9a3e,#ff9fd6)}
-.lpDot.cyan{background:linear-gradient(135deg,#69e5ee,#9ff3bf)}
-.lpLang{min-width:50px;height:32px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,.45);
-  background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:11px;font-weight:850;letter-spacing:.08em;cursor:pointer;
-  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-
-/* hero */
-.lpHero{padding:64px 0 40px}
-.lpHeroGrid{display:grid;gap:34px;align-items:center}
+/* hero (no toolbar, no CTA buttons) */
+.lpHero{padding:64px 0 36px}
+.lpHeroGrid{display:grid;gap:30px;align-items:center}
 @media(min-width:900px){.lpHeroGrid{grid-template-columns:1.05fr .95fr;gap:44px}}
-.lpHero .cfWordmark{height:clamp(34px,7vw,58px);width:min(86vw,540px)}
-.lpHeroTag{font-size:clamp(20px,3.4vw,30px);font-weight:850;letter-spacing:-.03em;margin:18px 0 8px}
+.lpHero .cfWordmark{height:clamp(32px,6.6vw,54px);width:min(86vw,520px)}
+.lpHeroTag{font-size:clamp(19px,3.2vw,28px);font-weight:850;letter-spacing:-.03em;margin:16px 0 8px}
 .lpHeroLead{font-size:16px;font-weight:600;line-height:1.8;color:rgba(255,255,255,.92);max-width:600px;margin:0 0 8px}
-.lpHeroPoem{font-size:14px;font-weight:600;line-height:1.9;color:rgba(255,255,255,.8);max-width:600px;margin:0 0 24px}
-.lpCTAs{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 16px}
-.lpBtn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border-radius:999px;font-size:15px;font-weight:850;letter-spacing:.01em;cursor:pointer;border:1px solid transparent;transition:transform .16s ease,box-shadow .28s ease;text-align:center}
+.lpHeroPoem{font-size:14px;font-weight:600;line-height:1.9;color:rgba(255,255,255,.8);max-width:600px;margin:0 0 18px}
+.lpNote{font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.72);font-weight:600;max-width:560px}
+
+/* buttons (used only in final CTA + palette controls) */
+.lpBtn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border-radius:999px;font-size:15px;font-weight:850;cursor:pointer;border:1px solid transparent;transition:transform .16s ease,box-shadow .28s ease;text-align:center}
 .lpBtn:active{transform:translateY(1px) scale(.99)}
 .lpBtn-primary{background:var(--accent,#9ff6c8);color:#20143a;box-shadow:0 16px 40px rgba(0,0,0,.22)}
 .lpBtn-ghost{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.42)}
-.lpNote{font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.72);font-weight:600;max-width:560px}
 
-/* current-UI phone mock (reflects the live top page) */
+/* current-UI phone mock — compact, centered, matches the live top page */
 .lpPhoneWrap{display:flex;justify-content:center}
-.lpPhone{position:relative;width:min(300px,80vw);aspect-ratio:9/19.5;border-radius:44px;padding:12px;
-  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 40px 90px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.14)}
-.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;
+.lpPhone{position:relative;width:min(268px,74vw);aspect-ratio:9/16.4;border-radius:40px;padding:11px;
+  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.14)}
+.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;
   background:linear-gradient(150deg,var(--c1,#7c5cff),color-mix(in srgb,var(--c1,#7c5cff) 45%,var(--c2,#ff9fd6)),var(--c2,#ff9fd6));
   display:flex;flex-direction:column}
-.lpPhoneTop{flex:1;padding:26px 20px 0}
-.lpPhoneWordmark{display:block;height:22px;width:88%;background:#c9ffd8;
-  -webkit-mask:var(--cfWordmarkMask);mask:var(--cfWordmarkMask);-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
-.lpPhoneTag{color:rgba(255,255,255,.92);font-size:11px;font-weight:800;margin:10px 0 0}
-.lpPhoneCard{margin:14px;padding:14px;border-radius:24px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(10px)}
-.lpPhoneCTA{width:100%;min-height:52px;border-radius:999px;background:#9ff3bf;color:#4a2fb0;font-weight:900;font-size:14px;display:grid;place-items:center;line-height:1.25;text-align:center}
-.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.lpPhoneSub{background:rgba(255,255,255,.8);border-radius:16px;padding:9px 8px;text-align:center}
-.lpPhoneSub b{display:block;font-size:9px;color:#241c46;font-weight:900;white-space:nowrap}
-.lpPhoneSub span{font-size:10px;color:#241c46;font-weight:800}
-.lpPhoneVer{text-align:center;color:#5b3fd6;font-size:10px;font-weight:900;margin-top:8px}
-.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:9px 8px 14px;background:rgba(20,14,38,.5);backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.14)}
-.lpPhoneNav span{font-size:8.5px;font-weight:800;color:rgba(255,255,255,.7);text-align:center;display:grid;gap:2px;justify-items:center}
-.lpPhoneNav span i{font-style:normal;font-size:13px}
+.lpPhoneTop{flex:1;padding:20px 16px 0;position:relative}
+.lpPhoneTop .cfWordmark{display:block;height:16px;width:80%}
+.lpPhoneTag{color:rgba(255,255,255,.92);font-size:9.5px;font-weight:800;margin:7px 0 0}
+.lpPhoneMarks{position:absolute;top:18px;right:14px;text-align:right;color:rgba(255,255,255,.82);line-height:1.25}
+.lpPhoneMarks b{display:block;font-size:7px;font-weight:900;letter-spacing:.14em}
+.lpPhoneMarks span{font-size:12px;font-weight:900;letter-spacing:.02em;color:rgba(201,255,216,.9)}
+.lpPhoneCard{margin:12px;padding:12px;border-radius:20px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(10px)}
+.lpPhoneCTA{width:100%;min-height:44px;border-radius:999px;background:#9ff3bf;color:#4a2fb0;font-weight:900;font-size:12px;display:grid;place-items:center;line-height:1.2;text-align:center}
+.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.lpPhoneSub{background:rgba(255,255,255,.82);border-radius:13px;padding:7px 6px;text-align:center}
+.lpPhoneSub b{display:block;font-size:8px;color:#241c46;font-weight:900;white-space:nowrap}
+.lpPhoneSub span{font-size:8.5px;color:#5b3fd6;font-weight:800}
+.lpPhoneVer{text-align:center;color:#5b3fd6;font-size:9px;font-weight:900;margin-top:7px}
+.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:8px 6px 12px;background:rgba(20,14,38,.5);backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.14)}
+.lpPhoneNav span{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.7);text-align:center;display:grid;gap:1px;justify-items:center}
+.lpPhoneNav span i{font-style:normal;font-size:12px}
 .lpPhoneNav span.on{color:#fff}
 
 /* product samples */
 .lpSamples{display:grid;gap:22px}
 @media(min-width:860px){.lpSamples{grid-template-columns:1fr 1fr;gap:26px}}
-.lpSampleCard{padding:18px 18px 20px;display:flex;flex-direction:column}
-.lpSampleCard h3{font-size:19px;font-weight:900;letter-spacing:-.02em;margin:0 0 4px}
-.lpSampleCard .lpSampleSub{font-size:13px;font-weight:750;color:var(--accent,#9ff6c8);margin:0 0 10px}
-.lpSampleCard .lpSampleDesc{font-size:13px;line-height:1.7;color:rgba(255,255,255,.82);font-weight:500;margin:12px 0 0}
-.lpBA{position:relative;border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:4/5}
-.lpBA img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.lpSampleCard{padding:18px 18px 20px;display:flex;flex-direction:column;max-width:460px;margin:0 auto;width:100%}
+.lpSampleCard h3{font-size:19px;font-weight:900;letter-spacing:-.02em;margin:0 0 4px;text-align:center}
+.lpSampleCard .lpSampleSub{font-size:13px;font-weight:750;color:var(--accent,#9ff6c8);margin:0 0 10px;text-align:center}
+.lpSampleCard .lpSampleDesc{font-size:13px;line-height:1.7;color:rgba(255,255,255,.82);font-weight:500;margin:12px 0 0;text-align:center}
+.lpTabs{display:flex;gap:6px;justify-content:center;margin:0 0 10px}
+.lpTab{border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.10);color:#fff;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:850;cursor:pointer}
+.lpTab.on{background:var(--accent,#9ff6c8);color:#20143a;border-color:transparent}
+.lpBA{position:relative;border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:4/5;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}
+.lpBA img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 .lpBA .lpBAafter{clip-path:inset(0 0 0 var(--split,50%))}
-.lpBADivider{position:absolute;top:0;bottom:0;left:var(--split,50%);width:2px;background:rgba(255,255,255,.9);box-shadow:0 0 14px rgba(255,255,255,.6);transform:translateX(-50%);pointer-events:none}
-.lpBALabels{position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;font-size:10.5px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.lpBADivider{position:absolute;top:0;bottom:0;left:var(--split,50%);width:2px;background:rgba(255,255,255,.92);box-shadow:0 0 14px rgba(255,255,255,.6);transform:translateX(-50%);pointer-events:none}
+.lpBAHandle{position:absolute;top:50%;left:var(--split,50%);width:38px;height:38px;border-radius:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.92);box-shadow:0 6px 18px rgba(0,0,0,.35);display:grid;place-items:center;color:#20143a;font-weight:900;font-size:14px;pointer-events:none}
+.lpBALabels{position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;font-size:10.5px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
 .lpBALabels span{background:rgba(20,14,40,.66);border-radius:999px;padding:4px 9px;backdrop-filter:blur(6px)}
-.lpBARange{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize;margin:0}
-.lpVideoFrame{border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:9/16;max-height:520px}
+.lpVideoFrame{border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:9/16;max-height:460px;max-width:280px;margin:0 auto;width:100%}
 .lpVideoFrame video{width:100%;height:100%;object-fit:cover;display:block;background:#0d0a18}
 
-/* atmosphere (theme try) */
-.lpAtmo{padding:34px 26px;text-align:center}
-.lpAtmo .lpThemeDots{justify-content:center;gap:14px;margin:18px 0 4px}
-.lpAtmo .lpDot{width:44px;height:44px}
-.lpAtmoNames{display:flex;justify-content:center;gap:24px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-top:8px}
+/* interface atmosphere — full gradient palette */
+.lpAtmo{padding:30px 22px}
+.lpAtmo .lpEyebrow,.lpAtmo>h2,.lpAtmo>.lpBody{text-align:center}
+.lpAtmo>.lpBody{margin-left:auto;margin-right:auto}
+.lpPalette{max-width:460px;margin:20px auto 0;display:grid;gap:14px}
+.lpPalPreview{height:64px;border-radius:16px;border:1px solid rgba(255,255,255,.4);
+  background:linear-gradient(120deg,var(--c1,#7c5cff),color-mix(in srgb,var(--c1) calc(var(--blend,50)*1%),var(--c2)) 50%,var(--c2,#ff9fd6))}
+.lpPalRow{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.lpPalCol{display:flex;align-items:center;gap:9px}
+.lpPalCol input[type=color]{width:40px;height:34px;border:2px solid rgba(255,255,255,.6);border-radius:12px;padding:0;background:none;cursor:pointer}
+.lpPalCol label{font-size:11px;font-weight:900;letter-spacing:.06em;color:rgba(255,255,255,.9)}
+.lpPalField{display:grid;gap:5px}
+.lpPalField label{font-size:10.5px;font-weight:850;letter-spacing:.05em;color:rgba(255,255,255,.82);text-transform:uppercase}
+.lpPalField input[type=range]{width:100%;accent-color:var(--accent,#9ff6c8);height:22px}
+.lpPalPresets{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.lpPreset{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.5);cursor:pointer;padding:0}
+.lpPalActions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.lpShuffle{border:1px solid rgba(255,255,255,.42);background:rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:11px 20px;font-size:13px;font-weight:850;cursor:pointer;min-height:44px}
 
 /* grids / cards / steps / chips */
 .lpGrid3{display:grid;gap:16px}
@@ -268,7 +287,7 @@ html{background-size:180% 180% !important;animation:lpBreath 34s ease-in-out inf
 .lpCard .lpCardTag{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--accent,#9ff6c8);margin:0 0 6px}
 .lpSteps{display:grid;gap:14px}
 @media(min-width:760px){.lpSteps{grid-template-columns:repeat(3,1fr)}}
-.lpStep{padding:20px;position:relative}
+.lpStep{padding:20px}
 .lpStep .lpStepNo{font-size:12px;font-weight:900;letter-spacing:.1em;color:var(--accent,#9ff6c8);margin:0 0 6px}
 .lpStep h3{font-size:16px;font-weight:900;margin:0 0 5px}
 .lpStep p{font-size:13px;line-height:1.65;color:rgba(255,255,255,.82);font-weight:500;margin:0}
@@ -282,6 +301,16 @@ html{background-size:180% 180% !important;animation:lpBreath 34s ease-in-out inf
 .lpManifesto .lpSubtitle{font-size:15px;font-weight:800;color:var(--accent,#9ff6c8);letter-spacing:.01em;margin:2px 0 18px}
 .lpManifesto p{font-size:15.5px;line-height:2.0;color:rgba(255,255,255,.9);font-weight:500;max-width:620px;margin:0 0 14px}
 .lpManifesto p:last-child{margin-bottom:0}
+/* invitation heading emphasis */
+.lpInviteHead{font-size:clamp(30px,6vw,48px);font-weight:900;letter-spacing:-.03em;line-height:1.08;margin:2px 0 6px}
+.lpInviteHead .en{display:block;font-size:.42em;letter-spacing:.18em;text-transform:uppercase;color:var(--accent,#9ff6c8);margin-bottom:8px}
+
+/* language switch (only in Global by Design) */
+.lpLangWrap{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}
+.lpLangPill{min-width:52px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.4);
+  background:rgba(255,255,255,.12);color:#fff;font:inherit;font-size:13px;font-weight:850;letter-spacing:.06em;cursor:pointer;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.lpLangPill.on{background:var(--accent,#9ff6c8);color:#20143a;border-color:transparent}
 
 /* plans */
 .lpPlans{display:grid;gap:16px}
@@ -293,33 +322,15 @@ html{background-size:180% 180% !important;animation:lpBreath 34s ease-in-out inf
 .lpPlan .lpPlanDesc{font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.82);font-weight:500;margin:0}
 .lpPlan.featured{border-color:rgba(159,246,200,.6);box-shadow:0 24px 64px rgba(0,0,0,.28)}
 
-.lpFinal{text-align:center;padding:64px 26px;margin:8px 0}
+.lpFinal{text-align:center;padding:60px 26px;margin:8px 0}
 .lpFinal h2{margin:0 0 20px}
-.lpFinal .lpCTAs{justify-content:center}
+.lpFinalCTAs{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
 .lpFinal .lpNote{margin:16px auto 0}
 
-/* RTL */
-html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpHeroLead,html[dir="rtl"] .lpHeroPoem,html[dir="rtl"] .lpBody,html[dir="rtl"] .lpManifesto{margin-left:auto}
-html[dir="rtl"] .lpNote{margin-left:auto}
+html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 </style>
 
-<!-- ===== NAV ===== -->
-<nav class="nav">
-  <div class="wrap">
-    <a href="#top" class="cfWordmark navMark" role="img" aria-label="CASEFLOW STUDIO"></a>
-    <div class="lpNavTools">
-      <div class="lpThemeDots" role="group" aria-label="Theme">
-        <button class="lpDot purple" data-theme="purple" aria-label="Purple theme" aria-pressed="true"></button>
-        <button class="lpDot orange" data-theme="orange" aria-label="Orange theme" aria-pressed="false"></button>
-        <button class="lpDot cyan" data-theme="cyan" aria-label="Cyan theme" aria-pressed="false"></button>
-      </div>
-      <button class="lpLang" id="lpLangBtn" aria-haspopup="listbox">EN</button>
-      <a class="btn btn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
-    </div>
-  </div>
-</nav>
-
-<!-- ===== HERO ===== -->
+<!-- ===== HERO (no toolbar, no CTA buttons) ===== -->
 <header class="lpHero" id="top">
   <div class="wrap">
     <div class="lpHeroGrid">
@@ -329,24 +340,20 @@ html[dir="rtl"] .lpNote{margin-left:auto}
         <p class="lpHeroTag" data-i18n="hero.tag">Clinical beauty, visualized.</p>
         <p class="lpHeroLead" data-i18n="hero.lead">歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。</p>
         <p class="lpHeroPoem" data-i18n="hero.poem">CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。</p>
-        <div class="lpCTAs">
-          <a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
-          <a class="lpBtn lpBtn-ghost" href="#contact" data-i18n="cta.contact">Contact</a>
-        </div>
         <p class="lpNote" data-i18n="hero.note">※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。</p>
       </div>
-      <!-- current-UI phone mock -->
       <div class="lpPhoneWrap" aria-hidden="true">
         <div class="lpPhone"><div class="lpPhoneScreen">
           <div class="lpPhoneTop">
-            <span class="cfWordmark" style="display:block;height:22px;width:90%"></span>
+            <span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span>
             <p class="lpPhoneTag">Clinical beauty, visualized.</p>
+            <div class="lpPhoneMarks"><b>FOR<br>DENTISTRY</b><span>CDS</span></div>
           </div>
           <div class="lpPhoneCard">
             <div class="lpPhoneCTA">Create a CaseFlow<br>はじめる</div>
             <div class="lpPhoneSubs">
-              <div class="lpPhoneSub"><b>Morphing Video Studio™</b><span>サンプル</span></div>
-              <div class="lpPhoneSub"><b>Visual Simulation™</b><span>サンプル</span></div>
+              <div class="lpPhoneSub"><b>Morphing Video Studio™</b><span>サンプルをみる</span></div>
+              <div class="lpPhoneSub"><b>Visual Simulation™</b><span>サンプルをみる</span></div>
             </div>
             <div class="lpPhoneVer">v9.6</div>
           </div>
@@ -362,23 +369,27 @@ html[dir="rtl"] .lpNote{margin-left:auto}
 <!-- ===== PRODUCT SAMPLES ===== -->
 <section class="lpSection" id="samples">
   <div class="wrap">
-    <div class="lpHeadWrap">
+    <div class="lpHeadWrap" style="margin-left:auto;margin-right:auto;text-align:center">
       <p class="lpEyebrow" data-i18n="samples.eyebrow">The product is visual.</p>
       <h2 data-i18n="samples.h2">説明より先に、変化を見せる。</h2>
-      <p class="lpBody" data-i18n="samples.body">CaseFlow Studio は、説明を増やすためのツールではありません。言葉だけでは共有しきれない治療後の印象を、同じ画面で見られるようにするためのツールです。</p>
+      <p class="lpBody" style="margin-left:auto;margin-right:auto" data-i18n="samples.body">CaseFlow Studio は、説明を増やすためのツールではありません。言葉だけでは共有しきれない治療後の印象を、同じ画面で見られるようにするためのツールです。</p>
     </div>
     <div class="lpSamples">
       <article class="lpGlass lpSampleCard">
         <h3>Visual Simulation Studio™</h3>
         <p class="lpSampleSub" data-i18n="samples.sim.sub">静止画で、仕上がりの方向性を共有する。</p>
-        <div class="lpBA" id="lpBA" style="--split:50%">
-          <img class="lpBAbefore" src="media/inline/sample-facial-before.jpg" alt="Before" loading="lazy" decoding="async">
-          <img class="lpBAafter"  src="media/inline/sample-facial-after.jpg"  alt="After" loading="lazy" decoding="async">
-          <div class="lpBADivider"></div>
-          <div class="lpBALabels"><span>Before</span><span>After</span></div>
-          <input class="lpBARange" id="lpBARange" type="range" min="0" max="100" value="50" aria-label="Before / After">
+        <div class="lpTabs" role="tablist">
+          <button class="lpTab on" data-sim="facial" role="tab" aria-selected="true">Facial</button>
+          <button class="lpTab" data-sim="focus" role="tab" aria-selected="false">Focus</button>
         </div>
-        <p class="lpSampleDesc" data-i18n="samples.sim.desc">歯列、色調、歯冠形態、スマイルライン、歯肉ライン。治療意図を、患者さん自身の写真の中に仮置きします。スライダーで Before / After を比較できます。</p>
+        <div class="lpBA" id="lpBA" style="--split:50%">
+          <img class="lpBAbefore" id="lpBAbefore" src="media/inline/sample-facial-before.jpg" alt="Before" loading="lazy" decoding="async">
+          <img class="lpBAafter"  id="lpBAafter"  src="media/inline/sample-facial-after.jpg"  alt="After" loading="lazy" decoding="async">
+          <div class="lpBADivider"></div>
+          <div class="lpBAHandle">⇄</div>
+          <div class="lpBALabels"><span>Before</span><span>After</span></div>
+        </div>
+        <p class="lpSampleDesc" data-i18n="samples.sim.desc">歯列、色調、歯冠形態、スマイルライン、歯肉ライン。ハンドルをドラッグして Before / After を比較できます。Facial / Focus を切り替えられます。</p>
       </article>
       <article class="lpGlass lpSampleCard">
         <h3>Morphing Video Studio™</h3>
@@ -392,19 +403,23 @@ html[dir="rtl"] .lpNote{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== INTERFACE ATMOSPHERE ===== -->
+<!-- ===== INTERFACE ATMOSPHERE — full gradient palette ===== -->
 <section class="lpSection" id="atmosphere">
   <div class="wrap">
     <div class="lpGlass lpAtmo">
       <p class="lpEyebrow" data-i18n="atmo.eyebrow">Interface atmosphere</p>
-      <h2 data-i18n="atmo.h2">Choose the atmosphere.</h2>
-      <p class="lpBody" style="margin-left:auto;margin-right:auto;text-align:center" data-i18n="atmo.body">背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。</p>
-      <div class="lpThemeDots" role="group" aria-label="Theme">
-        <button class="lpDot purple" data-theme="purple" aria-label="Purple" aria-pressed="true"></button>
-        <button class="lpDot orange" data-theme="orange" aria-label="Orange" aria-pressed="false"></button>
-        <button class="lpDot cyan" data-theme="cyan" aria-label="Cyan" aria-pressed="false"></button>
+      <h2 data-i18n="atmo.h2">空気感を、選ぶ。</h2>
+      <p class="lpBody" data-i18n="atmo.body">背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。色を選ぶと、このページ全体の空気感が変わります。</p>
+      <div class="lpPalette">
+        <div class="lpPalPreview" id="lpPalPreview"></div>
+        <div class="lpPalRow">
+          <div class="lpPalCol"><input type="color" id="lpC1" value="#7c5cff" aria-label="Color 1"><label>Color 1</label></div>
+          <div class="lpPalCol"><label>Color 2</label><input type="color" id="lpC2" value="#ff9fd6" aria-label="Color 2"></div>
+        </div>
+        <div class="lpPalField"><label data-i18n="atmo.blend">Blend Ratio</label><input type="range" id="lpBlend" min="0" max="100" value="50"></div>
+        <div class="lpPalPresets" id="lpPresets"></div>
+        <div class="lpPalActions"><button type="button" class="lpShuffle" id="lpShuffle" data-i18n="atmo.shuffle">Shuffle Palette</button></div>
       </div>
-      <div class="lpAtmoNames"><span>Purple</span><span>Orange</span><span>Cyan</span></div>
     </div>
   </div>
 </section>
@@ -444,10 +459,7 @@ html[dir="rtl"] .lpNote{margin-left:auto}
 <!-- ===== TWO STUDIOS ===== -->
 <section class="lpSection" id="studios">
   <div class="wrap">
-    <div class="lpHeadWrap">
-      <p class="lpEyebrow" data-i18n="studios.eyebrow">Two studios</p>
-      <h2 data-i18n="studios.h2">静止画で設計し、動画で伝える。</h2>
-    </div>
+    <div class="lpHeadWrap"><p class="lpEyebrow" data-i18n="studios.eyebrow">Two studios</p><h2 data-i18n="studios.h2">静止画で設計し、動画で伝える。</h2></div>
     <div class="lpGrid3">
       <article class="lpGlass lpCard"><p class="lpCardTag">Simulation</p><h3>Visual Simulation Studio™</h3><p data-i18n="studios.sim">治療後の印象を生成し、補正量を調整しながら、カウンセリングで共有するための静止画シミュレーション。</p></article>
       <article class="lpGlass lpCard"><p class="lpCardTag">Morphing</p><h3>Morphing Video Studio™</h3><p data-i18n="studios.morph">Before / After の変化をなめらかな症例動画に変換し、患者説明・症例提示・SNS 投稿に使いやすいビジュアルへ。</p></article>
@@ -459,10 +471,7 @@ html[dir="rtl"] .lpNote{margin-left:auto}
 <!-- ===== WORKFLOW ===== -->
 <section class="lpSection" id="workflow">
   <div class="wrap">
-    <div class="lpHeadWrap">
-      <p class="lpEyebrow" data-i18n="workflow.eyebrow">Workflow</p>
-      <h2 data-i18n="workflow.h2">3ステップ、チェアサイドで完結。</h2>
-    </div>
+    <div class="lpHeadWrap"><p class="lpEyebrow" data-i18n="workflow.eyebrow">Workflow</p><h2 data-i18n="workflow.h2">3ステップ、チェアサイドで完結。</h2></div>
     <div class="lpSteps">
       <article class="lpGlass lpStep"><p class="lpStepNo">01 — Upload</p><h3 data-i18n="wf.1.h">取り込む</h3><p data-i18n="wf.1.p">患者さんの顔貌写真・口腔内写真を取り込みます。</p></article>
       <article class="lpGlass lpStep"><p class="lpStepNo">02 — Generate</p><h3 data-i18n="wf.2.h">生成する</h3><p data-i18n="wf.2.p">主訴や治療コンセプトに合わせて参考イメージを生成します。</p></article>
@@ -474,30 +483,28 @@ html[dir="rtl"] .lpNote{margin-left:auto}
 <!-- ===== USE CASES ===== -->
 <section class="lpSection" id="usecases">
   <div class="wrap">
-    <div class="lpHeadWrap">
-      <p class="lpEyebrow" data-i18n="uc.eyebrow">Use cases</p>
-      <h2 data-i18n="uc.h2">審美歯科の説明を、もっと伝わる体験へ。</h2>
-    </div>
+    <div class="lpHeadWrap"><p class="lpEyebrow" data-i18n="uc.eyebrow">Use cases</p><h2 data-i18n="uc.h2">審美歯科の説明を、もっと伝わる体験へ。</h2></div>
     <div class="lpChips">
-      <span class="lpChip" data-i18n="uc.1">矯正相談</span>
-      <span class="lpChip" data-i18n="uc.2">補綴・セラミック相談</span>
-      <span class="lpChip" data-i18n="uc.3">ダイレクトボンディング提案</span>
-      <span class="lpChip" data-i18n="uc.4">スマイルデザイン</span>
-      <span class="lpChip" data-i18n="uc.5">症例説明</span>
-      <span class="lpChip" data-i18n="uc.6">SNS 症例投稿</span>
-      <span class="lpChip" data-i18n="uc.7">院内カウンセリング</span>
-      <span class="lpChip" data-i18n="uc.8">チーム内の治療イメージ共有</span>
+      <span class="lpChip" data-i18n="uc.1">矯正相談</span><span class="lpChip" data-i18n="uc.2">補綴・セラミック相談</span><span class="lpChip" data-i18n="uc.3">ダイレクトボンディング提案</span><span class="lpChip" data-i18n="uc.4">スマイルデザイン</span><span class="lpChip" data-i18n="uc.5">症例説明</span><span class="lpChip" data-i18n="uc.6">SNS 症例投稿</span><span class="lpChip" data-i18n="uc.7">院内カウンセリング</span><span class="lpChip" data-i18n="uc.8">チーム内の治療イメージ共有</span>
     </div>
   </div>
 </section>
 
-<!-- ===== GLOBAL BY DESIGN ===== -->
+<!-- ===== GLOBAL BY DESIGN (language switch lives here) ===== -->
 <section class="lpSection" id="global">
   <div class="wrap lpHeadWrap">
     <p class="lpEyebrow" data-i18n="global.eyebrow">Global by design</p>
     <h2 data-i18n="global.h2">日本のチェアサイドから、グローバルな歯科ビジュアル体験へ。</h2>
-    <p class="lpBody" data-i18n="global.body">CaseFlow Studio は、日本の歯科臨床の感覚から生まれたプロダクトでありながら、世界中の審美歯科・矯正・補綴の現場で使える Clinical Visual Studio を目指しています。このページの言語は、右上のスイッチで切り替えられます。</p>
-    <p class="lpBody" style="margin-top:10px" data-i18n="global.langs">English · 日本語 · Português · Italiano · العربية · 中文 · 한국어</p>
+    <p class="lpBody" data-i18n="global.body">CaseFlow Studio は、日本の歯科臨床の感覚から生まれたプロダクトでありながら、世界中の審美歯科・矯正・補綴の現場で使える Clinical Visual Studio を目指しています。このページの言語を選んでください。</p>
+    <div class="lpLangWrap" id="lpLangWrap" role="group" aria-label="Language">
+      <button class="lpLangPill" data-lang="en">EN</button>
+      <button class="lpLangPill" data-lang="ja">JA</button>
+      <button class="lpLangPill" data-lang="pt">PT</button>
+      <button class="lpLangPill" data-lang="it">IT</button>
+      <button class="lpLangPill" data-lang="ar">AR</button>
+      <button class="lpLangPill" data-lang="zh">ZH</button>
+      <button class="lpLangPill" data-lang="ko">KO</button>
+    </div>
   </div>
 </section>
 
@@ -526,15 +533,14 @@ html[dir="rtl"] .lpNote{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== INVITATION-ONLY ACCESS ===== -->
+<!-- ===== INVITATION-ONLY ACCESS (no CTA button, emphasized heading) ===== -->
 <section class="lpSection" id="invite">
   <div class="wrap">
     <div class="lpGlass lpManifesto">
-      <p class="lpEyebrow" data-i18n="inv.eyebrow">Invitation-only access</p>
+      <h2 class="lpInviteHead"><span class="en" data-i18n="inv.eyebrow">Invitation-only access</span><span data-i18n="inv.title">完全招待制</span></h2>
       <p class="lpSubtitle" data-i18n="inv.subtitle">プロダクトを、臨床現場の声で育てる。</p>
       <p data-i18n="inv.p1">CaseFlow Studio は、現在は完全招待制で提供しています。これは限定感のためではなく、実際の歯科臨床で使われるプロダクトとして、フィードバックの質を保ちながら改善を続けるためです。</p>
       <p data-i18n="inv.p2">生成画像の品質、説明体験、患者さんへの見せ方、医院内での運用。それらを丁寧に検証しながら、CaseFlow Studio は Clinical Visual Studio として進化していきます。</p>
-      <div class="lpCTAs" style="margin-top:6px"><a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a></div>
     </div>
   </div>
 </section>
@@ -544,24 +550,9 @@ html[dir="rtl"] .lpNote{margin-left:auto}
   <div class="wrap">
     <div class="lpHeadWrap"><p class="lpEyebrow">Plans</p><h2>Plans</h2></div>
     <div class="lpPlans">
-      <article class="lpGlass lpPlan">
-        <p class="lpPlanName">Free</p>
-        <p class="lpPlanPrice" data-i18n="plan.free.price">無料</p>
-        <p class="lpPlanTokens" data-i18n="plan.free.tokens">月額契約なし</p>
-        <p class="lpPlanDesc" data-i18n="plan.free.desc">まずは無料で。参考イメージ作成の基本フローを体験できます。</p>
-      </article>
-      <article class="lpGlass lpPlan featured">
-        <p class="lpPlanName">Sketch</p>
-        <p class="lpPlanPrice" data-i18n="plan.sketch.price">月額 1,500円</p>
-        <p class="lpPlanTokens">100 tokens / 月</p>
-        <p class="lpPlanDesc" data-i18n="plan.sketch.desc">個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。</p>
-      </article>
-      <article class="lpGlass lpPlan">
-        <p class="lpPlanName">Clinic Studio</p>
-        <p class="lpPlanPrice" data-i18n="plan.clinic.price">月額 5,000円</p>
-        <p class="lpPlanTokens">500 tokens / 月</p>
-        <p class="lpPlanDesc" data-i18n="plan.clinic.desc">1医院向け。医院・チーム単位で症例ビジュアルを共有します。</p>
-      </article>
+      <article class="lpGlass lpPlan"><p class="lpPlanName">Free</p><p class="lpPlanPrice" data-i18n="plan.free.price">無料</p><p class="lpPlanTokens" data-i18n="plan.free.tokens">月額契約なし</p><p class="lpPlanDesc" data-i18n="plan.free.desc">まずは無料で。参考イメージ作成の基本フローを体験できます。</p></article>
+      <article class="lpGlass lpPlan featured"><p class="lpPlanName">Sketch</p><p class="lpPlanPrice" data-i18n="plan.sketch.price">月額 1,500円</p><p class="lpPlanTokens">100 tokens / 月</p><p class="lpPlanDesc" data-i18n="plan.sketch.desc">個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。</p></article>
+      <article class="lpGlass lpPlan"><p class="lpPlanName">Clinic Studio</p><p class="lpPlanPrice" data-i18n="plan.clinic.price">月額 5,000円</p><p class="lpPlanTokens">500 tokens / 月</p><p class="lpPlanDesc" data-i18n="plan.clinic.desc">1医院向け。医院・チーム単位で症例ビジュアルを共有します。</p></article>
     </div>
     <p class="lpNote" style="margin-top:16px" data-i18n="plans.note">生成 1回につき 2 tokens を消費します。追加トークン（Add-on）は買い切りでご利用いただけます。決済は Stripe の安全な画面で行われます。</p>
   </div>
@@ -577,53 +568,20 @@ html[dir="rtl"] .lpNote{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== FINAL CTA ===== -->
+<!-- ===== FINAL CTA (only place with CTA buttons) ===== -->
 <section class="wrap" id="contact">
   <div class="lpGlass lpFinal">
     <p class="lpEyebrow" data-i18n="final.eyebrow">Start</p>
     <h2 data-i18n="final.h2">説明から、共に描くカウンセリングへ。</h2>
-    <div class="lpCTAs">
+    <div class="lpFinalCTAs">
       <a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
       <a class="lpBtn lpBtn-ghost" href="/legal" data-i18n="cta.contact">Contact</a>
     </div>
     <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
   </div>
 </section>
-<script>
-(function(){
-  /* ---------- live theme switcher (shared localStorage key with the app) ---------- */
-  var THEMES={ purple:{a:'#7c5cff',b:'#ff9fd6'}, orange:{a:'#ff9a3e',b:'#ff9fd6'}, cyan:{a:'#69e5ee',b:'#9ff3bf'} };
-  function applyTheme(name){
-    var t=THEMES[name]||THEMES.purple;
-    document.documentElement.style.setProperty('--c1',t.a);
-    document.documentElement.style.setProperty('--c2',t.b);
-    try{ localStorage.setItem('caseflow_v37_colors', JSON.stringify({a:t.a,b:t.b})); }catch(e){}
-    try{ localStorage.setItem('cf_lp_theme', name); }catch(e){}
-    document.querySelectorAll('.lpDot').forEach(function(d){ d.setAttribute('aria-pressed', d.getAttribute('data-theme')===name?'true':'false'); });
-  }
-  function currentThemeName(){
-    try{ var n=localStorage.getItem('cf_lp_theme'); if(THEMES[n]) return n; }catch(e){}
-    try{ var c=JSON.parse(localStorage.getItem('caseflow_v37_colors')||'null');
-      if(c){ for(var k in THEMES){ if(THEMES[k].a.toLowerCase()===String(c.a).toLowerCase()) return k; } } }catch(e){}
-    return 'purple';
-  }
-  document.querySelectorAll('.lpDot').forEach(function(d){ d.addEventListener('click',function(){ applyTheme(d.getAttribute('data-theme')); }); });
-  applyTheme(currentThemeName());
-
-  /* ---------- before/after slider ---------- */
-  var r=document.getElementById('lpBARange'), ba=document.getElementById('lpBA');
-  if(r&&ba){ var set=function(v){ ba.style.setProperty('--split',v+'%'); }; r.addEventListener('input',function(){ set(r.value); }); set(r.value); }
-
-  /* ---------- pause morphing video offscreen ---------- */
-  try{ var v=document.querySelector('#samples video');
-    if(v&&'IntersectionObserver' in window){ new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){ v.play&&v.play().catch(function(){}); } else { v.pause&&v.pause(); } });},{threshold:.2}).observe(v); }
-  }catch(e){}
-
-  /* ---------- language switcher (LP-local i18n; falls back EN then original JA) ---------- */
-  var LANGS=[['en','EN'],['ja','JA'],['pt','PT'],['it','IT'],['ar','AR'],['zh','ZH'],['ko','KO']];
-  var RTL={ar:1};
-  var T={
-   en:{'cta.start':'Start CaseFlow','cta.contact':'Contact',
+<script>window.__LP_T={
+   en:{'atmo.blend':'Blend Ratio','atmo.shuffle':'Shuffle Palette','inv.title':'Invitation-only','cta.start':'Start CaseFlow','cta.contact':'Contact',
      'hero.eyebrow':'For communication, not diagnosis.','hero.tag':'Clinical beauty, visualized.',
      'hero.lead':'A Clinical Visual Studio where a dentist’s intent and a patient’s future smile are shared on one screen.',
      'hero.poem':'CaseFlow Studio™ visualizes post-treatment impressions from the patient’s own photo — a clinical visual layer that connects the dentist’s intent with the patient’s understanding.',
@@ -679,7 +637,7 @@ html[dir="rtl"] .lpNote{margin-left:auto}
      'future.p2':'Integrating personal and clinic wallets, member management, shared cases, morphing videos and simulation images to update the aesthetic-dentistry explanation experience.',
      'final.eyebrow':'Start','final.h2':'From explaining, to designing together.',
      'final.note':'Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome.'},
-   ja:{'cta.start':'はじめる','cta.contact':'お問い合わせ',
+   ja:{'atmo.blend':'ブレンド比率','atmo.shuffle':'パレットをシャッフル','inv.title':'完全招待制','cta.start':'はじめる','cta.contact':'お問い合わせ',
      'hero.eyebrow':'診断ではなく、対話のために。','hero.tag':'Clinical beauty, visualized.',
      'atmo.eyebrow':'インターフェースの空気感','atmo.h2':'空気感を、選ぶ。',
      'atmo.body':'背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。',
@@ -744,8 +702,64 @@ html[dir="rtl"] .lpNote{margin-left:auto}
      'ethics.eyebrow':'필터도, 약속도 아닙니다.','inv.eyebrow':'완전 초대제','inv.subtitle':'임상 현장의 목소리로 제품을 키운다.',
      'plan.free.price':'무료','plan.free.tokens':'월 계약 없음','plan.sketch.price':'월 1,500엔','plan.clinic.price':'월 5,000엔',
      'final.h2':'설명에서, 함께 그리는 상담으로.'}
-  };
-  // capture original (JA) text as ultimate fallback
+  };</script>
+<script>
+(function(){
+  var root=document.documentElement.style;
+  var PRESETS=[['#7c5cff','#ff9fd6'],['#ff9a3e','#ff9fd6'],['#69e5ee','#9ff3bf'],['#7c5cff','#9ff3bf'],['#ff6b9d','#ffd36b'],['#4f8cff','#69e5ee']];
+  function setPalette(a,b,blend,persist){
+    root.setProperty('--c1',a); root.setProperty('--c2',b);
+    if(blend!=null) root.setProperty('--blend',blend);
+    var pv=document.getElementById('lpPalPreview'); if(pv) pv.style.background='linear-gradient(120deg,'+a+','+b+')';
+    var c1=document.getElementById('lpC1'), c2=document.getElementById('lpC2'); if(c1)c1.value=a; if(c2)c2.value=b;
+    if(persist!==false){ try{ localStorage.setItem('caseflow_v37_colors', JSON.stringify({a:a,b:b})); }catch(e){} }
+  }
+  function readColors(){ try{ var c=JSON.parse(localStorage.getItem('caseflow_v37_colors')||'null'); if(c&&c.a&&c.b) return c; }catch(e){} return {a:'#7c5cff',b:'#ff9fd6'}; }
+  // build presets
+  var presetsWrap=document.getElementById('lpPresets');
+  if(presetsWrap){ PRESETS.forEach(function(p){ var b=document.createElement('button'); b.type='button'; b.className='lpPreset';
+    b.style.background='linear-gradient(135deg,'+p[0]+','+p[1]+')'; b.setAttribute('aria-label','preset');
+    b.addEventListener('click',function(){ setPalette(p[0],p[1]); }); presetsWrap.appendChild(b); }); }
+  var c1i=document.getElementById('lpC1'), c2i=document.getElementById('lpC2'), blend=document.getElementById('lpBlend');
+  if(c1i) c1i.addEventListener('input',function(){ setPalette(c1i.value, c2i.value); });
+  if(c2i) c2i.addEventListener('input',function(){ setPalette(c1i.value, c2i.value); });
+  if(blend) blend.addEventListener('input',function(){ root.setProperty('--blend', blend.value); });
+  var shuffle=document.getElementById('lpShuffle');
+  function randColor(){ return '#'+('000000'+Math.floor(Math.random()*0xffffff).toString(16)).slice(-6); }
+  if(shuffle) shuffle.addEventListener('click',function(){
+    if(Math.random()<0.5){ var p=PRESETS[Math.floor(Math.random()*PRESETS.length)]; setPalette(p[0],p[1]); }
+    else setPalette(randColor(), randColor());
+  });
+  var init=readColors(); setPalette(init.a, init.b, (function(){ try{return document.getElementById('lpBlend')&&document.getElementById('lpBlend').value;}catch(e){return 50;} })(), false);
+
+  /* ---------- draggable Before/After (pointer + touch) + Facial/Focus tabs ---------- */
+  var ba=document.getElementById('lpBA');
+  if(ba){
+    function setFromClientX(cx){ var r=ba.getBoundingClientRect(); var p=Math.max(0,Math.min(100,((cx-r.left)/r.width)*100)); ba.style.setProperty('--split',p+'%'); }
+    var dragging=false;
+    ba.addEventListener('pointerdown',function(e){ dragging=true; try{ba.setPointerCapture(e.pointerId);}catch(_){}; setFromClientX(e.clientX); e.preventDefault(); });
+    ba.addEventListener('pointermove',function(e){ if(dragging) setFromClientX(e.clientX); });
+    ba.addEventListener('pointerup',function(){ dragging=false; });
+    ba.addEventListener('pointercancel',function(){ dragging=false; });
+    var SETS={ facial:['media/inline/sample-facial-before.jpg','media/inline/sample-facial-after.jpg'],
+               focus:['media/inline/sample-focus-before.jpg','media/inline/sample-focus-after.jpg'] };
+    document.querySelectorAll('.lpTab[data-sim]').forEach(function(t){ t.addEventListener('click',function(){
+      document.querySelectorAll('.lpTab[data-sim]').forEach(function(x){ x.classList.remove('on'); x.setAttribute('aria-selected','false'); });
+      t.classList.add('on'); t.setAttribute('aria-selected','true');
+      var s=SETS[t.getAttribute('data-sim')]||SETS.facial;
+      document.getElementById('lpBAbefore').src=s[0]; document.getElementById('lpBAafter').src=s[1];
+      ba.style.setProperty('--split','50%');
+    }); });
+  }
+
+  /* ---------- pause morphing video offscreen ---------- */
+  try{ var v=document.querySelector('#samples video');
+    if(v&&'IntersectionObserver' in window){ new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){ v.play&&v.play().catch(function(){}); } else { v.pause&&v.pause(); } });},{threshold:.2}).observe(v); }
+  }catch(e){}
+
+  /* ---------- i18n (language pills in Global by Design) ---------- */
+  var RTL={ar:1};
+  var T=window.__LP_T;  // dictionary injected below
   var nodes=document.querySelectorAll('[data-i18n]');
   nodes.forEach(function(el){ el.setAttribute('data-i18n-def', el.textContent); });
   function getLang(){ try{ var l=localStorage.getItem('caseflow_lang'); if(T[l]) return l; }catch(e){} return 'ja'; }
@@ -754,20 +768,12 @@ html[dir="rtl"] .lpNote{margin-left:auto}
     try{ localStorage.setItem('caseflow_lang', lang); }catch(e){}
     document.documentElement.setAttribute('lang', lang);
     document.documentElement.setAttribute('dir', RTL[lang]?'rtl':'ltr');
-    nodes.forEach(function(el){
-      var k=el.getAttribute('data-i18n');
-      var v=(T[lang]&&T[lang][k]);
-      if(v==null && lang!=='ja') v=(T.en&&T.en[k]); // non-JA: fall back to EN
-      if(v==null) v=el.getAttribute('data-i18n-def'); // else original JA text
-      if(v!=null && el.textContent!==v) el.textContent=v;
-    });
-    var b=document.getElementById('lpLangBtn'); if(b){ var m={en:'EN',ja:'JA',pt:'PT',it:'IT',ar:'AR',zh:'ZH',ko:'KO'}; b.textContent=m[lang]||'EN'; }
+    nodes.forEach(function(el){ var k=el.getAttribute('data-i18n');
+      var v=(T[lang]&&T[lang][k]); if(v==null && lang!=='ja') v=(T.en&&T.en[k]); if(v==null) v=el.getAttribute('data-i18n-def');
+      if(v!=null && el.textContent!==v) el.textContent=v; });
+    document.querySelectorAll('.lpLangPill').forEach(function(p){ var on=p.getAttribute('data-lang')===lang; p.classList.toggle('on',on); p.setAttribute('aria-pressed',on?'true':'false'); });
   }
-  var langBtn=document.getElementById('lpLangBtn');
-  if(langBtn){ langBtn.addEventListener('click',function(){
-    var order=LANGS.map(function(x){return x[0];});
-    var cur=getLang(); var i=order.indexOf(cur); apply(order[(i+1)%order.length]);
-  }); }
+  document.querySelectorAll('.lpLangPill').forEach(function(p){ p.addEventListener('click',function(){ apply(p.getAttribute('data-lang')); }); });
   apply(getLang());
 })();
 </script>
