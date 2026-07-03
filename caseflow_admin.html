@@ -203,13 +203,13 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       <h2>Deployment Compare<small>デプロイ比較</small></h2>
       <p class="help">本番環境とPreview環境を比較し、リリース前後の確認に使います。</p>
       <div class="item"><div class="meta">Production URL</div>
-        <b>https://caseflow-studio.vercel.app</b></div>
+        <b>https://caseflow-studio.com</b></div>
       <div class="item"><div class="meta">Preview / Demo URL（このページを開いている環境が Preview の場合は現URL）</div>
         <b id="depPreviewUrl">—</b></div>
       <div class="item"><div class="meta">Current Environment / Branch・Build</div>
         <b id="depEnv">—</b><div class="meta" style="margin-top:4px">Branch / Build ID: 未接続（Vercel API 連携は Phase 2）</div></div>
       <div class="row">
-        <a class="btn" href="https://caseflow-studio.vercel.app/caseflow_studio_v96.html" target="_blank" rel="noopener">Open Production</a>
+        <a class="btn" href="https://caseflow-studio.com/" target="_blank" rel="noopener">Open Production</a>
         <button class="btn ghost" id="depOpenPreview">Open Preview</button>
         <button class="btn ghost" id="depOpenBoth">Open Both</button>
       </div>
@@ -237,7 +237,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       <p class="help">Productionでは開発・大量生成・破壊的テストは行わないでください。使用するのは開発者・管理者専用の Production Test Workspace とダミーデータのみです。チェック状態はこの端末に保存されます。</p>
       <div class="checklist" id="smokeChecklist"></div>
       <div class="row">
-        <a class="btn" href="https://caseflow-studio.vercel.app/caseflow_studio_v96.html" target="_blank" rel="noopener">本番を開く</a>
+        <a class="btn" href="https://caseflow-studio.com/" target="_blank" rel="noopener">本番を開く</a>
         <button class="btn ghost" id="smokeReset">チェックをリセット</button>
       </div>
     </div>
@@ -272,10 +272,10 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
   function fmtTs(s){ return s?String(s).slice(0,16).replace('T',' '):'—'; }
   function envName(){
     var h=location.hostname;
-    if(h==='caseflow-studio.vercel.app') return 'production';
+    if(h==='caseflow-studio.com'||h==='www.caseflow-studio.com') return 'production';
+    if(h==='caseflow-studio.vercel.app') return 'production'; /* 移行期間の旧本番URL */
     if(/localhost|127\.0\.0\.1/.test(h)) return 'local';
-    if(/vercel\.app$/.test(h)) return 'preview';
-    return 'staging';
+    return 'preview';
   }
   function show(view){
     el('gateView').style.display=view==='gate'?'flex':'none';
@@ -291,12 +291,12 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
   /* ---------- header ---------- */
   function renderHeader(){
     var env=envName(), b=el('envBadge');
-    b.textContent=env==='production'?'PRODUCTION':env==='preview'?'PREVIEW':env==='local'?'LOCAL':'STAGING';
+    b.textContent=env==='production'?'PRODUCTION':env==='local'?'LOCAL':'PREVIEW';
     b.className='badge '+(env==='production'?'prod':env==='local'?'local':'preview');
     var chips=[
       ['Supabase: Connected','ok'],
       ['Auth: ON (this page)','ok'],
-      ['Invite-only: '+(env==='production'?'OFF（CF_BETA_GATE_DEFAULT=false）':'flag制御（?beta_gate=on）'),env==='production'?'warn':'dim'],
+      ['Invite-only: '+(env==='production'?'ON（CF_BETA_GATE_DEFAULT=true）':'flag制御（?beta_gate=on）'),'ok'],
       ['Stripe: Test Mode（env設定後に有効）','dim'],
       ['Role: '+(profile?profile.role:'—'),'dim'],
       ['Environment: '+env,'dim']
@@ -693,13 +693,13 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
   function initDeploy(){
     var env=envName();
     el('depEnv').textContent=env.toUpperCase();
-    var prev=env==='preview'?location.origin+'/caseflow_studio_v96.html':'（Preview URL をここで開いてください）';
+    var prev=env==='preview'?location.origin+'/caseflow_studio_v96.html':'—（Preview 環境で開くと表示されます）';
     el('depPreviewUrl').textContent=prev;
     el('depOpenPreview').addEventListener('click',function(){
-      window.open(env==='preview'?location.origin+'/caseflow_studio_v96.html?beta_gate=on':'https://caseflow-studio.vercel.app/caseflow_studio_v96.html','_blank');
+      window.open(env==='preview'?location.origin+'/caseflow_studio_v96.html?beta_gate=on':'https://caseflow-studio.com/','_blank');
     });
     el('depOpenBoth').addEventListener('click',function(){
-      window.open('https://caseflow-studio.vercel.app/caseflow_studio_v96.html','_blank');
+      window.open('https://caseflow-studio.com/','_blank');
       if(env==='preview') window.open(location.origin+'/caseflow_studio_v96.html?beta_gate=on','_blank');
     });
     renderChecklist('depChecklist',DEP_ITEMS,'cf_admin_dep_ck_v1');
