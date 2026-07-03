@@ -26405,7 +26405,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           .order('created_at',{ascending:false}).limit(10);
         if(r.error) throw r.error;
         if(!r.data||!r.data.length){ box.innerHTML='発行済みの招待コードはまだありません。'; return; }
-        box.innerHTML='<div style="font-weight:800;color:#5b3fd6;margin:4px 0 6px">招待履歴 / Recent codes</div>'+
+        box.innerHTML='<div style="font-weight:800;color:var(--cf-theme-accent-on-glass,#5b3fd6);margin:4px 0 6px">招待履歴 / Recent codes</div>'+
           r.data.map(function(c){
             var dead=!!c.revoked_at||(c.expires_at&&new Date(c.expires_at)<=new Date())||c.used_count>=c.max_uses;
             return '<div class="cfInvCode" style="'+(dead?'opacity:.55':'')+'"><b>'+esc(c.code)+'</b>'+
