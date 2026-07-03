@@ -25406,11 +25406,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
     /* invite panel on the Invite screen */
     '#cfInvitePanel{background:rgba(255,255,255,.94);border-radius:18px;padding:16px 15px;margin:0 0 14px;box-shadow:0 14px 40px rgba(40,20,80,.12)}',
     /* !important: ダークトーン時の .screen.soft 系上書きで白文字化しないよう固定 */
-    '#cfInvitePanel h3{margin:0 0 4px!important;font-size:14.5px!important;font-weight:900!important;color:#3d2b8f!important}',
+    '#cfInvitePanel h3{margin:0 0 4px!important;font-size:14.5px!important;font-weight:900!important;color:var(--cf-theme-accent-on-glass,#3d2b8f)!important}',
     '#cfInvitePanel .cfInvHelp{font-size:11.5px!important;color:#5a5470!important;line-height:1.7;margin:0 0 12px}',
     '.cfInvCode{display:flex;align-items:center;gap:8px;border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;color:#231a3a!important;background:#fff}',
     '.cfInvCode b{letter-spacing:.08em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-feature-settings:"zero" 1}',
-    '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:#5b3fd6;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}',
+    '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:var(--cf-theme-accent-on-glass,#5b3fd6);color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}',
     /* ===== v9.8 Account Sheet（すりガラス・半透明白・薄い境界線・濃紺見出し） ===== */
     '#cfAcctMenu{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);',
     ' border:1px solid rgba(255,255,255,.55);box-shadow:0 24px 70px rgba(30,18,60,.35);padding:16px 14px!important}',
@@ -25425,7 +25425,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     /* Wallet残高: 縦積み・新クラス（旧 .cfShWallet 系との衝突/キャッシュ残りを排除。クリップ要因を持たない） */
     '.cfWalletSummary{display:block;width:100%;box-sizing:border-box;padding:13px 14px;border-bottom:1px solid rgba(124,92,255,.10);overflow:visible;text-align:left}',
     '.cfWalletLabel{display:block;font-size:12.5px;font-weight:900;color:#241c46;letter-spacing:.02em}',
-    '.cfWalletAmount{display:block;font-size:24px;font-weight:900;line-height:1.2;color:#3d2b8f;margin-top:3px;overflow:visible;white-space:nowrap}',
+    '.cfWalletAmount{display:block;font-size:24px;font-weight:900;line-height:1.2;color:var(--cf-theme-accent-on-glass,#3d2b8f);margin-top:3px;overflow:visible;white-space:nowrap}',
     '.cfWalletAmount span{font-size:12px;font-weight:750;color:rgba(42,35,80,.55)}',
     '.cfWalletStatus{display:block;font-size:10.5px;font-weight:650;color:rgba(42,35,80,.55);margin-top:4px;line-height:1.5}',
     '.cfShRow{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:none;text-align:left;',
@@ -25438,7 +25438,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     /* nav token badge */
     '#navSimBtn{position:relative}',
     '.cfNavTokBadge{position:absolute;top:3px;left:50%;transform:translateX(9px);min-width:16px;height:15px;line-height:15px;padding:0 4px;',
-    ' border-radius:999px;background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-size:9px;font-weight:900;text-align:center;',
+    ' border-radius:999px;background:var(--cf-theme-badge-bg,linear-gradient(135deg,#7c5cff,#b06bff));color:#fff;font-size:9px;font-weight:900;text-align:center;',
     ' box-shadow:0 2px 8px rgba(90,60,220,.45);pointer-events:none;letter-spacing:0}',
     '.cfNavTokBadge.big{transform:translateX(7px);padding:0 5px}',
     /* pricing modal: in-modal message + button loading */
@@ -26709,7 +26709,19 @@ input:focus-visible,textarea:focus-visible,a:focus-visible{
 :root{
   --cf-cta-text:var(--primaryBtnText,#7c5cff);
   --cf-cta-text-on-glass:color-mix(in srgb,var(--primaryBtnText,#7c5cff) 48%,#241b33);
+  /* deep accent for text/buttons on pale panels (Account sheet, Invite card) */
+  --cf-theme-accent-on-glass:var(--cf-cta-text-on-glass);
+  /* saturated theme gradient for small badges (white text always reads) */
+  --cf-theme-badge-bg:linear-gradient(135deg,var(--c1,#7c5cff),var(--c2,#ff9fd6));
+  /* page-title ink: tone ink tinted toward the theme accent, stays readable
+     in both light and dark tone because it leans 80% on --cfUiText */
+  --cf-theme-ink:color-mix(in srgb,var(--cfUiText,#201b35) 80%,var(--primaryBtnText,#7c5cff) 20%);
 }
+/* page titles / headers follow the theme instead of fixed navy */
+.screen.soft .topbar .title,
+.screen.soft .topbar h2,
+.screen.soft .galleryTitle,
+.screen.soft .libraryTitle{color:var(--cf-theme-ink)!important}
 
 /* ——— language switcher: same capsule aesthetic as the palette toggle ——— */
 .cfLangBtn{
