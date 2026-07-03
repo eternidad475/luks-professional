@@ -4731,13 +4731,14 @@ button[id="localMLDetectButton"]{
     </div>
     <div class="panel">
       <div class="homeUtility">
+        <button type="button" class="cfLangBtn" id="cfLangHomeBtn" aria-label="Language / 言語設定" aria-haspopup="dialog">JA</button>
         <button type="button" class="cfPaletteButton" id="cfPaletteTrigger" aria-label="Open gradient palette">
           <span class="cfPaletteSplit" aria-hidden="true"></span>
         </button>
-        
+
       </div>
-      <button class="primary" onclick="go('start')">Create a Caseflow<br>はじめる</button>
-      <div class="sampleSplit homeSampleButtons"><button class="secondary morphingSampleButton" onclick="openMorphingVideoSample()"><span class="sampleBtnTitle">Morphing Video Studio™︎</span><span class="sampleBtnSub">サンプルをみる</span></button><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()"><span class="sampleBtnTitle">Visual Simulation Studio™︎</span><span class="sampleBtnSub">サンプルをみる</span></button></div>
+      <button class="primary" data-i18n="home.cta" onclick="go('start')">Create a Caseflow<br>はじめる</button>
+      <div class="sampleSplit homeSampleButtons"><button class="secondary morphingSampleButton" onclick="openMorphingVideoSample()"><span class="sampleBtnTitle">Morphing Video Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()"><span class="sampleBtnTitle">Visual Simulation Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button></div>
       <p class="note">v9.6</p>
       <p class="brandCredit">CASEFLOW STUDIO™ provided by NARRATIVE CHERISH</p>
     </div>
@@ -4747,16 +4748,16 @@ button[id="localMLDetectButton"]{
 <section class="screen soft" id="start">
   <div class="topbar">
     <button class="iconbtn" onclick="go('home')">‹</button>
-    <div style="text-align:right"><h2 class="title">何を始めますか？</h2><p class="subtitle">Choose a workflow / 機能を選択</p></div>
+    <div style="text-align:right"><h2 class="title" data-i18n="start.title">何を始めますか？</h2><p class="subtitle" data-i18n="start.subtitle">Choose a workflow / 機能を選択</p></div>
   </div>
-  <article class="card option" onclick="go('upload')"><div><h3>Morphing Video Studio™︎<br>症例モーフィング動画</h3><p>治療前後の変化を、なめらかな症例動画へ。</p></div><div class="circle"><span class="optIcon optIcon-morph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12 L4 6.5 L4 17.5 Z M12 12 L20 6.5 L20 17.5 Z" fill="currentColor"/></svg></span></div></article>
-  <article class="card option" onclick="go('simulator')"><div><h3>Visual Simulation Studio™︎<br>審美シミュレーション画像</h3><p>スマイルの変化を可視化し、補正量をスライダーで調整できます。</p></div><div class="circle"><span class="optIcon optIcon-sim"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z" fill="currentColor"/></svg></span></div></article>
-  <article class="card option" onclick="go('upload')"><div><h3>Photo Manager<br>症例画像の管理・前処理</h3><p>画像の分類、検索、回転、トリミング、レイヤー確認をまとめて行えます。</p></div><div class="circle"><span class="optIcon optIcon-photo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6.2 17.8 L17.8 6.2 L17.8 17.8 Z" fill="currentColor"/></svg></span></div></article>
+  <article class="card option" onclick="go('upload')"><div><h3 data-i18n="start.morph.title">Morphing Video Studio™︎<br>症例モーフィング動画</h3><p data-i18n="start.morph.desc">治療前後の変化を、なめらかな症例動画へ。</p></div><div class="circle"><span class="optIcon optIcon-morph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12 L4 6.5 L4 17.5 Z M12 12 L20 6.5 L20 17.5 Z" fill="currentColor"/></svg></span></div></article>
+  <article class="card option" onclick="go('simulator')"><div><h3 data-i18n="start.sim.title">Visual Simulation Studio™︎<br>審美シミュレーション画像</h3><p data-i18n="start.sim.desc">スマイルの変化を可視化し、補正量をスライダーで調整できます。</p></div><div class="circle"><span class="optIcon optIcon-sim"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z" fill="currentColor"/></svg></span></div></article>
+  <article class="card option" onclick="go('upload')"><div><h3 data-i18n="start.photo.title">Photo Manager<br>症例画像の管理・前処理</h3><p data-i18n="start.photo.desc">画像の分類、検索、回転、トリミング、レイヤー確認をまとめて行えます。</p></div><div class="circle"><span class="optIcon optIcon-photo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6.2 17.8 L17.8 6.2 L17.8 17.8 Z" fill="currentColor"/></svg></span></div></article>
   <div class="sampleSplit"><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()">Simulation Sample</button></div>
 </section>
 
 <section class="screen soft" id="upload">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Gallery</h2><p class="subtitle">Facial / Focus を分類・選択・編集</p></div><button class="linkbtn" onclick="openGalleryStudioChooser()">Studioへ</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Gallery</h2><p class="subtitle" data-i18n="gallery.subtitle">Facial / Focus を分類・選択・編集</p></div><button class="linkbtn" onclick="openGalleryStudioChooser()">Studioへ</button></div>
   <div class="stepbar"><div class="stepitem on">1<span>Photos</span></div><div class="stepitem">2<span>Edit / Align</span></div><div class="stepitem">3<span>Preview</span></div><div class="stepitem">4<span>Export</span></div></div>
   <input id="fileInput" class="hidden" type="file" accept="image/*" multiple>
   <input id="simMacroInput" class="hidden" type="file" accept="image/*">
@@ -4865,7 +4866,7 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="simulator">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Visual Simulation Studio™︎</h2><p class="subtitle">Reference Preview / 参考イメージ作成</p></div><span class="simHeadIcon" style="display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:22px;height:22px"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z" fill="currentColor"/></svg></span></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Visual Simulation Studio™︎</h2><p class="subtitle" data-i18n="sim.subtitle">Reference Preview / 参考イメージ作成</p></div><span class="simHeadIcon" style="display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:22px;height:22px"><path d="M12 2.5 C12.6 8.6 15.4 11.4 21.5 12 C15.4 12.6 12.6 15.4 12 21.5 C11.4 15.4 8.6 12.6 2.5 12 C8.6 11.4 11.4 8.6 12 2.5 Z" fill="currentColor"/></svg></span></div>
   <div class="smallcaps">Simulation input / 入力画像</div><div class="toolbar simToolbar"><button class="tool simulationSampleButton" onclick="showSimulationSampleResults()">Simulation Sample</button><button class="tool" onclick="go('upload')">症例管理<br>Cases</button></div>
   <div class="card choice" id="macroChoice"><img id="macroThumb"><div><b>Macro / Facial</b><span>顔貌スマイル写真を1枚</span></div></div>
   <div class="card choice" id="microChoice"><img id="microThumb"><div><b>Micro / Focus</b><span>口元・前歯部写真を1枚</span></div></div>
@@ -4882,12 +4883,12 @@ button[id="localMLDetectButton"]{
     <div class="row"><span>変化量</span><input type="range" min="10" max="90" value="55" id="simIntensity"><b id="simIntensityVal">55</b></div>
     <div class="row"><span>スマイル範囲</span><input type="range" min="25" max="75" value="50" id="simBand"><b id="simBandVal">50</b></div>
   </div>
-  <div class="aiPanel"><div><b>AI Simulation</b><span id="aiStatus">Local preview mode. Replit backend can be connected.</span></div><label class="switch"><input type="checkbox" id="aiMode"><span></span></label></div><button class="primary" onclick="generateSimulation()">参考イメージを生成</button>
+  <div class="aiPanel"><div><b>AI Simulation</b><span id="aiStatus">Local preview mode. Replit backend can be connected.</span></div><label class="switch"><input type="checkbox" id="aiMode"><span></span></label></div><button class="primary" data-i18n="sim.generate" onclick="generateSimulation()">参考イメージを生成</button>
   <details class="note"><summary>免責事項</summary><p>参考イメージ作成用の仮処理です（歯の明度・空隙閉鎖・ブラックトライアングル・スマイル整えを可視化）。治療結果の保証・診断ではありません。</p></details>
 </section>
 
 <section class="screen soft" id="result">
-  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('simulator')">‹</button><div><h2 class="title">シミュレーション結果</h2><p class="subtitle">Simulation / Reference Image</p></div><button class="linkbtn cfPresentBtn" onclick="cfEnterPresentation()" title="患者提示モード" aria-label="Presentation mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>提示</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="cfGoBack('simulator')">‹</button><div><h2 class="title" data-i18n="result.title">シミュレーション結果</h2><p class="subtitle" data-i18n="result.subtitle">Simulation / Reference Image</p></div><button class="linkbtn cfPresentBtn" onclick="cfEnterPresentation()" title="患者提示モード" aria-label="Presentation mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>提示</button></div>
   <div class="simResultStage">
   <div class="simResultGallery" id="simResultGallery"></div>
   <div class="simResultCompare card">
@@ -4911,7 +4912,7 @@ button[id="localMLDetectButton"]{
     <div class="simSliderGrid" id="simV96EditGrid"></div>
   </div>
   <div class="toolbar cfResultActions">
-    <button class="tool" onclick="generateSimulation()">再生成<br>Again</button>
+    <button class="tool" data-i18n="result.regenerate" onclick="generateSimulation()">再生成<br>Again</button>
     <button class="tool" id="cfRefineBtn" onclick="runSecondaryRefinement()" title="上顎前歯ゴールデンプロポーション二次精密生成" style="display:none;background:linear-gradient(135deg,#7c5cff,#c47eff);color:#fff;border-color:transparent">✦ Refine<br>精密生成</button>
     <button class="tool cfLibraryBtn" onclick="go('library')" title="Library を開く（生成画像は自動保存されます）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
@@ -4953,7 +4954,7 @@ button[id="localMLDetectButton"]{
 
 
 <section class="screen soft" id="manualStudio">
-  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morphing Video Studio™︎</h2><p class="subtitle">Manual Animation Mode / レイヤーアニメーション</p></div><button class="linkbtn" onclick="saveCurrentProject()">Save</button></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('align')">‹</button><div><h2 class="title">Morphing Video Studio™︎</h2><p class="subtitle">Manual Animation Mode / レイヤーアニメーション</p></div><button class="linkbtn" data-i18n="common.save" onclick="saveCurrentProject()">Save</button></div>
   <div class="card" style="padding:16px;margin-bottom:14px">
     <div class="studioSwitchRow"><button class="studioSwitchBtn" onclick="go('align')">Landmark Morph</button><button class="studioSwitchBtn active">Manual Animation</button></div><div class="smallcaps" style="margin-top:6px">Workspace / ワークスペース</div>
     <div class="note" style="margin-top:0">Morphing Video Studio の Manual Animation mode です。Gallery 内の写真をベースに、2レイヤー構成でフレームを作成します。Opacity・位置・拡大率を手動で調整し、ランドマークベースの morph とは別に、コントロール可能なアニメーション動画を作成します。</div>
@@ -4986,13 +4987,13 @@ button[id="localMLDetectButton"]{
 </section>
 
 <section class="screen soft" id="library">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof cfReloadLibraryWithFeedback==='function'){cfReloadLibraryWithFeedback();}else if(typeof renderLibrary==='function'){renderLibrary();}" title="Reload library / ライブラリを更新">↻</button></div>
-  <div class="note">作成したプロジェクトは48時間Libraryに一時保存されます。期限を過ぎると自動的に削除されるため、必要な画像や動画は期限内に保存してください。</div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Library</h2><p class="subtitle" data-i18n="library.subtitle">Saved projects / 作成したプロジェクト</p></div><button class="iconbtn" onclick="if(typeof cfReloadLibraryWithFeedback==='function'){cfReloadLibraryWithFeedback();}else if(typeof renderLibrary==='function'){renderLibrary();}" title="Reload library / ライブラリを更新">↻</button></div>
+  <div class="note" data-i18n="library.note">作成したプロジェクトは48時間Libraryに一時保存されます。期限を過ぎると自動的に削除されるため、必要な画像や動画は期限内に保存してください。</div>
   <div id="libraryList" class="libraryList"></div>
 </section>
 
 <section class="screen soft" id="shareApp">
-  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Invite</h2><p class="subtitle">招待 / Invite &amp; share</p></div><span style="font-size:22px;cursor:pointer" role="button" tabindex="0" aria-label="トップページを開く" onclick="cfOpenTopPage()">↗</span></div>
+  <div class="topbar"><button class="iconbtn" onclick="go('start')">‹</button><div><h2 class="title">Invite</h2><p class="subtitle" data-i18n="share.subtitle">招待 / Invite &amp; share</p></div><span style="font-size:22px;cursor:pointer" role="button" tabindex="0" aria-label="トップページを開く" onclick="cfOpenTopPage()">↗</span></div>
   <div id="cfInvitePanelMount"></div>
   <div class="card shareCard">
     <div class="shareLegal">
@@ -5011,7 +5012,7 @@ button[id="localMLDetectButton"]{
   <div class="stepbar"><div class="stepitem">1<span>Photos</span></div><div class="stepitem">2<span>Preview</span></div><div class="stepitem on">3<span>Export</span></div></div>
   <div class="card export"><img id="exportImage"><video id="exportVideo" controls playsinline loop style="display:none;width:100%;border-radius:18px;background:#000"></video></div>
   <div class="smallcaps">Share / 共有</div>
-  <button class="secondary" onclick="shareSNS()">動画をカメラロールに保存</button>
+  <button class="secondary" data-i18n="export.save" onclick="shareSNS()">動画をカメラロールに保存</button>
 </section>
 
 
@@ -26564,6 +26565,577 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     CaseFlow Visual System v9.7
+     One design language for every screen — tokens, glass, capsules, poster
+     spacing — extracted from the home screen and applied app-wide, plus a
+     global language switcher (EN / JA / PT / IT / AR / ZH / KO).
+     Shape & motion only: colours keep riding the existing --c1/--c2 palette
+     and the --cfUi* light/dark tone system, so the background-switch
+     "lighting change" keeps working everywhere.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style id="cf-v97-visual-system">
+:root{
+  /* geometry */
+  --cf-radius-xl:56px;
+  --cf-radius-lg:36px;
+  --cf-radius-md:28px;
+  --cf-radius-sm:18px;
+  --cf-radius-pill:999px;
+  /* glass */
+  --cf-glass-bg:rgba(255,255,255,.18);
+  --cf-glass-bg-strong:rgba(255,255,255,.78);
+  --cf-glass-border:rgba(255,255,255,.55);
+  --cf-glass-shadow:0 32px 80px rgba(82,22,120,.22);
+  --cf-glass-blur:blur(22px) saturate(1.4);
+  /* text */
+  --cf-text-strong:#251735;
+  --cf-text-soft:rgba(37,23,53,.72);
+  /* accent family (mint / pink / violet / cyan) */
+  --cf-accent-mint:#9ff3bf;
+  --cf-accent-pink:#ef91bd;
+  --cf-accent-violet:#7654e8;
+  --cf-accent-cyan:#69e5ee;
+  /* motion */
+  --cf-ease:cubic-bezier(.22,.61,.21,1);
+  --cf-dur-fast:.16s;
+  --cf-dur:.28s;
+}
+
+/* ——— shared surfaces: bigger radii, consistent glass depth ——— */
+.panel{border-radius:var(--cf-radius-lg)}
+.card,.rangePanel,.pairPanel,.landmarkPanel,.pairPreviewPanel,.accountPanel{border-radius:var(--cf-radius-md)}
+textarea,.saveGuide{border-radius:var(--cf-radius-md)}
+.note{border-radius:var(--cf-radius-sm)}
+
+/* ——— quiet, precise motion: small sink on press, soft transitions ——— */
+.primary,.secondary,.tool,.pill,.iconbtn,.linkbtn,.nav,.seg button,.stepitem,
+.cfLangBtn,.cfPaletteButton,.cfLangOpt{
+  transition:transform var(--cf-dur-fast) var(--cf-ease),
+             box-shadow var(--cf-dur) var(--cf-ease),
+             background-color var(--cf-dur) ease,
+             color var(--cf-dur) ease,
+             opacity var(--cf-dur) ease;
+}
+.primary:active,.secondary:active,.tool:active,.pill:active,.iconbtn:active,
+.nav:active,.cfLangBtn:active,.seg button:active{
+  transform:translateY(1px) scale(.988);
+}
+@media (prefers-reduced-motion:reduce){
+  .primary:active,.secondary:active,.tool:active,.pill:active,.iconbtn:active,
+  .nav:active,.cfLangBtn:active,.seg button:active{transform:none}
+}
+
+/* ——— visible focus without breaking the artwork ——— */
+button:focus-visible,[role=button]:focus-visible,select:focus-visible,
+input:focus-visible,textarea:focus-visible,a:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--c1,#7c5cff) 65%,#fff);
+  outline-offset:2px;
+}
+
+/* ——— screens breathe in: light fade, nothing theatrical ——— */
+@keyframes cfScreenIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.screen.active{animation:cfScreenIn var(--cf-dur) var(--cf-ease)}
+@media (prefers-reduced-motion:reduce){.screen.active{animation:none}}
+
+/* ——— bottom navigation: glass shelf, capsule active tab ——— */
+.bottom{
+  gap:6px;
+  padding:10px 14px calc(10px + var(--safe));
+  -webkit-backdrop-filter:blur(26px) saturate(1.5);
+  backdrop-filter:blur(26px) saturate(1.5);
+}
+.nav{border-radius:var(--cf-radius-pill);min-height:48px}
+.bottom .nav.on{
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.30),0 8px 22px rgba(32,27,53,.14);
+}
+@media (orientation:landscape) and (min-width:540px){
+  /* re-assert the vertical nav rail — a later brand patch forces 5 columns,
+     which crammed the rail buttons horizontally on wide screens */
+  .bottom{
+    grid-template-columns:1fr;
+    grid-auto-rows:max-content;
+    align-content:center;
+    gap:12px;
+    padding:calc(12px + env(safe-area-inset-top)) 9px calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ——— toast as a small glass object ——— */
+.toast{
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  background:rgba(30,22,50,.88);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 18px 44px rgba(20,12,45,.35);
+}
+
+/* ——— wait overlay: quiet process, not machinery ——— */
+.cfWaitCard{
+  border-radius:30px;
+  background:rgba(255,255,255,.80);
+  -webkit-backdrop-filter:var(--cf-glass-blur);backdrop-filter:var(--cf-glass-blur);
+  border:1px solid var(--cf-glass-border);
+  box-shadow:var(--cf-glass-shadow);
+  min-width:236px;max-width:min(320px,84vw);
+}
+.cfWaitSpinner{
+  border:0;
+  background:conic-gradient(from 0deg,
+    var(--c1,#7c5cff),var(--c2,#ff9fd6),
+    var(--cf-accent-mint),var(--cf-accent-cyan),var(--c1,#7c5cff));
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.4px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.4px));
+  animation:cfWaitSpin 1.15s linear infinite;
+}
+.cfWaitPoem{
+  min-height:15px;text-align:center;
+  font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1.6;
+  color:var(--cf-text-soft);
+  animation:cfPoemPulse 3.2s ease-in-out infinite;
+}
+@keyframes cfPoemPulse{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.cfWaitPoem{animation:none;opacity:.85}}
+
+/* ——— language switcher: same capsule aesthetic as the palette toggle ——— */
+.cfLangBtn{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  min-width:52px;height:30px;padding:0 13px;
+  border:1px solid rgba(255,255,255,.58);
+  border-radius:var(--cf-radius-pill);
+  background:rgba(255,255,255,.20);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 10px 24px rgba(32,27,53,.12);
+  -webkit-backdrop-filter:blur(18px) saturate(1.25);backdrop-filter:blur(18px) saturate(1.25);
+  color:var(--cfUiText,#201b35);
+  font:inherit;font-size:11px;font-weight:950;letter-spacing:.10em;
+  cursor:pointer;
+}
+.cfLangBtn::after{content:"▾";font-size:8px;opacity:.65;letter-spacing:0}
+#home .cfLangBtn{margin-right:10px;color:var(--homeText,#fff)}
+html[dir=rtl] #home .cfLangBtn{margin-right:0;margin-left:10px}
+#home .homeUtility .cfPaletteButton{margin-left:0!important}
+.cfLangFixed{
+  position:fixed;right:18px;
+  bottom:calc(150px + env(safe-area-inset-bottom,0px));
+  z-index:76;
+}
+html[dir=rtl] .cfLangFixed{right:auto;left:18px}
+.app:has(#home.screen.active) .cfLangFixed{display:none}
+.app:has(#shareApp.screen.active) .cfLangFixed{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+.cfLangOverlay{
+  position:fixed;inset:0;z-index:2147483000;
+  display:none;align-items:flex-end;justify-content:center;
+  padding:18px;
+  background:rgba(12,10,22,.30);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+}
+.cfLangOverlay.open{display:flex}
+@media (min-width:640px){.cfLangOverlay{align-items:center}}
+.cfLangSheet{
+  width:100%;max-width:340px;
+  padding:18px 16px calc(16px + env(safe-area-inset-bottom,0px));
+  border-radius:var(--cf-radius-lg);
+  background:rgba(255,255,255,.82);
+  -webkit-backdrop-filter:var(--cf-glass-blur);backdrop-filter:var(--cf-glass-blur);
+  border:1px solid var(--cf-glass-border);
+  box-shadow:var(--cf-glass-shadow);
+  animation:cfScreenIn var(--cf-dur) var(--cf-ease);
+}
+@media (prefers-reduced-motion:reduce){.cfLangSheet{animation:none}}
+.cfLangSheet h3{margin:0 0 3px;font-size:15px;font-weight:900;letter-spacing:-.02em;color:var(--cf-text-strong)}
+.cfLangSheet .cfLangSub{margin:0 0 13px;font-size:11px;font-weight:750;color:var(--cf-text-soft)}
+.cfLangList{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cfLangOpt{
+  display:flex;align-items:center;gap:9px;
+  min-height:46px;padding:0 13px;
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:var(--cf-radius-pill);
+  background:rgba(255,255,255,.66);
+  font:inherit;font-weight:850;font-size:12.5px;color:var(--cf-text-strong);
+  cursor:pointer;text-align:start;
+}
+.cfLangOpt b{font-size:10.5px;letter-spacing:.12em;opacity:.62;font-weight:950;min-width:22px}
+.cfLangOpt:active{transform:translateY(1px) scale(.985)}
+.cfLangOpt.on{
+  background:linear-gradient(135deg,
+    color-mix(in srgb,var(--c1,#7c5cff) 82%,#fff),
+    color-mix(in srgb,var(--c2,#ff9fd6) 78%,#fff));
+  border-color:transparent;color:#fff;
+  box-shadow:0 12px 30px rgba(82,22,120,.28);
+}
+.cfLangOpt.on b{opacity:.85}
+
+/* ——— RTL: mirror the inline right-aligned topbar titles ——— */
+html[dir=rtl] .topbar div[style*="text-align:right"]{text-align:left!important}
+html[dir=rtl] .cfLangSheet,html[dir=rtl] .cfLangOpt{text-align:right}
+
+/* ——— CaseFlow type: the original gothic (sans) stack everywhere, with a
+       bold display / regular text rhythm. Headlines, CTAs and controls stay
+       heavy; supporting copy drops to regular so the bold really reads. ——— */
+:root{
+  --cf-font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif;
+}
+/* fallback wordmark (if the logo mask ever fails): bold gothic, never serif */
+.brand h1{font-family:var(--cf-font-sans);font-weight:900;letter-spacing:-.045em}
+/* retire the mono "instrument" captions on the result screen — back to gothic */
+#result #resultCaption,
+#result .simCompareHead span{
+  font-family:var(--cf-font-sans);
+  font-size:10px;letter-spacing:.02em;text-transform:none;opacity:.8;
+  font-weight:500;
+}
+/* top page: bold titles over regular supporting lines */
+.homeSampleButtons .sampleBtnSub{font-weight:500}
+#home .panel > .note{font-weight:500;letter-spacing:.02em}
+#home .brandCredit{font-weight:650}
+/* app-wide supporting copy returns to regular */
+.subtitle{font-weight:500}
+.option p{font-weight:500}
+.note,.dest,.caption,.compareNote{font-weight:500}
+.pairStatus,.pairPreviewHint{font-weight:500}
+.choice span{font-weight:500}
+.checkrow{font-weight:600}
+.cfWaitSub{font-weight:600}
+</style>
+<script id="cf-v97-i18n">
+/* CaseFlow Visual System v9.7 — language switcher + curated i18n.
+   Persisted in localStorage('caseflow_lang'); Arabic flips dir="rtl".
+   Only curated strings (elements carrying data-i18n) and the bottom-nav
+   labels are swapped — no generation, morphing, saving or navigation logic
+   is touched, and Japanese restores the original markup exactly. */
+(function(){
+'use strict';
+var LS_KEY='caseflow_lang';
+var LANGS=[
+  {code:'en',label:'EN',name:'English'},
+  {code:'ja',label:'JA',name:'日本語'},
+  {code:'pt',label:'PT',name:'Português'},
+  {code:'it',label:'IT',name:'Italiano'},
+  {code:'ar',label:'AR',name:'العربية',rtl:true},
+  {code:'zh',label:'ZH',name:'中文'},
+  {code:'ko',label:'KO',name:'한국어'}
+];
+/* ja values mirror the original markup so the default look never changes. */
+var STR={
+  'home.cta':{
+    ja:'Create a Caseflow<br>はじめる', en:'Create a Caseflow',
+    pt:'Criar um Caseflow<br>Começar', it:'Crea un Caseflow<br>Inizia',
+    ar:'إنشاء Caseflow<br>ابدأ', zh:'创建 Caseflow<br>开始', ko:'Create a Caseflow<br>시작하기'},
+  'common.viewSample':{
+    ja:'サンプルをみる', en:'View sample', pt:'Ver amostra', it:'Vedi esempio',
+    ar:'عرض نموذج', zh:'查看示例', ko:'샘플 보기'},
+  'common.save':{
+    ja:'Save', en:'Save', pt:'Salvar', it:'Salva', ar:'حفظ', zh:'保存', ko:'저장'},
+  'start.title':{
+    ja:'何を始めますか？', en:'What shall we create?', pt:'O que vamos criar?',
+    it:'Cosa creiamo oggi?', ar:'ماذا ننشئ اليوم؟', zh:'要开始什么？', ko:'무엇을 시작할까요?'},
+  'start.subtitle':{
+    ja:'Choose a workflow / 機能を選択', en:'Choose a workflow',
+    pt:'Escolha um fluxo de trabalho', it:'Scegli un flusso di lavoro',
+    ar:'اختر سير العمل', zh:'选择工作流程', ko:'워크플로를 선택하세요'},
+  'start.morph.title':{
+    ja:'Morphing Video Studio™︎<br>症例モーフィング動画',
+    en:'Morphing Video Studio™︎<br>Case morphing video',
+    pt:'Morphing Video Studio™︎<br>Vídeo de morphing do caso',
+    it:'Morphing Video Studio™︎<br>Video morphing del caso',
+    ar:'Morphing Video Studio™︎<br>فيديو مورفينغ للحالة',
+    zh:'Morphing Video Studio™︎<br>病例渐变视频',
+    ko:'Morphing Video Studio™︎<br>케이스 모핑 영상'},
+  'start.morph.desc':{
+    ja:'治療前後の変化を、なめらかな症例動画へ。',
+    en:'Turn before / after change into one seamless case film.',
+    pt:'Transforme o antes/depois em um vídeo clínico fluido.',
+    it:'Trasforma il prima/dopo in un video clinico fluido.',
+    ar:'حوّل تغيّر ما قبل وما بعد العلاج إلى فيديو سلس.',
+    zh:'将治疗前后的变化制成流畅的病例视频。',
+    ko:'치료 전후 변화를 부드러운 케이스 영상으로.'},
+  'start.sim.title':{
+    ja:'Visual Simulation Studio™︎<br>審美シミュレーション画像',
+    en:'Visual Simulation Studio™︎<br>Aesthetic simulation image',
+    pt:'Visual Simulation Studio™︎<br>Imagem de simulação estética',
+    it:'Visual Simulation Studio™︎<br>Immagine di simulazione estetica',
+    ar:'Visual Simulation Studio™︎<br>صورة محاكاة تجميلية',
+    zh:'Visual Simulation Studio™︎<br>美学模拟图像',
+    ko:'Visual Simulation Studio™︎<br>심미 시뮬레이션 이미지'},
+  'start.sim.desc':{
+    ja:'スマイルの変化を可視化し、補正量をスライダーで調整できます。',
+    en:'Visualize the new smile and tune each correction with sliders.',
+    pt:'Visualize o novo sorriso e ajuste as correções com sliders.',
+    it:'Visualizza il nuovo sorriso e regola le correzioni con gli slider.',
+    ar:'اعرض الابتسامة الجديدة واضبط التصحيحات بالمنزلقات.',
+    zh:'可视化微笑变化，并用滑块调整校正量。',
+    ko:'스마일 변화를 시각화하고 슬라이더로 보정량을 조정합니다.'},
+  'start.photo.title':{
+    ja:'Photo Manager<br>症例画像の管理・前処理',
+    en:'Photo Manager<br>Case photo management',
+    pt:'Photo Manager<br>Gestão de fotos clínicas',
+    it:'Photo Manager<br>Gestione foto dei casi',
+    ar:'Photo Manager<br>إدارة صور الحالات',
+    zh:'Photo Manager<br>病例图像管理与预处理',
+    ko:'Photo Manager<br>케이스 이미지 관리·전처리'},
+  'start.photo.desc':{
+    ja:'画像の分類、検索、回転、トリミング、レイヤー確認をまとめて行えます。',
+    en:'Sort, search, rotate, crop and layer-check every case photo in one place.',
+    pt:'Classifique, pesquise, gire, recorte e confira camadas num só lugar.',
+    it:'Classifica, cerca, ruota, ritaglia e verifica i livelli in un unico posto.',
+    ar:'صنّف وابحث ودوّر وقصّ وتحقق من الطبقات في مكان واحد.',
+    zh:'在一处完成图像分类、搜索、旋转、裁剪与图层检查。',
+    ko:'이미지 분류·검색·회전·자르기·레이어 확인을 한곳에서.'},
+  'gallery.subtitle':{
+    ja:'Facial / Focus を分類・選択・編集',
+    en:'Sort, select & edit Facial / Focus photos',
+    pt:'Classifique, selecione e edite fotos Facial / Focus',
+    it:'Classifica, seleziona e modifica foto Facial / Focus',
+    ar:'صنّف واختر وحرّر صور الوجه / التركيز',
+    zh:'分类·选择·编辑 Facial / Focus 图像',
+    ko:'Facial / Focus 사진 분류·선택·편집'},
+  'sim.subtitle':{
+    ja:'Reference Preview / 参考イメージ作成', en:'Reference preview',
+    pt:'Pré-visualização de referência', it:'Anteprima di riferimento',
+    ar:'معاينة مرجعية', zh:'参考图像制作', ko:'참고 이미지 생성'},
+  'sim.generate':{
+    ja:'参考イメージを生成', en:'Generate reference image',
+    pt:'Gerar imagem de referência', it:'Genera immagine di riferimento',
+    ar:'إنشاء صورة مرجعية', zh:'生成参考图像', ko:'참고 이미지 생성'},
+  'result.title':{
+    ja:'シミュレーション結果', en:'Simulation result', pt:'Resultado da simulação',
+    it:'Risultato della simulazione', ar:'نتيجة المحاكاة', zh:'模拟结果', ko:'시뮬레이션 결과'},
+  'result.subtitle':{
+    ja:'Simulation / Reference Image', en:'Simulation / Reference image',
+    pt:'Simulação / Imagem de referência', it:'Simulazione / Immagine di riferimento',
+    ar:'محاكاة / صورة مرجعية', zh:'模拟 / 参考图像', ko:'시뮬레이션 / 참고 이미지'},
+  'result.regenerate':{
+    ja:'再生成<br>Again', en:'Regenerate', pt:'Gerar novamente', it:'Rigenera',
+    ar:'إعادة الإنشاء', zh:'重新生成', ko:'다시 생성'},
+  'library.subtitle':{
+    ja:'Saved projects / 作成したプロジェクト', en:'Saved projects',
+    pt:'Projetos salvos', it:'Progetti salvati',
+    ar:'المشاريع المحفوظة', zh:'已保存的项目', ko:'저장된 프로젝트'},
+  'library.note':{
+    ja:'作成したプロジェクトは48時間Libraryに一時保存されます。期限を過ぎると自動的に削除されるため、必要な画像や動画は期限内に保存してください。',
+    en:'Projects stay in the Library for 48 hours, then are removed automatically — download the images and videos you need before they expire.',
+    pt:'Os projetos ficam na Biblioteca por 48 horas e depois são removidos automaticamente — salve o que precisar antes do prazo.',
+    it:'I progetti restano in Libreria per 48 ore, poi vengono rimossi automaticamente: salva ciò che ti serve prima della scadenza.',
+    ar:'تبقى المشاريع في المكتبة لمدة 48 ساعة ثم تُحذف تلقائيًا — احفظ الصور والفيديوهات المطلوبة قبل انتهاء المدة.',
+    zh:'项目将在资料库中临时保存48小时，到期后自动删除，请在期限内保存所需的图像和视频。',
+    ko:'프로젝트는 48시간 동안 라이브러리에 임시 저장되며 이후 자동 삭제됩니다. 필요한 이미지와 영상은 기한 내에 저장하세요.'},
+  'share.subtitle':{
+    ja:'招待 / Invite &amp; share', en:'Invite &amp; share',
+    pt:'Convidar e compartilhar', it:'Invita e condividi',
+    ar:'دعوة ومشاركة', zh:'邀请与共享', ko:'초대 및 공유'},
+  'export.save':{
+    ja:'動画をカメラロールに保存', en:'Save video to camera roll',
+    pt:'Salvar vídeo na galeria', it:'Salva il video nel rullino',
+    ar:'حفظ الفيديو في ألبوم الكاميرا', zh:'将视频保存到相册', ko:'동영상을 카메라 롤에 저장'},
+  /* status vocabulary (available to other scripts via cfI18n.t) */
+  'status.loading':{ja:'読み込み中', en:'Loading', pt:'Carregando', it:'Caricamento', ar:'جارٍ التحميل', zh:'加载中', ko:'불러오는 중'},
+  'status.saving':{ja:'保存中', en:'Saving', pt:'Salvando', it:'Salvataggio', ar:'جارٍ الحفظ', zh:'保存中', ko:'저장 중'},
+  'status.error':{ja:'エラー', en:'Error', pt:'Erro', it:'Errore', ar:'خطأ', zh:'错误', ko:'오류'},
+  'status.completed':{ja:'完了', en:'Completed', pt:'Concluído', it:'Completato', ar:'اكتمل', zh:'完成', ko:'완료'}
+};
+/* bottom-nav labels (ja keeps the original English label look) */
+var NAV={
+  'Project':{ja:'Project', en:'Project', pt:'Projeto', it:'Progetto', ar:'مشروع', zh:'项目', ko:'프로젝트'},
+  'Gallery':{ja:'Gallery', en:'Gallery', pt:'Galeria', it:'Galleria', ar:'المعرض', zh:'图库', ko:'갤러리'},
+  'Sim':{ja:'Sim', en:'Sim', pt:'Sim', it:'Sim', ar:'محاكاة', zh:'模拟', ko:'시뮬'},
+  'Account':{ja:'Account', en:'Account', pt:'Conta', it:'Account', ar:'الحساب', zh:'账户', ko:'계정'},
+  'Library':{ja:'Library', en:'Library', pt:'Biblioteca', it:'Libreria', ar:'المكتبة', zh:'资料库', ko:'라이브러리'},
+  'Invite':{ja:'Invite', en:'Invite', pt:'Convidar', it:'Invita', ar:'دعوة', zh:'邀请', ko:'초대'}
+};
+/* reverse map: any translated nav label → canonical key */
+var NAV_REV={};
+Object.keys(NAV).forEach(function(k){
+  Object.keys(NAV[k]).forEach(function(l){ NAV_REV[NAV[k][l]]=k; });
+});
+/* quiet process poems shown under the wait spinner (EN + local line) */
+var POEMS=[
+  {en:'Analyzing facial balance', ja:'顔貌バランスを解析中', pt:'Analisando o equilíbrio facial',
+   it:'Analisi dell’equilibrio del volto', ar:'تحليل توازن الوجه', zh:'正在解析面部平衡', ko:'얼굴 균형 분석 중'},
+  {en:'Refining smile frame', ja:'スマイルフレームを調整中', pt:'Refinando a moldura do sorriso',
+   it:'Rifinitura della cornice del sorriso', ar:'صقل إطار الابتسامة', zh:'正在调整微笑框架', ko:'스마일 프레임 조정 중'},
+  {en:'Preserving identity', ja:'顔貌の同一性を保持中', pt:'Preservando a identidade',
+   it:'Preservazione dell’identità', ar:'الحفاظ على ملامح الوجه', zh:'正在保持面容同一性', ko:'얼굴 동일성 유지 중'},
+  {en:'Rendering visual simulation', ja:'ビジュアルシミュレーションを生成中', pt:'Renderizando a simulação visual',
+   it:'Rendering della simulazione visiva', ar:'إنشاء المحاكاة البصرية', zh:'正在生成视觉模拟', ko:'비주얼 시뮬레이션 생성 중'},
+  {en:'Preparing morphing sequence', ja:'モーフィングシークエンスを準備中', pt:'Preparando a sequência de morphing',
+   it:'Preparazione della sequenza di morphing', ar:'تحضير تسلسل المورفينغ', zh:'正在准备渐变序列', ko:'모핑 시퀀스 준비 중'}
+];
+
+function getLang(){
+  var v=null;
+  try{ v=localStorage.getItem(LS_KEY); }catch(e){}
+  return LANGS.some(function(l){return l.code===v;}) ? v : 'ja';
+}
+function langMeta(code){
+  for(var i=0;i<LANGS.length;i++) if(LANGS[i].code===code) return LANGS[i];
+  return LANGS[1];
+}
+function t(key){
+  var e=STR[key]; if(!e) return key;
+  var v=e[getLang()];
+  return v!=null ? v : (e.en!=null ? e.en : key);
+}
+
+function applyDataI18n(code){
+  var els=document.querySelectorAll('[data-i18n]');
+  for(var i=0;i<els.length;i++){
+    var el=els[i], entry=STR[el.getAttribute('data-i18n')];
+    if(!entry) continue;
+    var v=entry[code]; if(v==null) v=entry.en; if(v==null) continue;
+    if(el.innerHTML!==v) el.innerHTML=v;
+  }
+}
+function applyNav(code){
+  var navs=document.querySelectorAll('.bottom .nav');
+  for(var i=0;i<navs.length;i++){
+    var btn=navs[i], node=null, nodes=btn.childNodes;
+    for(var j=0;j<nodes.length;j++){
+      if(nodes[j].nodeType===3 && nodes[j].nodeValue.replace(/\s+/g,'')!==''){ node=nodes[j]; break; }
+    }
+    if(!node) continue;
+    var raw=node.nodeValue.trim();
+    var key=NAV_REV[raw]||btn.dataset.cfNavKey;
+    if(!key) continue;
+    btn.dataset.cfNavKey=key;
+    var v=NAV[key][code]!=null?NAV[key][code]:NAV[key].en;
+    if(node.nodeValue!==v) node.nodeValue=v;
+  }
+}
+function applyButtons(code){
+  var m=langMeta(code);
+  document.querySelectorAll('.cfLangBtn').forEach(function(b){ b.textContent=m.label; });
+}
+function apply(code){
+  try{ localStorage.setItem(LS_KEY,code); }catch(e){}
+  var m=langMeta(code);
+  document.documentElement.lang=code;
+  document.documentElement.dir=m.rtl?'rtl':'ltr';
+  applyDataI18n(code);
+  applyNav(code);
+  applyButtons(code);
+  var ov=document.getElementById('cfLangOverlay');
+  if(ov) ov.querySelectorAll('.cfLangOpt').forEach(function(o){
+    o.classList.toggle('on',o.dataset.lang===code);
+    o.setAttribute('aria-pressed',o.dataset.lang===code?'true':'false');
+  });
+}
+
+/* ——— language sheet ——— */
+function ensureOverlay(){
+  var ov=document.getElementById('cfLangOverlay');
+  if(ov) return ov;
+  ov=document.createElement('div');
+  ov.id='cfLangOverlay';
+  ov.className='cfLangOverlay';
+  ov.setAttribute('aria-hidden','true');
+  var sheet=document.createElement('div');
+  sheet.className='cfLangSheet';
+  sheet.setAttribute('role','dialog');
+  sheet.setAttribute('aria-modal','true');
+  sheet.setAttribute('aria-label','Language / 言語設定');
+  sheet.innerHTML='<h3>Language</h3><p class="cfLangSub">言語設定 · Choose your language</p>';
+  var list=document.createElement('div');
+  list.className='cfLangList';
+  LANGS.forEach(function(l){
+    var b=document.createElement('button');
+    b.type='button';
+    b.className='cfLangOpt';
+    b.dataset.lang=l.code;
+    b.innerHTML='<b>'+l.label+'</b><span>'+l.name+'</span>';
+    b.addEventListener('click',function(){ apply(l.code); close(); });
+    list.appendChild(b);
+  });
+  sheet.appendChild(list);
+  ov.appendChild(sheet);
+  ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && ov.classList.contains('open')) close();
+  });
+  document.body.appendChild(ov);
+  function close(){ ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); }
+  ov.__cfClose=close;
+  return ov;
+}
+function openOverlay(){
+  var ov=ensureOverlay();
+  apply(getLang()); /* refresh selected state */
+  ov.classList.add('open');
+  ov.setAttribute('aria-hidden','false');
+  var on=ov.querySelector('.cfLangOpt.on'); if(on) on.focus();
+}
+
+/* ——— trigger buttons ——— */
+function ensureButtons(){
+  var home=document.getElementById('cfLangHomeBtn');
+  if(home && !home.__cfBound){ home.__cfBound=true; home.addEventListener('click',openOverlay); }
+  if(!document.getElementById('cfLangFixedBtn')){
+    var app=document.querySelector('.app');
+    if(app){
+      var b=document.createElement('button');
+      b.type='button';
+      b.id='cfLangFixedBtn';
+      b.className='cfLangBtn cfLangFixed';
+      b.setAttribute('aria-label','Language / 言語設定');
+      b.setAttribute('aria-haspopup','dialog');
+      b.addEventListener('click',openOverlay);
+      app.appendChild(b);
+    }
+  }
+}
+
+/* ——— nav survives later rewrites (Sim → Account swap etc.) ——— */
+function observeNav(){
+  var bar=document.querySelector('.bottom');
+  if(!bar || bar.__cfLangObs) return;
+  bar.__cfLangObs=true;
+  new MutationObserver(function(){ applyNav(getLang()); }).observe(bar,{childList:true,subtree:true});
+}
+
+/* ——— quiet poem line under the wait spinner ——— */
+function installPoems(){
+  var w=window.cfWait;
+  if(!w || w.__cfPoem) return;
+  w.__cfPoem=true;
+  var timer=null, idx=0;
+  function el(){
+    var card=document.querySelector('.cfWaitOverlay .cfWaitCard');
+    if(!card) return null;
+    var p=card.querySelector('.cfWaitPoem');
+    if(!p){ p=document.createElement('div'); p.className='cfWaitPoem'; card.appendChild(p); }
+    return p;
+  }
+  function tick(){
+    var p=el(); if(!p) return;
+    var ph=POEMS[idx%POEMS.length]; idx++;
+    var loc=ph[getLang()]||ph.en;
+    p.innerHTML=(loc===ph.en)?ph.en:(ph.en+'<br>'+loc);
+  }
+  function stopIfHidden(){
+    setTimeout(function(){
+      var o=document.querySelector('.cfWaitOverlay');
+      if((!o || !o.classList.contains('show')) && timer){ clearInterval(timer); timer=null; }
+    },80);
+  }
+  var _show=w.show, _hide=w.hide, _hideAll=w.hideAll;
+  w.show=function(msg,delay){
+    _show(msg,delay);
+    if(!timer){ idx=0; tick(); timer=setInterval(tick,3400); }
+  };
+  w.hide=function(){ _hide(); stopIfHidden(); };
+  w.hideAll=function(){ _hideAll(); stopIfHidden(); };
+}
+
+function boot(){
+  ensureButtons();
+  observeNav();
+  installPoems();
+  apply(getLang());
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
+else boot();
+window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 })();
 </script>
 
