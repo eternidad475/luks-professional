@@ -26713,13 +26713,15 @@ input:focus-visible,textarea:focus-visible,a:focus-visible{
   cursor:pointer;
 }
 .cfLangBtn::after{content:"▾";font-size:8px;opacity:.65;letter-spacing:0}
-/* top page: legibility first — black regular gothic on a slightly more
-   opaque pill so the code always reads against the gradient */
+/* top page: the language code shares the CTA's --primaryBtnText accent
+   (a raw palette colour, re-picked on every background switch) on the
+   more opaque pill so it stays legible and on-brand */
 #home .cfLangBtn{
   margin-right:10px;
-  color:#1c1428!important;
+  color:var(--primaryBtnText,#7c5cff)!important;
   font-weight:600;
   background:rgba(255,255,255,.46);
+  text-shadow:none!important;
 }
 html[dir=rtl] #home .cfLangBtn{margin-right:0;margin-left:10px}
 #home .homeUtility .cfPaletteButton{margin-left:0!important}
@@ -26796,7 +26798,12 @@ html[dir=rtl] .cfLangSheet,html[dir=rtl] .cfLangOpt{text-align:right}
 /* top page: bold titles over regular supporting lines.
    サンプルをみる keeps its original bold gothic weight, just a touch smaller. */
 .homeSampleButtons .sampleBtnSub{font-weight:800;font-size:12px}
-#home .panel > .note{font-weight:500;letter-spacing:.02em}
+/* v9.6 line shares the CTA accent colour for card-wide consistency */
+#home .panel > .note{
+  font-weight:500;letter-spacing:.02em;
+  color:var(--primaryBtnText,#7c5cff)!important;
+  text-shadow:none!important;
+}
 #home .brandCredit{font-weight:650}
 /* main CTA: English line slightly larger; はじめる keeps the base 15px */
 .primary .ctaEn{font-size:17px;letter-spacing:-.01em}
