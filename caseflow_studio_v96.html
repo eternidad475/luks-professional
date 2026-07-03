@@ -4470,6 +4470,25 @@ button[id="localMLDetectButton"]{
 
 </head>
 <body>
+<script>
+/* Early, standalone capture of an invite code from the URL (query or hash) so a
+   pending invite survives login / email-confirm round-trips even if the auth
+   gate initialises late. Formats: ?invite= / ?code= / #invite= / #code=.
+   The gate reads localStorage('cf_pending_invite') to prefill the code field,
+   and clears it on successful redeem. */
+(function(){
+  try{
+    var q=new URLSearchParams(location.search);
+    var v=q.get('invite')||q.get('code');
+    if(!v){
+      var h=String(location.hash||'').replace(/^#/,'');
+      var m=h.match(/(?:^|[&?])(?:invite|code)=([^&]+)/i);
+      if(m){ try{ v=decodeURIComponent(m[1]); }catch(_){ v=m[1]; } }
+    }
+    if(v){ localStorage.setItem('cf_pending_invite', String(v).trim().toUpperCase()); }
+  }catch(e){}
+})();
+</script>
 <!-- ===== Demo access gate (soft, client-side) ===== -->
 <div id="cfDemoGate" style="position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:24px;
   background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);
@@ -25411,6 +25430,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfInvCode{display:flex;align-items:center;gap:8px;border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;color:#231a3a!important;background:#fff}',
     '.cfInvCode b{letter-spacing:.08em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-feature-settings:"zero" 1}',
     '.cfInvCopy{margin-left:auto;border:0;border-radius:9px;padding:7px 11px;background:var(--cf-theme-accent-on-glass,#5b3fd6);color:#fff;font-size:11.5px;font-weight:800;cursor:pointer}',
+    /* invite issue row + new-user kind label (general users) */
+    '.cfInvIssueRow{display:flex;gap:7px;margin-bottom:10px;align-items:stretch}',
+    '.cfInvKind{flex:1;display:flex;flex-direction:column;justify-content:center;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.66);border:1px solid rgba(124,92,255,.14)}',
+    '.cfInvKind b{font-size:13px;font-weight:900;color:#241c46}',
+    '.cfInvKind span{font-size:11px;font-weight:750;color:var(--cf-theme-accent-on-glass,#5b3fd6)}',
+    /* invite history rows: code head + share buttons */
+    '.cfInvCode{flex-direction:column;align-items:stretch;gap:6px}',
+    '.cfInvCodeHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}',
+    '.cfInvCode.dead{opacity:.62}',
+    '.cfInvDeadNote{font-size:10.5px;font-weight:700;color:#a15}',
+    '.cfInvActs{display:flex;gap:6px;flex-wrap:wrap}',
+    '.cfInvMini{border:0;border-radius:8px;padding:6px 10px;background:var(--cf-theme-accent-on-glass,#5b3fd6);color:#fff;font-size:11px;font-weight:800;cursor:pointer}',
+    /* post-issue popup */
+    '.cfIssuedOv{position:fixed;inset:0;z-index:2147483600;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(12,10,22,.42);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}',
+    '.cfIssuedOv.open{display:flex}',
+    '.cfIssuedCard{width:100%;max-width:360px;max-height:calc(100dvh - 96px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px));border-radius:24px;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);border:1px solid rgba(255,255,255,.6);box-shadow:0 32px 80px rgba(30,18,60,.4);color:#241c46}',
+    '.cfIssuedCard h3{margin:0 0 12px;font-size:15px;font-weight:900;letter-spacing:-.01em}',
+    '.cfIssuedLabel{font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:rgba(42,35,80,.55);margin:10px 0 4px}',
+    '.cfIssuedCode{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-feature-settings:\"zero\" 1;font-size:19px;font-weight:900;letter-spacing:.06em;color:var(--cf-theme-accent-on-glass,#3d2b8f);word-break:break-all}',
+    '.cfIssuedLink{font-size:11.5px;color:#5a5470;word-break:break-all;line-height:1.5;background:rgba(124,92,255,.07);border-radius:10px;padding:8px 10px}',
+    '.cfIssuedBtn{display:block;width:100%;margin-top:9px;min-height:46px;border:0;border-radius:999px;background:var(--cf-theme-accent-on-glass,#5b3fd6);color:#fff;font-size:13.5px;font-weight:850;cursor:pointer}',
+    '.cfIssuedBtn.ghost{background:rgba(124,92,255,.10);color:var(--cf-theme-accent-on-glass,#5b3fd6)}',
     /* ===== v9.8 Account Sheet（すりガラス・半透明白・薄い境界線・濃紺見出し） ===== */
     '#cfAcctMenu{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);',
     ' border:1px solid rgba(255,255,255,.55);box-shadow:0 24px 70px rgba(30,18,60,.35);padding:16px 14px!important}',
@@ -25729,6 +25770,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   /* ---------------- can_use_app ---------------- */
   var curBilling=null;
+  var curWorkspace=null; /* the caller's active personal/clinic workspace (type/tokens/name) */
+  async function loadWorkspace(uid){
+    curWorkspace=null;
+    if(!sb) return;
+    try{
+      var w=await sb.from('workspaces')
+        .select('id,type,name,tokens_remaining,owner_user_id,deleted_at')
+        .eq('owner_user_id',uid).is('deleted_at',null)
+        .order('created_at',{ascending:true}).limit(1);
+      if(!w.error && w.data && w.data.length) curWorkspace=w.data[0];
+    }catch(e){ /* workspaces table may not be reachable in some envs — non-fatal */ }
+  }
   async function loadBilling(){
     curBilling=null;
     if(!sb||!curSession) return;
@@ -25763,6 +25816,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
     }catch(e){ console.error('[CF Gate] subscription check exception',e); }
     await loadBilling();
+    await loadWorkspace(uid);
   }
   function canUseApp(){
     if(!curProfile) return false;
@@ -25957,6 +26011,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         } else {
           var d=r.data||{};
           if(d.ok){
+            try{ localStorage.removeItem('cf_pending_invite'); }catch(_){}
             msgBox('cfG2InviteMsg','ようこそ。'+(d.granted?('初回'+d.granted+'トークンを付与しました。'):''),'ok');
             var s=await sb.auth.getSession();
             curSession=s&&s.data?s.data.session:curSession;
@@ -26048,6 +26103,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
       other_dental_professional:'その他歯科医療関係者'};
     /* 表示は Personal / Clinic に統一（sketch/studio は旧データ互換の表示マッピングのみ） */
     var CF_PLAN_JA={ personal:'Personal', clinic:'Clinic', trial:'Trial', developer:'Developer', enterprise:'Enterprise', sketch:'Personal', studio:'Clinic' };
+    /* PLAN 表示名（料金プラン。アカウントタイプとは別概念）。
+       personal 系→Sketch, clinic 系→Clinic Studio に正規化。 */
+    var CF_PLAN_DISP={ trial:'Trial', sketch:'Sketch', personal:'Sketch', personal_plan:'Sketch',
+      studio:'Studio', clinic:'Clinic Studio', clinic_studio:'Clinic Studio', clinic_plan:'Clinic Studio',
+      developer:'Developer', enterprise:'Enterprise', invite_beta:'Invite Beta', free:'Free', addon:'Add-on' };
     function fmtDateJa(iso){
       if(!iso) return '';
       var d=new Date(iso); if(isNaN(d)) return '';
@@ -26089,6 +26149,40 @@ body.cfPresent .cfPresentExit{display:flex!important}
         alert(/sms|provider|not enabled|disabled/i.test(String((e&&e.message)||''))?cfT('smsUnavailable'):'認証に失敗しました。');
       }
     }
+    /* ACCOUNT TYPE — separate concept from billing plan. Extensible for future
+       clinic_member / clinic_shared_seat once clinic membership is wired. */
+    function cfAccountType(){
+      var t=(curWorkspace&&curWorkspace.type)||'personal';
+      var uid=(curSession&&curSession.user&&curSession.user.id)||null;
+      var isOwner=!!(curWorkspace&&uid&&curWorkspace.owner_user_id===uid);
+      if(t==='clinic'){
+        return isOwner
+          ? { key:'clinic', label:'クリニック', desc:'医院・チーム利用のアカウントです' }
+          : { key:'clinic_member', label:'クリニックメンバー', desc:'医院に所属して利用中です' };
+      }
+      if(t==='clinic_shared_seat'){
+        return { key:'clinic_shared_seat', label:'共有端末用アカウント', desc:'クリニック内の共有端末で利用する制限付きアカウントです' };
+      }
+      return { key:'personal', label:'パーソナル', desc:'個人利用のアカウントです' };
+    }
+    /* PLAN — resolve in priority order; never conflated with account type or role. */
+    function cfCurrentPlan(){
+      var active = curBilling && (curBilling.status==='active'||curBilling.status==='trialing'||curBilling.status==='past_due');
+      if(active){
+        var key=String(curBilling.plan||'').toLowerCase();
+        var label = CF_PLAN_DISP[key] || (curBilling.plan||'—');
+        var renew=curBilling.current_period_end?fmtDateJa(curBilling.current_period_end):'';
+        var sub='ご利用中'+(renew?' · 次回更新 '+renew:'')+(curBilling.cancel_at_period_end?' · 期末で解約予定':'');
+        return { key:key, label:label, sub:sub };
+      }
+      if(curProfile && curProfile.beta_access===true){
+        return { key:'invite_beta', label:'Invite Beta', sub:'招待ベータ / 月額契約なし' };
+      }
+      if(curProfile && ADMIN_ROLES.indexOf(curProfile.role)>=0){
+        return { key:'developer', label:'Developer', sub:'開発者用プラン / 月額契約なし' };
+      }
+      return { key:'free', label:'Free', sub:'無料プラン' };
+    }
     function renderAcctMenu(){
       var menu=el('cfAcctMenu'); if(!menu) return;
       menu.innerHTML='';
@@ -26100,32 +26194,55 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var profLabel=profType?(CF_PROF_JA[profType]||profType):'職種未設定';
       var tok=(window.__cfTokens==null?'…':window.__cfTokens);
 
-      /* A. Identity */
+      /* A. ACCOUNT — who is signed in + their role/profession */
       var idSec=document.createElement('div'); idSec.className='cfShSec';
       idSec.innerHTML='<div class="cfShHead">Account</div>'+
         '<div class="cfShCard"><div class="cfShId">'+
           (dispName?'<div class="cfShName">'+esc(dispName)+'</div>':'')+
           '<div class="cfShMail">'+esc(email)+'</div>'+
-          '<div class="cfShMeta">'+esc(role)+' / '+esc(profLabel)+(clinic?'<span style="color:rgba(42,35,80,.5)"> · '+esc(clinic)+'</span>':'')+'</div>'+
+          '<div class="cfShMeta">'+esc(role)+' / '+esc(profLabel)+'</div>'+
         '</div></div>';
       menu.appendChild(idSec);
 
-      /* B. Wallet — 主表示は保有トークン。プラン/ベータ状態は小さなサブテキスト */
-      var plan=(curBilling&&curBilling.plan)?(CF_PLAN_JA[curBilling.plan]||curBilling.plan):'未契約';
-      var renew=(curBilling&&curBilling.current_period_end)?fmtDateJa(curBilling.current_period_end):'';
-      var planSub=esc(plan)+((curBilling&&curBilling.plan)?'':' · 招待ベータ')+
-        (renew?' · 次回更新 '+esc(renew)+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':''):'');
+      /* B. ACCOUNT TYPE — distinct from the billing plan. Extensible mapping. */
+      var at=cfAccountType();
+      var atSec=document.createElement('div'); atSec.className='cfShSec';
+      atSec.innerHTML='<div class="cfShHead">Account Type</div>'+
+        '<div class="cfShCard"><div class="cfShId">'+
+          '<div class="cfShName">'+esc(at.label)+'</div>'+
+          '<div class="cfShSub" style="margin-top:2px">'+esc(at.desc)+'</div>'+
+        '</div></div>';
+      menu.appendChild(atSec);
+
+      /* C. PLAN — subscription > invite-beta > developer > free (never mixes with type) */
+      var pl=cfCurrentPlan();
+      var plSec=document.createElement('div'); plSec.className='cfShSec';
+      plSec.innerHTML='<div class="cfShHead">Plan</div>'+
+        '<div class="cfShCard"><div class="cfShId">'+
+          '<div class="cfShName">'+esc(pl.label)+'</div>'+
+          '<div class="cfShSub" style="margin-top:2px">'+esc(pl.sub)+'</div>'+
+        '</div></div>';
+      menu.appendChild(plSec);
+
+      /* D. WALLET — personal wallet (profiles.tokens_remaining). Clinic wallet is
+         shown separately once clinic membership is wired (see docs); today every
+         account is personal. */
       var walletHead=document.createElement('div');
       walletHead.className='cfWalletSummary';
       walletHead.innerHTML='<div class="cfWalletLabel">保有トークン</div>'+
         '<div class="cfWalletAmount">'+esc(tok)+' <span>tokens</span></div>'+
-        '<div class="cfWalletStatus">'+planSub+'</div>';
-      menu.appendChild(shSection('Wallet',[
-        walletHead,
-        shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
-        shRow('トークンを追加購入','Mini 20 · Standard 100 · Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
-        shRow('支払い管理',(curBilling?'Stripeポータル':'未契約'),null,openPortal)
-      ]));
+        '<div class="cfWalletStatus">個人ウォレット / 個人利用時に消費されます</div>';
+      /* purchases/plan/billing are owner-only for clinic accounts; personal = self */
+      var walletRows=[ walletHead ];
+      var canBill = (at.key!=='clinic_member' && at.key!=='clinic_shared_seat');
+      if(canBill){
+        walletRows.push(shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
+        walletRows.push(shRow('トークンを追加購入','Mini 20 · Standard 100 · Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
+        walletRows.push(shRow('支払い管理',(curBilling?'Stripeポータル':'未契約'),null,openPortal));
+      } else {
+        walletRows.push(shRow('プラン・支払い','クリニック管理者にお問い合わせください',null,function(){}));
+      }
+      menu.appendChild(shSection('Wallet',walletRows));
 
       /* C. Settings */
       menu.appendChild(shSection('Settings',[
@@ -26247,15 +26364,17 @@ body.cfPresent .cfPresentExit{display:flex!important}
         return '<button type="button" data-buy="'+plan+'" class="cfG2BtnGhost" style="font-size:12.5px;margin:0;padding:9px">'+label+'</button>';
       };
       var trialDone=!!(curProfile&&curProfile.trial_tokens_granted);
-      pricingOv.innerHTML='<div style="width:100%;max-width:420px;max-height:88dvh;overflow:auto;background:rgba(255,255,255,.97);border-radius:20px;padding:20px 18px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">'+
+      var _at=cfAccountType(); var _pl=cfCurrentPlan();
+      var usedBadge=function(match){ return _pl.key===match?'<div style="font-size:11.5px;color:#1a8f57;font-weight:800;margin-bottom:8px">利用中 ✓</div>':''; };
+      pricingOv.innerHTML='<div style="width:100%;max-width:420px;max-height:calc(100dvh - 96px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(255,255,255,.97);border-radius:20px;padding:20px 18px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">'+
         '<div style="font-weight:900;font-size:15px;color:#3d2b8f;margin-bottom:4px">プラン / Pricing</div>'+
-        '<div style="font-size:11.5px;color:#7a7290;line-height:1.7;margin-bottom:12px">Visual Simulation と Morphing Video は、1回作成につき 2 tokens 消費します。決済はStripeの安全な画面で行われます（テストモード）。</div>'+
+        '<div style="font-size:11.5px;color:#7a7290;line-height:1.7;margin-bottom:12px">アカウントタイプ（パーソナル / クリニック）と料金プランは別概念です。Visual Simulation と Morphing Video は 1回作成につき 2 tokens 消費します。決済はStripeの安全な画面で行われます（テストモード）。</div>'+
         '<div style="display:grid;gap:10px">'+
-          planCard('Trial','無料','10 tokens（初回のみ・約5回作成分）','初回確認用。支払い方法は不要です。',
+          planCard('Trial','無料','10 tokens（初回のみ・約5回作成分）','初回確認用。支払い方法は不要です。個人ウォレットに付与されます。',
             trialDone?'<div style="font-size:12px;color:#1a8f57;font-weight:800">取得済み ✓</div>'
                      :'<button type="button" data-trial="1" class="cfG2BtnGhost" style="font-size:13px;margin:0">無料で試す</button>')+
-          planCard('Personal','月額 1,500円','100 tokens / 月（約50回作成分）','個人歯科医師向け',buyBtn('personal'))+
-          planCard('Clinic','月額 5,000円','500 tokens / 月（約250回作成分）','1医院向け',buyBtn('clinic'))+
+          planCard('Sketch','月額 1,500円','100 tokens / 月（約50回作成分）','個人利用向け（個人ウォレット）',usedBadge('sketch')+buyBtn('personal'))+
+          planCard('Clinic Studio','月額 5,000円','500 tokens / 月（約250回作成分）','1医院向け（クリニックウォレット・メンバー共有）',usedBadge('clinic')+buyBtn('clinic'))+
         '</div>'+
         '<div style="font-weight:900;font-size:13.5px;color:#3d2b8f;margin:14px 0 8px">追加トークン / Add-on（買い切り）</div>'+
         '<div style="display:grid;gap:8px">'+
@@ -26297,7 +26416,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
         window.__cfCheckoutBusy=false; busy(trialB,false);
       });
       pricingOv.querySelectorAll('[data-buy]').forEach(function(b){
-        b.addEventListener('click',function(){ startCheckout(b.getAttribute('data-buy'), b, priceMsg, busy); });
+        b.addEventListener('click',function(){
+          var plan=b.getAttribute('data-buy');
+          var at=cfAccountType(), pl=cfCurrentPlan();
+          /* Personal account choosing Clinic Studio → confirm migration first
+             (never flips workspaces.type from the client; that is a future
+             owner-gated RPC). Only after confirmation proceed to checkout. */
+          if(plan==='clinic' && at.key==='personal'){
+            if(!confirm('クリニックアカウントに移行しますか？\n\n医院・チーム単位で利用し、メンバー管理と共有トークンが利用できるようになります。移行後にクリニックプランのお支払いに進みます。\n\n（医院名などの入力と正式な移行処理は今後の専用手続きで行います）')){
+              return;
+            }
+            priceMsg('クリニックアカウント移行のお手続きは順次ご案内します。まずはクリニックプランのお支払いに進みます。','info');
+          }
+          /* Clinic account owner choosing a personal plan → do not silently
+             downgrade; clinic → personal is not a one-tap action. */
+          if(plan==='personal' && (at.key==='clinic')){
+            priceMsg('クリニック契約から個人プランへの変更は、メンバー・共有データ・請求の整理が必要です。個人プランに戻すにはサポートへお問い合わせください。','err');
+            return;
+          }
+          startCheckout(plan, b, priceMsg, busy);
+        });
       });
     }
     async function startCheckout(plan,btn,priceMsg,busy){
@@ -26362,42 +26500,95 @@ body.cfPresent .cfPresentExit{display:flex!important}
     function inviteLink(code){
       return location.origin+location.pathname+'?invite='+encodeURIComponent(code)+'&beta_gate=on';
     }
+    /* clipboard with iOS Safari textarea fallback + toast */
+    async function cfCopyText(text, okMsg){
+      var ok=false;
+      try{ await navigator.clipboard.writeText(text); ok=true; }
+      catch(e){
+        try{
+          var ta=document.createElement('textarea'); ta.value=text; ta.setAttribute('readonly','');
+          ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          try{ ta.setSelectionRange(0, text.length); }catch(_){}
+          ok=document.execCommand('copy'); document.body.removeChild(ta);
+        }catch(e2){ ok=false; }
+      }
+      if(ok){ if(typeof toast==='function') toast(okMsg||'コピーしました'); }
+      else { try{ prompt('コピーしてください', text); }catch(_){} }
+      return ok;
+    }
+    function cfInviteMail(code){
+      var link=inviteLink(code);
+      return 'CaseFlow Studioへの招待コードをお送りします。\n\n招待コード:\n'+code+'\n\n'+
+             '以下のリンクからアクセスし、招待コードを入力してください。\n'+link+'\n\n'+
+             'CaseFlow Studio\nhttps://caseflow-studio.com';
+    }
+    /* post-issue popup: show + copy the freshly issued code (no reliance on the link) */
+    function cfShowInviteIssued(code){
+      var link=inviteLink(code);
+      var ov=document.getElementById('cfInviteIssuedOv');
+      if(!ov){ ov=document.createElement('div'); ov.id='cfInviteIssuedOv'; ov.className='cfIssuedOv'; document.body.appendChild(ov); }
+      ov.innerHTML='<div class="cfIssuedCard" role="dialog" aria-modal="true" aria-label="招待コードを発行しました">'+
+        '<h3>新規ユーザー招待コードを発行しました</h3>'+
+        '<div class="cfIssuedLabel">招待コード</div><div class="cfIssuedCode">'+esc(code)+'</div>'+
+        '<div class="cfIssuedLabel">招待用リンク</div><div class="cfIssuedLink">'+esc(link)+'</div>'+
+        '<button type="button" class="cfIssuedBtn" data-c="code">招待コードをコピー</button>'+
+        '<button type="button" class="cfIssuedBtn" data-c="link">招待リンクをコピー</button>'+
+        '<button type="button" class="cfIssuedBtn" data-c="mail">招待メール文をコピー</button>'+
+        '<button type="button" class="cfIssuedBtn ghost" data-c="close">閉じる</button>'+
+      '</div>';
+      ov.classList.add('open');
+      ov.querySelector('[data-c="code"]').onclick=function(){ cfCopyText(code,'招待コードをコピーしました'); };
+      ov.querySelector('[data-c="link"]').onclick=function(){ cfCopyText(link,'招待リンクをコピーしました'); };
+      ov.querySelector('[data-c="mail"]').onclick=function(){ cfCopyText(cfInviteMail(code),'招待メール文をコピーしました'); };
+      ov.querySelector('[data-c="close"]').onclick=function(){ ov.classList.remove('open'); };
+      ov.onclick=function(e){ if(e.target===ov) ov.classList.remove('open'); };
+    }
     async function renderInvitePanel(){
       var mount=document.getElementById('cfInvitePanelMount');
       if(!mount) return;
       var p=document.getElementById('cfInvitePanel');
       if(!p){ p=document.createElement('div'); p.id='cfInvitePanel'; mount.appendChild(p); }
       if(!canUseApp()){ p.innerHTML=''; return; }
-      if(!isAdmin()){
-        p.innerHTML='<div class="brandLogo cfInvLogo" role="img" aria-label="CASEFLOW STUDIO™"></div>'+
-          '<p class="cfInvHelp">CASEFLOW STUDIO™ は招待制です。現在、招待コードの発行は管理者のみ可能です。<br>'+
-          'ご紹介をご希望の場合は管理者にお問い合わせください。招待が成立すると、あなたにも紹介ボーナストークンが付与されます。</p>';
-        return;
-      }
-      p.innerHTML='<div class="brandLogo cfInvLogo" role="img" aria-label="CASEFLOW STUDIO™"></div>'+
-        '<p class="cfInvHelp">招待コードを発行し、リンクをコピーして共有できます。招待可能人数: 無制限（管理者）。'+
-        '被招待者に10、あなたに5トークンが付与されます（開発者招待は1000/0）。</p>'+
-        '<div style="display:flex;gap:7px;margin-bottom:10px">'+
-          '<select class="cfG2Input" id="cfInvPreset" style="margin:0;flex:1;font-size:13px">'+
-            '<option value="clinical">臨床ベータ招待（dentist・10/5）</option>'+
+      var admin=isAdmin();
+      /* General users see only the new-user invite (no dentist・10/5 internal text,
+         no inviter-bonus wording). Admins additionally get the developer option. */
+      var help = admin
+        ? '新規ユーザー招待コードを発行し、リンクをコピーして共有できます。<br>新規ユーザーには10トークンが付与されます。招待可能数: 管理者は無制限。開発者招待は管理者/開発者専用です。'
+        : '新規ユーザー招待コードを発行し、リンクをコピーして共有できます。<br>招待コードを使用した新規ユーザーには10トークンが付与されます。同時に有効な招待コードは5件まで発行できます。';
+      var selector = admin
+        ? '<select class="cfG2Input" id="cfInvPreset" style="margin:0;flex:1;font-size:13px">'+
+            '<option value="user">新規ユーザー招待（新規ユーザー10）</option>'+
             '<option value="developer">開発者招待（developer・1000/0）</option>'+
-          '</select>'+
+          '</select>'
+        : '<div class="cfInvKind"><b>新規ユーザー招待</b><span>新規ユーザー10</span></div>';
+      p.innerHTML='<div class="brandLogo cfInvLogo" role="img" aria-label="CASEFLOW STUDIO™"></div>'+
+        '<p class="cfInvHelp">'+help+'</p>'+
+        '<div class="cfInvIssueRow">'+selector+
           '<button type="button" class="cfInvCopy" id="cfInvCreate" style="padding:0 16px">発行</button>'+
         '</div>'+
         '<div class="cfG2Msg" id="cfInvMsg"></div>'+
         '<div id="cfInvList" style="font-size:12px;color:#7a7290">読み込み中…</div>';
       document.getElementById('cfInvCreate').addEventListener('click',async function(){
-        var preset=document.getElementById('cfInvPreset').value;
-        var dev=(preset==='developer');
+        var sel=document.getElementById('cfInvPreset');
+        var dev = admin && sel && sel.value==='developer';
         this.disabled=true; msgBox('cfInvMsg','発行中…','info');
         try{
-          var r=await sb.rpc('admin_create_invite_code',{
-            p_code:null, p_invited_email:null, p_role:dev?'developer':'dentist',
-            p_workspace_type:dev?'developer':'personal',
-            p_token_grant_invitee:dev?1000:10, p_token_grant_inviter:dev?0:5,
-            p_max_uses:1, p_expires_at:null });
+          var r;
+          if(dev){
+            r=await sb.rpc('admin_create_invite_code',{
+              p_code:null, p_invited_email:null, p_role:'developer', p_workspace_type:'developer',
+              p_token_grant_invitee:1000, p_token_grant_inviter:0, p_max_uses:1, p_expires_at:null });
+          } else {
+            /* general new-user invite: role/bonus/limit enforced server-side */
+            r=await sb.rpc('create_user_invite');
+          }
           if(r.error) throw r.error;
-          if(r.data&&r.data.ok){ msgBox('cfInvMsg','発行しました: '+r.data.code,'ok'); loadInviteList(); }
+          var d=r.data||{};
+          if(d.ok){ msgBox('cfInvMsg',''); cfShowInviteIssued(d.code); loadInviteList(); }
+          else if(d.reason==='limit_reached'){ msgBox('cfInvMsg','有効な招待コードが上限（5件）に達しています。使用済み・失効したコードは含まれません。','err'); }
+          else if(d.reason==='not_activated'){ msgBox('cfInvMsg','招待コードの発行にはアカウントの有効化が必要です。','err'); }
+          else if(d.reason==='email_unconfirmed'){ msgBox('cfInvMsg','メールアドレスの確認が完了していません。','err'); }
           else msgBox('cfInvMsg','発行に失敗しました。','err');
         }catch(e){ console.error('[CF Invite] create failed',e); msgBox('cfInvMsg','発行に失敗しました。','err'); }
         this.disabled=false;
@@ -26407,24 +26598,33 @@ body.cfPresent .cfPresentExit{display:flex!important}
     async function loadInviteList(){
       var box=document.getElementById('cfInvList'); if(!box) return;
       try{
+        /* RLS returns only the caller's own codes (general users) or all (admin). */
         var r=await sb.from('invite_codes')
-          .select('code,role,used_count,max_uses,revoked_at,expires_at')
-          .order('created_at',{ascending:false}).limit(10);
+          .select('code,role,used_count,max_uses,revoked_at,expires_at,created_at')
+          .order('created_at',{ascending:false}).limit(20);
         if(r.error) throw r.error;
         if(!r.data||!r.data.length){ box.innerHTML='発行済みの招待コードはまだありません。'; return; }
         box.innerHTML='<div style="font-weight:800;color:var(--cf-theme-accent-on-glass,#5b3fd6);margin:4px 0 6px">招待履歴 / Recent codes</div>'+
           r.data.map(function(c){
             var dead=!!c.revoked_at||(c.expires_at&&new Date(c.expires_at)<=new Date())||c.used_count>=c.max_uses;
-            return '<div class="cfInvCode" style="'+(dead?'opacity:.55':'')+'"><b>'+esc(c.code)+'</b>'+
-              '<span>'+esc(c.role)+' · '+c.used_count+'/'+c.max_uses+(dead?' · 使用不可':'')+'</span>'+
-              (dead?'':'<button type="button" class="cfInvCopy" data-copy="'+esc(c.code)+'">リンクをコピー</button>')+'</div>';
+            return '<div class="cfInvCode'+(dead?' dead':'')+'">'+
+              '<div class="cfInvCodeHead"><b>'+esc(c.code)+'</b>'+
+              '<span>'+esc(c.role)+' · '+c.used_count+'/'+c.max_uses+(dead?' · 使用不可':'')+'</span></div>'+
+              (dead
+                ? '<span class="cfInvDeadNote">このコードは使用できません（共有不可）</span>'
+                : '<div class="cfInvActs">'+
+                    '<button type="button" class="cfInvMini" data-copy="code" data-code="'+esc(c.code)+'">コード</button>'+
+                    '<button type="button" class="cfInvMini" data-copy="link" data-code="'+esc(c.code)+'">リンク</button>'+
+                    '<button type="button" class="cfInvMini" data-copy="mail" data-code="'+esc(c.code)+'">メール文</button>'+
+                  '</div>')+
+              '</div>';
           }).join('');
         box.querySelectorAll('[data-copy]').forEach(function(b){
-          b.addEventListener('click',async function(){
-            var link=inviteLink(b.getAttribute('data-copy'));
-            try{ await navigator.clipboard.writeText(link); b.textContent='コピーしました ✓'; }
-            catch(e){ console.error('[CF Invite] copy failed',e); prompt('リンクをコピーしてください', link); }
-            setTimeout(function(){ b.textContent='リンクをコピー'; },1600);
+          b.addEventListener('click',function(){
+            var code=b.getAttribute('data-code'), kind=b.getAttribute('data-copy');
+            if(kind==='code') cfCopyText(code,'招待コードをコピーしました');
+            else if(kind==='link') cfCopyText(inviteLink(code),'招待リンクをコピーしました');
+            else cfCopyText(cfInviteMail(code),'招待メール文をコピーしました');
           });
         });
       }catch(e){ console.error('[CF Invite] list failed',e); box.innerHTML='招待履歴を取得できませんでした。'; }
@@ -26439,10 +26639,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
       }
     })();
 
-    /* --- 招待リンク（?invite=CODE）からのプレフィル --- */
+    /* --- 招待リンクからのプレフィル ---
+       対応: ?invite=CODE / ?code=CODE / #invite=CODE / #code=CODE
+       検出したコードは pending として localStorage に保存し、ログイン/メール確認後の
+       招待入力画面でも復元。redeem 成功時に削除。無効/失敗時は入力欄から勝手に消さない。 */
+    function cfReadInviteFromUrl(){
+      try{
+        var q=new URLSearchParams(location.search);
+        var v=q.get('invite')||q.get('code');
+        if(!v){
+          var h=String(location.hash||'').replace(/^#/,'');
+          var m=h.match(/(?:^|[&?])(?:invite|code)=([^&]+)/i);
+          if(m) v=decodeURIComponent(m[1]);
+        }
+        return v?String(v).trim().toUpperCase():'';
+      }catch(e){ console.error('[CF Gate] invite url parse failed',e); return ''; }
+    }
     try{
-      var invParam=new URLSearchParams(location.search).get('invite');
-      if(invParam){ var iv=el('cfG2Invite'); if(iv) iv.value=invParam.toUpperCase(); }
+      var invParam=cfReadInviteFromUrl();
+      if(invParam){ try{ localStorage.setItem('cf_pending_invite', invParam); }catch(_){} }
+      var pending=invParam;
+      if(!pending){ try{ pending=localStorage.getItem('cf_pending_invite')||''; }catch(_){} }
+      if(pending){ var iv=el('cfG2Invite'); if(iv && !iv.value) iv.value=pending; }
     }catch(e){ console.error('[CF Gate] invite param parse failed',e); }
     el('cfFbClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
     el('cfFbDoneClose').addEventListener('click',function(){ fbModal.classList.remove('open'); });
