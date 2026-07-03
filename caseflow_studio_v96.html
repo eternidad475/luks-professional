@@ -26699,6 +26699,18 @@ input:focus-visible,textarea:focus-visible,a:focus-visible{
 @keyframes cfPoemPulse{0%,100%{opacity:.55}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.cfWaitPoem{animation:none;opacity:.85}}
 
+/* ——— CTA accent, split per surface ———
+   --cf-cta-text          : the bright palette accent on the solid CTA button
+   --cf-cta-text-on-glass : same accent mixed toward the ink colour so it
+                            still reads on pale glass (yellow → amber/ochre,
+                            violet → deep violet). Re-resolves on every
+                            background switch because it chains off
+                            --primaryBtnText. ——— */
+:root{
+  --cf-cta-text:var(--primaryBtnText,#7c5cff);
+  --cf-cta-text-on-glass:color-mix(in srgb,var(--primaryBtnText,#7c5cff) 48%,#241b33);
+}
+
 /* ——— language switcher: same capsule aesthetic as the palette toggle ——— */
 .cfLangBtn{
   display:inline-flex;align-items:center;justify-content:center;gap:5px;
@@ -26713,12 +26725,11 @@ input:focus-visible,textarea:focus-visible,a:focus-visible{
   cursor:pointer;
 }
 .cfLangBtn::after{content:"▾";font-size:8px;opacity:.65;letter-spacing:0}
-/* top page: the language code shares the CTA's --primaryBtnText accent
-   (a raw palette colour, re-picked on every background switch) on the
-   more opaque pill so it stays legible and on-brand */
+/* top page: the language code keeps the CTA accent family but uses the
+   ink-mixed on-glass variant so it stays legible on the pale pill */
 #home .cfLangBtn{
   margin-right:10px;
-  color:var(--primaryBtnText,#7c5cff)!important;
+  color:var(--cf-cta-text-on-glass,#5b3fd6)!important;
   font-weight:600;
   background:rgba(255,255,255,.46);
   text-shadow:none!important;
@@ -26798,10 +26809,10 @@ html[dir=rtl] .cfLangSheet,html[dir=rtl] .cfLangOpt{text-align:right}
 /* top page: bold titles over regular supporting lines.
    サンプルをみる keeps its original bold gothic weight, just a touch smaller. */
 .homeSampleButtons .sampleBtnSub{font-weight:800;font-size:12px}
-/* v9.6 line shares the CTA accent colour for card-wide consistency */
+/* v9.6 line: CTA accent family, on-glass contrast variant */
 #home .panel > .note{
   font-weight:500;letter-spacing:.02em;
-  color:var(--primaryBtnText,#7c5cff)!important;
+  color:var(--cf-cta-text-on-glass,#5b3fd6)!important;
   text-shadow:none!important;
 }
 #home .brandCredit{font-weight:650}
