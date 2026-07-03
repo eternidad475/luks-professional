@@ -2835,7 +2835,7 @@ button[id="localMLDetectButton"]{
 .selectionActions .primaryAction{background:#201b35;color:#fff}
 .galleryCard.selectable{cursor:pointer}
 .galleryCard.selectable.selected{box-shadow:0 22px 56px rgba(235,70,165,.26);outline:2px solid rgba(235,70,165,.40)}
-.gallerySelectBtn{position:absolute;left:10px;top:10px;z-index:3;width:30px;height:30px;border:0;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:950;background:rgba(255,255,255,.88);color:rgba(32,27,53,.68);box-shadow:0 8px 20px rgba(32,27,53,.16);backdrop-filter:blur(10px)}
+.gallerySelectBtn{position:absolute;left:10px;top:10px;z-index:3;width:36px;height:36px;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;line-height:1;background:rgba(255,255,255,.88);color:rgba(32,27,53,.68);box-shadow:0 8px 20px rgba(32,27,53,.16);backdrop-filter:blur(10px)}
 .galleryCard.selected .gallerySelectBtn{background:#201b35;color:#fff}
 .galleryThumbShade{position:absolute;inset:auto 0 0 0;height:42%;background:linear-gradient(to top,rgba(7,5,16,.26),transparent);pointer-events:none}
 .galleryInfoBtn{position:absolute;right:10px;top:10px;z-index:3}
@@ -4786,8 +4786,8 @@ button[id="localMLDetectButton"]{
   <div class="pairPanel card" id="pairPanel">
     <div class="smallcaps" style="margin-top:0">Layer Pair / レイヤーペア設定</div>
     <div class="pairGrid">
-      <label class="pairField"><span>Layer 1</span><select id="morphLayerASelect"></select></label>
-      <label class="pairField"><span>Layer 2</span><select id="morphLayerBSelect"></select></label>
+      <label class="pairField"><span>Layer 1 / Before（選択順 1）</span><select id="morphLayerASelect"></select></label>
+      <label class="pairField"><span>Layer 2 / After（選択順 2）</span><select id="morphLayerBSelect"></select></label>
     </div>
     <div class="pairActionRow">
       <button class="secondary smallBtn activeLayerBtn on" id="editLayerABtn" onclick="setMorphEditLayer('a',this)">Edit Layer 1</button>
@@ -7407,7 +7407,7 @@ button[id="localMLDetectButton"]{
 .selectionActions .primaryAction{background:#201b35;color:#fff}
 .galleryCard.selectable{cursor:pointer}
 .galleryCard.selectable.selected{box-shadow:0 22px 56px rgba(235,70,165,.26);outline:2px solid rgba(235,70,165,.40)}
-.gallerySelectBtn{position:absolute;left:10px;top:10px;z-index:3;width:30px;height:30px;border:0;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:950;background:rgba(255,255,255,.88);color:rgba(32,27,53,.68);box-shadow:0 8px 20px rgba(32,27,53,.16);backdrop-filter:blur(10px)}
+.gallerySelectBtn{position:absolute;left:10px;top:10px;z-index:3;width:36px;height:36px;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;line-height:1;background:rgba(255,255,255,.88);color:rgba(32,27,53,.68);box-shadow:0 8px 20px rgba(32,27,53,.16);backdrop-filter:blur(10px)}
 .galleryCard.selected .gallerySelectBtn{background:#201b35;color:#fff}
 .galleryThumbShade{position:absolute;inset:auto 0 0 0;height:42%;background:linear-gradient(to top,rgba(7,5,16,.26),transparent);pointer-events:none}
 .galleryInfoBtn{position:absolute;right:10px;top:10px;z-index:3}
@@ -11407,8 +11407,10 @@ window.addEventListener('DOMContentLoaded', () => {
     return b.i - a.i;
   }
   function selectedIndices(){
-    const keys = new Set(state.photoSelection||[]);
-    return (state.photos||[]).map((p,i)=>({p,i,k:getPhotoKey(p,i)})).filter(row=>keys.has(row.k)).map(row=>row.i);
+    /* state.photoSelection はタップ順の key 配列 — その順を保持して index 化する
+       （表示順・保存順ではなく選択順が Morphing の Layer 1/2 = Before/After になる） */
+    const byKey = new Map((state.photos||[]).map((p,i)=>[getPhotoKey(p,i), i]));
+    return (state.photoSelection||[]).map(k=>byKey.get(k)).filter(i=>i!=null);
   }
   function selectedPhotos(){ return selectedIndices().map(i=>state.photos[i]).filter(Boolean); }
   window.__cfSelectedIndices = selectedIndices;   // exposed for the standardization / WB module
@@ -11438,7 +11440,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const note = $id('studioChooserNote');
     const sim = simulationSelectionStatus(sel);
     if(note){
-      note.textContent = `現在 ${sel.length} 枚選択中。Morphing は最初の2枚を使用し、Simulation は選択した facial または focus を使用します。1枚だけでも開始できます。`;
+      note.textContent = `現在 ${sel.length} 枚選択中。Morphing は選択順の1・2枚目（1 = Before / 2 = After）を使用し、Simulation は選択した facial または focus を使用します。1枚だけでも開始できます。`;
     }
     $id('studioChooser')?.classList.add('open');
   };
@@ -11481,6 +11483,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const q = (state.photoSearch||'').trim().toLowerCase();
     const rows = (state.photos||[]).map((p,i)=>({p,i,k:getPhotoKey(p,i)})).filter(row=>!q || searchIndex(row.p).includes(q)).sort(compareRows);
     const selectedSet = new Set(state.photoSelection||[]);
+    const selOrder = new Map((state.photoSelection||[]).map((key,ix)=>[key,ix+1]));
     const selectedCount = selectedIndices().length;
     const root = $id('uploadGrid'); if(!root) return;
     let html = `
@@ -11519,7 +11522,7 @@ window.addEventListener('DOMContentLoaded', () => {
           <div class="galleryThumb">
             <img src="${p.dataUrl}" alt="${esc(p.name)}">
             <div class="galleryThumbShade"></div>
-            <button class="gallerySelectBtn" onclick="event.stopPropagation();togglePhotoSelection(${i})" aria-label="Select image">${selectedSet.has(k)?'✓':''}</button>
+            <button class="gallerySelectBtn" onclick="event.stopPropagation();togglePhotoSelection(${i})" aria-label="Select image">${selOrder.get(k)||''}</button>
             <button class="infoCircle galleryInfoBtn" onclick="event.stopPropagation();openPhotoManager(${i})" aria-label="Edit image information">i</button>
             <div class="galleryBadge">${i+1}</div>
           </div>
@@ -11801,6 +11804,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const q=(state.photoSearch||'').trim().toLowerCase();
     const rows=(state.photos||[]).map((p,i)=>({p,i,k:getPhotoKey(p,i)})).filter(row=>!q || searchIndex(row.p).includes(q)).sort(compareRows);
     const selectedSet=new Set(state.photoSelection||[]);
+    const selOrder=new Map((state.photoSelection||[]).map((key,ix)=>[key,ix+1]));
     const selectedCount=(state.photos||[]).map((p,i)=>({p,i,k:getPhotoKey(p,i)})).filter(row=>selectedSet.has(row.k)).length;
     const root=$id('uploadGrid'); if(!root) return;
     let html=`<div class="photoHub uploadGridMode">
@@ -11809,7 +11813,7 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="gallerySortStat"><div class="photoSearchWrap"><span>⌕</span><input id="photoSearchInput" placeholder="Search ID / date / category / file name / notes" value="${esc(state.photoSearch||'')}" oninput="setPhotoSearch(this.value)"></div><div class="gallerySortWrap"><label for="gallerySortSelect">Sort</label><select id="gallerySortSelect" onchange="setPhotoSort(this.value)"><option value="recent" ${state.photoSort==='recent'?'selected':''}>Newest</option><option value="oldest" ${state.photoSort==='oldest'?'selected':''}>Oldest</option><option value="date" ${state.photoSort==='date'?'selected':''}>Date</option><option value="id" ${state.photoSort==='id'?'selected':''}>ID</option><option value="name" ${state.photoSort==='name'?'selected':''}>Name</option><option value="category" ${state.photoSort==='category'?'selected':''}>Category</option></select></div><div class="photoHubStat">${rows.length} / ${(state.photos||[]).length} photos</div></div>
       <div class="galleryGrid">`;
     if(rows.length){
-      html += rows.map(({p,i,k})=>`<article class="galleryCard selectable ${selectedSet.has(k)?'selected':''}" onclick="togglePhotoSelection(${i})"><div class="galleryThumb"><img src="${p.dataUrl}" alt="${esc(p.name)}"><div class="galleryThumbShade"></div><button class="gallerySelectBtn" onclick="event.stopPropagation();togglePhotoSelection(${i})" aria-label="Select image">${selectedSet.has(k)?'✓':''}</button><button class="infoCircle galleryInfoBtn" onclick="event.stopPropagation();openPhotoManager(${i})" aria-label="Edit image information">i</button><div class="galleryBadge">${i+1}</div></div><div class="galleryBody"><div class="galleryTop"><div><div class="galleryTitle">${esc(p.metaId)}</div><div class="galleryName">${esc(p.name)}</div></div></div><div class="galleryMeta">${esc(p.shotDate)}${p.notes?`<br>${esc(p.notes).slice(0,72)}`:''}</div><div class="galleryActions"><button class="categoryQuickBtn ${esc(p.category)}" onclick="event.stopPropagation();togglePhotoCategory(${i})">${esc(p.category)}</button></div></div></article>`).join('');
+      html += rows.map(({p,i,k})=>`<article class="galleryCard selectable ${selectedSet.has(k)?'selected':''}" onclick="togglePhotoSelection(${i})"><div class="galleryThumb"><img src="${p.dataUrl}" alt="${esc(p.name)}"><div class="galleryThumbShade"></div><button class="gallerySelectBtn" onclick="event.stopPropagation();togglePhotoSelection(${i})" aria-label="Select image">${selOrder.get(k)||''}</button><button class="infoCircle galleryInfoBtn" onclick="event.stopPropagation();openPhotoManager(${i})" aria-label="Edit image information">i</button><div class="galleryBadge">${i+1}</div></div><div class="galleryBody"><div class="galleryTop"><div><div class="galleryTitle">${esc(p.metaId)}</div><div class="galleryName">${esc(p.name)}</div></div></div><div class="galleryMeta">${esc(p.shotDate)}${p.notes?`<br>${esc(p.notes).slice(0,72)}`:''}</div><div class="galleryActions"><button class="categoryQuickBtn ${esc(p.category)}" onclick="event.stopPropagation();togglePhotoCategory(${i})">${esc(p.category)}</button></div></div></article>`).join('');
     } else {
       html += `<div class="pmEmptyHint" style="grid-column:1/-1">Facial または Focus を選択して画像をアップロードしてください。</div>`;
     }
