@@ -166,30 +166,76 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <body>
 
 <style id="cf-lp-2025">
-/* CaseFlow Studio landing — 2025 rebuild. Reuses the landing gradient/glass/
-   accent tokens; adds poster-spacing sections, glass cards, inline product
-   samples, philosophy + ethics blocks, and Free/Sketch/Clinic Studio plans. */
+/* CaseFlow Studio landing — 2025 rebuild v2. Reuses the landing gradient/glass/
+   accent tokens; adds a live theme switcher, a slow breathing gradient, an
+   inline current-UI phone mock, a 7-language switch, product samples,
+   philosophy + ethics + invitation-only blocks, Global by Design, and
+   Free/Sketch/Clinic Studio plans. */
+
+/* slow, calm breathing of the page gradient (paused for reduced motion) */
+@keyframes lpBreath{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+html{background-size:180% 180% !important;animation:lpBreath 34s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){html{animation:none}}
+
 .lpGlass{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.30);
   border-radius:28px;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
   box-shadow:0 24px 64px rgba(40,20,80,.22)}
 .lpEyebrow{font-size:12px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--accent,#9ff6c8);opacity:.95;margin:0 0 12px}
 .lpSection{padding:72px 0}
 .lpSection h2{font-size:clamp(26px,4.4vw,40px);font-weight:900;line-height:1.12;letter-spacing:-.03em;margin:0 0 14px;text-shadow:0 6px 24px rgba(40,26,70,.3)}
-.lpSection .lpLead{font-size:16px;font-weight:600;line-height:1.75;color:rgba(255,255,255,.92);max-width:640px}
 .lpSection .lpBody{font-size:15px;line-height:1.85;color:rgba(255,255,255,.86);max-width:640px;margin:14px 0 0;font-weight:500}
 .lpHeadWrap{max-width:720px;margin:0 0 30px}
+
+/* nav controls: theme + language */
+.lpNavTools{display:flex;align-items:center;gap:8px}
+.lpThemeDots{display:flex;gap:6px}
+.lpDot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.55);cursor:pointer;padding:0;background-clip:padding-box}
+.lpDot[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.lpDot.purple{background:linear-gradient(135deg,#7c5cff,#ff9fd6)}
+.lpDot.orange{background:linear-gradient(135deg,#ff9a3e,#ff9fd6)}
+.lpDot.cyan{background:linear-gradient(135deg,#69e5ee,#9ff3bf)}
+.lpLang{min-width:50px;height:32px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,.45);
+  background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:11px;font-weight:850;letter-spacing:.08em;cursor:pointer;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+
 /* hero */
-.lpHero{padding:76px 0 40px;text-align:left}
-.lpHero .cfWordmark{height:clamp(34px,7vw,60px);width:min(86vw,560px)}
-.lpHeroTag{font-size:clamp(20px,3.4vw,30px);font-weight:850;letter-spacing:-.03em;margin:20px 0 8px}
+.lpHero{padding:64px 0 40px}
+.lpHeroGrid{display:grid;gap:34px;align-items:center}
+@media(min-width:900px){.lpHeroGrid{grid-template-columns:1.05fr .95fr;gap:44px}}
+.lpHero .cfWordmark{height:clamp(34px,7vw,58px);width:min(86vw,540px)}
+.lpHeroTag{font-size:clamp(20px,3.4vw,30px);font-weight:850;letter-spacing:-.03em;margin:18px 0 8px}
 .lpHeroLead{font-size:16px;font-weight:600;line-height:1.8;color:rgba(255,255,255,.92);max-width:600px;margin:0 0 8px}
 .lpHeroPoem{font-size:14px;font-weight:600;line-height:1.9;color:rgba(255,255,255,.8);max-width:600px;margin:0 0 24px}
 .lpCTAs{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 16px}
-.lpBtn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border-radius:999px;font-size:15px;font-weight:850;letter-spacing:.01em;cursor:pointer;border:1px solid transparent;transition:transform .16s ease,box-shadow .28s ease}
+.lpBtn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border-radius:999px;font-size:15px;font-weight:850;letter-spacing:.01em;cursor:pointer;border:1px solid transparent;transition:transform .16s ease,box-shadow .28s ease;text-align:center}
 .lpBtn:active{transform:translateY(1px) scale(.99)}
 .lpBtn-primary{background:var(--accent,#9ff6c8);color:#20143a;box-shadow:0 16px 40px rgba(0,0,0,.22)}
 .lpBtn-ghost{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.42)}
 .lpNote{font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.72);font-weight:600;max-width:560px}
+
+/* current-UI phone mock (reflects the live top page) */
+.lpPhoneWrap{display:flex;justify-content:center}
+.lpPhone{position:relative;width:min(300px,80vw);aspect-ratio:9/19.5;border-radius:44px;padding:12px;
+  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 40px 90px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.14)}
+.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;
+  background:linear-gradient(150deg,var(--c1,#7c5cff),color-mix(in srgb,var(--c1,#7c5cff) 45%,var(--c2,#ff9fd6)),var(--c2,#ff9fd6));
+  display:flex;flex-direction:column}
+.lpPhoneTop{flex:1;padding:26px 20px 0}
+.lpPhoneWordmark{display:block;height:22px;width:88%;background:#c9ffd8;
+  -webkit-mask:var(--cfWordmarkMask);mask:var(--cfWordmarkMask);-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.lpPhoneTag{color:rgba(255,255,255,.92);font-size:11px;font-weight:800;margin:10px 0 0}
+.lpPhoneCard{margin:14px;padding:14px;border-radius:24px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(10px)}
+.lpPhoneCTA{width:100%;min-height:52px;border-radius:999px;background:#9ff3bf;color:#4a2fb0;font-weight:900;font-size:14px;display:grid;place-items:center;line-height:1.25;text-align:center}
+.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.lpPhoneSub{background:rgba(255,255,255,.8);border-radius:16px;padding:9px 8px;text-align:center}
+.lpPhoneSub b{display:block;font-size:9px;color:#241c46;font-weight:900;white-space:nowrap}
+.lpPhoneSub span{font-size:10px;color:#241c46;font-weight:800}
+.lpPhoneVer{text-align:center;color:#5b3fd6;font-size:10px;font-weight:900;margin-top:8px}
+.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:9px 8px 14px;background:rgba(20,14,38,.5);backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.14)}
+.lpPhoneNav span{font-size:8.5px;font-weight:800;color:rgba(255,255,255,.7);text-align:center;display:grid;gap:2px;justify-items:center}
+.lpPhoneNav span i{font-style:normal;font-size:13px}
+.lpPhoneNav span.on{color:#fff}
+
 /* product samples */
 .lpSamples{display:grid;gap:22px}
 @media(min-width:860px){.lpSamples{grid-template-columns:1fr 1fr;gap:26px}}
@@ -199,21 +245,28 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 .lpSampleCard .lpSampleDesc{font-size:13px;line-height:1.7;color:rgba(255,255,255,.82);font-weight:500;margin:12px 0 0}
 .lpBA{position:relative;border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:4/5}
 .lpBA img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.lpBA .lpBAafter{clip-path:inset(0 0 0 var(--split,50%));}
+.lpBA .lpBAafter{clip-path:inset(0 0 0 var(--split,50%))}
 .lpBADivider{position:absolute;top:0;bottom:0;left:var(--split,50%);width:2px;background:rgba(255,255,255,.9);box-shadow:0 0 14px rgba(255,255,255,.6);transform:translateX(-50%);pointer-events:none}
 .lpBALabels{position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;font-size:10.5px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
 .lpBALabels span{background:rgba(20,14,40,.66);border-radius:999px;padding:4px 9px;backdrop-filter:blur(6px)}
 .lpBARange{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize;margin:0}
 .lpVideoFrame{border-radius:18px;overflow:hidden;background:#0d0a18;aspect-ratio:9/16;max-height:520px}
 .lpVideoFrame video{width:100%;height:100%;object-fit:cover;display:block;background:#0d0a18}
-/* two studios / use cases / steps */
+
+/* atmosphere (theme try) */
+.lpAtmo{padding:34px 26px;text-align:center}
+.lpAtmo .lpThemeDots{justify-content:center;gap:14px;margin:18px 0 4px}
+.lpAtmo .lpDot{width:44px;height:44px}
+.lpAtmoNames{display:flex;justify-content:center;gap:24px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-top:8px}
+
+/* grids / cards / steps / chips */
 .lpGrid3{display:grid;gap:16px}
 @media(min-width:760px){.lpGrid3{grid-template-columns:repeat(3,1fr)}}
 .lpCard{padding:22px 20px}
 .lpCard h3{font-size:17px;font-weight:900;letter-spacing:-.02em;margin:0 0 8px}
 .lpCard p{font-size:13.5px;line-height:1.7;color:rgba(255,255,255,.85);font-weight:500;margin:0}
 .lpCard .lpCardTag{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--accent,#9ff6c8);margin:0 0 6px}
-.lpSteps{display:grid;gap:14px;counter-reset:s}
+.lpSteps{display:grid;gap:14px}
 @media(min-width:760px){.lpSteps{grid-template-columns:repeat(3,1fr)}}
 .lpStep{padding:20px;position:relative}
 .lpStep .lpStepNo{font-size:12px;font-weight:900;letter-spacing:.1em;color:var(--accent,#9ff6c8);margin:0 0 6px}
@@ -221,13 +274,15 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 .lpStep p{font-size:13px;line-height:1.65;color:rgba(255,255,255,.82);font-weight:500;margin:0}
 .lpChips{display:flex;flex-wrap:wrap;gap:9px;max-width:640px}
 .lpChip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:9px 15px;font-size:13px;font-weight:750}
-/* poetic / ethics blocks */
+
+/* manifesto / ethics / invitation */
 .lpManifesto{padding:40px 26px}
 .lpManifesto .lpEyebrow{margin-bottom:6px}
 .lpManifesto h2{font-size:clamp(24px,4vw,36px)}
 .lpManifesto .lpSubtitle{font-size:15px;font-weight:800;color:var(--accent,#9ff6c8);letter-spacing:.01em;margin:2px 0 18px}
 .lpManifesto p{font-size:15.5px;line-height:2.0;color:rgba(255,255,255,.9);font-weight:500;max-width:620px;margin:0 0 14px}
 .lpManifesto p:last-child{margin-bottom:0}
+
 /* plans */
 .lpPlans{display:grid;gap:16px}
 @media(min-width:760px){.lpPlans{grid-template-columns:repeat(3,1fr)}}
@@ -237,20 +292,29 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 .lpPlan .lpPlanTokens{font-size:13px;font-weight:750;color:var(--accent,#9ff6c8);margin:0 0 8px}
 .lpPlan .lpPlanDesc{font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.82);font-weight:500;margin:0}
 .lpPlan.featured{border-color:rgba(159,246,200,.6);box-shadow:0 24px 64px rgba(0,0,0,.28)}
-/* final CTA */
+
 .lpFinal{text-align:center;padding:64px 26px;margin:8px 0}
 .lpFinal h2{margin:0 0 20px}
 .lpFinal .lpCTAs{justify-content:center}
 .lpFinal .lpNote{margin:16px auto 0}
+
+/* RTL */
+html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpHeroLead,html[dir="rtl"] .lpHeroPoem,html[dir="rtl"] .lpBody,html[dir="rtl"] .lpManifesto{margin-left:auto}
+html[dir="rtl"] .lpNote{margin-left:auto}
 </style>
 
 <!-- ===== NAV ===== -->
 <nav class="nav">
   <div class="wrap">
     <a href="#top" class="cfWordmark navMark" role="img" aria-label="CASEFLOW STUDIO"></a>
-    <div class="navCta">
-      <a class="btn btn-ghost" href="#contact">Contact</a>
-      <a class="btn btn-primary" href="/">Start CaseFlow</a>
+    <div class="lpNavTools">
+      <div class="lpThemeDots" role="group" aria-label="Theme">
+        <button class="lpDot purple" data-theme="purple" aria-label="Purple theme" aria-pressed="true"></button>
+        <button class="lpDot orange" data-theme="orange" aria-label="Orange theme" aria-pressed="false"></button>
+        <button class="lpDot cyan" data-theme="cyan" aria-label="Cyan theme" aria-pressed="false"></button>
+      </div>
+      <button class="lpLang" id="lpLangBtn" aria-haspopup="listbox">EN</button>
+      <a class="btn btn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
     </div>
   </div>
 </nav>
@@ -258,16 +322,40 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <!-- ===== HERO ===== -->
 <header class="lpHero" id="top">
   <div class="wrap">
-    <p class="lpEyebrow">For communication, not diagnosis.</p>
-    <h1 style="margin:6px 0 4px"><span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span></h1>
-    <p class="lpHeroTag">Clinical beauty, visualized.</p>
-    <p class="lpHeroLead">歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。</p>
-    <p class="lpHeroPoem">CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。</p>
-    <div class="lpCTAs">
-      <a class="lpBtn lpBtn-primary" href="/">Start CaseFlow</a>
-      <a class="lpBtn lpBtn-ghost" href="#contact">Contact</a>
+    <div class="lpHeroGrid">
+      <div>
+        <p class="lpEyebrow" data-i18n="hero.eyebrow">For communication, not diagnosis.</p>
+        <h1 style="margin:6px 0 4px"><span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span></h1>
+        <p class="lpHeroTag" data-i18n="hero.tag">Clinical beauty, visualized.</p>
+        <p class="lpHeroLead" data-i18n="hero.lead">歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。</p>
+        <p class="lpHeroPoem" data-i18n="hero.poem">CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。</p>
+        <div class="lpCTAs">
+          <a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
+          <a class="lpBtn lpBtn-ghost" href="#contact" data-i18n="cta.contact">Contact</a>
+        </div>
+        <p class="lpNote" data-i18n="hero.note">※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。</p>
+      </div>
+      <!-- current-UI phone mock -->
+      <div class="lpPhoneWrap" aria-hidden="true">
+        <div class="lpPhone"><div class="lpPhoneScreen">
+          <div class="lpPhoneTop">
+            <span class="cfWordmark" style="display:block;height:22px;width:90%"></span>
+            <p class="lpPhoneTag">Clinical beauty, visualized.</p>
+          </div>
+          <div class="lpPhoneCard">
+            <div class="lpPhoneCTA">Create a CaseFlow<br>はじめる</div>
+            <div class="lpPhoneSubs">
+              <div class="lpPhoneSub"><b>Morphing Video Studio™</b><span>サンプル</span></div>
+              <div class="lpPhoneSub"><b>Visual Simulation™</b><span>サンプル</span></div>
+            </div>
+            <div class="lpPhoneVer">v9.6</div>
+          </div>
+          <div class="lpPhoneNav">
+            <span class="on"><i>▤</i>Project</span><span><i>▣</i>Gallery</span><span><i>✦</i>Sim</span><span><i>☰</i>Library</span><span><i>↗</i>Invite</span>
+          </div>
+        </div></div>
+      </div>
     </div>
-    <p class="lpNote">※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。</p>
   </div>
 </header>
 
@@ -275,32 +363,48 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="samples">
   <div class="wrap">
     <div class="lpHeadWrap">
-      <p class="lpEyebrow">The product is visual.</p>
-      <h2>説明より先に、変化を見せる。</h2>
-      <p class="lpBody">CaseFlow Studio は、説明を増やすためのツールではありません。言葉だけでは共有しきれない治療後の印象を、同じ画面で見られるようにするためのツールです。</p>
+      <p class="lpEyebrow" data-i18n="samples.eyebrow">The product is visual.</p>
+      <h2 data-i18n="samples.h2">説明より先に、変化を見せる。</h2>
+      <p class="lpBody" data-i18n="samples.body">CaseFlow Studio は、説明を増やすためのツールではありません。言葉だけでは共有しきれない治療後の印象を、同じ画面で見られるようにするためのツールです。</p>
     </div>
     <div class="lpSamples">
       <article class="lpGlass lpSampleCard">
         <h3>Visual Simulation Studio™</h3>
-        <p class="lpSampleSub">静止画で、仕上がりの方向性を共有する。</p>
+        <p class="lpSampleSub" data-i18n="samples.sim.sub">静止画で、仕上がりの方向性を共有する。</p>
         <div class="lpBA" id="lpBA" style="--split:50%">
-          <img class="lpBAbefore" src="media/inline/sample-facial-before.jpg" alt="治療前の参考イメージ" loading="lazy" decoding="async">
-          <img class="lpBAafter"  src="media/inline/sample-facial-after.jpg"  alt="治療後の参考イメージ" loading="lazy" decoding="async">
-          <div class="lpBADivider" id="lpBADiv"></div>
+          <img class="lpBAbefore" src="media/inline/sample-facial-before.jpg" alt="Before" loading="lazy" decoding="async">
+          <img class="lpBAafter"  src="media/inline/sample-facial-after.jpg"  alt="After" loading="lazy" decoding="async">
+          <div class="lpBADivider"></div>
           <div class="lpBALabels"><span>Before</span><span>After</span></div>
-          <input class="lpBARange" id="lpBARange" type="range" min="0" max="100" value="50" aria-label="Before / After スライダー">
+          <input class="lpBARange" id="lpBARange" type="range" min="0" max="100" value="50" aria-label="Before / After">
         </div>
-        <p class="lpSampleDesc">歯列、色調、歯冠形態、スマイルライン、歯肉ライン。治療意図を、患者さん自身の写真の中に仮置きします。スライダーを動かして Before / After を比較できます。</p>
+        <p class="lpSampleDesc" data-i18n="samples.sim.desc">歯列、色調、歯冠形態、スマイルライン、歯肉ライン。治療意図を、患者さん自身の写真の中に仮置きします。スライダーで Before / After を比較できます。</p>
       </article>
       <article class="lpGlass lpSampleCard">
         <h3>Morphing Video Studio™</h3>
-        <p class="lpSampleSub">動画で、変化のプロセスを伝える。</p>
+        <p class="lpSampleSub" data-i18n="samples.morph.sub">動画で、変化のプロセスを伝える。</p>
         <div class="lpVideoFrame">
-          <video src="media/caseflow_morph.mp4" muted loop autoplay playsinline webkit-playsinline preload="none"
-                 poster="media/inline/sample-facial-after.jpg" aria-label="Morphing Video Studio サンプル"></video>
+          <video src="media/caseflow_morph.mp4" muted loop autoplay playsinline webkit-playsinline preload="none" poster="media/inline/sample-facial-after.jpg" aria-label="Morphing sample"></video>
         </div>
-        <p class="lpSampleDesc">Before / After の差を、症例説明や SNS にも使いやすい、流れのあるビジュアルへ変換します。</p>
+        <p class="lpSampleDesc" data-i18n="samples.morph.desc">Before / After の差を、症例説明や SNS にも使いやすい、流れのあるビジュアルへ変換します。</p>
       </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===== INTERFACE ATMOSPHERE ===== -->
+<section class="lpSection" id="atmosphere">
+  <div class="wrap">
+    <div class="lpGlass lpAtmo">
+      <p class="lpEyebrow" data-i18n="atmo.eyebrow">Interface atmosphere</p>
+      <h2 data-i18n="atmo.h2">Choose the atmosphere.</h2>
+      <p class="lpBody" style="margin-left:auto;margin-right:auto;text-align:center" data-i18n="atmo.body">背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。</p>
+      <div class="lpThemeDots" role="group" aria-label="Theme">
+        <button class="lpDot purple" data-theme="purple" aria-label="Purple" aria-pressed="true"></button>
+        <button class="lpDot orange" data-theme="orange" aria-label="Orange" aria-pressed="false"></button>
+        <button class="lpDot cyan" data-theme="cyan" aria-label="Cyan" aria-pressed="false"></button>
+      </div>
+      <div class="lpAtmoNames"><span>Purple</span><span>Orange</span><span>Cyan</span></div>
     </div>
   </div>
 </section>
@@ -308,18 +412,18 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <!-- ===== PROBLEM ===== -->
 <section class="lpSection" id="problem">
   <div class="wrap lpHeadWrap">
-    <p class="lpEyebrow">The gap</p>
-    <h2>言葉だけでは、未来の笑顔は想像しきれない。</h2>
-    <p class="lpBody">審美歯科、矯正、補綴治療では、患者さんが知りたいのは治療手順だけではありません。自分の口元がどう変わるのか。笑顔の印象がどう変わるのか。そのイメージを共有できるかどうかが、カウンセリングの理解度と納得感を大きく左右します。</p>
+    <p class="lpEyebrow" data-i18n="problem.eyebrow">The gap</p>
+    <h2 data-i18n="problem.h2">言葉だけでは、未来の笑顔は想像しきれない。</h2>
+    <p class="lpBody" data-i18n="problem.body">審美歯科、矯正、補綴治療では、患者さんが知りたいのは治療手順だけではありません。自分の口元がどう変わるのか。笑顔の印象がどう変わるのか。そのイメージを共有できるかどうかが、カウンセリングの理解度と納得感を大きく左右します。</p>
   </div>
 </section>
 
 <!-- ===== SOLUTION ===== -->
 <section class="lpSection" id="solution">
   <div class="wrap lpHeadWrap">
-    <p class="lpEyebrow">The visual layer</p>
-    <h2>説明を、共有できるビジュアルへ。</h2>
-    <p class="lpBody">CaseFlow Studio は、患者さん自身の写真をもとに、歯科医師の治療意図を視覚化します。矯正、補綴、ダイレクトボンディング、スマイルライン、歯冠形態、色調などの変化を参考ビジュアルとして提示し、患者さんと同じゴールを見ながら対話できます。</p>
+    <p class="lpEyebrow" data-i18n="solution.eyebrow">The visual layer</p>
+    <h2 data-i18n="solution.h2">説明を、共有できるビジュアルへ。</h2>
+    <p class="lpBody" data-i18n="solution.body">CaseFlow Studio は、患者さん自身の写真をもとに、歯科医師の治療意図を視覚化します。矯正、補綴、ダイレクトボンディング、スマイルライン、歯冠形態、色調などの変化を参考ビジュアルとして提示し、患者さんと同じゴールを見ながら対話できます。</p>
   </div>
 </section>
 
@@ -327,12 +431,12 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="philosophy">
   <div class="wrap">
     <div class="lpGlass lpManifesto">
-      <p class="lpEyebrow">Design Philosophy</p>
-      <p class="lpSubtitle">Designed from the chairside.</p>
-      <p>臨床現場では、説明の正しさだけでは足りません。</p>
-      <p>患者さんがその説明をどう受け取り、どんな未来を想像し、どこで不安になり、どこで前向きになれるのか。CaseFlow Studio は、その感覚を出発点に設計されています。</p>
-      <p>過度に医療的すぎず、過度に広告的すぎず。診断ツールではなく、ビジュアルコミュニケーションのための臨床スタジオとして。</p>
-      <p>歯科医師の意図を、患者さんが見られるかたちへ翻訳します。</p>
+      <p class="lpEyebrow" data-i18n="philo.eyebrow">Design Philosophy</p>
+      <p class="lpSubtitle" data-i18n="philo.subtitle">Designed from the chairside.</p>
+      <p data-i18n="philo.p1">臨床現場では、説明の正しさだけでは足りません。</p>
+      <p data-i18n="philo.p2">患者さんがその説明をどう受け取り、どんな未来を想像し、どこで不安になり、どこで前向きになれるのか。CaseFlow Studio は、その感覚を出発点に設計されています。</p>
+      <p data-i18n="philo.p3">過度に医療的すぎず、過度に広告的すぎず。診断ツールではなく、ビジュアルコミュニケーションのための臨床スタジオとして。</p>
+      <p data-i18n="philo.p4">歯科医師の意図を、患者さんが見られるかたちへ翻訳します。</p>
     </div>
   </div>
 </section>
@@ -341,25 +445,13 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="studios">
   <div class="wrap">
     <div class="lpHeadWrap">
-      <p class="lpEyebrow">Two studios</p>
-      <h2>静止画で設計し、動画で伝える。</h2>
+      <p class="lpEyebrow" data-i18n="studios.eyebrow">Two studios</p>
+      <h2 data-i18n="studios.h2">静止画で設計し、動画で伝える。</h2>
     </div>
     <div class="lpGrid3">
-      <article class="lpGlass lpCard">
-        <p class="lpCardTag">Simulation</p>
-        <h3>Visual Simulation Studio™</h3>
-        <p>治療後の印象を生成し、補正量を調整しながら、カウンセリングで共有するための静止画シミュレーション。</p>
-      </article>
-      <article class="lpGlass lpCard">
-        <p class="lpCardTag">Morphing</p>
-        <h3>Morphing Video Studio™</h3>
-        <p>Before / After の変化をなめらかな症例動画に変換し、患者説明・症例提示・SNS 投稿に使いやすいビジュアルへ。</p>
-      </article>
-      <article class="lpGlass lpCard">
-        <p class="lpCardTag">Manage</p>
-        <h3>Photo Manager</h3>
-        <p>症例画像の管理、前処理、分類、保存のためのベース機能。</p>
-      </article>
+      <article class="lpGlass lpCard"><p class="lpCardTag">Simulation</p><h3>Visual Simulation Studio™</h3><p data-i18n="studios.sim">治療後の印象を生成し、補正量を調整しながら、カウンセリングで共有するための静止画シミュレーション。</p></article>
+      <article class="lpGlass lpCard"><p class="lpCardTag">Morphing</p><h3>Morphing Video Studio™</h3><p data-i18n="studios.morph">Before / After の変化をなめらかな症例動画に変換し、患者説明・症例提示・SNS 投稿に使いやすいビジュアルへ。</p></article>
+      <article class="lpGlass lpCard"><p class="lpCardTag">Manage</p><h3>Photo Manager</h3><p data-i18n="studios.photo">症例画像の管理、前処理、分類、保存のためのベース機能。</p></article>
     </div>
   </div>
 </section>
@@ -368,13 +460,13 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="workflow">
   <div class="wrap">
     <div class="lpHeadWrap">
-      <p class="lpEyebrow">Workflow</p>
-      <h2>3ステップ、チェアサイドで完結。</h2>
+      <p class="lpEyebrow" data-i18n="workflow.eyebrow">Workflow</p>
+      <h2 data-i18n="workflow.h2">3ステップ、チェアサイドで完結。</h2>
     </div>
     <div class="lpSteps">
-      <article class="lpGlass lpStep"><p class="lpStepNo">01 — Upload</p><h3>取り込む</h3><p>患者さんの顔貌写真・口腔内写真を取り込みます。</p></article>
-      <article class="lpGlass lpStep"><p class="lpStepNo">02 — Generate</p><h3>生成する</h3><p>主訴や治療コンセプトに合わせて参考イメージを生成します。</p></article>
-      <article class="lpGlass lpStep"><p class="lpStepNo">03 — Share</p><h3>共有する</h3><p>スライダー調整、保存、共有、症例動画化まで行います。</p></article>
+      <article class="lpGlass lpStep"><p class="lpStepNo">01 — Upload</p><h3 data-i18n="wf.1.h">取り込む</h3><p data-i18n="wf.1.p">患者さんの顔貌写真・口腔内写真を取り込みます。</p></article>
+      <article class="lpGlass lpStep"><p class="lpStepNo">02 — Generate</p><h3 data-i18n="wf.2.h">生成する</h3><p data-i18n="wf.2.p">主訴や治療コンセプトに合わせて参考イメージを生成します。</p></article>
+      <article class="lpGlass lpStep"><p class="lpStepNo">03 — Share</p><h3 data-i18n="wf.3.h">共有する</h3><p data-i18n="wf.3.p">スライダー調整、保存、共有、症例動画化まで行います。</p></article>
     </div>
   </div>
 </section>
@@ -383,29 +475,39 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="usecases">
   <div class="wrap">
     <div class="lpHeadWrap">
-      <p class="lpEyebrow">Use cases</p>
-      <h2>審美歯科の説明を、もっと伝わる体験へ。</h2>
+      <p class="lpEyebrow" data-i18n="uc.eyebrow">Use cases</p>
+      <h2 data-i18n="uc.h2">審美歯科の説明を、もっと伝わる体験へ。</h2>
     </div>
     <div class="lpChips">
-      <span class="lpChip">矯正相談</span>
-      <span class="lpChip">補綴・セラミック相談</span>
-      <span class="lpChip">ダイレクトボンディング提案</span>
-      <span class="lpChip">スマイルデザイン</span>
-      <span class="lpChip">症例説明</span>
-      <span class="lpChip">SNS 症例投稿</span>
-      <span class="lpChip">院内カウンセリング</span>
-      <span class="lpChip">チーム内の治療イメージ共有</span>
+      <span class="lpChip" data-i18n="uc.1">矯正相談</span>
+      <span class="lpChip" data-i18n="uc.2">補綴・セラミック相談</span>
+      <span class="lpChip" data-i18n="uc.3">ダイレクトボンディング提案</span>
+      <span class="lpChip" data-i18n="uc.4">スマイルデザイン</span>
+      <span class="lpChip" data-i18n="uc.5">症例説明</span>
+      <span class="lpChip" data-i18n="uc.6">SNS 症例投稿</span>
+      <span class="lpChip" data-i18n="uc.7">院内カウンセリング</span>
+      <span class="lpChip" data-i18n="uc.8">チーム内の治療イメージ共有</span>
     </div>
+  </div>
+</section>
+
+<!-- ===== GLOBAL BY DESIGN ===== -->
+<section class="lpSection" id="global">
+  <div class="wrap lpHeadWrap">
+    <p class="lpEyebrow" data-i18n="global.eyebrow">Global by design</p>
+    <h2 data-i18n="global.h2">日本のチェアサイドから、グローバルな歯科ビジュアル体験へ。</h2>
+    <p class="lpBody" data-i18n="global.body">CaseFlow Studio は、日本の歯科臨床の感覚から生まれたプロダクトでありながら、世界中の審美歯科・矯正・補綴の現場で使える Clinical Visual Studio を目指しています。このページの言語は、右上のスイッチで切り替えられます。</p>
+    <p class="lpBody" style="margin-top:10px" data-i18n="global.langs">English · 日本語 · Português · Italiano · العربية · 中文 · 한국어</p>
   </div>
 </section>
 
 <!-- ===== WHY NOW ===== -->
 <section class="lpSection" id="whynow">
   <div class="wrap lpHeadWrap">
-    <p class="lpEyebrow">Why now</p>
-    <h2>なぜ今、CaseFlow Studio なのか。</h2>
-    <p class="lpBody">歯科医療では、デジタルスキャン、CAD/CAM、アライナー矯正、クラウド型ワークフローが進み、患者さんも治療前により明確なイメージを求めるようになっています。</p>
-    <p class="lpBody" style="margin-top:12px">一方で、AI の臨床利用には安全性、説明責任、過度な期待を避ける設計が不可欠です。CaseFlow Studio は、AI を診断者としてではなく、歯科医師と患者さんの対話を支えるビジュアルレイヤーとして位置づけます。</p>
+    <p class="lpEyebrow" data-i18n="why.eyebrow">Why now</p>
+    <h2 data-i18n="why.h2">なぜ今、CaseFlow Studio なのか。</h2>
+    <p class="lpBody" data-i18n="why.p1">歯科医療では、デジタルスキャン、CAD/CAM、アライナー矯正、クラウド型ワークフローが進み、患者さんも治療前により明確なイメージを求めるようになっています。</p>
+    <p class="lpBody" style="margin-top:12px" data-i18n="why.p2">一方で、AI の臨床利用には安全性、説明責任、過度な期待を避ける設計が不可欠です。CaseFlow Studio は、AI を診断者としてではなく、歯科医師と患者さんの対話を支えるビジュアルレイヤーとして位置づけます。</p>
   </div>
 </section>
 
@@ -413,13 +515,26 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <section class="lpSection" id="ethics">
   <div class="wrap">
     <div class="lpGlass lpManifesto" style="border-color:rgba(255,255,255,.4)">
-      <p class="lpEyebrow">Not a filter. Not a promise.</p>
-      <p class="lpSubtitle">A clinical image between intention and understanding.</p>
-      <p>CaseFlow Studio は、写真を盛るためのフィルターではありません。</p>
-      <p>治療結果を保証する予測装置でもありません。</p>
-      <p>それは、歯科医師の意図と患者さんの理解のあいだに置かれる、慎重に設計された視覚のレイヤーです。</p>
-      <p>生成される画像や動画は、診断や治療結果の保証ではなく、説明と共有のための参考イメージです。</p>
-      <p>最終的な診断・治療計画は、歯科医師による診査・診断に基づいて行われます。</p>
+      <p class="lpEyebrow" data-i18n="ethics.eyebrow">Not a filter. Not a promise.</p>
+      <p class="lpSubtitle" data-i18n="ethics.subtitle">A clinical image between intention and understanding.</p>
+      <p data-i18n="ethics.p1">CaseFlow Studio は、写真を盛るためのフィルターではありません。</p>
+      <p data-i18n="ethics.p2">治療結果を保証する予測装置でもありません。</p>
+      <p data-i18n="ethics.p3">それは、歯科医師の意図と患者さんの理解のあいだに置かれる、慎重に設計された視覚のレイヤーです。</p>
+      <p data-i18n="ethics.p4">生成される画像や動画は、診断や治療結果の保証ではなく、説明と共有のための参考イメージです。</p>
+      <p data-i18n="ethics.p5">最終的な診断・治療計画は、歯科医師による診査・診断に基づいて行われます。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== INVITATION-ONLY ACCESS ===== -->
+<section class="lpSection" id="invite">
+  <div class="wrap">
+    <div class="lpGlass lpManifesto">
+      <p class="lpEyebrow" data-i18n="inv.eyebrow">Invitation-only access</p>
+      <p class="lpSubtitle" data-i18n="inv.subtitle">プロダクトを、臨床現場の声で育てる。</p>
+      <p data-i18n="inv.p1">CaseFlow Studio は、現在は完全招待制で提供しています。これは限定感のためではなく、実際の歯科臨床で使われるプロダクトとして、フィードバックの質を保ちながら改善を続けるためです。</p>
+      <p data-i18n="inv.p2">生成画像の品質、説明体験、患者さんへの見せ方、医院内での運用。それらを丁寧に検証しながら、CaseFlow Studio は Clinical Visual Studio として進化していきます。</p>
+      <div class="lpCTAs" style="margin-top:6px"><a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a></div>
     </div>
   </div>
 </section>
@@ -427,74 +542,233 @@ footer .wrap{display:flex;flex-direction:column;align-items:center;justify-conte
 <!-- ===== PLANS ===== -->
 <section class="lpSection" id="plans">
   <div class="wrap">
-    <div class="lpHeadWrap">
-      <p class="lpEyebrow">Plans</p>
-      <h2>Plans</h2>
-    </div>
+    <div class="lpHeadWrap"><p class="lpEyebrow">Plans</p><h2>Plans</h2></div>
     <div class="lpPlans">
       <article class="lpGlass lpPlan">
         <p class="lpPlanName">Free</p>
-        <p class="lpPlanPrice">無料</p>
-        <p class="lpPlanTokens">月額契約なし</p>
-        <p class="lpPlanDesc">まずは無料で。参考イメージ作成の基本フローを体験できます。</p>
+        <p class="lpPlanPrice" data-i18n="plan.free.price">無料</p>
+        <p class="lpPlanTokens" data-i18n="plan.free.tokens">月額契約なし</p>
+        <p class="lpPlanDesc" data-i18n="plan.free.desc">まずは無料で。参考イメージ作成の基本フローを体験できます。</p>
       </article>
       <article class="lpGlass lpPlan featured">
         <p class="lpPlanName">Sketch</p>
-        <p class="lpPlanPrice">月額 1,500円</p>
+        <p class="lpPlanPrice" data-i18n="plan.sketch.price">月額 1,500円</p>
         <p class="lpPlanTokens">100 tokens / 月</p>
-        <p class="lpPlanDesc">個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。</p>
+        <p class="lpPlanDesc" data-i18n="plan.sketch.desc">個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。</p>
       </article>
       <article class="lpGlass lpPlan">
         <p class="lpPlanName">Clinic Studio</p>
-        <p class="lpPlanPrice">月額 5,000円</p>
+        <p class="lpPlanPrice" data-i18n="plan.clinic.price">月額 5,000円</p>
         <p class="lpPlanTokens">500 tokens / 月</p>
-        <p class="lpPlanDesc">1医院向け。医院・チーム単位で症例ビジュアルを共有します。</p>
+        <p class="lpPlanDesc" data-i18n="plan.clinic.desc">1医院向け。医院・チーム単位で症例ビジュアルを共有します。</p>
       </article>
     </div>
-    <p class="lpNote" style="margin-top:16px">生成 1回につき 2 tokens を消費します。追加トークン（Add-on）は買い切りでご利用いただけます。決済は Stripe の安全な画面で行われます。</p>
+    <p class="lpNote" style="margin-top:16px" data-i18n="plans.note">生成 1回につき 2 tokens を消費します。追加トークン（Add-on）は買い切りでご利用いただけます。決済は Stripe の安全な画面で行われます。</p>
   </div>
 </section>
 
 <!-- ===== FUTURE ===== -->
 <section class="lpSection" id="future">
   <div class="wrap lpHeadWrap">
-    <p class="lpEyebrow">Future</p>
-    <h2>From personal studio to clinic visual platform.</h2>
-    <p class="lpBody">CaseFlow Studio は、個人の歯科医師が使うビジュアルツールから、医院・チーム単位で症例ビジュアルを共有する Clinical Visual Platform へ拡張していきます。</p>
-    <p class="lpBody" style="margin-top:12px">個人ウォレット、クリニックウォレット、メンバー管理、共有症例、モーフィング動画、シミュレーション画像を統合し、審美歯科の説明体験をアップデートします。</p>
+    <p class="lpEyebrow" data-i18n="future.eyebrow">Future</p>
+    <h2 data-i18n="future.h2">From personal studio to clinic visual platform.</h2>
+    <p class="lpBody" data-i18n="future.p1">CaseFlow Studio は、個人の歯科医師が使うビジュアルツールから、医院・チーム単位で症例ビジュアルを共有する Clinical Visual Platform へ拡張していきます。</p>
+    <p class="lpBody" style="margin-top:12px" data-i18n="future.p2">個人ウォレット、クリニックウォレット、メンバー管理、共有症例、モーフィング動画、シミュレーション画像を統合し、審美歯科の説明体験をアップデートします。</p>
   </div>
 </section>
 
 <!-- ===== FINAL CTA ===== -->
 <section class="wrap" id="contact">
   <div class="lpGlass lpFinal">
-    <p class="lpEyebrow">Start</p>
-    <h2>説明から、共に描くカウンセリングへ。</h2>
+    <p class="lpEyebrow" data-i18n="final.eyebrow">Start</p>
+    <h2 data-i18n="final.h2">説明から、共に描くカウンセリングへ。</h2>
     <div class="lpCTAs">
-      <a class="lpBtn lpBtn-primary" href="/">Start CaseFlow</a>
-      <a class="lpBtn lpBtn-ghost" href="/legal">Contact</a>
+      <a class="lpBtn lpBtn-primary" href="/" data-i18n="cta.start">Start CaseFlow</a>
+      <a class="lpBtn lpBtn-ghost" href="/legal" data-i18n="cta.contact">Contact</a>
     </div>
-    <p class="lpNote">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
+    <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
   </div>
 </section>
-
 <script>
-/* Before/After compare slider for the Visual Simulation sample (no deps). */
 (function(){
+  /* ---------- live theme switcher (shared localStorage key with the app) ---------- */
+  var THEMES={ purple:{a:'#7c5cff',b:'#ff9fd6'}, orange:{a:'#ff9a3e',b:'#ff9fd6'}, cyan:{a:'#69e5ee',b:'#9ff3bf'} };
+  function applyTheme(name){
+    var t=THEMES[name]||THEMES.purple;
+    document.documentElement.style.setProperty('--c1',t.a);
+    document.documentElement.style.setProperty('--c2',t.b);
+    try{ localStorage.setItem('caseflow_v37_colors', JSON.stringify({a:t.a,b:t.b})); }catch(e){}
+    try{ localStorage.setItem('cf_lp_theme', name); }catch(e){}
+    document.querySelectorAll('.lpDot').forEach(function(d){ d.setAttribute('aria-pressed', d.getAttribute('data-theme')===name?'true':'false'); });
+  }
+  function currentThemeName(){
+    try{ var n=localStorage.getItem('cf_lp_theme'); if(THEMES[n]) return n; }catch(e){}
+    try{ var c=JSON.parse(localStorage.getItem('caseflow_v37_colors')||'null');
+      if(c){ for(var k in THEMES){ if(THEMES[k].a.toLowerCase()===String(c.a).toLowerCase()) return k; } } }catch(e){}
+    return 'purple';
+  }
+  document.querySelectorAll('.lpDot').forEach(function(d){ d.addEventListener('click',function(){ applyTheme(d.getAttribute('data-theme')); }); });
+  applyTheme(currentThemeName());
+
+  /* ---------- before/after slider ---------- */
   var r=document.getElementById('lpBARange'), ba=document.getElementById('lpBA');
-  if(!r||!ba) return;
-  function set(v){ ba.style.setProperty('--split', v+'%'); }
-  r.addEventListener('input',function(){ set(r.value); });
-  set(r.value);
-  /* Pause the morphing sample video when offscreen to save battery/data. */
-  try{
-    var v=document.querySelector('#samples video');
-    if(v && 'IntersectionObserver' in window){
-      new IntersectionObserver(function(es){es.forEach(function(e){
-        if(e.isIntersecting){ v.play&&v.play().catch(function(){}); } else { v.pause&&v.pause(); }
-      });},{threshold:.25}).observe(v);
-    }
+  if(r&&ba){ var set=function(v){ ba.style.setProperty('--split',v+'%'); }; r.addEventListener('input',function(){ set(r.value); }); set(r.value); }
+
+  /* ---------- pause morphing video offscreen ---------- */
+  try{ var v=document.querySelector('#samples video');
+    if(v&&'IntersectionObserver' in window){ new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting){ v.play&&v.play().catch(function(){}); } else { v.pause&&v.pause(); } });},{threshold:.2}).observe(v); }
   }catch(e){}
+
+  /* ---------- language switcher (LP-local i18n; falls back EN then original JA) ---------- */
+  var LANGS=[['en','EN'],['ja','JA'],['pt','PT'],['it','IT'],['ar','AR'],['zh','ZH'],['ko','KO']];
+  var RTL={ar:1};
+  var T={
+   en:{'cta.start':'Start CaseFlow','cta.contact':'Contact',
+     'hero.eyebrow':'For communication, not diagnosis.','hero.tag':'Clinical beauty, visualized.',
+     'hero.lead':'A Clinical Visual Studio where a dentist’s intent and a patient’s future smile are shared on one screen.',
+     'hero.poem':'CaseFlow Studio™ visualizes post-treatment impressions from the patient’s own photo — a clinical visual layer that connects the dentist’s intent with the patient’s understanding.',
+     'hero.note':'※ Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of treatment outcome.',
+     'samples.eyebrow':'The product is visual.','samples.h2':'Show the change before you explain it.',
+     'samples.body':'CaseFlow Studio is not a tool for adding more explanation. It lets you see the post-treatment impression on one shared screen.',
+     'samples.sim.sub':'Share the direction of the result, as a still image.',
+     'samples.sim.desc':'Alignment, shade, crown form, smile line, gingival line — place the treatment intent inside the patient’s own photo. Drag to compare Before / After.',
+     'samples.morph.sub':'Convey the process of change, as a video.',
+     'samples.morph.desc':'Turn the Before / After difference into a flowing visual that works for case explanation and social posts.',
+     'atmo.eyebrow':'Interface atmosphere','atmo.h2':'Choose the atmosphere.',
+     'atmo.body':'Switch the background tone and feel the visual experience of CaseFlow Studio — the atmosphere of the clinical screen is part of the design.',
+     'problem.eyebrow':'The gap','problem.h2':'Words alone can’t picture a future smile.',
+     'problem.body':'In aesthetic, orthodontic and prosthetic care, patients want more than the procedure. How will my mouth change? How will my smile look? Being able to share that image shapes the depth of understanding in counseling.',
+     'solution.eyebrow':'The visual layer','solution.h2':'Turn explanation into a shareable visual.',
+     'solution.body':'From the patient’s own photo, CaseFlow Studio visualizes the dentist’s treatment intent — orthodontics, prosthetics, direct bonding, smile line, crown form, shade — as reference visuals, so you and the patient look at the same goal.',
+     'philo.eyebrow':'Design Philosophy','philo.subtitle':'Designed from the chairside.',
+     'philo.p1':'At the chairside, being correct is not enough.',
+     'philo.p2':'How a patient receives the explanation, what future they picture, where they feel anxious, where they feel hopeful — CaseFlow Studio is designed from that sense.',
+     'philo.p3':'Not too clinical, not too promotional. Not a diagnostic tool, but a clinical studio for visual communication.',
+     'philo.p4':'It translates the dentist’s intent into something the patient can see.',
+     'studios.eyebrow':'Two studios','studios.h2':'Design in stills, convey in video.',
+     'studios.sim':'A still-image simulation to generate the post-treatment impression and tune the correction while sharing it in counseling.',
+     'studios.morph':'Turns the Before / After change into a smooth case video for patient explanation, case presentation and social posts.',
+     'studios.photo':'The base for managing, pre-processing, sorting and saving case images.',
+     'workflow.eyebrow':'Workflow','workflow.h2':'Three steps, done at the chairside.',
+     'wf.1.h':'Upload','wf.1.p':'Bring in the patient’s facial and intraoral photos.',
+     'wf.2.h':'Generate','wf.2.p':'Generate reference visuals for the chief complaint and treatment concept.',
+     'wf.3.h':'Share','wf.3.p':'Adjust with sliders, save, share, and turn into a case video.',
+     'uc.eyebrow':'Use cases','uc.h2':'Make aesthetic-dentistry explanations land.',
+     'uc.1':'Orthodontic consults','uc.2':'Prosthetic / ceramic consults','uc.3':'Direct bonding proposals','uc.4':'Smile design','uc.5':'Case explanation','uc.6':'Social case posts','uc.7':'In-clinic counseling','uc.8':'Team image sharing',
+     'global.eyebrow':'Global by design','global.h2':'From Japanese chairside craft to a global dental visual experience.',
+     'global.body':'CaseFlow Studio was born from the sensibility of Japanese dental practice, yet it is built to be a Clinical Visual Studio for aesthetic, orthodontic and prosthetic care worldwide. Switch the page language from the top-right control.',
+     'global.langs':'English · 日本語 · Português · Italiano · العربية · 中文 · 한국어',
+     'why.eyebrow':'Why now','why.h2':'Why CaseFlow Studio, now.',
+     'why.p1':'Dentistry is moving toward digital scanning, CAD/CAM, aligner orthodontics and cloud workflows, and patients increasingly want a clearer image before treatment.',
+     'why.p2':'At the same time, clinical use of AI demands safety, accountability and a design that avoids over-promising. CaseFlow Studio places AI not as a diagnostician, but as a visual layer that supports the dialogue between dentist and patient.',
+     'ethics.eyebrow':'Not a filter. Not a promise.','ethics.subtitle':'A clinical image between intention and understanding.',
+     'ethics.p1':'CaseFlow Studio is not a filter for flattering photos.',
+     'ethics.p2':'It is not a device that guarantees treatment outcomes.',
+     'ethics.p3':'It is a carefully designed visual layer placed between the dentist’s intent and the patient’s understanding.',
+     'ethics.p4':'Generated images and videos are reference visuals for explanation and sharing — not a diagnosis or an outcome guarantee.',
+     'ethics.p5':'The final diagnosis and treatment plan are made by the dentist’s own examination and judgment.',
+     'inv.eyebrow':'Invitation-only access','inv.subtitle':'Growing the product with clinical voices.',
+     'inv.p1':'CaseFlow Studio is currently offered by invitation only. Not for exclusivity, but so that — as a product used in real dental practice — it can keep improving while preserving the quality of feedback.',
+     'inv.p2':'Generation quality, the explanation experience, how it looks to patients, in-clinic operation. Verifying these carefully, CaseFlow Studio evolves as a Clinical Visual Studio.',
+     'plan.free.price':'Free','plan.free.tokens':'No monthly contract','plan.free.desc':'Start free. Experience the core flow of creating reference visuals.',
+     'plan.sketch.price':'1,500 JPY / mo','plan.sketch.desc':'For individual use. Keep using reference visuals in everyday counseling.',
+     'plan.clinic.price':'5,000 JPY / mo','plan.clinic.desc':'For a single clinic. Share case visuals across the clinic and team.',
+     'plans.note':'Each generation uses 2 tokens. Add-on tokens are available as one-time purchases. Payment is handled on Stripe’s secure screen.',
+     'future.eyebrow':'Future','future.h2':'From personal studio to clinic visual platform.',
+     'future.p1':'CaseFlow Studio will grow from a visual tool for individual dentists into a Clinical Visual Platform where clinics and teams share case visuals.',
+     'future.p2':'Integrating personal and clinic wallets, member management, shared cases, morphing videos and simulation images to update the aesthetic-dentistry explanation experience.',
+     'final.eyebrow':'Start','final.h2':'From explaining, to designing together.',
+     'final.note':'Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome.'},
+   ja:{'cta.start':'はじめる','cta.contact':'お問い合わせ',
+     'hero.eyebrow':'診断ではなく、対話のために。','hero.tag':'Clinical beauty, visualized.',
+     'atmo.eyebrow':'インターフェースの空気感','atmo.h2':'空気感を、選ぶ。',
+     'atmo.body':'背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。',
+     'problem.eyebrow':'ギャップ','solution.eyebrow':'視覚のレイヤー',
+     'samples.eyebrow':'プロダクトは、視覚。','studios.eyebrow':'ふたつのスタジオ',
+     'workflow.eyebrow':'ワークフロー','uc.eyebrow':'活用シーン',
+     'global.eyebrow':'グローバル・バイ・デザイン','global.h2':'日本のチェアサイドから、グローバルな歯科ビジュアル体験へ。',
+     'why.eyebrow':'なぜ今か','ethics.eyebrow':'フィルターでも、約束でもない。',
+     'ethics.subtitle':'意図と理解のあいだに置く、臨床の像。',
+     'philo.eyebrow':'デザイン思想','philo.subtitle':'チェアサイドから設計する。',
+     'inv.eyebrow':'完全招待制','inv.subtitle':'プロダクトを、臨床現場の声で育てる。',
+     'future.eyebrow':'これから','final.eyebrow':'はじめる',
+     'plan.free.price':'無料','plan.free.tokens':'月額契約なし',
+     'plan.sketch.price':'月額 1,500円','plan.clinic.price':'月額 5,000円'},
+   pt:{'cta.start':'Começar','cta.contact':'Contato','hero.eyebrow':'Para comunicação, não diagnóstico.','hero.tag':'Clinical beauty, visualized.',
+     'samples.eyebrow':'O produto é visual.','samples.h2':'Mostre a mudança antes de explicar.',
+     'atmo.eyebrow':'Atmosfera da interface','atmo.h2':'Escolha a atmosfera.',
+     'problem.h2':'Só com palavras não se imagina o sorriso futuro.','solution.h2':'Transforme a explicação em um visual compartilhável.',
+     'studios.h2':'Projete em imagens, comunique em vídeo.','workflow.h2':'Três passos, na cadeira.',
+     'uc.h2':'Faça a explicação da odontologia estética chegar.','global.eyebrow':'Global por design',
+     'global.h2':'Do chairside japonês para uma experiência visual odontológica global.','why.h2':'Por que CaseFlow Studio, agora.',
+     'ethics.eyebrow':'Não é filtro. Não é promessa.','inv.eyebrow':'Acesso somente por convite','inv.subtitle':'Evoluindo com a voz clínica.',
+     'plan.free.price':'Grátis','plan.free.tokens':'Sem contrato mensal','plan.sketch.price':'1.500 JPY / mês','plan.clinic.price':'5.000 JPY / mês',
+     'final.h2':'De explicar, para desenhar juntos.'},
+   it:{'cta.start':'Inizia','cta.contact':'Contatto','hero.eyebrow':'Per comunicare, non per diagnosticare.','hero.tag':'Clinical beauty, visualized.',
+     'samples.eyebrow':'Il prodotto è visivo.','samples.h2':'Mostra il cambiamento prima di spiegarlo.',
+     'atmo.eyebrow':'Atmosfera dell’interfaccia','atmo.h2':'Scegli l’atmosfera.',
+     'problem.h2':'Le parole da sole non bastano a immaginare il sorriso futuro.','solution.h2':'Trasforma la spiegazione in un visual condivisibile.',
+     'studios.h2':'Progetta in immagini, comunica in video.','workflow.h2':'Tre passi, alla poltrona.',
+     'uc.h2':'Fai arrivare la spiegazione dell’odontoiatria estetica.','global.eyebrow':'Globale per design',
+     'global.h2':'Dal chairside giapponese a un’esperienza visiva odontoiatrica globale.','why.h2':'Perché CaseFlow Studio, ora.',
+     'ethics.eyebrow':'Non un filtro. Non una promessa.','inv.eyebrow':'Accesso solo su invito','inv.subtitle':'Cresce con la voce clinica.',
+     'plan.free.price':'Gratis','plan.free.tokens':'Nessun contratto mensile','plan.sketch.price':'1.500 JPY / mese','plan.clinic.price':'5.000 JPY / mese',
+     'final.h2':'Dallo spiegare, al progettare insieme.'},
+   ar:{'cta.start':'ابدأ','cta.contact':'تواصل','hero.eyebrow':'للتواصل، لا للتشخيص.','hero.tag':'Clinical beauty, visualized.',
+     'samples.eyebrow':'المنتج بصري.','samples.h2':'أظهر التغيير قبل أن تشرحه.',
+     'atmo.eyebrow':'أجواء الواجهة','atmo.h2':'اختر الأجواء.',
+     'problem.h2':'الكلمات وحدها لا تكفي لتخيّل الابتسامة المستقبلية.','solution.h2':'حوّل الشرح إلى صورة قابلة للمشاركة.',
+     'studios.h2':'صمّم بالصور، وعبّر بالفيديو.','workflow.h2':'ثلاث خطوات، بجانب الكرسي.',
+     'uc.h2':'اجعل شرح طب الأسنان التجميلي يصل.','global.eyebrow':'عالمي بالتصميم',
+     'global.h2':'من ممارسة الأسنان اليابانية إلى تجربة بصرية عالمية.','why.h2':'لماذا CaseFlow Studio الآن.',
+     'ethics.eyebrow':'ليس فلترًا. ليس وعدًا.','inv.eyebrow':'الوصول بالدعوة فقط','inv.subtitle':'ننمّي المنتج بأصوات العيادة.',
+     'plan.free.price':'مجاني','plan.free.tokens':'بدون اشتراك شهري','plan.sketch.price':'1,500 JPY / شهر','plan.clinic.price':'5,000 JPY / شهر',
+     'final.h2':'من الشرح، إلى التصميم معًا.'},
+   zh:{'cta.start':'开始使用','cta.contact':'联系','hero.eyebrow':'用于沟通，而非诊断。','hero.tag':'Clinical beauty, visualized.',
+     'samples.eyebrow':'产品即视觉。','samples.h2':'先让对方看到变化，再解释。',
+     'atmo.eyebrow':'界面氛围','atmo.h2':'选择你的氛围。',
+     'problem.h2':'仅凭语言，难以想象未来的笑容。','solution.h2':'把说明变成可共享的视觉。',
+     'studios.h2':'以静图设计，以视频传达。','workflow.h2':'三步，椅旁完成。',
+     'uc.h2':'让美学牙科的说明更易传达。','global.eyebrow':'为全球而设计',
+     'global.h2':'从日本椅旁工艺，到全球牙科视觉体验。','why.h2':'为什么是现在的 CaseFlow Studio。',
+     'ethics.eyebrow':'不是滤镜，不是承诺。','inv.eyebrow':'完全邀请制','inv.subtitle':'以临床之声培育产品。',
+     'plan.free.price':'免费','plan.free.tokens':'无月度合约','plan.sketch.price':'每月 1,500 日元','plan.clinic.price':'每月 5,000 日元',
+     'final.h2':'从说明，到共同设计。'},
+   ko:{'cta.start':'시작하기','cta.contact':'문의','hero.eyebrow':'진단이 아니라, 소통을 위해.','hero.tag':'Clinical beauty, visualized.',
+     'samples.eyebrow':'제품은 시각이다.','samples.h2':'설명보다 먼저, 변화를 보여준다.',
+     'atmo.eyebrow':'인터페이스 분위기','atmo.h2':'분위기를 선택하세요.',
+     'problem.h2':'말만으로는 미래의 미소를 상상하기 어렵습니다.','solution.h2':'설명을 공유 가능한 비주얼로.',
+     'studios.h2':'정지 이미지로 설계하고, 영상으로 전달한다.','workflow.h2':'세 단계, 체어사이드에서 완결.',
+     'uc.h2':'심미 치과 설명을 더 잘 전달되게.','global.eyebrow':'글로벌 바이 디자인',
+     'global.h2':'일본의 체어사이드에서, 글로벌 치과 비주얼 경험으로.','why.h2':'왜 지금 CaseFlow Studio 인가.',
+     'ethics.eyebrow':'필터도, 약속도 아닙니다.','inv.eyebrow':'완전 초대제','inv.subtitle':'임상 현장의 목소리로 제품을 키운다.',
+     'plan.free.price':'무료','plan.free.tokens':'월 계약 없음','plan.sketch.price':'월 1,500엔','plan.clinic.price':'월 5,000엔',
+     'final.h2':'설명에서, 함께 그리는 상담으로.'}
+  };
+  // capture original (JA) text as ultimate fallback
+  var nodes=document.querySelectorAll('[data-i18n]');
+  nodes.forEach(function(el){ el.setAttribute('data-i18n-def', el.textContent); });
+  function getLang(){ try{ var l=localStorage.getItem('caseflow_lang'); if(T[l]) return l; }catch(e){} return 'ja'; }
+  function apply(lang){
+    if(!T[lang]) lang='ja';
+    try{ localStorage.setItem('caseflow_lang', lang); }catch(e){}
+    document.documentElement.setAttribute('lang', lang);
+    document.documentElement.setAttribute('dir', RTL[lang]?'rtl':'ltr');
+    nodes.forEach(function(el){
+      var k=el.getAttribute('data-i18n');
+      var v=(T[lang]&&T[lang][k]);
+      if(v==null && lang!=='ja') v=(T.en&&T.en[k]); // non-JA: fall back to EN
+      if(v==null) v=el.getAttribute('data-i18n-def'); // else original JA text
+      if(v!=null && el.textContent!==v) el.textContent=v;
+    });
+    var b=document.getElementById('lpLangBtn'); if(b){ var m={en:'EN',ja:'JA',pt:'PT',it:'IT',ar:'AR',zh:'ZH',ko:'KO'}; b.textContent=m[lang]||'EN'; }
+  }
+  var langBtn=document.getElementById('lpLangBtn');
+  if(langBtn){ langBtn.addEventListener('click',function(){
+    var order=LANGS.map(function(x){return x[0];});
+    var cur=getLang(); var i=order.indexOf(cur); apply(order[(i+1)%order.length]);
+  }); }
+  apply(getLang());
 })();
 </script>
 
