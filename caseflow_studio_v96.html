@@ -25441,6 +25441,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
     ' border-radius:999px;background:var(--cf-theme-badge-bg,linear-gradient(135deg,#7c5cff,#b06bff));color:#fff;font-size:9px;font-weight:900;text-align:center;',
     ' box-shadow:0 2px 8px rgba(90,60,220,.45);pointer-events:none;letter-spacing:0}',
     '.cfNavTokBadge.big{transform:translateX(7px);padding:0 5px}',
+    /* depleted (0 tokens) warning — red, overrides the theme gradient */
+    '.cfNavTokBadge.empty{background:linear-gradient(135deg,#d0455a,#e0607a)!important}',
     /* pricing modal: in-modal message + button loading */
     '#cfPriceMsg{display:none;font-size:12px;font-weight:750;margin:10px 0 0;padding:9px 11px;border-radius:10px;line-height:1.6}',
     '.cfBtnBusy{opacity:.6;pointer-events:none}',
@@ -25613,7 +25615,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var t=(n==null)?'…':(n>99?'99+':String(Math.max(0,n)));
     nb.textContent=t;
     nb.classList.toggle('big', t.length>=2);
-    nb.style.background=(n!=null&&n<=0)?'linear-gradient(135deg,#d0455a,#e0607a)':'linear-gradient(135deg,#7c5cff,#b06bff)';
+    /* Theme-follow the badge via CSS (--cf-theme-badge-bg). Never set an inline
+       background here — inline style would override the theme variable and pin
+       the badge to a fixed colour. The depleted (0 tokens) warning uses the
+       .empty class instead of an inline gradient. */
+    nb.style.removeProperty('background');
+    nb.classList.toggle('empty', n!=null&&n<=0);
   }
   window.cfUpdateNavTokBadge=cfUpdateNavTokBadge;
   function renderBadge(n){
@@ -26752,7 +26759,18 @@ html[dir=rtl] #home .cfLangBtn{margin-right:0;margin-left:10px}
   position:fixed;right:18px;
   bottom:calc(150px + env(safe-area-inset-bottom,0px));
   z-index:76;
+  /* pale / white inner pages: legible glass-white pill with deep theme ink,
+     lifted off the light background with a border + soft shadow. The home
+     button (#cfLangHomeBtn) is a separate element and keeps its artwork look;
+     .cfLangFixed is hidden on #home so this never touches the top page. */
+  background:rgba(255,255,255,.9)!important;
+  color:var(--cf-cta-text-on-glass,#241b33)!important;
+  border:1px solid rgba(31,24,48,.14)!important;
+  box-shadow:0 12px 30px rgba(30,20,50,.12),inset 0 1px 0 rgba(255,255,255,.72)!important;
+  font-weight:600!important;
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);
 }
+.cfLangFixed::after{opacity:.7}
 html[dir=rtl] .cfLangFixed{right:auto;left:18px}
 .app:has(#home.screen.active) .cfLangFixed{display:none}
 .app:has(#shareApp.screen.active) .cfLangFixed{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
