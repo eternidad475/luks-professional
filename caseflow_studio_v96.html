@@ -4485,7 +4485,7 @@ button[id="localMLDetectButton"]{
     <div id="cfDemoErr" style="display:none;color:#d23;font-size:12.5px;margin-bottom:10px">コードが正しくありません。</div>
     <button id="cfDemoBtn" style="width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;
       background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px">入る</button>
-    <div style="font-size:11px;color:#9a93b0;margin-top:16px">提携・デモのご相談：eternidad475@gmail.com</div>
+    <div style="font-size:11px;color:#9a93b0;margin-top:16px">アクセスコードは、運営から案内されたものをご利用ください。</div>
   </div>
 </div>
 <script>
@@ -4546,8 +4546,7 @@ button[id="localMLDetectButton"]{
       Googleで続ける
     </button>
     <div style="font-size:11px;color:#9a93b0;margin-top:16px;text-align:center;line-height:1.7">
-      ご利用は<a href="/terms" target="_blank" style="color:#5b3fd6">利用規約</a>・<a href="/privacy" target="_blank" style="color:#5b3fd6">プライバシーポリシー</a>に同意のうえご利用ください。<br>
-      アカウント発行・お問い合わせ：eternidad475@gmail.com
+      ご利用は<a href="/terms" target="_blank" style="color:#5b3fd6">利用規約</a>・<a href="/privacy" target="_blank" style="color:#5b3fd6">プライバシーポリシー</a>に同意のうえご利用ください。
     </div>
   </div>
 </div>
@@ -4566,7 +4565,7 @@ button[id="localMLDetectButton"]{
     <p style="font-size:13px;color:#5a5470;line-height:1.7;margin:0 0 18px">無料トークンを使い切りました。プランにご登録いただくと、引き続き生成いただけます。</p>
     <button id="cfTokenEmptyClose" type="button" style="width:100%;padding:12px;border:0;border-radius:12px;cursor:pointer;
       background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:14px">閉じる</button>
-    <div style="font-size:11px;color:#9a93b0;margin-top:12px;line-height:1.6">プラン購入は近日対応（Stripe）。当面のご相談：eternidad475@gmail.com</div>
+    <div style="font-size:11px;color:#9a93b0;margin-top:12px;line-height:1.6">アカウント画面の「トークンを追加購入」からもチャージできます。</div>
   </div>
 </div>
 <script>
@@ -25418,12 +25417,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfShMail{font-size:11.5px;font-weight:650;color:rgba(42,35,80,.62);word-break:break-all;margin-top:1px}',
     '.cfShMeta{font-size:11px;font-weight:750;color:rgba(42,35,80,.72);margin-top:6px}',
     '.cfShSub{font-size:10px;font-weight:650;color:rgba(42,35,80,.45);margin-top:3px}',
-    /* Wallet残高: 縦積み（横並びflexをやめ、右端見切れを構造的に排除） */
-    '.cfShWallet{display:block;padding:13px 14px;border-bottom:1px solid rgba(124,92,255,.10);overflow:hidden}',
-    '.cfShWallet b{display:block;font-size:12.5px;font-weight:900;color:#241c46;letter-spacing:.02em}',
-    '.cfShWallet .v{display:block;font-size:24px;line-height:1.15;font-weight:900;color:#3d2b8f;margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '.cfShWallet .v .u{font-size:12px;font-weight:750;color:rgba(42,35,80,.5)}',
-    '.cfShWallet .s{display:block;font-size:10.5px;font-weight:650;color:rgba(42,35,80,.5);margin-top:4px}',
+    /* Wallet残高: 縦積み・新クラス（旧 .cfShWallet 系との衝突/キャッシュ残りを排除。クリップ要因を持たない） */
+    '.cfWalletSummary{display:block;width:100%;box-sizing:border-box;padding:13px 14px;border-bottom:1px solid rgba(124,92,255,.10);overflow:visible;text-align:left}',
+    '.cfWalletLabel{display:block;font-size:12.5px;font-weight:900;color:#241c46;letter-spacing:.02em}',
+    '.cfWalletAmount{display:block;font-size:24px;font-weight:900;line-height:1.2;color:#3d2b8f;margin-top:3px;overflow:visible;white-space:nowrap}',
+    '.cfWalletAmount span{font-size:12px;font-weight:750;color:rgba(42,35,80,.55)}',
+    '.cfWalletStatus{display:block;font-size:10.5px;font-weight:650;color:rgba(42,35,80,.55);margin-top:4px;line-height:1.5}',
     '.cfShRow{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:none;text-align:left;',
     ' padding:12px 13px;font:inherit;font-size:13px;font-weight:800;color:#241c46;cursor:pointer;border-bottom:1px solid rgba(124,92,255,.10);touch-action:manipulation}',
     '.cfShRow:last-child{border-bottom:0}',
@@ -25516,7 +25515,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         '<button type="button" class="cfG2Btn" id="cfG2InviteSubmit">コードを確認して開始</button>'+
         '<button type="button" class="cfG2BtnGhost" id="cfG2InviteLogout">別のアカウントでログイン</button>'+
       '</div>'+
-      '<div class="cfG2Foot">ご利用は<a href="/terms" target="_blank">利用規約</a>・<a href="/privacy" target="_blank">プライバシーポリシー</a>に同意のうえご利用ください。<br>招待のご相談：eternidad475@gmail.com</div>'+
+      '<div class="cfG2Foot">ご利用は<a href="/terms" target="_blank">利用規約</a>・<a href="/privacy" target="_blank">プライバシーポリシー</a>に同意のうえご利用ください。<br>招待コードは、運営から案内されたものをご利用ください。</div>'+
     '</div>';
   document.body.appendChild(wrap);
 
@@ -25697,10 +25696,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
   /* ---------------- usage events（患者識別情報・画像は記録しない） ---------------- */
   function cfEnvName(){
     var h=location.hostname;
-    if(h==='caseflow-studio.vercel.app') return 'production';
+    if(h==='caseflow-studio.com'||h==='www.caseflow-studio.com'||h==='caseflow-studio.vercel.app') return 'production';
     if(/localhost|127\.0\.0\.1/.test(h)) return 'local';
-    if(/vercel\.app$/.test(h)) return 'preview';
-    return 'staging';
+    return 'preview';
   }
   function cfLogEvent(type,feature,metadata){
     if(!sb||!curSession||!curSession.user) return;
@@ -26106,10 +26104,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var planSub=esc(plan)+((curBilling&&curBilling.plan)?'':' · 招待ベータ')+
         (renew?' · 次回更新 '+esc(renew)+(curBilling&&curBilling.cancel_at_period_end?'（期末で解約予定）':''):'');
       var walletHead=document.createElement('div');
-      walletHead.className='cfShWallet';
-      walletHead.innerHTML='<b>保有トークン</b>'+
-        '<span class="v">'+esc(tok)+' <span class="u">tokens</span></span>'+
-        '<span class="s">'+planSub+'</span>';
+      walletHead.className='cfWalletSummary';
+      walletHead.innerHTML='<div class="cfWalletLabel">保有トークン</div>'+
+        '<div class="cfWalletAmount">'+esc(tok)+' <span>tokens</span></div>'+
+        '<div class="cfWalletStatus">'+planSub+'</div>';
       menu.appendChild(shSection('Wallet',[
         walletHead,
         shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }),
