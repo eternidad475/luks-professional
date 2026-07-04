@@ -260,14 +260,9 @@ body::before{
    The screen keeps the production purple→magenta look (fixed, not palette-driven)
    so the Hero reads unmistakably as the real CaseFlow Studio top page. */
 .lpPhoneWrap{display:flex;justify-content:center;width:100%}
-/* iPhone 17 Pro proportioned frame holding the real top-screen capture */
-.lpPhone{position:relative;width:min(262px,72vw);aspect-ratio:158/324;border-radius:44px;padding:8px;
-  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.16)}
-.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:40px;overflow:hidden;background:#b07af0}
-.lpPhoneShot{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
-/* iPhone 17 Pro Dynamic Island */
-.lpPhoneIsland{position:absolute;top:2.6%;left:50%;transform:translateX(-50%);width:30%;height:3.3%;min-height:15px;
-  background:#000;border-radius:999px;z-index:3;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 1px 3px rgba(0,0,0,.4)}
+/* full iPhone mockup image (frame + screen + Dynamic Island) */
+.lpPhoneMock{position:relative;z-index:1;display:block;margin:0 auto;width:min(268px,74vw);height:auto;
+  filter:drop-shadow(0 34px 74px rgba(20,10,45,.5))}
 
 /* product samples */
 .lpSamples{display:grid;gap:22px}
@@ -491,10 +486,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
     <div class="lpPhoneWrap" aria-hidden="true">
       <div class="lpHeroDisk"></div>
       <div class="lpHeroDots"></div>
-      <div class="lpPhone"><div class="lpPhoneScreen">
-        <img class="lpPhoneShot" src="media/inline/top-screen.jpg" alt="CaseFlow Studio top screen" loading="lazy" decoding="async">
-        <div class="lpPhoneIsland" aria-hidden="true"></div>
-      </div></div>
+      <img class="lpPhoneMock" src="media/inline/phone-mock.webp" alt="CaseFlow Studio on iPhone" loading="lazy" decoding="async">
     </div>
     <!-- 3) explanation moves below the visual -->
     <div class="lpHeroLede">
