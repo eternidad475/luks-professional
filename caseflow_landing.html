@@ -458,25 +458,18 @@ html[data-panel2="light"] .lpBandB{color:#141018; --lpHead:#120d1c; --lpText:#1c
   background-size:26px 26px;-webkit-mask:radial-gradient(closest-side at 50% 45%, #000 30%, transparent 72%);mask:radial-gradient(closest-side at 50% 45%, #000 30%, transparent 72%)}
 
 /* ---------- IN RAINBOWS homage (dark molten splatter + stacked rainbow text) ---------- */
-.lpRainbowBand{position:relative;overflow:hidden;background:#08070e;color:#fff;
+.lpRainbowBand{position:relative;overflow:hidden;color:#fff;
+  background:url(media/inline/art-signal-bg.webp) center/cover no-repeat #06060c;
   --lpHead:#ffffff; --lpText:rgba(255,255,255,.9); --lpDim:rgba(255,255,255,.8);
   --lpFaint:rgba(255,255,255,.62); --lpAccentText:#f5d21f; --lpLine:rgba(255,255,255,.2)}
-.lpRainbowBand::before{content:"";position:absolute;inset:-8%;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(34% 26% at 52% 46%, rgba(255,214,46,.95), transparent 60%),
-    radial-gradient(28% 24% at 45% 52%, rgba(255,122,20,.9), transparent 62%),
-    radial-gradient(26% 40% at 63% 40%, rgba(229,52,42,.72), transparent 60%),
-    radial-gradient(42% 52% at 20% 28%, rgba(47,107,255,.6), transparent 62%),
-    radial-gradient(36% 44% at 82% 72%, rgba(35,197,82,.42), transparent 64%),
-    radial-gradient(30% 30% at 28% 82%, rgba(255,60,150,.5), transparent 62%);
-  filter:blur(10px) saturate(1.3);opacity:.9;animation:lpDrift 22s ease-in-out infinite alternate}
-.lpRainbowBand::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.45;
-  background-image:radial-gradient(circle, rgba(255,255,255,.55) .8px, transparent 1.3px),radial-gradient(circle, rgba(255,190,60,.5) .8px, transparent 1.5px);
-  background-size:18px 22px,31px 26px;background-position:0 0,9px 12px}
+/* dark scrim over the crystal image keeps the stacked rainbow text legible */
+.lpRainbowBand::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(4,5,12,.5),rgba(4,5,12,.38) 42%,rgba(4,5,12,.66)),
+    radial-gradient(75% 60% at 50% 42%, transparent, rgba(3,3,9,.5) 92%)}
 .lpRainbowBand>.wrap{position:relative;z-index:1}
 .lpRainbowStack{display:flex;flex-direction:column;line-height:.94;margin:0;font-weight:900;
   letter-spacing:-.035em;font-size:clamp(22px,6.4vw,58px);text-transform:uppercase}
-.lpRainbowStack span{display:block;white-space:nowrap;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.lpRainbowStack span{display:block;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.7),0 0 2px rgba(0,0,0,.5)}
 .lpRainbowStack .s{opacity:.7;font-weight:800}
 .lpRainbowStack .r1{color:#f4d21f}.lpRainbowStack .r2{color:#3f7bff}.lpRainbowStack .r3{color:#ff6a12}
 .lpRainbowStack .r4{color:#22c257}.lpRainbowStack .r5{color:#f0a300}.lpRainbowStack .r6{color:#e5342a}
