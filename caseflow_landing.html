@@ -241,7 +241,10 @@ body::before{
 .lpHeadWrap{max-width:720px;margin:0 0 30px}
 
 /* hero (no toolbar, no CTA buttons) */
-.lpHero{padding:64px 0 36px;position:relative;overflow:hidden}
+.lpHero{padding:64px 0 44px;position:relative;overflow:hidden;isolation:isolate;
+  background:#07070c;color:#fff;
+  --lpHead:#ffffff; --lpText:rgba(255,255,255,.92); --lpDim:rgba(255,255,255,.82);
+  --lpFaint:rgba(255,255,255,.58); --lpAccentText:#bdf4ad; --accent:#bdf4ad}
 .lpHeroGrid{display:grid;gap:30px;align-items:center}
 @media(min-width:900px){.lpHeroGrid{grid-template-columns:1.05fr .95fr;gap:44px}}
 .lpHero .cfWordmark{height:clamp(32px,6.6vw,54px);width:min(86vw,520px)}
@@ -742,7 +745,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 <!-- ===== PLANS ===== -->
 <section class="lpSection lpBandA" id="plans">
   <div class="wrap">
-    <div class="lpHeadWrap"><p class="lpEyebrow">Plans</p><h2>Plans</h2></div>
+    <div class="lpHeadWrap"><p class="lpEyebrow">Plan</p><h2 data-i18n="plans.h2">プランを選択</h2></div>
     <div class="lpPlans">
       <article class="lpGlass lpPlan"><p class="lpPlanName">Free</p><p class="lpPlanPrice" data-i18n="plan.free.price">無料</p><p class="lpPlanTokens" data-i18n="plan.free.tokens">月額契約なし</p><p class="lpPlanDesc" data-i18n="plan.free.desc">まずは無料で。参考イメージ作成の基本フローを体験できます。</p></article>
       <article class="lpGlass lpPlan featured"><p class="lpPlanName">Sketch</p><p class="lpPlanPrice" data-i18n="plan.sketch.price">月額 1,500円</p><p class="lpPlanTokens">100 tokens / 月</p><p class="lpPlanDesc" data-i18n="plan.sketch.desc">個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。</p></article>
@@ -775,6 +778,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 <script>
 window.__LP_T={
  en:{
+  "plans.h2":"Choose a plan",
   "hero.bridge":"Just seeing it changes the temperature of the conversation.",
   "val.a.desc":"Quickly visualize the entry point of your explanation.",
   "val.b.desc":"A still-image simulation and a morphing video.",
@@ -847,6 +851,7 @@ window.__LP_T={
   "final.note":"Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome."
  },
  ja:{
+  "plans.h2":"プランを選択",
   "hero.bridge":"見るだけで、説明の温度が変わる。",
   "val.a.desc":"説明の入口を、すばやく視覚化。",
   "val.b.desc":"静止画シミュレーションとモーフィング動画。",
@@ -919,6 +924,7 @@ window.__LP_T={
   "final.note":"生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。"
  },
  pt:{
+  "plans.h2":"Escolha um plano",
   "hero.bridge":"Só de ver, a temperatura da conversa muda.",
   "val.a.desc":"Visualize rapidamente o início da sua explicação.",
   "val.b.desc":"Uma simulação em imagem e um vídeo de morphing.",
@@ -991,6 +997,7 @@ window.__LP_T={
   "final.note":"Imagens e vídeos gerados são visuais de referência apenas para explicação — não um diagnóstico nem garantia de resultado."
  },
  it:{
+  "plans.h2":"Scegli un piano",
   "hero.bridge":"Basta vederlo per cambiare la temperatura del dialogo.",
   "val.a.desc":"Visualizza rapidamente il punto d’ingresso della spiegazione.",
   "val.b.desc":"Una simulazione in immagine e un video morphing.",
@@ -1063,6 +1070,7 @@ window.__LP_T={
   "final.note":"Le immagini e i video generati sono visual di riferimento solo per la spiegazione — non una diagnosi né una garanzia di risultato."
  },
  ar:{
+  "plans.h2":"اختر خطة",
   "hero.bridge":"مجرد رؤيته يغيّر حرارة الحوار.",
   "val.a.desc":"تصوّر بسرعة نقطة انطلاق شرحك.",
   "val.b.desc":"محاكاة بصورة ثابتة وفيديو مورفينغ.",
@@ -1135,6 +1143,7 @@ window.__LP_T={
   "final.note":"الصور والفيديوهات المُولَّدة مرئيات مرجعية للشرح فقط — وليست تشخيصًا أو ضمانًا للنتيجة."
  },
  zh:{
+  "plans.h2":"选择方案",
   "hero.bridge":"只是看见，说明的温度就会改变。",
   "val.a.desc":"快速将说明的入口可视化。",
   "val.b.desc":"静态图模拟与变形视频。",
@@ -1207,6 +1216,7 @@ window.__LP_T={
   "final.note":"生成的图像与视频仅为用于说明的参考影像——并非诊断或结果保证。"
  },
  ko:{
+  "plans.h2":"플랜 선택",
   "hero.bridge":"보기만 해도 설명의 온도가 바뀝니다.",
   "val.a.desc":"설명의 입구를 빠르게 시각화.",
   "val.b.desc":"정지 이미지 시뮬레이션과 모핑 영상.",
