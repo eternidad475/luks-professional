@@ -13,6 +13,32 @@
 | `20260711000013_clamp_accept_invite_code_role_escalation.sql` | `20260703113150` | `clamp_accept_invite_code_role_escalation` | 2026-07-11 | **セキュリティ hardening**: 公開RPC accept_invite_code() が付与できる role を非特権職種（dentist/staff/viewer/billing_manager/patient_link_viewer）に限定。developer/admin/co_developer/owner はコード redeem 経由で付与不可（admin_set_user_role 経由のみ）。潜在的権限昇格経路を恒久封鎖。|
 | `20260712000014_general_user_invite_creation.sql` | `20260703144308` | `general_user_invite_creation` | 2026-07-12 | **機能+権限**: 一般ユーザー用の招待発行 RPC `create_user_invite()`（role=dentist固定・invitee 10・inviter 0・有効未使用5件上限・invited_by=auth.uid）。invite_codes に own-read RLS 追加（自分の発行コードのみ閲覧）。一般ユーザーは developer/admin コードを発行不可（DB側で固定）。|
 | `20260713000015_lock_down_workspaces_column_updates.sql` | `20260703145750` | `lock_down_workspaces_column_updates` | 2026-07-13 | **セキュリティ修正**: workspaces の type/plan/tokens_remaining/owner_user_id/deleted_at を authenticated から直接 UPDATE 不可に。owner の直接編集は name/clinic_phone/clinic_address のみ。clinic wallet 自己増加・type/plan 自己変更を遮断。本番で DENIED(42501) 実測確認。|
+| `20260714000016_admin_revenue_summary.sql` | 2026-07-14 適用 | `admin_revenue_summary` | 2026-07-14 | **管理機能**: admin dashboard の REVENUE カード用 RPC。SECURITY DEFINER + `is_admin()` gate（role developer/admin）。今月の売上/Add-on/返金を `billing_events.payload`（webhook保存の実額）から、MRR を active `billing_subscriptions` から集計し jsonb を返す。execute は authenticated のみ（anon/public revoke）。本番で admin→集計 / 非admin→42501 / anon→権限なし を実測確認。Stripe secret 非関与（DB内集計のみ）。|
+
+## Admin Revenue カード（Stripe 売上概要）— 2026-07-14 追加
+
+**場所**: `/admin`（`caseflow_admin.html`）Overview 直下の `REVENUE` カード。管理者（role developer/admin）のみ。
+
+**表示項目（すべて JPY・参考値/estimate）**: 今月売上 / 決済件数 / MRR / Add-on売上 / 返金 / Net estimate（Stripe手数料 ~3.6% 控除後の概算）/ 最終更新。状態: loading / empty（まだ売上データがありません）/ error（再読み込み可）。
+
+**集計方法（DB集計・Stripe API非使用）**:
+- RPC `admin_revenue_summary()`（SECURITY DEFINER, `is_admin()` gate）が全集計を DB 内で実行。フロントは Supabase `sb.rpc('admin_revenue_summary')` を呼ぶだけで、**Stripe secret key はフロントにもRPCにも一切登場しない**。
+- 今月売上/Add-on/返金 = `billing_events.payload` に webhook が保存する実額（`kind` in subscription/addon/refund, `amount` = JPY）を当月分で合計。
+- MRR = active/trialing の `billing_subscriptions` からプラン価格（Sketch=personal 1500 / Clinic Studio=clinic 5000）で算出。
+- 決済件数 = 当月の subscription+addon イベント件数。Net estimate = (gross − refunds) × (1 − 0.036) を四捨五入。
+
+**どの値が概算か**: Net estimate は Stripe手数料控除後の**概算**（会計確定額ではない）。MRR はプラン定価ベースの推定（実際の割引/日割りは未考慮）。すべて運営確認用の参考値であり、正式な会計・税務処理は Stripe ダッシュボード/会計資料で確認する旨をカード内に明記。
+
+**admin-only 制御**: UI は gate/denied/dash で管理者のみ dash 表示。RPC 側でも `is_admin()` 不成立なら 42501 を raise（一般ユーザーが直接叩いても DENIED）。execute grant は authenticated のみ（anon 不可）。
+
+**Free/Trial・表記ポリシー**: Free/Trial は売上に非計上（webhook が amount を記録するのは実決済イベントのみ）。Invite Beta/招待ベータ 表記なし。Developer は売上プラン扱いしない。Plans は Free/Sketch/Clinic Studio 整理を維持。
+
+**将来必要な改善点（推奨）**:
+1. **webhook のイベント購読に `charge.refunded` を追加**（Stripe Dashboard → Webhooks → endpoint）。未追加だと Refunds は常に ¥0。
+2. 非JPY通貨を扱う場合、`amount` は最小単位（例: USDはセント）になるため RPC 側で通貨別に /100 等の正規化が必要（現状は JPY 前提）。
+3. Add-on 価格は現在 Stripe 実額（`amount_total`）を webhook が保存する方式のため DB で正確。将来 add-on の price ID→金額を1箇所に集約すると保守性向上。
+4. `billing_events.payload` は今回の webhook 改修以降のイベントのみ金額を持つ（過去イベントは最小payloadのため集計対象外）。過去分が必要なら Stripe から一括バックフィルするバッチを別途用意。
+5. より厳密な会計値が必要になった段階で、admin 専用サーバー側（Edge Function / API route）から Stripe Reporting API を呼ぶ拡張に移行可能（secret はサーバー側のみ）。
 
 > リポジトリの migration ファイル名は連番ベースの合成タイムスタンプ（`2026070X00000N`）で、
 > 本番 `supabase_migrations.schema_migrations` の実適用タイムスタンプとは一致しない運用（name で対応）。

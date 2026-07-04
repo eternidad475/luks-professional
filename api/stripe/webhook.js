@@ -36,6 +36,30 @@ function planFromPriceId(priceId) {
 }
 function ts(sec) { return sec ? new Date(sec * 1000).toISOString() : null; }
 
+// Extract monetary fields for the admin Revenue card (amounts are minor units;
+// JPY has no minor unit, so amount is already yen). Returns null for non-revenue events.
+function revenueMeta(event) {
+  const o = (event.data && event.data.object) || {};
+  const t = event.type;
+  if (t === 'invoice.payment_succeeded' || t === 'invoice.paid') {
+    const reason = String(o.billing_reason || '');
+    const kind = reason.indexOf('subscription') === 0 ? 'subscription' : 'invoice';
+    const amount = (o.amount_paid != null ? o.amount_paid : o.amount_due) || 0;
+    return { kind, amount, currency: o.currency || null, reason: reason || null };
+  }
+  if (t === 'checkout.session.completed' && o.mode === 'payment') {
+    return { kind: 'addon', amount: o.amount_total || 0, currency: o.currency || null,
+             plan: (o.metadata && o.metadata.plan) || null };
+  }
+  if (t === 'charge.refunded') {
+    return { kind: 'refund', amount: (o.amount_refunded != null ? o.amount_refunded : (o.amount || 0)), currency: o.currency || null };
+  }
+  if (t === 'refund.created' || t === 'charge.refund.updated') {
+    return { kind: 'refund', amount: o.amount || 0, currency: o.currency || null };
+  }
+  return null;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('method_not_allowed'); return; }
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -58,10 +82,21 @@ module.exports = async (req, res) => {
   const admin = createClient(supaUrl, srKey, { auth: { persistSession: false } });
 
   // ---- 冪等性: stripe_event_id unique。既処理なら 200 で即返す ----
+  // payload には金額メタ（kind/amount/currency）も保存し、admin_revenue_summary() が
+  // Stripe実額から今月売上・Add-on・返金を集計できるようにする（トークン付与処理には非依存）。
+  const payload = { id: event.id, type: event.type, object: (event.data && event.data.object && event.data.object.id) || null };
+  const meta = revenueMeta(event);
+  if (meta) {
+    payload.kind = meta.kind;
+    payload.amount = meta.amount;
+    payload.currency = meta.currency;
+    if (meta.reason) payload.reason = meta.reason;
+    if (meta.plan) payload.plan = meta.plan;
+  }
   const ins = await admin.from('billing_events').insert({
     stripe_event_id: event.id,
     event_type: event.type,
-    payload: { id: event.id, type: event.type, object: (event.data && event.data.object && event.data.object.id) || null }
+    payload: payload
   });
   if (ins.error) {
     if (String(ins.error.code) === '23505') { res.status(200).send('duplicate_skipped'); return; }
