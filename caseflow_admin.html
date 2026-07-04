@@ -122,6 +122,16 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       <div class="grid c4" id="ovGrid"><div class="empty" style="grid-column:1/-1">読み込み中…</div></div>
     </div>
 
+    <!-- Revenue (Stripe) -->
+    <div class="card" id="sec-revenue">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <h2>REVENUE<small>Stripe — 今月の売上概要（参考値 / estimate）</small></h2>
+        <button class="btn ghost small" id="revReload">再読み込み</button>
+      </div>
+      <div id="revBody"><div class="empty" style="grid-column:1/-1">Stripe revenue を読み込み中…</div></div>
+      <p class="help" id="revNote" style="display:none;margin-top:12px">この数値は運営確認用の参考値です。Stripe手数料控除後の Net estimate を含め、正式な会計・税務処理には Stripe ダッシュボードおよび会計資料をご確認ください。</p>
+    </div>
+
     <!-- まずここから -->
     <div class="card">
       <h2>まずここから<small>Start here</small></h2>
@@ -330,6 +340,47 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       g.innerHTML='<div class="empty" style="grid-column:1/-1">'+esc(failText(e,'Overview'))+'<br>Coming soon / 未接続</div>';
     }
     renderGuide();
+  }
+
+  /* ---------- revenue (Stripe, admin-only) ---------- */
+  async function loadRevenue(){
+    var body=el('revBody'), note=el('revNote');
+    if(note) note.style.display='none';
+    body.innerHTML='<div class="empty" style="grid-column:1/-1">Stripe revenue を読み込み中…</div>';
+    try{
+      var r=await sb.rpc('admin_revenue_summary');
+      if(r.error) throw r.error;
+      var d=r.data||{};
+      function yen(n){ return (n==null)?'—':'¥'+Number(n).toLocaleString('ja-JP'); }
+      var hasData=((d.payment_count||0)>0)||((d.gross_month||0)>0)||((d.mrr||0)>0)||((d.refund_month||0)>0);
+      if(!hasData){
+        body.innerHTML='<div class="empty" style="grid-column:1/-1">まだ売上データがありません<br>'+
+          '<span style="opacity:.75">No revenue recorded for '+esc(d.month||'this month')+' yet.</span></div>';
+        if(note) note.style.display='';
+        return;
+      }
+      var rows=[
+        ['今月売上','This month', yen(d.gross_month), false],
+        ['決済件数','Payments', (d.payment_count!=null?(d.payment_count+' payments'):'—'), false],
+        ['MRR','Monthly recurring', yen(d.mrr)+' / month', false],
+        ['Add-on売上','Add-ons', yen(d.addon_month), false],
+        ['返金','Refunds', yen(d.refund_month), (d.refund_month||0)>0],
+        ['Net estimate','手数料控除後の概算', yen(d.net_estimate), false],
+        ['最終更新','Last updated', (d.generated_at||'—'), false]
+      ];
+      body.innerHTML='<div class="grid c4">'+rows.map(function(o){
+        return '<div class="ov"><b'+(o[3]?' style="color:#c0303a"':'')+'>'+esc(o[2])+'</b><span>'+esc(o[0])+'<br>'+esc(o[1])+'</span></div>';
+      }).join('')+'</div>';
+      if(note) note.style.display='';
+    }catch(e){
+      // 内部情報やStripeレスポンスを出しすぎない（メッセージのみ）
+      console.error('[Admin] revenue failed', (e&&e.message)||'error');
+      var denied=/42501|admin only|permission|denied/i.test(String((e&&e.message)||''));
+      body.innerHTML='<div class="empty" style="grid-column:1/-1">'+
+        (denied?'この情報は管理者のみが表示できます。':'Revenue data could not be loaded. / 売上データを読み込めませんでした。')+
+        '<br><button class="btn small" id="revRetry" style="margin-top:10px">再読み込み</button></div>';
+      var rb=el('revRetry'); if(rb) rb.addEventListener('click', loadRevenue);
+    }
   }
 
   /* ---------- beginner guide ---------- */
@@ -722,7 +773,8 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
     if(!profile || DASH_ROLES.indexOf(profile.role)<0){ show('denied'); return; }
     /* Phase 2.1: SMS認証は不採用（UI・警告とも撤去）。将来採用時はここに再導入する */
     show('dash'); renderHeader(); initDeployOnce();
-    await loadOverview(); renderNav();
+    await loadOverview(); loadRevenue(); renderNav();
+    var rr=el('revReload'); if(rr) rr.addEventListener('click', loadRevenue);
   }
   var _depInit=false;
   function initDeployOnce(){ if(_depInit) return; _depInit=true; initDeploy(); }
