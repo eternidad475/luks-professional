@@ -241,7 +241,7 @@ body::before{
 .lpHeadWrap{max-width:720px;margin:0 0 30px}
 
 /* hero (no toolbar, no CTA buttons) */
-.lpHero{padding:64px 0 36px}
+.lpHero{padding:64px 0 36px;position:relative;overflow:hidden}
 .lpHeroGrid{display:grid;gap:30px;align-items:center}
 @media(min-width:900px){.lpHeroGrid{grid-template-columns:1.05fr .95fr;gap:44px}}
 .lpHero .cfWordmark{height:clamp(32px,6.6vw,54px);width:min(86vw,520px)}
@@ -411,26 +411,101 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 .lpPortal::before,.lpPortal::after{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid var(--lpGlassLine)}
 .lpPortal::after{inset:14%;border-color:color-mix(in srgb,var(--lpAccentText) 55%,transparent)}
 
+/* ---------- palette-linked SOLID primary-color panels (follow the color picker) ---------- */
+:root{
+  --cf-lp-solid-1: var(--c1,#7c5cff);   /* Color 1 — flat, vivid, WYSIWYG with the picker */
+  --cf-lp-solid-2: var(--c2,#ff9fd6);   /* Color 2 */
+  --cf-lp-panel-strong: color-mix(in srgb, var(--c1,#7c5cff) 60%, var(--c2,#ff9fd6));
+  --cf-lp-artwork-shadow: 0 30px 70px rgba(20,10,45,.5);
+  /* token sets reused by panels depending on computed panel luminance */
+}
+/* light-on-dark token set (for dark primaries: black / red / blue …) */
+.lpInkLight{ color:#fff;
+  --lpHead:#ffffff; --lpText:rgba(255,255,255,.94); --lpDim:rgba(255,255,255,.84);
+  --lpFaint:rgba(255,255,255,.68); --lpLine:rgba(255,255,255,.24);
+  --lpGlassBg:rgba(255,255,255,.12); --lpGlassLine:rgba(255,255,255,.34);
+  --lpChipBg:rgba(255,255,255,.14); --lpAccentText:#eafff2; --lpShadow:rgba(0,0,0,.34); }
+/* dark-on-light token set (for light primaries: yellow / cyan …) */
+.lpInkDark{ color:#141018;
+  --lpHead:#120d1c; --lpText:#1c1526; --lpDim:rgba(24,18,34,.86);
+  --lpFaint:rgba(24,18,34,.6); --lpLine:rgba(24,18,34,.22);
+  --lpGlassBg:rgba(255,255,255,.4); --lpGlassLine:rgba(255,255,255,.7);
+  --lpChipBg:rgba(255,255,255,.5); --lpAccentText:#12321f; --lpShadow:rgba(60,40,90,.2); }
+/* full-bleed solid bands; JS stamps data-panel1/2 = light|dark from each color's luminance */
+.lpBandA{background:var(--cf-lp-solid-1)}
+.lpBandB{background:var(--cf-lp-solid-2)}
+html[data-panel1="dark"]  .lpBandA{color:#fff; --lpHead:#fff; --lpText:rgba(255,255,255,.94); --lpDim:rgba(255,255,255,.84); --lpFaint:rgba(255,255,255,.68); --lpLine:rgba(255,255,255,.24); --lpGlassBg:rgba(255,255,255,.12); --lpGlassLine:rgba(255,255,255,.34); --lpChipBg:rgba(255,255,255,.14); --lpAccentText:#eafff2; --lpShadow:rgba(0,0,0,.34)}
+html[data-panel1="light"] .lpBandA{color:#141018; --lpHead:#120d1c; --lpText:#1c1526; --lpDim:rgba(24,18,34,.86); --lpFaint:rgba(24,18,34,.6); --lpLine:rgba(24,18,34,.22); --lpGlassBg:rgba(255,255,255,.42); --lpGlassLine:rgba(255,255,255,.72); --lpChipBg:rgba(255,255,255,.52); --lpAccentText:#123a22; --lpShadow:rgba(60,40,90,.2)}
+html[data-panel2="dark"]  .lpBandB{color:#fff; --lpHead:#fff; --lpText:rgba(255,255,255,.94); --lpDim:rgba(255,255,255,.84); --lpFaint:rgba(255,255,255,.68); --lpLine:rgba(255,255,255,.24); --lpGlassBg:rgba(255,255,255,.12); --lpGlassLine:rgba(255,255,255,.34); --lpChipBg:rgba(255,255,255,.14); --lpAccentText:#eafff2; --lpShadow:rgba(0,0,0,.34)}
+html[data-panel2="light"] .lpBandB{color:#141018; --lpHead:#120d1c; --lpText:#1c1526; --lpDim:rgba(24,18,34,.86); --lpFaint:rgba(24,18,34,.6); --lpLine:rgba(24,18,34,.22); --lpGlassBg:rgba(255,255,255,.42); --lpGlassLine:rgba(255,255,255,.72); --lpChipBg:rgba(255,255,255,.52); --lpAccentText:#123a22; --lpShadow:rgba(60,40,90,.2)}
+
+/* ---------- hero: visual-first, centered ---------- */
+.lpHeroTopline{text-align:center;margin-bottom:24px}
+.lpHeroTopline h1{margin:0 0 6px}
+.lpHeroTopline .lpHeroTag{margin:8px 0 0}
+.lpHeroLede{max-width:660px;margin:30px auto 0;text-align:center}
+.lpHeroLede .lpHeroLead,.lpHeroLede .lpHeroPoem{margin-left:auto;margin-right:auto}
+.lpHeroBridge{font-size:clamp(15px,2.6vw,18px);font-weight:900;letter-spacing:-.01em;color:var(--lpAccentText);margin:16px auto 14px;max-width:600px}
+.lpHeroLede .lpNote{margin:0 auto}
+/* big solid color disk behind the phone (palette-linked) */
+.lpPhoneWrap{position:relative}
+.lpHeroDisk{position:absolute;top:50%;left:50%;transform:translate(-50%,-47%);z-index:-1;pointer-events:none;
+  width:min(420px,90vw);aspect-ratio:1/1.12;border-radius:50%;filter:blur(2px) saturate(1.12);opacity:.92;
+  background:radial-gradient(circle at 50% 43%, var(--cf-lp-panel-strong) 0 38%, color-mix(in srgb,var(--cf-lp-solid-1) 78%,transparent) 60%, transparent 76%)}
+/* faint signal dots around the hero mock */
+.lpHeroDots{position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(circle, color-mix(in srgb,var(--lpAccentText) 70%,transparent) 1.1px, transparent 1.4px);
+  background-size:26px 26px;-webkit-mask:radial-gradient(closest-side at 50% 45%, #000 30%, transparent 72%);mask:radial-gradient(closest-side at 50% 45%, #000 30%, transparent 72%)}
+
+/* ---------- IN RAINBOWS homage (dark molten splatter + stacked rainbow text) ---------- */
+.lpRainbowBand{position:relative;overflow:hidden;background:#08070e;color:#fff;
+  --lpHead:#ffffff; --lpText:rgba(255,255,255,.9); --lpDim:rgba(255,255,255,.8);
+  --lpFaint:rgba(255,255,255,.62); --lpAccentText:#f5d21f; --lpLine:rgba(255,255,255,.2)}
+.lpRainbowBand::before{content:"";position:absolute;inset:-8%;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(34% 26% at 52% 46%, rgba(255,214,46,.95), transparent 60%),
+    radial-gradient(28% 24% at 45% 52%, rgba(255,122,20,.9), transparent 62%),
+    radial-gradient(26% 40% at 63% 40%, rgba(229,52,42,.72), transparent 60%),
+    radial-gradient(42% 52% at 20% 28%, rgba(47,107,255,.6), transparent 62%),
+    radial-gradient(36% 44% at 82% 72%, rgba(35,197,82,.42), transparent 64%),
+    radial-gradient(30% 30% at 28% 82%, rgba(255,60,150,.5), transparent 62%);
+  filter:blur(10px) saturate(1.3);opacity:.9;animation:lpDrift 22s ease-in-out infinite alternate}
+.lpRainbowBand::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.45;
+  background-image:radial-gradient(circle, rgba(255,255,255,.55) .8px, transparent 1.3px),radial-gradient(circle, rgba(255,190,60,.5) .8px, transparent 1.5px);
+  background-size:18px 22px,31px 26px;background-position:0 0,9px 12px}
+.lpRainbowBand>.wrap{position:relative;z-index:1}
+.lpRainbowStack{display:flex;flex-direction:column;line-height:.9;margin:2px 0 20px;font-weight:900;
+  letter-spacing:-.03em;font-size:clamp(30px,8.2vw,72px);text-transform:uppercase}
+.lpRainbowStack span{display:block;white-space:nowrap;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.lpRainbowStack .s{opacity:.7;font-weight:800}
+.lpRainbowStack .r1{color:#f4d21f}.lpRainbowStack .r2{color:#3f7bff}.lpRainbowStack .r3{color:#ff6a12}
+.lpRainbowStack .r4{color:#22c257}.lpRainbowStack .r5{color:#f0a300}.lpRainbowStack .r6{color:#e5342a}
+
 html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 </style>
 
 <!-- ===== HERO (no toolbar, no CTA buttons) ===== -->
 <header class="lpHero" id="top">
   <div class="wrap">
-    <div class="lpHeroGrid">
-      <div>
-        <p class="lpEyebrow" data-i18n="hero.eyebrow">For communication, not diagnosis.</p>
-        <h1 style="margin:6px 0 4px"><span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span></h1>
-        <p class="lpHeroTag" data-i18n="hero.tag">Clinical beauty, visualized.</p>
-        <p class="lpHeroLead" data-i18n="hero.lead">歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。</p>
-        <p class="lpHeroPoem" data-i18n="hero.poem">CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。</p>
-        <p class="lpNote" data-i18n="hero.note">※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。</p>
-      </div>
-      <div class="lpPhoneWrap" aria-hidden="true">
-        <div class="lpPhone"><div class="lpPhoneScreen">
-          <img class="lpPhoneShot" src="media/inline/top-screen.jpg" alt="CaseFlow Studio top screen" loading="lazy" decoding="async">
-        </div></div>
-      </div>
+    <!-- 1) brand + tagline first -->
+    <div class="lpHeroTopline">
+      <h1><span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span></h1>
+      <p class="lpHeroTag" data-i18n="hero.tag">Clinical beauty, visualized.</p>
+    </div>
+    <!-- 2) the product visual as the hero — solid disk + signal dots behind -->
+    <div class="lpPhoneWrap" aria-hidden="true">
+      <div class="lpHeroDisk"></div>
+      <div class="lpHeroDots"></div>
+      <div class="lpPhone"><div class="lpPhoneScreen">
+        <img class="lpPhoneShot" src="media/inline/top-screen.jpg" alt="CaseFlow Studio top screen" loading="lazy" decoding="async">
+      </div></div>
+    </div>
+    <!-- 3) explanation moves below the visual -->
+    <div class="lpHeroLede">
+      <p class="lpHeroLead" data-i18n="hero.lead">歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。</p>
+      <p class="lpHeroPoem" data-i18n="hero.poem">CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。</p>
+      <p class="lpHeroBridge" data-i18n="hero.bridge">見るだけで、説明の温度が変わる。</p>
+      <p class="lpNote" data-i18n="hero.note">※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。</p>
     </div>
   </div>
 </header>
@@ -473,7 +548,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 </section>
 
 <!-- ===== PRODUCT SAMPLES ===== -->
-<section class="lpSection" id="samples">
+<section class="lpSection lpBandA" id="samples">
   <div class="wrap">
     <div class="lpHeadWrap" style="margin-left:auto;margin-right:auto;text-align:center">
       <p class="lpEyebrow" data-i18n="samples.eyebrow">The product is visual.</p>
@@ -510,10 +585,18 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== CASEFLOW SIGNAL ===== -->
-<section class="lpSection lpSignal" id="signal">
+<!-- ===== CASEFLOW SIGNAL (IN RAINBOWS homage) ===== -->
+<section class="lpSection lpSignal lpRainbowBand" id="signal">
   <div class="wrap lpHeadWrap">
     <p class="lpEyebrow" data-i18n="signal.eyebrow">Caseflow Signal</p>
+    <div class="lpRainbowStack" aria-hidden="true">
+      <span class="r1">CASEFLOW<span class="s">/</span></span>
+      <span class="r2">STUDIO<span class="s">/</span></span>
+      <span class="r3">CASEFLOW<span class="s">/</span></span>
+      <span class="r4">STUDIO<span class="s">/</span></span>
+      <span class="r5">CASEFLOW<span class="s">/</span></span>
+      <span class="r6">STUDIO</span>
+    </div>
     <h2 data-i18n="signal.h2">見えない治療意図を、視覚の信号へ。</h2>
     <p class="lpBody" data-i18n="signal.body">臨床の感覚と、人工的な光のあいだに生まれるビジュアルレイヤー。Between clinical intention and visual memory.</p>
     <svg class="lpSignalWave" viewBox="0 0 520 60" aria-hidden="true"><path d="M0 30 Q 32 4 65 30 T 130 30 T 195 30 T 260 30 T 325 30 T 390 30 T 455 30 T 520 30"/></svg>
@@ -668,7 +751,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 </section>
 
 <!-- ===== PLANS ===== -->
-<section class="lpSection" id="plans">
+<section class="lpSection lpBandA" id="plans">
   <div class="wrap">
     <div class="lpHeadWrap"><p class="lpEyebrow">Plans</p><h2>Plans</h2></div>
     <div class="lpPlans">
@@ -691,16 +774,19 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== FINAL CTA (only place with CTA buttons) ===== -->
-<section class="wrap" id="contact">
-  <div class="lpGlass lpFinal">
-    <h2 class="lpFinalHead" data-i18n="final.h2">ALL THIG THAT STILL.</h2>
-    <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
+<!-- ===== FINAL ===== -->
+<section class="lpSection lpBandB" id="contact">
+  <div class="wrap">
+    <div class="lpFinal" style="background:transparent;box-shadow:none;border:0">
+      <h2 class="lpFinalHead" data-i18n="final.h2">ALL THIG THAT STILL.</h2>
+      <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
+    </div>
   </div>
 </section>
 <script>
 window.__LP_T={
  en:{
+  "hero.bridge":"Just seeing it changes the temperature of the conversation.",
   "val.a.desc":"Quickly visualize the entry point of your explanation.",
   "val.b.desc":"A still-image simulation and a morphing video.",
   "val.c.desc":"A three-step flow that finishes at the chairside.",
@@ -772,6 +858,7 @@ window.__LP_T={
   "final.note":"Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome."
  },
  ja:{
+  "hero.bridge":"見るだけで、説明の温度が変わる。",
   "val.a.desc":"説明の入口を、すばやく視覚化。",
   "val.b.desc":"静止画シミュレーションとモーフィング動画。",
   "val.c.desc":"チェアサイドで完結する、3ステップの流れ。",
@@ -843,6 +930,7 @@ window.__LP_T={
   "final.note":"生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。"
  },
  pt:{
+  "hero.bridge":"Só de ver, a temperatura da conversa muda.",
   "val.a.desc":"Visualize rapidamente o início da sua explicação.",
   "val.b.desc":"Uma simulação em imagem e um vídeo de morphing.",
   "val.c.desc":"Um fluxo de três passos que termina na cadeira.",
@@ -914,6 +1002,7 @@ window.__LP_T={
   "final.note":"Imagens e vídeos gerados são visuais de referência apenas para explicação — não um diagnóstico nem garantia de resultado."
  },
  it:{
+  "hero.bridge":"Basta vederlo per cambiare la temperatura del dialogo.",
   "val.a.desc":"Visualizza rapidamente il punto d’ingresso della spiegazione.",
   "val.b.desc":"Una simulazione in immagine e un video morphing.",
   "val.c.desc":"Un flusso in tre passi che si chiude alla poltrona.",
@@ -985,6 +1074,7 @@ window.__LP_T={
   "final.note":"Le immagini e i video generati sono visual di riferimento solo per la spiegazione — non una diagnosi né una garanzia di risultato."
  },
  ar:{
+  "hero.bridge":"مجرد رؤيته يغيّر حرارة الحوار.",
   "val.a.desc":"تصوّر بسرعة نقطة انطلاق شرحك.",
   "val.b.desc":"محاكاة بصورة ثابتة وفيديو مورفينغ.",
   "val.c.desc":"تدفّق من ثلاث خطوات ينتهي بجانب الكرسي.",
@@ -1056,6 +1146,7 @@ window.__LP_T={
   "final.note":"الصور والفيديوهات المُولَّدة مرئيات مرجعية للشرح فقط — وليست تشخيصًا أو ضمانًا للنتيجة."
  },
  zh:{
+  "hero.bridge":"只是看见，说明的温度就会改变。",
   "val.a.desc":"快速将说明的入口可视化。",
   "val.b.desc":"静态图模拟与变形视频。",
   "val.c.desc":"在椅旁完结的三步流程。",
@@ -1127,6 +1218,7 @@ window.__LP_T={
   "final.note":"生成的图像与视频仅为用于说明的参考影像——并非诊断或结果保证。"
  },
  ko:{
+  "hero.bridge":"보기만 해도 설명의 온도가 바뀝니다.",
   "val.a.desc":"설명의 입구를 빠르게 시각화.",
   "val.b.desc":"정지 이미지 시뮬레이션과 모핑 영상.",
   "val.c.desc":"체어사이드에서 완결되는 3단계 흐름.",
@@ -1203,13 +1295,18 @@ window.__LP_T={
 (function(){
   var docEl=document.documentElement;
   var root=docEl.style;
-  var PRESETS=[['#7c5cff','#ff9fd6'],['#ff9a3e','#ff9fd6'],['#69e5ee','#9ff3bf'],['#7c5cff','#9ff3bf'],['#ff6b9d','#ffd36b'],['#4f8cff','#69e5ee']];
+  var PRESETS=[['#7c5cff','#ff9fd6'],['#111319','#e5342a'],['#2f6bff','#f5c518'],['#e5342a','#f5c518'],['#111319','#2f6bff'],['#0a8f5b','#f5c518'],['#69e5ee','#9ff3bf'],['#ff6b9d','#ffd36b']];
   /* relative luminance → decide whether the whole page reads better with dark or light UI */
   function lum(hex){ hex=(hex||'').replace('#',''); if(hex.length===3) hex=hex.replace(/./g,'$&$&'); if(hex.length<6) return .3;
     var r=parseInt(hex.substr(0,2),16)/255,g=parseInt(hex.substr(2,2),16)/255,b=parseInt(hex.substr(4,2),16)/255;
     function f(c){ return c<=0.03928? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }
     return 0.2126*f(r)+0.7152*f(g)+0.0722*f(b); }
-  function updateTone(a,b){ var L=(lum(a)+lum(b))/2; docEl.setAttribute('data-lptone', L>0.5?'light':'dark'); }
+  function updateTone(a,b){
+    var L=(lum(a)+lum(b))/2; docEl.setAttribute('data-lptone', L>0.5?'light':'dark');
+    // per-solid-panel ink: each primary panel gets light or dark text from its own luminance
+    docEl.setAttribute('data-panel1', lum(a)>0.55?'light':'dark');
+    docEl.setAttribute('data-panel2', lum(b)>0.55?'light':'dark');
+  }
   function setPalette(a,b,blend,persist){
     root.setProperty('--c1',a); root.setProperty('--c2',b);
     if(blend!=null) root.setProperty('--blend',blend);
@@ -1308,7 +1405,6 @@ window.__LP_T={
   <p class="disclaimer">
     本ページおよび CASEFLOW STUDIO™ が生成する画像・動画は、治療内容の説明を目的とした参考イメージであり、
     診断、治療効果・結果の保証、または特定の治療方針を示すものではありません。実際の治療結果には個人差があります。
-    本ページは試作（プロトタイプ）であり、記載の数値・指標はイメージを含みます。
   </p>
 </footer>
 
