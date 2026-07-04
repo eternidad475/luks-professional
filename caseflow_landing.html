@@ -244,33 +244,61 @@ body::before{
 .lpBtn-primary{background:var(--lpAccent);color:var(--lpAccentInk);box-shadow:0 16px 40px rgba(0,0,0,.22)}
 .lpBtn-ghost{background:var(--lpChipBg);color:var(--lpText);border-color:var(--lpLine)}
 
-/* current-UI phone mock — compact, centered, mirrors the live top page */
+/* current-UI phone mock — faithful reconstruction of the live top screen.
+   The screen keeps the production purple→magenta look (fixed, not palette-driven)
+   so the Hero reads unmistakably as the real CaseFlow Studio top page. */
 .lpPhoneWrap{display:flex;justify-content:center;width:100%}
-.lpPhone{position:relative;width:min(264px,72vw);aspect-ratio:9/17;border-radius:40px;padding:10px;
+.lpPhone{position:relative;width:min(272px,76vw);aspect-ratio:9/18.2;border-radius:42px;padding:9px;
   background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.14)}
-.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:31px;overflow:hidden;
-  background:linear-gradient(150deg,var(--c1,#7c5cff),color-mix(in srgb,var(--c1,#7c5cff) 45%,var(--c2,#ff9fd6)),var(--c2,#ff9fd6));
+.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;color:#fff;
+  background:linear-gradient(152deg,#a95ef2 0%,#bd68f0 38%,#d97fe0 68%,#e6a0d6 100%);
   display:flex;flex-direction:column}
-/* scrim keeps the top logo/tag legible on any palette (dark or light) */
-.lpPhoneScreen::before{content:"";position:absolute;inset:0 0 auto 0;height:44%;pointer-events:none;
-  background:linear-gradient(180deg,rgba(16,10,32,.42),transparent)}
-.lpPhoneTop{flex:1;padding:18px 15px 0;position:relative;z-index:1}
-.lpPhoneTop .cfWordmark{display:block;height:14px;width:60%;background:#eafff2}
-.lpPhoneTag{color:rgba(255,255,255,.94);font-size:9px;font-weight:800;margin:6px 0 0;text-shadow:0 1px 6px rgba(20,10,40,.5)}
-.lpPhoneMarks{position:absolute;top:17px;right:14px;text-align:right;color:rgba(255,255,255,.9);line-height:1.2}
-.lpPhoneMarks b{display:block;font-size:6.5px;font-weight:900;letter-spacing:.14em}
-.lpPhoneMarks span{font-size:12px;font-weight:900;letter-spacing:.02em;color:rgba(201,255,216,.95)}
-.lpPhoneCard{margin:10px;padding:11px;border-radius:20px;background:rgba(255,255,255,.24);border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(10px);position:relative;z-index:1}
-.lpPhoneCTA{width:100%;min-height:42px;border-radius:999px;background:#9ff3bf;color:#4a2fb0;font-weight:900;font-size:11.5px;display:grid;place-items:center;line-height:1.15;text-align:center}
-.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-.lpPhoneSub{background:rgba(255,255,255,.86);border-radius:13px;padding:7px 5px;text-align:center}
-.lpPhoneSub b{display:block;font-size:7.5px;color:#241c46;font-weight:900;line-height:1.15}
-.lpPhoneSub span{font-size:8px;color:#5b3fd6;font-weight:800}
-.lpPhoneVer{text-align:center;color:#5b3fd6;font-size:8.5px;font-weight:900;margin-top:6px}
-.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:7px 5px 11px;background:rgba(20,14,38,.5);backdrop-filter:blur(14px);border-top:1px solid rgba(255,255,255,.14);position:relative;z-index:1}
-.lpPhoneNav span{font-size:7px;font-weight:800;color:rgba(255,255,255,.72);text-align:center;display:grid;gap:2px;justify-items:center}
-.lpPhoneNav span i{font-style:normal;font-size:11px;line-height:1}
-.lpPhoneNav span.on{color:#fff}
+.lpPhoneTop{flex:1;padding:20px 15px 0;position:relative}
+.lpPhoneTop .cfWordmark{display:block;height:15px;width:64%;background:#bdf4ad}
+.lpPhoneTag{color:#bdf4ad;font-size:9px;font-weight:800;margin:7px 0 0;letter-spacing:.005em}
+/* FOR DENTISTRY starburst + CDS emblems (top-right) */
+.lpPhoneMarks{position:absolute;top:15px;right:12px;display:flex;flex-direction:column;align-items:center;gap:11px}
+.lpPhoneMarkA{display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.92}
+.lpPhoneMarkA svg{width:34px;height:34px;display:block}
+.lpPhoneMarkA b{font-size:5px;font-weight:800;letter-spacing:.2em;color:rgba(255,255,255,.82)}
+.lpPhoneMarkB{display:flex;flex-direction:column;align-items:center;gap:1px}
+.lpPhoneMarkB .cds{font-size:21px;font-weight:900;letter-spacing:.05em;color:transparent;
+  -webkit-text-stroke:1.1px rgba(196,244,176,.92)}
+.lpPhoneMarkB small{font-size:3.4px;font-weight:800;letter-spacing:.12em;color:rgba(196,244,176,.85)}
+/* main glass card */
+.lpPhoneCard{margin:9px;padding:13px 12px 12px;border-radius:24px;position:relative;z-index:1;
+  background:linear-gradient(158deg,rgba(255,255,255,.36),rgba(255,206,238,.30));
+  border:1px solid rgba(255,255,255,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 12px 30px rgba(120,40,120,.18)}
+.lpPhoneCardTop{display:flex;justify-content:flex-end;align-items:center;gap:7px;margin-bottom:11px}
+.lpPhoneJA{background:#fff;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:800;color:#2b2350;
+  display:flex;align-items:center;gap:4px;box-shadow:0 2px 7px rgba(80,40,120,.20)}
+.lpPhoneJA i{font-style:normal;font-size:7px;opacity:.55}
+.lpPhoneToggle{width:44px;height:24px;border-radius:999px;background:#fff;padding:3px;display:flex;justify-content:flex-end;
+  box-shadow:0 2px 7px rgba(80,40,120,.20)}
+.lpPhoneToggle b{display:block;width:18px;height:18px;border-radius:50%;background:linear-gradient(120deg,#5b6cf0,#f08aa8)}
+.lpPhoneCTA{width:100%;min-height:52px;border-radius:19px;background:#bdf4ad;color:#5b3fd6;font-weight:900;font-size:14px;
+  display:grid;place-items:center;line-height:1.28;text-align:center;box-shadow:0 6px 16px rgba(120,60,160,.22)}
+.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.lpPhoneSub{background:linear-gradient(160deg,#fff,#ffe3f2);border-radius:14px;padding:9px 6px;text-align:center;
+  box-shadow:0 3px 9px rgba(120,60,160,.12)}
+.lpPhoneSub b{display:block;font-size:7px;color:#241c46;font-weight:900;line-height:1.25;letter-spacing:-.01em}
+.lpPhoneSub b sup{font-size:4.6px;vertical-align:super}
+.lpPhoneSub span{font-size:8.5px;color:#33235f;font-weight:800}
+.lpPhoneVer{text-align:center;color:#6a45e0;font-size:11px;font-weight:900;margin-top:12px}
+.lpPhoneProvider{text-align:center;color:rgba(255,255,255,.92);font-size:7px;font-weight:800;letter-spacing:.03em;margin-top:8px}
+/* bottom navigation */
+.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;padding:8px 5px 12px;position:relative;z-index:1;
+  background:linear-gradient(180deg,rgba(40,25,66,.60),rgba(26,16,48,.74));backdrop-filter:blur(14px);
+  border-top:1px solid rgba(255,255,255,.12)}
+.lpPhoneNav>span{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.82);text-align:center;
+  display:grid;gap:3px;justify-items:center;position:relative;padding:5px 0;border-radius:13px}
+.lpPhoneNav>span svg{width:14px;height:14px;display:block}
+.lpPhoneNav>span.on{color:#fff;background:rgba(255,255,255,.13)}
+.lpPhoneIco{position:relative;display:inline-grid;justify-items:center;height:14px;line-height:0}
+.lpPhoneBadge{position:absolute;top:-7px;left:100%;margin-left:-9px;white-space:nowrap;
+  background:linear-gradient(120deg,#8a6cf0,#f072c0);color:#fff;font-size:5.4px;font-weight:900;
+  border-radius:999px;padding:.5px 3px;line-height:1.4;box-shadow:0 1px 4px rgba(60,20,80,.4)}
 
 /* product samples */
 .lpSamples{display:grid;gap:22px}
@@ -383,18 +411,49 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
           <div class="lpPhoneTop">
             <span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span>
             <p class="lpPhoneTag">Clinical beauty, visualized.</p>
-            <div class="lpPhoneMarks"><b>FOR<br>DENTISTRY</b><span>CDS</span></div>
+            <div class="lpPhoneMarks">
+              <div class="lpPhoneMarkA">
+                <svg viewBox="0 0 40 40" fill="none">
+                  <g stroke="#d6f5c4" stroke-width="1.2" stroke-linecap="round">
+                    <line x1="20" y1="2.5" x2="20" y2="7.5"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(30 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(60 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(90 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(120 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(150 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(180 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(210 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(240 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(270 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(300 20 20)"/>
+                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(330 20 20)"/>
+                  </g>
+                  <rect x="15.4" y="15.4" width="9.2" height="9.2" rx="1.2" fill="#c7f2ad"/>
+                </svg>
+                <b>FOR DENTISTRY</b>
+              </div>
+              <div class="lpPhoneMarkB"><span class="cds">CDS</span><small>CLINICAL DESIGN SYSTEMS</small></div>
+            </div>
           </div>
           <div class="lpPhoneCard">
+            <div class="lpPhoneCardTop">
+              <span class="lpPhoneJA">JA <i>▾</i></span>
+              <span class="lpPhoneToggle"><b></b></span>
+            </div>
             <div class="lpPhoneCTA">Create a CaseFlow<br>はじめる</div>
             <div class="lpPhoneSubs">
-              <div class="lpPhoneSub"><b>Morphing Video Studio™</b><span>サンプルをみる</span></div>
-              <div class="lpPhoneSub"><b>Visual Simulation™</b><span>サンプルをみる</span></div>
+              <div class="lpPhoneSub"><b>Morphing Video Studio<sup>™</sup></b><span>サンプルをみる</span></div>
+              <div class="lpPhoneSub"><b>Visual Simulation Studio<sup>™</sup></b><span>サンプルをみる</span></div>
             </div>
             <div class="lpPhoneVer">v9.6</div>
+            <div class="lpPhoneProvider">CASEFLOW STUDIO™ provided by NARRATIVE CHERISH</div>
           </div>
           <div class="lpPhoneNav">
-            <span class="on"><i>▦</i>Project</span><span><i>◫</i>Gallery</span><span><i>◐</i>Account</span><span><i>▤</i>Library</span><span><i>✦</i>Invite</span>
+            <span class="on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="2"/><line x1="7" y1="7" x2="13" y2="7"/><line x1="7" y1="10" x2="13" y2="10"/><line x1="7" y1="13" x2="11" y2="13"/></svg>Project</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="12" height="12" rx="2"/><rect x="7.5" y="7.5" width="5" height="5" rx="1"/></svg>Gallery</span>
+            <span><span class="lpPhoneIco"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="7" r="3"/><path d="M4.6 16c0-3 2.6-4.6 5.4-4.6s5.4 1.6 5.4 4.6"/></svg><span class="lpPhoneBadge">100</span></span>Account</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="5" y1="6" x2="15" y2="6"/><line x1="5" y1="10" x2="15" y2="10"/><line x1="5" y1="14" x2="15" y2="14"/></svg>Library</span>
+            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14 L14 6"/><path d="M8.2 6 H14 V11.8"/></svg>Invite</span>
           </div>
         </div></div>
       </div>
