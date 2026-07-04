@@ -260,53 +260,11 @@ body::before{
    The screen keeps the production purple→magenta look (fixed, not palette-driven)
    so the Hero reads unmistakably as the real CaseFlow Studio top page. */
 .lpPhoneWrap{display:flex;justify-content:center;width:100%}
-.lpPhone{position:relative;width:min(272px,76vw);aspect-ratio:9/18.2;border-radius:42px;padding:9px;
-  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.14)}
-.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;color:#fff;
-  background:linear-gradient(152deg,#a95ef2 0%,#bd68f0 38%,#d97fe0 68%,#e6a0d6 100%);
-  display:flex;flex-direction:column}
-.lpPhoneTop{flex:1;padding:20px 15px 0;position:relative}
-.lpPhoneTop .cfWordmark{display:block;height:15px;width:64%;background:#bdf4ad}
-.lpPhoneTag{color:#bdf4ad;font-size:9px;font-weight:800;margin:7px 0 0;letter-spacing:.005em}
-/* FOR DENTISTRY starburst + CDS emblems (top-right) */
-.lpPhoneMarks{position:absolute;top:14px;right:13px;display:flex;flex-direction:column;align-items:center;gap:10px}
-.lpPhoneMarks img{display:block}
-.lpPhoneMarks .mDent{width:37px;opacity:.92}
-.lpPhoneMarks .mCds{width:50px;opacity:.9}
-/* main glass card */
-.lpPhoneCard{margin:9px;padding:13px 12px 12px;border-radius:24px;position:relative;z-index:1;
-  background:linear-gradient(158deg,rgba(255,255,255,.36),rgba(255,206,238,.30));
-  border:1px solid rgba(255,255,255,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  box-shadow:0 12px 30px rgba(120,40,120,.18)}
-.lpPhoneCardTop{display:flex;justify-content:flex-end;align-items:center;gap:7px;margin-bottom:11px}
-.lpPhoneJA{background:#fff;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:800;color:#2b2350;
-  display:flex;align-items:center;gap:4px;box-shadow:0 2px 7px rgba(80,40,120,.20)}
-.lpPhoneJA i{font-style:normal;font-size:7px;opacity:.55}
-.lpPhoneToggle{width:44px;height:24px;border-radius:999px;background:#fff;padding:3px;display:flex;justify-content:flex-end;
-  box-shadow:0 2px 7px rgba(80,40,120,.20)}
-.lpPhoneToggle b{display:block;width:18px;height:18px;border-radius:50%;background:linear-gradient(120deg,#5b6cf0,#f08aa8)}
-.lpPhoneCTA{width:100%;min-height:52px;border-radius:19px;background:#bdf4ad;color:#5b3fd6;font-weight:900;font-size:14px;
-  display:grid;place-items:center;line-height:1.28;text-align:center;box-shadow:0 6px 16px rgba(120,60,160,.22)}
-.lpPhoneSubs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.lpPhoneSub{background:linear-gradient(160deg,#fff,#ffe3f2);border-radius:14px;padding:9px 6px;text-align:center;
-  box-shadow:0 3px 9px rgba(120,60,160,.12)}
-.lpPhoneSub b{display:block;font-size:7px;color:#241c46;font-weight:900;line-height:1.25;letter-spacing:-.01em}
-.lpPhoneSub b sup{font-size:4.6px;vertical-align:super}
-.lpPhoneSub span{font-size:8.5px;color:#33235f;font-weight:800}
-.lpPhoneVer{text-align:center;color:#6a45e0;font-size:11px;font-weight:900;margin-top:12px}
-.lpPhoneProvider{text-align:center;color:rgba(255,255,255,.92);font-size:7px;font-weight:800;letter-spacing:.03em;margin-top:8px}
-/* bottom navigation */
-.lpPhoneNav{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;padding:8px 5px 12px;position:relative;z-index:1;
-  background:linear-gradient(180deg,rgba(40,25,66,.60),rgba(26,16,48,.74));backdrop-filter:blur(14px);
-  border-top:1px solid rgba(255,255,255,.12)}
-.lpPhoneNav>span{font-size:7.5px;font-weight:800;color:rgba(255,255,255,.82);text-align:center;
-  display:grid;gap:3px;justify-items:center;position:relative;padding:5px 0;border-radius:13px}
-.lpPhoneNav>span svg{width:14px;height:14px;display:block}
-.lpPhoneNav>span.on{color:#fff;background:rgba(255,255,255,.13)}
-.lpPhoneIco{position:relative;display:inline-grid;justify-items:center;height:14px;line-height:0}
-.lpPhoneBadge{position:absolute;top:-7px;left:100%;margin-left:-9px;white-space:nowrap;
-  background:linear-gradient(120deg,#8a6cf0,#f072c0);color:#fff;font-size:5.4px;font-weight:900;
-  border-radius:999px;padding:.5px 3px;line-height:1.4;box-shadow:0 1px 4px rgba(60,20,80,.4)}
+/* iPhone 17 Pro proportioned frame holding the real top-screen capture */
+.lpPhone{position:relative;width:min(274px,76vw);aspect-ratio:1206/2622;border-radius:46px;padding:8px;
+  background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.16)}
+.lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:40px;overflow:hidden;background:#b07af0}
+.lpPhoneShot{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 
 /* product samples */
 .lpSamples{display:grid;gap:22px}
@@ -396,6 +354,7 @@ body::before{
 
 .lpFinal{text-align:center;padding:60px 26px;margin:8px 0}
 .lpFinal h2{margin:0 0 20px}
+.lpFinalHead{font-size:clamp(26px,4.6vw,42px);font-weight:900;line-height:1.12;letter-spacing:-.01em;color:var(--lpHead);text-shadow:0 6px 24px rgba(40,26,70,.3)}
 .lpFinalCTAs{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
 .lpFinal .lpNote{margin:16px auto 0}
 
@@ -416,34 +375,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
       </div>
       <div class="lpPhoneWrap" aria-hidden="true">
         <div class="lpPhone"><div class="lpPhoneScreen">
-          <div class="lpPhoneTop">
-            <span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span>
-            <p class="lpPhoneTag">Clinical beauty, visualized.</p>
-            <div class="lpPhoneMarks">
-              <img class="mDent" src="media/inline/mark-dentistry.png" alt="For Dentistry" loading="lazy" decoding="async">
-              <img class="mCds" src="media/inline/mark-cds.png" alt="Clinical Design Systems" loading="lazy" decoding="async">
-            </div>
-          </div>
-          <div class="lpPhoneCard">
-            <div class="lpPhoneCardTop">
-              <span class="lpPhoneJA">JA <i>▾</i></span>
-              <span class="lpPhoneToggle"><b></b></span>
-            </div>
-            <div class="lpPhoneCTA">Create a CaseFlow<br>はじめる</div>
-            <div class="lpPhoneSubs">
-              <div class="lpPhoneSub"><b>Morphing Video Studio<sup>™</sup></b><span>サンプルをみる</span></div>
-              <div class="lpPhoneSub"><b>Visual Simulation Studio<sup>™</sup></b><span>サンプルをみる</span></div>
-            </div>
-            <div class="lpPhoneVer">v9.6</div>
-            <div class="lpPhoneProvider">CASEFLOW STUDIO™ provided by NARRATIVE CHERISH</div>
-          </div>
-          <div class="lpPhoneNav">
-            <span class="on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="2"/><line x1="7" y1="7" x2="13" y2="7"/><line x1="7" y1="10" x2="13" y2="10"/><line x1="7" y1="13" x2="11" y2="13"/></svg>Project</span>
-            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="12" height="12" rx="2"/><rect x="7.5" y="7.5" width="5" height="5" rx="1"/></svg>Gallery</span>
-            <span><span class="lpPhoneIco"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="7" r="3"/><path d="M4.6 16c0-3 2.6-4.6 5.4-4.6s5.4 1.6 5.4 4.6"/></svg><span class="lpPhoneBadge">100</span></span>Account</span>
-            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="5" y1="6" x2="15" y2="6"/><line x1="5" y1="10" x2="15" y2="10"/><line x1="5" y1="14" x2="15" y2="14"/></svg>Library</span>
-            <span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14 L14 6"/><path d="M8.2 6 H14 V11.8"/></svg>Invite</span>
-          </div>
+          <img class="lpPhoneShot" src="media/inline/top-screen.jpg" alt="CaseFlow Studio top screen" loading="lazy" decoding="async">
         </div></div>
       </div>
     </div>
@@ -658,8 +590,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 <!-- ===== FINAL CTA (only place with CTA buttons) ===== -->
 <section class="wrap" id="contact">
   <div class="lpGlass lpFinal">
-    <p class="lpEyebrow" data-i18n="final.eyebrow">Start</p>
-    <h2 data-i18n="final.h2">説明から、共に描くカウンセリングへ。</h2>
+    <h2 class="lpFinalHead" data-i18n="final.h2">ALL THIG THAT STILL.</h2>
     <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
   </div>
 </section>
@@ -722,7 +653,7 @@ window.__LP_T={
   "future.eyebrow":"Future","future.h2":"From personal studio to clinic visual platform.",
   "future.p1":"CaseFlow Studio will grow from a visual tool for individual dentists into a Clinical Visual Platform where clinics and teams share case visuals.",
   "future.p2":"Integrating personal and clinic wallets, member management, shared cases, morphing videos and simulation images to update the aesthetic-dentistry explanation experience.",
-  "final.eyebrow":"Start","final.h2":"From explaining, to designing together.",
+  "final.eyebrow":"Start","final.h2":"ALL THIG THAT STILL.",
   "final.note":"Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome."
  },
  ja:{
@@ -782,7 +713,7 @@ window.__LP_T={
   "future.eyebrow":"これから","future.h2":"個人スタジオから、医院のビジュアルプラットフォームへ。",
   "future.p1":"CaseFlow Studio は、個人の歯科医師が使うビジュアルツールから、医院・チーム単位で症例ビジュアルを共有する Clinical Visual Platform へ拡張していきます。",
   "future.p2":"個人ウォレット、クリニックウォレット、メンバー管理、共有症例、モーフィング動画、シミュレーション画像を統合し、審美歯科の説明体験をアップデートします。",
-  "final.eyebrow":"はじめる","final.h2":"説明から、共に描くカウンセリングへ。",
+  "final.eyebrow":"はじめる","final.h2":"ALL THIG THAT STILL.",
   "final.note":"生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。"
  },
  pt:{
@@ -842,7 +773,7 @@ window.__LP_T={
   "future.eyebrow":"Futuro","future.h2":"Do estúdio pessoal à plataforma visual da clínica.",
   "future.p1":"O CaseFlow Studio crescerá de uma ferramenta visual para dentistas individuais para uma Clinical Visual Platform onde clínicas e equipes compartilham visuais de casos.",
   "future.p2":"Integrando carteiras pessoal e da clínica, gestão de membros, casos compartilhados, vídeos de morphing e imagens de simulação para renovar a experiência de explicação.",
-  "final.eyebrow":"Começar","final.h2":"De explicar, para desenhar juntos.",
+  "final.eyebrow":"Começar","final.h2":"ALL THIG THAT STILL.",
   "final.note":"Imagens e vídeos gerados são visuais de referência apenas para explicação — não um diagnóstico nem garantia de resultado."
  },
  it:{
@@ -902,7 +833,7 @@ window.__LP_T={
   "future.eyebrow":"Futuro","future.h2":"Dallo studio personale alla piattaforma visiva della clinica.",
   "future.p1":"CaseFlow Studio crescerà da strumento visivo per singoli dentisti a una Clinical Visual Platform dove studi e team condividono i visual dei casi.",
   "future.p2":"Integrando wallet personale e di clinica, gestione dei membri, casi condivisi, video morphing e immagini di simulazione per rinnovare l’esperienza di spiegazione.",
-  "final.eyebrow":"Inizia","final.h2":"Dallo spiegare, al progettare insieme.",
+  "final.eyebrow":"Inizia","final.h2":"ALL THIG THAT STILL.",
   "final.note":"Le immagini e i video generati sono visual di riferimento solo per la spiegazione — non una diagnosi né una garanzia di risultato."
  },
  ar:{
@@ -962,7 +893,7 @@ window.__LP_T={
   "future.eyebrow":"المستقبل","future.h2":"من استوديو فردي إلى منصة بصرية للعيادة.",
   "future.p1":"سينمو CaseFlow Studio من أداة بصرية لأطباء الأسنان الأفراد إلى منصة بصرية سريرية تشارك فيها العيادات والفرق مرئيات الحالات.",
   "future.p2":"بدمج المحافظ الفردية والعيادية وإدارة الأعضاء والحالات المشتركة وفيديوهات المورفينغ وصور المحاكاة لتحديث تجربة الشرح.",
-  "final.eyebrow":"ابدأ","final.h2":"من الشرح، إلى التصميم معًا.",
+  "final.eyebrow":"ابدأ","final.h2":"ALL THIG THAT STILL.",
   "final.note":"الصور والفيديوهات المُولَّدة مرئيات مرجعية للشرح فقط — وليست تشخيصًا أو ضمانًا للنتيجة."
  },
  zh:{
@@ -1022,7 +953,7 @@ window.__LP_T={
   "future.eyebrow":"未来","future.h2":"从个人工作室，到诊所视觉平台。",
   "future.p1":"CaseFlow Studio 将从个人牙医使用的视觉工具，扩展为诊所与团队共享病例视觉的临床视觉平台。",
   "future.p2":"整合个人钱包、诊所钱包、成员管理、共享病例、变形视频与模拟图像，更新美学牙科的说明体验。",
-  "final.eyebrow":"开始","final.h2":"从说明，到共同设计。",
+  "final.eyebrow":"开始","final.h2":"ALL THIG THAT STILL.",
   "final.note":"生成的图像与视频仅为用于说明的参考影像——并非诊断或结果保证。"
  },
  ko:{
@@ -1082,7 +1013,7 @@ window.__LP_T={
   "future.eyebrow":"앞으로","future.h2":"개인 스튜디오에서, 치과 비주얼 플랫폼으로.",
   "future.p1":"CaseFlow Studio 는 개인 치과의사가 쓰는 비주얼 도구에서, 치과·팀 단위로 증례 비주얼을 공유하는 Clinical Visual Platform 으로 확장해 갑니다.",
   "future.p2":"개인 지갑, 클리닉 지갑, 멤버 관리, 공유 증례, 모핑 영상, 시뮬레이션 이미지를 통합해 심미 치과의 설명 경험을 업데이트합니다.",
-  "final.eyebrow":"시작하기","final.h2":"설명에서, 함께 그리는 상담으로.",
+  "final.eyebrow":"시작하기","final.h2":"ALL THIG THAT STILL.",
   "final.note":"생성된 이미지·영상은 설명용 참고 비주얼이며, 진단이나 결과 보장이 아닙니다."
  }
 };
