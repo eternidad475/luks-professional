@@ -55,7 +55,8 @@ h1,h2,h3{margin:0;letter-spacing:-.02em}
 .navMark{width:clamp(148px,38vw,200px)}
 .heroMark{width:min(560px,84vw);margin:0}
 .footMark{width:150px;filter:drop-shadow(0 2px 10px rgba(40,26,70,.3))}
-.ncMark{display:block;width:120px;height:auto;border-radius:16px;box-shadow:0 12px 30px rgba(20,12,45,.42);margin:0 auto}
+.ncMark{display:block;width:60px;height:auto;opacity:.52;margin:0 auto}
+html[data-lptone="light"] .ncMark{filter:brightness(0);opacity:.5}
 .footProvider{display:flex;flex-direction:column-reverse;align-items:center;gap:10px;justify-content:center;margin-top:14px}
 .footProvider span{font-size:11.5px;color:rgba(255,255,255,.78);line-height:1.4;text-align:center}
 .footProvider b{display:block;color:#fff;font-weight:800;letter-spacing:.04em}
@@ -202,6 +203,17 @@ footer{border-color:var(--lpLine)}
 .footMeta b,.footProvider b{color:var(--lpHead)}
 .disclaimer{color:var(--lpFaint)}
 footer nav a{color:var(--lpText)}
+/* new pivotal-section subtitle lead */
+.lpSubtitleLead{font-size:clamp(15px,2.4vw,20px);font-weight:800;color:var(--lpAccentText);margin:2px 0 18px;letter-spacing:.005em;line-height:1.55}
+/* brand-logo readability protection — subtle, tone-aware, no clunky black edge */
+.lpHero .cfWordmark{filter:drop-shadow(0 2px 12px rgba(24,12,44,.30))}
+html[data-lptone="light"] .lpHero .cfWordmark{filter:drop-shadow(0 1px 5px rgba(255,255,255,.55))}
+.footMark{filter:drop-shadow(0 1px 8px rgba(24,12,44,.26))}
+/* vertical rhythm: alternating faint light layers keep lower sections from going flat */
+.lpSection{position:relative;isolation:isolate}
+.lpSection::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background:radial-gradient(66% 56% at 84% 6%, color-mix(in srgb,var(--c2,#ff9fd6) 24%,transparent), transparent 70%)}
+.lpSection:nth-of-type(2n)::before{background:radial-gradient(70% 58% at 12% 94%, color-mix(in srgb,var(--c1,#7c5cff) 24%,transparent), transparent 70%)}
 
 /* ---- clearly breathing background (calm, GPU-friendly on iOS Safari) ---- */
 body::before{
@@ -257,14 +269,10 @@ body::before{
 .lpPhoneTop .cfWordmark{display:block;height:15px;width:64%;background:#bdf4ad}
 .lpPhoneTag{color:#bdf4ad;font-size:9px;font-weight:800;margin:7px 0 0;letter-spacing:.005em}
 /* FOR DENTISTRY starburst + CDS emblems (top-right) */
-.lpPhoneMarks{position:absolute;top:15px;right:12px;display:flex;flex-direction:column;align-items:center;gap:11px}
-.lpPhoneMarkA{display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.92}
-.lpPhoneMarkA svg{width:34px;height:34px;display:block}
-.lpPhoneMarkA b{font-size:5px;font-weight:800;letter-spacing:.2em;color:rgba(255,255,255,.82)}
-.lpPhoneMarkB{display:flex;flex-direction:column;align-items:center;gap:1px}
-.lpPhoneMarkB .cds{font-size:21px;font-weight:900;letter-spacing:.05em;color:transparent;
-  -webkit-text-stroke:1.1px rgba(196,244,176,.92)}
-.lpPhoneMarkB small{font-size:3.4px;font-weight:800;letter-spacing:.12em;color:rgba(196,244,176,.85)}
+.lpPhoneMarks{position:absolute;top:14px;right:13px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.lpPhoneMarks img{display:block}
+.lpPhoneMarks .mDent{width:37px;opacity:.92}
+.lpPhoneMarks .mCds{width:50px;opacity:.9}
 /* main glass card */
 .lpPhoneCard{margin:9px;padding:13px 12px 12px;border-radius:24px;position:relative;z-index:1;
   background:linear-gradient(158deg,rgba(255,255,255,.36),rgba(255,206,238,.30));
@@ -412,27 +420,8 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
             <span class="cfWordmark" role="img" aria-label="CASEFLOW STUDIO"></span>
             <p class="lpPhoneTag">Clinical beauty, visualized.</p>
             <div class="lpPhoneMarks">
-              <div class="lpPhoneMarkA">
-                <svg viewBox="0 0 40 40" fill="none">
-                  <g stroke="#d6f5c4" stroke-width="1.2" stroke-linecap="round">
-                    <line x1="20" y1="2.5" x2="20" y2="7.5"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(30 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(60 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(90 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(120 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(150 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(180 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(210 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(240 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(270 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(300 20 20)"/>
-                    <line x1="20" y1="2.5" x2="20" y2="7.5" transform="rotate(330 20 20)"/>
-                  </g>
-                  <rect x="15.4" y="15.4" width="9.2" height="9.2" rx="1.2" fill="#c7f2ad"/>
-                </svg>
-                <b>FOR DENTISTRY</b>
-              </div>
-              <div class="lpPhoneMarkB"><span class="cds">CDS</span><small>CLINICAL DESIGN SYSTEMS</small></div>
+              <img class="mDent" src="media/inline/mark-dentistry.png" alt="For Dentistry" loading="lazy" decoding="async">
+              <img class="mCds" src="media/inline/mark-cds.png" alt="Clinical Design Systems" loading="lazy" decoding="async">
             </div>
           </div>
           <div class="lpPhoneCard">
@@ -606,10 +595,13 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
 <!-- ===== WHY NOW ===== -->
 <section class="lpSection" id="whynow">
   <div class="wrap lpHeadWrap">
-    <p class="lpEyebrow" data-i18n="why.eyebrow">Why now</p>
-    <h2 data-i18n="why.h2">なぜ今、CaseFlow Studio なのか。</h2>
+    <p class="lpEyebrow" data-i18n="why.eyebrow">The experience ahead</p>
+    <h2 data-i18n="why.h2">全ての体験は記憶へ</h2>
+    <p class="lpSubtitleLead" data-i18n="why.subtitle">「人工×自然」が描く現代の顧客ニーズ</p>
     <p class="lpBody" data-i18n="why.p1">歯科医療では、デジタルスキャン、CAD/CAM、アライナー矯正、クラウド型ワークフローが進み、患者さんも治療前により明確なイメージを求めるようになっています。</p>
-    <p class="lpBody" style="margin-top:12px" data-i18n="why.p2">一方で、AI の臨床利用には安全性、説明責任、過度な期待を避ける設計が不可欠です。CaseFlow Studio は、AI を診断者としてではなく、歯科医師と患者さんの対話を支えるビジュアルレイヤーとして位置づけます。</p>
+    <p class="lpBody" style="margin-top:12px" data-i18n="why.p2">治療説明も、単なる情報伝達ではなく、患者さんの記憶に残る体験へ変わりつつあります。</p>
+    <p class="lpBody" style="margin-top:12px" data-i18n="why.p3">一方で、AI の臨床利用には、安全性、説明責任、過度な期待を避ける設計が不可欠です。CaseFlow Studio は、AI を診断者としてではなく、歯科医師の臨床感覚と患者さんの理解をつなぐビジュアルレイヤーとして位置づけます。</p>
+    <p class="lpBody" style="margin-top:12px" data-i18n="why.p4">デジタルの精度と、人間の感覚。人工と自然のあいだにある新しい審美体験を、カウンセリングの画面上に設計します。</p>
   </div>
 </section>
 
@@ -671,129 +663,430 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
     <p class="lpNote" data-i18n="final.note">生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。</p>
   </div>
 </section>
-<script>window.__LP_T={
-   en:{'atmo.blend':'Blend Ratio','atmo.shuffle':'Shuffle Palette','inv.title':'Invitation-only','cta.start':'Start CaseFlow','cta.contact':'Contact',
-     'hero.eyebrow':'For communication, not diagnosis.','hero.tag':'Clinical beauty, visualized.',
-     'hero.lead':'A Clinical Visual Studio where a dentist’s intent and a patient’s future smile are shared on one screen.',
-     'hero.poem':'CaseFlow Studio™ visualizes post-treatment impressions from the patient’s own photo — a clinical visual layer that connects the dentist’s intent with the patient’s understanding.',
-     'hero.note':'※ Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of treatment outcome.',
-     'samples.eyebrow':'The product is visual.','samples.h2':'Show the change before you explain it.',
-     'samples.body':'CaseFlow Studio is not a tool for adding more explanation. It lets you see the post-treatment impression on one shared screen.',
-     'samples.sim.sub':'Share the direction of the result, as a still image.',
-     'samples.sim.desc':'Alignment, shade, crown form, smile line, gingival line — place the treatment intent inside the patient’s own photo. Drag to compare Before / After.',
-     'samples.morph.sub':'Convey the process of change, as a video.',
-     'samples.morph.desc':'Turn the Before / After difference into a flowing visual that works for case explanation and social posts.',
-     'atmo.eyebrow':'Interface atmosphere','atmo.h2':'Choose the atmosphere.',
-     'atmo.body':'Switch the background tone and feel the visual experience of CaseFlow Studio — the atmosphere of the clinical screen is part of the design.',
-     'problem.eyebrow':'The gap','problem.h2':'Words alone can’t picture a future smile.',
-     'problem.body':'In aesthetic, orthodontic and prosthetic care, patients want more than the procedure. How will my mouth change? How will my smile look? Being able to share that image shapes the depth of understanding in counseling.',
-     'solution.eyebrow':'The visual layer','solution.h2':'Turn explanation into a shareable visual.',
-     'solution.body':'From the patient’s own photo, CaseFlow Studio visualizes the dentist’s treatment intent — orthodontics, prosthetics, direct bonding, smile line, crown form, shade — as reference visuals, so you and the patient look at the same goal.',
-     'philo.eyebrow':'Design Philosophy','philo.subtitle':'Designed from the chairside.',
-     'philo.p1':'At the chairside, being correct is not enough.',
-     'philo.p2':'How a patient receives the explanation, what future they picture, where they feel anxious, where they feel hopeful — CaseFlow Studio is designed from that sense.',
-     'philo.p3':'Not too clinical, not too promotional. Not a diagnostic tool, but a clinical studio for visual communication.',
-     'philo.p4':'It translates the dentist’s intent into something the patient can see.',
-     'studios.eyebrow':'Two studios','studios.h2':'Design in stills, convey in video.',
-     'studios.sim':'A still-image simulation to generate the post-treatment impression and tune the correction while sharing it in counseling.',
-     'studios.morph':'Turns the Before / After change into a smooth case video for patient explanation, case presentation and social posts.',
-     'studios.photo':'The base for managing, pre-processing, sorting and saving case images.',
-     'workflow.eyebrow':'Workflow','workflow.h2':'Three steps, done at the chairside.',
-     'wf.1.h':'Upload','wf.1.p':'Bring in the patient’s facial and intraoral photos.',
-     'wf.2.h':'Generate','wf.2.p':'Generate reference visuals for the chief complaint and treatment concept.',
-     'wf.3.h':'Share','wf.3.p':'Adjust with sliders, save, share, and turn into a case video.',
-     'uc.eyebrow':'Use cases','uc.h2':'Make aesthetic-dentistry explanations land.',
-     'uc.1':'Orthodontic consults','uc.2':'Prosthetic / ceramic consults','uc.3':'Direct bonding proposals','uc.4':'Smile design','uc.5':'Case explanation','uc.6':'Social case posts','uc.7':'In-clinic counseling','uc.8':'Team image sharing',
-     'global.eyebrow':'Global by design','global.h2':'From Japanese chairside craft to a global dental visual experience.',
-     'global.body':'CaseFlow Studio was born from the sensibility of Japanese dental practice, yet it is built to be a Clinical Visual Studio for aesthetic, orthodontic and prosthetic care worldwide. Switch the page language from the top-right control.',
-     'global.langs':'English · 日本語 · Português · Italiano · العربية · 中文 · 한국어',
-     'why.eyebrow':'Why now','why.h2':'Why CaseFlow Studio, now.',
-     'why.p1':'Dentistry is moving toward digital scanning, CAD/CAM, aligner orthodontics and cloud workflows, and patients increasingly want a clearer image before treatment.',
-     'why.p2':'At the same time, clinical use of AI demands safety, accountability and a design that avoids over-promising. CaseFlow Studio places AI not as a diagnostician, but as a visual layer that supports the dialogue between dentist and patient.',
-     'ethics.eyebrow':'Not a filter. Not a promise.','ethics.subtitle':'A clinical image between intention and understanding.',
-     'ethics.p1':'CaseFlow Studio is not a filter for flattering photos.',
-     'ethics.p2':'It is not a device that guarantees treatment outcomes.',
-     'ethics.p3':'It is a carefully designed visual layer placed between the dentist’s intent and the patient’s understanding.',
-     'ethics.p4':'Generated images and videos are reference visuals for explanation and sharing — not a diagnosis or an outcome guarantee.',
-     'ethics.p5':'The final diagnosis and treatment plan are made by the dentist’s own examination and judgment.',
-     'inv.eyebrow':'Invitation-only access','inv.subtitle':'Growing the product with clinical voices.',
-     'inv.p1':'CaseFlow Studio is currently offered by invitation only. Not for exclusivity, but so that — as a product used in real dental practice — it can keep improving while preserving the quality of feedback.',
-     'inv.p2':'Generation quality, the explanation experience, how it looks to patients, in-clinic operation. Verifying these carefully, CaseFlow Studio evolves as a Clinical Visual Studio.',
-     'plan.free.price':'Free','plan.free.tokens':'No monthly contract','plan.free.desc':'Start free. Experience the core flow of creating reference visuals.',
-     'plan.sketch.price':'1,500 JPY / mo','plan.sketch.desc':'For individual use. Keep using reference visuals in everyday counseling.',
-     'plan.clinic.price':'5,000 JPY / mo','plan.clinic.desc':'For a single clinic. Share case visuals across the clinic and team.',
-     'plans.note':'Each generation uses 2 tokens. Add-on tokens are available as one-time purchases. Payment is handled on Stripe’s secure screen.',
-     'future.eyebrow':'Future','future.h2':'From personal studio to clinic visual platform.',
-     'future.p1':'CaseFlow Studio will grow from a visual tool for individual dentists into a Clinical Visual Platform where clinics and teams share case visuals.',
-     'future.p2':'Integrating personal and clinic wallets, member management, shared cases, morphing videos and simulation images to update the aesthetic-dentistry explanation experience.',
-     'final.eyebrow':'Start','final.h2':'From explaining, to designing together.',
-     'final.note':'Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome.'},
-   ja:{'atmo.blend':'ブレンド比率','atmo.shuffle':'パレットをシャッフル','inv.title':'完全招待制','cta.start':'はじめる','cta.contact':'お問い合わせ',
-     'hero.eyebrow':'診断ではなく、対話のために。','hero.tag':'Clinical beauty, visualized.',
-     'atmo.eyebrow':'インターフェースの空気感','atmo.h2':'空気感を、選ぶ。',
-     'atmo.body':'背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。',
-     'problem.eyebrow':'ギャップ','solution.eyebrow':'視覚のレイヤー',
-     'samples.eyebrow':'プロダクトは、視覚。','studios.eyebrow':'ふたつのスタジオ',
-     'workflow.eyebrow':'ワークフロー','uc.eyebrow':'活用シーン',
-     'global.eyebrow':'グローバル・バイ・デザイン','global.h2':'日本のチェアサイドから、グローバルな歯科ビジュアル体験へ。',
-     'why.eyebrow':'なぜ今か','ethics.eyebrow':'フィルターでも、約束でもない。',
-     'ethics.subtitle':'意図と理解のあいだに置く、臨床の像。',
-     'philo.eyebrow':'デザイン思想','philo.subtitle':'チェアサイドから設計する。',
-     'inv.eyebrow':'完全招待制','inv.subtitle':'プロダクトを、臨床現場の声で育てる。',
-     'future.eyebrow':'これから','final.eyebrow':'はじめる',
-     'plan.free.price':'無料','plan.free.tokens':'月額契約なし',
-     'plan.sketch.price':'月額 1,500円','plan.clinic.price':'月額 5,000円'},
-   pt:{'cta.start':'Começar','cta.contact':'Contato','hero.eyebrow':'Para comunicação, não diagnóstico.','hero.tag':'Clinical beauty, visualized.',
-     'samples.eyebrow':'O produto é visual.','samples.h2':'Mostre a mudança antes de explicar.',
-     'atmo.eyebrow':'Atmosfera da interface','atmo.h2':'Escolha a atmosfera.',
-     'problem.h2':'Só com palavras não se imagina o sorriso futuro.','solution.h2':'Transforme a explicação em um visual compartilhável.',
-     'studios.h2':'Projete em imagens, comunique em vídeo.','workflow.h2':'Três passos, na cadeira.',
-     'uc.h2':'Faça a explicação da odontologia estética chegar.','global.eyebrow':'Global por design',
-     'global.h2':'Do chairside japonês para uma experiência visual odontológica global.','why.h2':'Por que CaseFlow Studio, agora.',
-     'ethics.eyebrow':'Não é filtro. Não é promessa.','inv.eyebrow':'Acesso somente por convite','inv.subtitle':'Evoluindo com a voz clínica.',
-     'plan.free.price':'Grátis','plan.free.tokens':'Sem contrato mensal','plan.sketch.price':'1.500 JPY / mês','plan.clinic.price':'5.000 JPY / mês',
-     'final.h2':'De explicar, para desenhar juntos.'},
-   it:{'cta.start':'Inizia','cta.contact':'Contatto','hero.eyebrow':'Per comunicare, non per diagnosticare.','hero.tag':'Clinical beauty, visualized.',
-     'samples.eyebrow':'Il prodotto è visivo.','samples.h2':'Mostra il cambiamento prima di spiegarlo.',
-     'atmo.eyebrow':'Atmosfera dell’interfaccia','atmo.h2':'Scegli l’atmosfera.',
-     'problem.h2':'Le parole da sole non bastano a immaginare il sorriso futuro.','solution.h2':'Trasforma la spiegazione in un visual condivisibile.',
-     'studios.h2':'Progetta in immagini, comunica in video.','workflow.h2':'Tre passi, alla poltrona.',
-     'uc.h2':'Fai arrivare la spiegazione dell’odontoiatria estetica.','global.eyebrow':'Globale per design',
-     'global.h2':'Dal chairside giapponese a un’esperienza visiva odontoiatrica globale.','why.h2':'Perché CaseFlow Studio, ora.',
-     'ethics.eyebrow':'Non un filtro. Non una promessa.','inv.eyebrow':'Accesso solo su invito','inv.subtitle':'Cresce con la voce clinica.',
-     'plan.free.price':'Gratis','plan.free.tokens':'Nessun contratto mensile','plan.sketch.price':'1.500 JPY / mese','plan.clinic.price':'5.000 JPY / mese',
-     'final.h2':'Dallo spiegare, al progettare insieme.'},
-   ar:{'cta.start':'ابدأ','cta.contact':'تواصل','hero.eyebrow':'للتواصل، لا للتشخيص.','hero.tag':'Clinical beauty, visualized.',
-     'samples.eyebrow':'المنتج بصري.','samples.h2':'أظهر التغيير قبل أن تشرحه.',
-     'atmo.eyebrow':'أجواء الواجهة','atmo.h2':'اختر الأجواء.',
-     'problem.h2':'الكلمات وحدها لا تكفي لتخيّل الابتسامة المستقبلية.','solution.h2':'حوّل الشرح إلى صورة قابلة للمشاركة.',
-     'studios.h2':'صمّم بالصور، وعبّر بالفيديو.','workflow.h2':'ثلاث خطوات، بجانب الكرسي.',
-     'uc.h2':'اجعل شرح طب الأسنان التجميلي يصل.','global.eyebrow':'عالمي بالتصميم',
-     'global.h2':'من ممارسة الأسنان اليابانية إلى تجربة بصرية عالمية.','why.h2':'لماذا CaseFlow Studio الآن.',
-     'ethics.eyebrow':'ليس فلترًا. ليس وعدًا.','inv.eyebrow':'الوصول بالدعوة فقط','inv.subtitle':'ننمّي المنتج بأصوات العيادة.',
-     'plan.free.price':'مجاني','plan.free.tokens':'بدون اشتراك شهري','plan.sketch.price':'1,500 JPY / شهر','plan.clinic.price':'5,000 JPY / شهر',
-     'final.h2':'من الشرح، إلى التصميم معًا.'},
-   zh:{'cta.start':'开始使用','cta.contact':'联系','hero.eyebrow':'用于沟通，而非诊断。','hero.tag':'Clinical beauty, visualized.',
-     'samples.eyebrow':'产品即视觉。','samples.h2':'先让对方看到变化，再解释。',
-     'atmo.eyebrow':'界面氛围','atmo.h2':'选择你的氛围。',
-     'problem.h2':'仅凭语言，难以想象未来的笑容。','solution.h2':'把说明变成可共享的视觉。',
-     'studios.h2':'以静图设计，以视频传达。','workflow.h2':'三步，椅旁完成。',
-     'uc.h2':'让美学牙科的说明更易传达。','global.eyebrow':'为全球而设计',
-     'global.h2':'从日本椅旁工艺，到全球牙科视觉体验。','why.h2':'为什么是现在的 CaseFlow Studio。',
-     'ethics.eyebrow':'不是滤镜，不是承诺。','inv.eyebrow':'完全邀请制','inv.subtitle':'以临床之声培育产品。',
-     'plan.free.price':'免费','plan.free.tokens':'无月度合约','plan.sketch.price':'每月 1,500 日元','plan.clinic.price':'每月 5,000 日元',
-     'final.h2':'从说明，到共同设计。'},
-   ko:{'cta.start':'시작하기','cta.contact':'문의','hero.eyebrow':'진단이 아니라, 소통을 위해.','hero.tag':'Clinical beauty, visualized.',
-     'samples.eyebrow':'제품은 시각이다.','samples.h2':'설명보다 먼저, 변화를 보여준다.',
-     'atmo.eyebrow':'인터페이스 분위기','atmo.h2':'분위기를 선택하세요.',
-     'problem.h2':'말만으로는 미래의 미소를 상상하기 어렵습니다.','solution.h2':'설명을 공유 가능한 비주얼로.',
-     'studios.h2':'정지 이미지로 설계하고, 영상으로 전달한다.','workflow.h2':'세 단계, 체어사이드에서 완결.',
-     'uc.h2':'심미 치과 설명을 더 잘 전달되게.','global.eyebrow':'글로벌 바이 디자인',
-     'global.h2':'일본의 체어사이드에서, 글로벌 치과 비주얼 경험으로.','why.h2':'왜 지금 CaseFlow Studio 인가.',
-     'ethics.eyebrow':'필터도, 약속도 아닙니다.','inv.eyebrow':'완전 초대제','inv.subtitle':'임상 현장의 목소리로 제품을 키운다.',
-     'plan.free.price':'무료','plan.free.tokens':'월 계약 없음','plan.sketch.price':'월 1,500엔','plan.clinic.price':'월 5,000엔',
-     'final.h2':'설명에서, 함께 그리는 상담으로.'}
-  };</script>
+<script>
+window.__LP_T={
+ en:{
+  "atmo.blend":"Blend Ratio","atmo.shuffle":"Shuffle Palette","inv.title":"Invitation-only","cta.start":"Start CaseFlow","cta.contact":"Contact",
+  "hero.eyebrow":"For communication, not diagnosis.","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"A Clinical Visual Studio where a dentist’s intent and a patient’s future smile are shared on one screen.",
+  "hero.poem":"CaseFlow Studio™ visualizes post-treatment impressions from the patient’s own photo — a clinical visual layer that connects the dentist’s intent with the patient’s understanding.",
+  "hero.note":"※ Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of treatment outcome.",
+  "samples.eyebrow":"The product is visual.","samples.h2":"Show the change before you explain it.",
+  "samples.body":"CaseFlow Studio is not a tool for adding more explanation. It lets you see the post-treatment impression on one shared screen.",
+  "samples.sim.sub":"Share the direction of the result, as a still image.",
+  "samples.sim.desc":"Alignment, shade, crown form, smile line, gingival line. Drag the handle to compare Before / After, and switch between Facial and Focus.",
+  "samples.morph.sub":"Convey the process of change, as a video.",
+  "samples.morph.desc":"Turn the Before / After difference into a flowing visual that works for case explanation and social posts.",
+  "atmo.eyebrow":"Interface atmosphere","atmo.h2":"Choose the atmosphere.",
+  "atmo.body":"Switch the background tone and feel the visual experience of CaseFlow Studio. Even the atmosphere of the clinical screen is part of the design.",
+  "problem.eyebrow":"The gap","problem.h2":"Words alone can’t picture a future smile.",
+  "problem.body":"In aesthetic, orthodontic and prosthetic care, patients want more than the procedure. How will my mouth change? How will my smile look? Being able to share that image shapes the depth of understanding in counseling.",
+  "solution.eyebrow":"The visual layer","solution.h2":"Turn explanation into a shareable visual.",
+  "solution.body":"From the patient’s own photo, CaseFlow Studio visualizes the dentist’s treatment intent — orthodontics, prosthetics, direct bonding, smile line, crown form, shade — as reference visuals, so you and the patient look at the same goal.",
+  "philo.eyebrow":"Design Philosophy","philo.subtitle":"Designed from the chairside.",
+  "philo.p1":"At the chairside, being correct is not enough.",
+  "philo.p2":"How a patient receives the explanation, what future they picture, where they feel anxious, where they feel hopeful — CaseFlow Studio is designed from that sense.",
+  "philo.p3":"Not too clinical, not too promotional. Not a diagnostic tool, but a clinical studio for visual communication.",
+  "philo.p4":"It translates the dentist’s intent into something the patient can see.",
+  "studios.eyebrow":"Two studios","studios.h2":"Design in stills, convey in video.",
+  "studios.sim":"A still-image simulation to generate the post-treatment impression and tune the correction while sharing it in counseling.",
+  "studios.morph":"Turns the Before / After change into a smooth case video for patient explanation, case presentation and social posts.",
+  "studios.photo":"The base for managing, pre-processing, sorting and saving case images.",
+  "workflow.eyebrow":"Workflow","workflow.h2":"Three steps, done at the chairside.",
+  "wf.1.h":"Upload","wf.1.p":"Bring in the patient’s facial and intraoral photos.",
+  "wf.2.h":"Generate","wf.2.p":"Generate reference visuals for the chief complaint and treatment concept.",
+  "wf.3.h":"Share","wf.3.p":"Adjust with sliders, save, share, and turn into a case video.",
+  "uc.eyebrow":"Use cases","uc.h2":"Make aesthetic-dentistry explanations land.",
+  "uc.1":"Orthodontic consults","uc.2":"Prosthetic / ceramic consults","uc.3":"Direct bonding proposals","uc.4":"Smile design","uc.5":"Case explanation","uc.6":"Social case posts","uc.7":"In-clinic counseling","uc.8":"Team image sharing",
+  "global.eyebrow":"Global by design","global.h2":"From Japanese chairside craft to a global dental visual experience.",
+  "global.body":"CaseFlow Studio was born from the sensibility of Japanese dental practice, yet it is built to be a Clinical Visual Studio for aesthetic, orthodontic and prosthetic care worldwide. Choose your language below.",
+  "why.eyebrow":"The experience ahead","why.h2":"Every experience becomes memory.",
+  "why.subtitle":"Modern customer needs shaped by the artificial and the natural.",
+  "why.p1":"Dentistry is moving toward digital scanning, CAD/CAM, aligner orthodontics and cloud workflows, and patients increasingly want a clearer image before treatment.",
+  "why.p2":"Treatment explanation, too, is shifting from mere information transfer to an experience that stays in the patient’s memory.",
+  "why.p3":"At the same time, clinical use of AI demands safety, accountability and a design that avoids over-promising. CaseFlow Studio places AI not as a diagnostician, but as a visual layer connecting the dentist’s clinical sense with the patient’s understanding.",
+  "why.p4":"The precision of the digital, and the feeling of the human. We design a new aesthetic experience — between the artificial and the natural — right on the counseling screen.",
+  "ethics.eyebrow":"Not a filter. Not a promise.","ethics.subtitle":"A clinical image between intention and understanding.",
+  "ethics.p1":"CaseFlow Studio is not a filter for flattering photos.",
+  "ethics.p2":"It is not a device that guarantees treatment outcomes.",
+  "ethics.p3":"It is a carefully designed visual layer placed between the dentist’s intent and the patient’s understanding.",
+  "ethics.p4":"Generated images and videos are reference visuals for explanation and sharing — not a diagnosis or an outcome guarantee.",
+  "ethics.p5":"The final diagnosis and treatment plan are made by the dentist’s own examination and judgment.",
+  "inv.eyebrow":"Invitation-only access","inv.subtitle":"Growing the product with clinical voices.",
+  "inv.p1":"CaseFlow Studio is currently offered by invitation only. Not for exclusivity, but so that — as a product used in real dental practice — it can keep improving while preserving the quality of feedback.",
+  "inv.p2":"Generation quality, the explanation experience, how it looks to patients, in-clinic operation. Verifying these carefully, CaseFlow Studio evolves as a Clinical Visual Studio.",
+  "plan.free.price":"Free","plan.free.tokens":"No monthly contract","plan.free.desc":"Start free. Experience the core flow of creating reference visuals.",
+  "plan.sketch.price":"1,500 JPY / mo","plan.sketch.desc":"For individual use. Keep using reference visuals in everyday counseling.",
+  "plan.clinic.price":"5,000 JPY / mo","plan.clinic.desc":"For a single clinic. Share case visuals across the clinic and team.",
+  "plans.note":"Each generation uses 2 tokens. Add-on tokens are available as one-time purchases. Payment is handled on Stripe’s secure screen.",
+  "future.eyebrow":"Future","future.h2":"From personal studio to clinic visual platform.",
+  "future.p1":"CaseFlow Studio will grow from a visual tool for individual dentists into a Clinical Visual Platform where clinics and teams share case visuals.",
+  "future.p2":"Integrating personal and clinic wallets, member management, shared cases, morphing videos and simulation images to update the aesthetic-dentistry explanation experience.",
+  "final.eyebrow":"Start","final.h2":"From explaining, to designing together.",
+  "final.note":"Generated images and videos are reference visuals for explanation only — not a diagnosis or a guarantee of outcome."
+ },
+ ja:{
+  "atmo.blend":"ブレンド比率","atmo.shuffle":"パレットをシャッフル","inv.title":"完全招待制","cta.start":"はじめる","cta.contact":"お問い合わせ",
+  "hero.eyebrow":"診断ではなく、対話のために。","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"歯科医師の意図と、患者さんの未来像を、同じ画面で共有する Clinical Visual Studio。",
+  "hero.poem":"CaseFlow Studio™ は、患者さん自身の写真から治療後の印象や笑顔の変化を参考ビジュアルとして可視化し、歯科医師の治療意図と患者さんの理解をつなぐための臨床ビジュアル設計ツールです。",
+  "hero.note":"※ 生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。",
+  "samples.eyebrow":"プロダクトは、視覚。","samples.h2":"説明より先に、変化を見せる。",
+  "samples.body":"CaseFlow Studio は、説明を増やすためのツールではありません。言葉だけでは共有しきれない治療後の印象を、同じ画面で見られるようにするためのツールです。",
+  "samples.sim.sub":"静止画で、仕上がりの方向性を共有する。",
+  "samples.sim.desc":"歯列、色調、歯冠形態、スマイルライン、歯肉ライン。ハンドルをドラッグして Before / After を比較し、Facial / Focus を切り替えられます。",
+  "samples.morph.sub":"動画で、変化のプロセスを伝える。",
+  "samples.morph.desc":"Before / After の差を、症例説明や SNS にも使いやすい、流れのあるビジュアルへ変換します。",
+  "atmo.eyebrow":"インターフェースの空気感","atmo.h2":"空気感を、選ぶ。",
+  "atmo.body":"背景のトーンを切り替えて、CaseFlow Studio の視覚体験を試す。臨床画面の空気感まで、設計する。",
+  "problem.eyebrow":"ギャップ","problem.h2":"言葉だけでは、未来の笑顔は想像しきれない。",
+  "problem.body":"審美歯科、矯正、補綴治療では、患者さんが知りたいのは治療手順だけではありません。自分の口元がどう変わるのか。笑顔の印象がどう変わるのか。そのイメージを共有できるかどうかが、カウンセリングの理解度と納得感を大きく左右します。",
+  "solution.eyebrow":"視覚のレイヤー","solution.h2":"説明を、共有できるビジュアルへ。",
+  "solution.body":"CaseFlow Studio は、患者さん自身の写真をもとに、歯科医師の治療意図を視覚化します。矯正、補綴、ダイレクトボンディング、スマイルライン、歯冠形態、色調などの変化を参考ビジュアルとして提示し、患者さんと同じゴールを見ながら対話できます。",
+  "philo.eyebrow":"デザイン思想","philo.subtitle":"チェアサイドから設計する。",
+  "philo.p1":"臨床現場では、説明の正しさだけでは足りません。",
+  "philo.p2":"患者さんがその説明をどう受け取り、どんな未来を想像し、どこで不安になり、どこで前向きになれるのか。CaseFlow Studio は、その感覚を出発点に設計されています。",
+  "philo.p3":"過度に医療的すぎず、過度に広告的すぎず。診断ツールではなく、ビジュアルコミュニケーションのための臨床スタジオとして。",
+  "philo.p4":"歯科医師の意図を、患者さんが見られるかたちへ翻訳します。",
+  "studios.eyebrow":"ふたつのスタジオ","studios.h2":"静止画で設計し、動画で伝える。",
+  "studios.sim":"治療後の印象を生成し、補正量を調整しながら、カウンセリングで共有するための静止画シミュレーション。",
+  "studios.morph":"Before / After の変化をなめらかな症例動画に変換し、患者説明・症例提示・SNS 投稿に使いやすいビジュアルへ。",
+  "studios.photo":"症例画像の管理、前処理、分類、保存のためのベース機能。",
+  "workflow.eyebrow":"ワークフロー","workflow.h2":"3ステップ、チェアサイドで完結。",
+  "wf.1.h":"取り込む","wf.1.p":"患者さんの顔貌写真・口腔内写真を取り込みます。",
+  "wf.2.h":"生成する","wf.2.p":"主訴や治療コンセプトに合わせて参考イメージを生成します。",
+  "wf.3.h":"共有する","wf.3.p":"スライダー調整、保存、共有、症例動画化まで行います。",
+  "uc.eyebrow":"活用シーン","uc.h2":"審美歯科の説明を、もっと伝わる体験へ。",
+  "uc.1":"矯正相談","uc.2":"補綴・セラミック相談","uc.3":"ダイレクトボンディング提案","uc.4":"スマイルデザイン","uc.5":"症例説明","uc.6":"SNS 症例投稿","uc.7":"院内カウンセリング","uc.8":"チーム内の治療イメージ共有",
+  "global.eyebrow":"グローバル・バイ・デザイン","global.h2":"日本のチェアサイドから、グローバルな歯科ビジュアル体験へ。",
+  "global.body":"CaseFlow Studio は、日本の歯科臨床の感覚から生まれたプロダクトでありながら、世界中の審美歯科・矯正・補綴の現場で使える Clinical Visual Studio を目指しています。このページの言語を選んでください。",
+  "why.eyebrow":"これからの審美体験","why.h2":"全ての体験は記憶へ",
+  "why.subtitle":"「人工×自然」が描く現代の顧客ニーズ",
+  "why.p1":"歯科医療では、デジタルスキャン、CAD/CAM、アライナー矯正、クラウド型ワークフローが進み、患者さんも治療前により明確なイメージを求めるようになっています。",
+  "why.p2":"治療説明も、単なる情報伝達ではなく、患者さんの記憶に残る体験へ変わりつつあります。",
+  "why.p3":"一方で、AI の臨床利用には、安全性、説明責任、過度な期待を避ける設計が不可欠です。CaseFlow Studio は、AI を診断者としてではなく、歯科医師の臨床感覚と患者さんの理解をつなぐビジュアルレイヤーとして位置づけます。",
+  "why.p4":"デジタルの精度と、人間の感覚。人工と自然のあいだにある新しい審美体験を、カウンセリングの画面上に設計します。",
+  "ethics.eyebrow":"フィルターでも、約束でもない。","ethics.subtitle":"意図と理解のあいだに置く、臨床の像。",
+  "ethics.p1":"CaseFlow Studio は、写真を盛るためのフィルターではありません。",
+  "ethics.p2":"治療結果を保証する予測装置でもありません。",
+  "ethics.p3":"それは、歯科医師の意図と患者さんの理解のあいだに置かれる、慎重に設計された視覚のレイヤーです。",
+  "ethics.p4":"生成される画像や動画は、診断や治療結果の保証ではなく、説明と共有のための参考イメージです。",
+  "ethics.p5":"最終的な診断・治療計画は、歯科医師による診査・診断に基づいて行われます。",
+  "inv.eyebrow":"完全招待制","inv.subtitle":"プロダクトを、臨床現場の声で育てる。",
+  "inv.p1":"CaseFlow Studio は、現在は完全招待制で提供しています。これは限定感のためではなく、実際の歯科臨床で使われるプロダクトとして、フィードバックの質を保ちながら改善を続けるためです。",
+  "inv.p2":"生成画像の品質、説明体験、患者さんへの見せ方、医院内での運用。それらを丁寧に検証しながら、CaseFlow Studio は Clinical Visual Studio として進化していきます。",
+  "plan.free.price":"無料","plan.free.tokens":"月額契約なし","plan.free.desc":"まずは無料で。参考イメージ作成の基本フローを体験できます。",
+  "plan.sketch.price":"月額 1,500円","plan.sketch.desc":"個人利用向け。日常のカウンセリングで参考ビジュアルを継続的に活用できます。",
+  "plan.clinic.price":"月額 5,000円","plan.clinic.desc":"1医院向け。医院・チーム単位で症例ビジュアルを共有します。",
+  "plans.note":"生成 1回につき 2 tokens を消費します。追加トークン（Add-on）は買い切りでご利用いただけます。決済は Stripe の安全な画面で行われます。",
+  "future.eyebrow":"これから","future.h2":"個人スタジオから、医院のビジュアルプラットフォームへ。",
+  "future.p1":"CaseFlow Studio は、個人の歯科医師が使うビジュアルツールから、医院・チーム単位で症例ビジュアルを共有する Clinical Visual Platform へ拡張していきます。",
+  "future.p2":"個人ウォレット、クリニックウォレット、メンバー管理、共有症例、モーフィング動画、シミュレーション画像を統合し、審美歯科の説明体験をアップデートします。",
+  "final.eyebrow":"はじめる","final.h2":"説明から、共に描くカウンセリングへ。",
+  "final.note":"生成画像・動画は説明用の参考イメージであり、診断・治療結果の保証ではありません。提携・導入・パイロット利用のご相談は、特定商取引法に基づく表記の窓口をご確認ください。"
+ },
+ pt:{
+  "atmo.blend":"Proporção de mistura","atmo.shuffle":"Embaralhar paleta","inv.title":"Somente por convite","cta.start":"Começar","cta.contact":"Contato",
+  "hero.eyebrow":"Para comunicação, não diagnóstico.","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"Um Clinical Visual Studio onde a intenção do dentista e o sorriso futuro do paciente são compartilhados em uma só tela.",
+  "hero.poem":"O CaseFlow Studio™ visualiza a impressão pós-tratamento a partir da própria foto do paciente — uma camada visual clínica que conecta a intenção do dentista à compreensão do paciente.",
+  "hero.note":"※ Imagens e vídeos gerados são visuais de referência apenas para explicação — não um diagnóstico nem garantia de resultado.",
+  "samples.eyebrow":"O produto é visual.","samples.h2":"Mostre a mudança antes de explicar.",
+  "samples.body":"O CaseFlow Studio não é uma ferramenta para acrescentar explicações. Ele permite ver a impressão pós-tratamento em uma tela compartilhada.",
+  "samples.sim.sub":"Compartilhe a direção do resultado, em imagem estática.",
+  "samples.sim.desc":"Alinhamento, cor, forma da coroa, linha do sorriso, linha gengival. Arraste a alça para comparar Antes / Depois e alterne entre Facial e Focus.",
+  "samples.morph.sub":"Transmita o processo de mudança, em vídeo.",
+  "samples.morph.desc":"Transforme a diferença Antes / Depois em um visual fluido, útil para explicação de casos e redes sociais.",
+  "atmo.eyebrow":"Atmosfera da interface","atmo.h2":"Escolha a atmosfera.",
+  "atmo.body":"Troque o tom do fundo e sinta a experiência visual do CaseFlow Studio. Até a atmosfera da tela clínica faz parte do design.",
+  "problem.eyebrow":"A lacuna","problem.h2":"Só com palavras não se imagina o sorriso futuro.",
+  "problem.body":"Na odontologia estética, ortodôntica e protética, o paciente quer mais do que o procedimento. Como minha boca vai mudar? Como ficará meu sorriso? Poder compartilhar essa imagem define a profundidade do entendimento na consulta.",
+  "solution.eyebrow":"A camada visual","solution.h2":"Transforme a explicação em um visual compartilhável.",
+  "solution.body":"A partir da própria foto do paciente, o CaseFlow Studio visualiza a intenção do dentista — ortodontia, prótese, resina, linha do sorriso, forma da coroa, cor — como visuais de referência, para que ambos olhem para o mesmo objetivo.",
+  "philo.eyebrow":"Filosofia de design","philo.subtitle":"Projetado a partir da cadeira.",
+  "philo.p1":"À beira da cadeira, estar correto não basta.",
+  "philo.p2":"Como o paciente recebe a explicação, que futuro imagina, onde sente medo, onde sente esperança — o CaseFlow Studio nasce desse sentido.",
+  "philo.p3":"Nem clínico demais, nem publicitário demais. Não uma ferramenta de diagnóstico, mas um estúdio clínico de comunicação visual.",
+  "philo.p4":"Ele traduz a intenção do dentista em algo que o paciente pode ver.",
+  "studios.eyebrow":"Dois estúdios","studios.h2":"Projete em imagens, comunique em vídeo.",
+  "studios.sim":"Uma simulação em imagem estática para gerar a impressão pós-tratamento e ajustar a correção enquanto compartilha na consulta.",
+  "studios.morph":"Transforma a mudança Antes / Depois em um vídeo de caso suave para explicação, apresentação e redes sociais.",
+  "studios.photo":"A base para gerenciar, pré-processar, classificar e salvar imagens de casos.",
+  "workflow.eyebrow":"Fluxo de trabalho","workflow.h2":"Três passos, na cadeira.",
+  "wf.1.h":"Enviar","wf.1.p":"Importe as fotos faciais e intraorais do paciente.",
+  "wf.2.h":"Gerar","wf.2.p":"Gere visuais de referência para a queixa e o conceito de tratamento.",
+  "wf.3.h":"Compartilhar","wf.3.p":"Ajuste com controles, salve, compartilhe e transforme em vídeo de caso.",
+  "uc.eyebrow":"Casos de uso","uc.h2":"Faça a explicação da odontologia estética chegar.",
+  "uc.1":"Consultas de ortodontia","uc.2":"Consultas de prótese / cerâmica","uc.3":"Propostas de resina direta","uc.4":"Design do sorriso","uc.5":"Explicação de casos","uc.6":"Publicações de casos","uc.7":"Aconselhamento na clínica","uc.8":"Compartilhamento na equipe",
+  "global.eyebrow":"Global por design","global.h2":"Do chairside japonês para uma experiência visual odontológica global.",
+  "global.body":"O CaseFlow Studio nasceu da sensibilidade da prática odontológica japonesa, mas foi feito para ser um Clinical Visual Studio para a odontologia estética, ortodôntica e protética no mundo todo. Escolha seu idioma abaixo.",
+  "why.eyebrow":"A experiência que vem","why.h2":"Toda experiência se torna memória.",
+  "why.subtitle":"As necessidades contemporâneas desenhadas entre o artificial e o natural.",
+  "why.p1":"A odontologia avança para escaneamento digital, CAD/CAM, ortodontia com alinhadores e fluxos em nuvem, e os pacientes querem cada vez mais uma imagem clara antes do tratamento.",
+  "why.p2":"A explicação do tratamento também deixa de ser mera transferência de informação para se tornar uma experiência que permanece na memória do paciente.",
+  "why.p3":"Ao mesmo tempo, o uso clínico de IA exige segurança, responsabilidade e um design que evite promessas exageradas. O CaseFlow Studio coloca a IA não como diagnosticadora, mas como camada visual que conecta o senso clínico do dentista à compreensão do paciente.",
+  "why.p4":"A precisão do digital e a sensibilidade do humano. Projetamos uma nova experiência estética — entre o artificial e o natural — na própria tela da consulta.",
+  "ethics.eyebrow":"Não é filtro. Não é promessa.","ethics.subtitle":"Uma imagem clínica entre a intenção e a compreensão.",
+  "ethics.p1":"O CaseFlow Studio não é um filtro para embelezar fotos.",
+  "ethics.p2":"Não é um dispositivo que garante resultados de tratamento.",
+  "ethics.p3":"É uma camada visual cuidadosamente projetada, colocada entre a intenção do dentista e a compreensão do paciente.",
+  "ethics.p4":"Imagens e vídeos gerados são visuais de referência para explicação e compartilhamento — não um diagnóstico nem garantia de resultado.",
+  "ethics.p5":"O diagnóstico e o plano de tratamento finais são feitos pelo exame e julgamento do próprio dentista.",
+  "inv.eyebrow":"Acesso somente por convite","inv.subtitle":"Evoluindo o produto com a voz clínica.",
+  "inv.p1":"O CaseFlow Studio é atualmente oferecido somente por convite. Não por exclusividade, mas para que — como produto usado na prática real — possa melhorar preservando a qualidade do feedback.",
+  "inv.p2":"Qualidade da geração, experiência de explicação, como é visto pelos pacientes, operação na clínica. Verificando isso com cuidado, o CaseFlow Studio evolui como um Clinical Visual Studio.",
+  "plan.free.price":"Grátis","plan.free.tokens":"Sem contrato mensal","plan.free.desc":"Comece grátis. Experimente o fluxo básico de criação de visuais de referência.",
+  "plan.sketch.price":"1.500 JPY / mês","plan.sketch.desc":"Para uso individual. Use visuais de referência na consulta do dia a dia.",
+  "plan.clinic.price":"5.000 JPY / mês","plan.clinic.desc":"Para uma clínica. Compartilhe visuais de casos com a clínica e a equipe.",
+  "plans.note":"Cada geração usa 2 tokens. Tokens adicionais estão disponíveis como compra única. O pagamento é feito na tela segura da Stripe.",
+  "future.eyebrow":"Futuro","future.h2":"Do estúdio pessoal à plataforma visual da clínica.",
+  "future.p1":"O CaseFlow Studio crescerá de uma ferramenta visual para dentistas individuais para uma Clinical Visual Platform onde clínicas e equipes compartilham visuais de casos.",
+  "future.p2":"Integrando carteiras pessoal e da clínica, gestão de membros, casos compartilhados, vídeos de morphing e imagens de simulação para renovar a experiência de explicação.",
+  "final.eyebrow":"Começar","final.h2":"De explicar, para desenhar juntos.",
+  "final.note":"Imagens e vídeos gerados são visuais de referência apenas para explicação — não um diagnóstico nem garantia de resultado."
+ },
+ it:{
+  "atmo.blend":"Rapporto di miscela","atmo.shuffle":"Mescola palette","inv.title":"Solo su invito","cta.start":"Inizia","cta.contact":"Contatto",
+  "hero.eyebrow":"Per comunicare, non per diagnosticare.","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"Un Clinical Visual Studio dove l’intento del dentista e il sorriso futuro del paziente si condividono su un’unica schermata.",
+  "hero.poem":"CaseFlow Studio™ visualizza l’impressione post-trattamento dalla foto del paziente — un livello visivo clinico che collega l’intento del dentista alla comprensione del paziente.",
+  "hero.note":"※ Le immagini e i video generati sono visual di riferimento solo per la spiegazione — non una diagnosi né una garanzia di risultato.",
+  "samples.eyebrow":"Il prodotto è visivo.","samples.h2":"Mostra il cambiamento prima di spiegarlo.",
+  "samples.body":"CaseFlow Studio non è uno strumento per aggiungere spiegazioni. Permette di vedere l’impressione post-trattamento su un’unica schermata condivisa.",
+  "samples.sim.sub":"Condividi la direzione del risultato, come immagine fissa.",
+  "samples.sim.desc":"Allineamento, colore, forma della corona, linea del sorriso, linea gengivale. Trascina la maniglia per confrontare Prima / Dopo e alterna Facial e Focus.",
+  "samples.morph.sub":"Trasmetti il processo di cambiamento, come video.",
+  "samples.morph.desc":"Trasforma la differenza Prima / Dopo in un visual fluido, utile per spiegare i casi e per i social.",
+  "atmo.eyebrow":"Atmosfera dell’interfaccia","atmo.h2":"Scegli l’atmosfera.",
+  "atmo.body":"Cambia il tono dello sfondo e prova l’esperienza visiva di CaseFlow Studio. Anche l’atmosfera della schermata clinica fa parte del design.",
+  "problem.eyebrow":"Il divario","problem.h2":"Le parole da sole non bastano a immaginare il sorriso futuro.",
+  "problem.body":"Nell’odontoiatria estetica, ortodontica e protesica, il paziente vuole più della procedura. Come cambierà la mia bocca? Come sarà il mio sorriso? Poter condividere quell’immagine determina la profondità della comprensione nel colloquio.",
+  "solution.eyebrow":"Il livello visivo","solution.h2":"Trasforma la spiegazione in un visual condivisibile.",
+  "solution.body":"Dalla foto del paziente, CaseFlow Studio visualizza l’intento del dentista — ortodonzia, protesi, bonding diretto, linea del sorriso, forma della corona, colore — come visual di riferimento, così guardate lo stesso obiettivo.",
+  "philo.eyebrow":"Filosofia di design","philo.subtitle":"Progettato dalla poltrona.",
+  "philo.p1":"Alla poltrona, avere ragione non basta.",
+  "philo.p2":"Come il paziente riceve la spiegazione, quale futuro immagina, dove teme, dove spera — CaseFlow Studio nasce da questo senso.",
+  "philo.p3":"Né troppo clinico, né troppo pubblicitario. Non uno strumento diagnostico, ma uno studio clinico di comunicazione visiva.",
+  "philo.p4":"Traduce l’intento del dentista in qualcosa che il paziente può vedere.",
+  "studios.eyebrow":"Due studi","studios.h2":"Progetta in immagini, comunica in video.",
+  "studios.sim":"Una simulazione in immagine fissa per generare l’impressione post-trattamento e regolare la correzione mentre la condividi nel colloquio.",
+  "studios.morph":"Trasforma il cambiamento Prima / Dopo in un video di caso fluido per spiegazione, presentazione e social.",
+  "studios.photo":"La base per gestire, pre-elaborare, ordinare e salvare le immagini dei casi.",
+  "workflow.eyebrow":"Flusso di lavoro","workflow.h2":"Tre passi, alla poltrona.",
+  "wf.1.h":"Carica","wf.1.p":"Importa le foto del viso e intraorali del paziente.",
+  "wf.2.h":"Genera","wf.2.p":"Genera visual di riferimento per il motivo della visita e il concetto di trattamento.",
+  "wf.3.h":"Condividi","wf.3.p":"Regola con i cursori, salva, condividi e trasforma in video di caso.",
+  "uc.eyebrow":"Casi d’uso","uc.h2":"Fai arrivare la spiegazione dell’odontoiatria estetica.",
+  "uc.1":"Consulti ortodontici","uc.2":"Consulti protesici / ceramica","uc.3":"Proposte di bonding diretto","uc.4":"Smile design","uc.5":"Spiegazione dei casi","uc.6":"Post di casi sui social","uc.7":"Colloqui in studio","uc.8":"Condivisione nel team",
+  "global.eyebrow":"Globale per design","global.h2":"Dal chairside giapponese a un’esperienza visiva odontoiatrica globale.",
+  "global.body":"CaseFlow Studio nasce dalla sensibilità della pratica odontoiatrica giapponese, ma è costruito per essere un Clinical Visual Studio per l’odontoiatria estetica, ortodontica e protesica nel mondo. Scegli la tua lingua qui sotto.",
+  "why.eyebrow":"L’esperienza che verrà","why.h2":"Ogni esperienza diventa memoria.",
+  "why.subtitle":"I bisogni contemporanei disegnati tra artificiale e naturale.",
+  "why.p1":"L’odontoiatria va verso scansione digitale, CAD/CAM, ortodonzia con allineatori e flussi in cloud, e i pazienti vogliono sempre più un’immagine chiara prima del trattamento.",
+  "why.p2":"Anche la spiegazione del trattamento passa dal semplice trasferimento di informazioni a un’esperienza che resta nella memoria del paziente.",
+  "why.p3":"Allo stesso tempo, l’uso clinico dell’IA richiede sicurezza, responsabilità e un design che eviti promesse eccessive. CaseFlow Studio pone l’IA non come diagnosta, ma come livello visivo che collega il senso clinico del dentista alla comprensione del paziente.",
+  "why.p4":"La precisione del digitale e la sensibilità dell’umano. Progettiamo una nuova esperienza estetica — tra artificiale e naturale — sulla schermata stessa del colloquio.",
+  "ethics.eyebrow":"Non un filtro. Non una promessa.","ethics.subtitle":"Un’immagine clinica tra intenzione e comprensione.",
+  "ethics.p1":"CaseFlow Studio non è un filtro per abbellire le foto.",
+  "ethics.p2":"Non è un dispositivo che garantisce i risultati del trattamento.",
+  "ethics.p3":"È un livello visivo progettato con cura, posto tra l’intento del dentista e la comprensione del paziente.",
+  "ethics.p4":"Le immagini e i video generati sono visual di riferimento per spiegazione e condivisione — non una diagnosi né una garanzia di risultato.",
+  "ethics.p5":"La diagnosi e il piano di trattamento finali sono stabiliti dall’esame e dal giudizio del dentista.",
+  "inv.eyebrow":"Accesso solo su invito","inv.subtitle":"Far crescere il prodotto con la voce clinica.",
+  "inv.p1":"CaseFlow Studio è attualmente offerto solo su invito. Non per esclusività, ma perché — come prodotto usato nella pratica reale — possa migliorare preservando la qualità del feedback.",
+  "inv.p2":"Qualità della generazione, esperienza di spiegazione, come appare ai pazienti, operatività in studio. Verificando questo con cura, CaseFlow Studio evolve come Clinical Visual Studio.",
+  "plan.free.price":"Gratis","plan.free.tokens":"Nessun contratto mensile","plan.free.desc":"Inizia gratis. Prova il flusso base di creazione dei visual di riferimento.",
+  "plan.sketch.price":"1.500 JPY / mese","plan.sketch.desc":"Per uso individuale. Usa i visual di riferimento nei colloqui di ogni giorno.",
+  "plan.clinic.price":"5.000 JPY / mese","plan.clinic.desc":"Per un singolo studio. Condividi i visual dei casi con studio e team.",
+  "plans.note":"Ogni generazione usa 2 token. I token aggiuntivi sono disponibili come acquisto singolo. Il pagamento avviene sulla schermata sicura di Stripe.",
+  "future.eyebrow":"Futuro","future.h2":"Dallo studio personale alla piattaforma visiva della clinica.",
+  "future.p1":"CaseFlow Studio crescerà da strumento visivo per singoli dentisti a una Clinical Visual Platform dove studi e team condividono i visual dei casi.",
+  "future.p2":"Integrando wallet personale e di clinica, gestione dei membri, casi condivisi, video morphing e immagini di simulazione per rinnovare l’esperienza di spiegazione.",
+  "final.eyebrow":"Inizia","final.h2":"Dallo spiegare, al progettare insieme.",
+  "final.note":"Le immagini e i video generati sono visual di riferimento solo per la spiegazione — non una diagnosi né una garanzia di risultato."
+ },
+ ar:{
+  "atmo.blend":"نسبة المزج","atmo.shuffle":"خلط الألوان","inv.title":"بالدعوة فقط","cta.start":"ابدأ","cta.contact":"تواصل",
+  "hero.eyebrow":"للتواصل، لا للتشخيص.","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"استوديو بصري سريري تُعرض فيه نية طبيب الأسنان وابتسامة المريض المستقبلية على شاشة واحدة.",
+  "hero.poem":"يقوم CaseFlow Studio™ بتصوّر الانطباع بعد العلاج من صورة المريض نفسه — طبقة بصرية سريرية تربط نية الطبيب بفهم المريض.",
+  "hero.note":"※ الصور والفيديوهات المُولَّدة هي مرئيات مرجعية للشرح فقط — وليست تشخيصًا أو ضمانًا للنتيجة.",
+  "samples.eyebrow":"المنتج بصري.","samples.h2":"أظهر التغيير قبل أن تشرحه.",
+  "samples.body":"CaseFlow Studio ليس أداة لزيادة الشرح. إنه يتيح رؤية الانطباع بعد العلاج على شاشة واحدة مشتركة.",
+  "samples.sim.sub":"شارك اتجاه النتيجة، كصورة ثابتة.",
+  "samples.sim.desc":"الاصطفاف واللون وشكل التاج وخط الابتسامة وخط اللثة. اسحب المقبض لمقارنة قبل / بعد، وبدّل بين Facial و Focus.",
+  "samples.morph.sub":"انقل عملية التغيير، كفيديو.",
+  "samples.morph.desc":"حوّل فرق قبل / بعد إلى مرئي انسيابي مناسب لشرح الحالات والنشر على وسائل التواصل.",
+  "atmo.eyebrow":"أجواء الواجهة","atmo.h2":"اختر الأجواء.",
+  "atmo.body":"غيّر درجة الخلفية واختبر التجربة البصرية لـ CaseFlow Studio. حتى أجواء الشاشة السريرية جزء من التصميم.",
+  "problem.eyebrow":"الفجوة","problem.h2":"الكلمات وحدها لا تكفي لتخيّل الابتسامة المستقبلية.",
+  "problem.body":"في طب الأسنان التجميلي والتقويمي والتعويضي، يريد المريض أكثر من الإجراء. كيف سيتغير فمي؟ كيف ستبدو ابتسامتي؟ القدرة على مشاركة تلك الصورة تحدد عمق الفهم في الاستشارة.",
+  "solution.eyebrow":"الطبقة البصرية","solution.h2":"حوّل الشرح إلى صورة قابلة للمشاركة.",
+  "solution.body":"من صورة المريض نفسه، يصوّر CaseFlow Studio نية الطبيب — التقويم والتعويضات والترميم المباشر وخط الابتسامة وشكل التاج واللون — كمرئيات مرجعية، لتنظرا معًا إلى الهدف نفسه.",
+  "philo.eyebrow":"فلسفة التصميم","philo.subtitle":"مُصمَّم من جانب الكرسي.",
+  "philo.p1":"بجانب الكرسي، لا يكفي أن تكون على صواب.",
+  "philo.p2":"كيف يتلقى المريض الشرح، وأي مستقبل يتخيّل، وأين يقلق، وأين يتفاءل — من هذا الإحساس وُلد CaseFlow Studio.",
+  "philo.p3":"ليس سريريًا أكثر من اللازم، ولا إعلانيًا أكثر من اللازم. ليس أداة تشخيص، بل استوديو سريري للتواصل البصري.",
+  "philo.p4":"يترجم نية الطبيب إلى شيء يمكن للمريض رؤيته.",
+  "studios.eyebrow":"استوديوهان","studios.h2":"صمّم بالصور، وعبّر بالفيديو.",
+  "studios.sim":"محاكاة بصورة ثابتة لتوليد الانطباع بعد العلاج وضبط التصحيح أثناء مشاركته في الاستشارة.",
+  "studios.morph":"يحوّل تغيير قبل / بعد إلى فيديو حالة سلس للشرح والعرض والنشر.",
+  "studios.photo":"الأساس لإدارة صور الحالات ومعالجتها المسبقة وتصنيفها وحفظها.",
+  "workflow.eyebrow":"سير العمل","workflow.h2":"ثلاث خطوات، بجانب الكرسي.",
+  "wf.1.h":"رفع","wf.1.p":"استورد صور وجه المريض وصور الفم الداخلية.",
+  "wf.2.h":"توليد","wf.2.p":"ولّد مرئيات مرجعية للشكوى الرئيسية ومفهوم العلاج.",
+  "wf.3.h":"مشاركة","wf.3.p":"اضبط بالمنزلقات، واحفظ، وشارك، وحوّل إلى فيديو حالة.",
+  "uc.eyebrow":"حالات الاستخدام","uc.h2":"اجعل شرح طب الأسنان التجميلي يصل.",
+  "uc.1":"استشارات التقويم","uc.2":"استشارات التعويضات / السيراميك","uc.3":"مقترحات الترميم المباشر","uc.4":"تصميم الابتسامة","uc.5":"شرح الحالات","uc.6":"نشر الحالات اجتماعيًا","uc.7":"الاستشارة داخل العيادة","uc.8":"مشاركة الصور بين الفريق",
+  "global.eyebrow":"عالمي بالتصميم","global.h2":"من ممارسة الأسنان اليابانية إلى تجربة بصرية عالمية.",
+  "global.body":"وُلد CaseFlow Studio من حسّ ممارسة طب الأسنان اليابانية، لكنه مبني ليكون استوديو بصري سريري لطب الأسنان التجميلي والتقويمي والتعويضي حول العالم. اختر لغتك أدناه.",
+  "why.eyebrow":"التجربة القادمة","why.h2":"كل تجربة تتحول إلى ذكرى.",
+  "why.subtitle":"احتياجات العملاء المعاصرة بين الاصطناعي والطبيعي.",
+  "why.p1":"يتجه طب الأسنان نحو المسح الرقمي و CAD/CAM وتقويم المصفّفات وسير العمل السحابي، ويريد المرضى صورة أوضح قبل العلاج.",
+  "why.p2":"وشرح العلاج أيضًا يتحول من مجرد نقل للمعلومات إلى تجربة تبقى في ذاكرة المريض.",
+  "why.p3":"وفي الوقت نفسه، يتطلب الاستخدام السريري للذكاء الاصطناعي الأمان والمساءلة وتصميمًا يتجنب المبالغة. يضع CaseFlow Studio الذكاء الاصطناعي لا كمشخِّص، بل كطبقة بصرية تربط حسّ الطبيب السريري بفهم المريض.",
+  "why.p4":"دقة الرقمي وإحساس الإنسان. نصمم تجربة جمالية جديدة — بين الاصطناعي والطبيعي — على شاشة الاستشارة نفسها.",
+  "ethics.eyebrow":"ليس فلترًا. ليس وعدًا.","ethics.subtitle":"صورة سريرية بين النية والفهم.",
+  "ethics.p1":"CaseFlow Studio ليس فلترًا لتجميل الصور.",
+  "ethics.p2":"وليس جهازًا يضمن نتائج العلاج.",
+  "ethics.p3":"إنه طبقة بصرية مصممة بعناية، توضع بين نية الطبيب وفهم المريض.",
+  "ethics.p4":"الصور والفيديوهات المُولَّدة مرئيات مرجعية للشرح والمشاركة — وليست تشخيصًا أو ضمانًا للنتيجة.",
+  "ethics.p5":"يُتَّخذ التشخيص وخطة العلاج النهائيان بناءً على فحص الطبيب وتقديره.",
+  "inv.eyebrow":"الوصول بالدعوة فقط","inv.subtitle":"ننمّي المنتج بأصوات العيادة.",
+  "inv.p1":"يُقدَّم CaseFlow Studio حاليًا بالدعوة فقط. ليس للحصرية، بل لكي — كمنتج يُستخدم في الممارسة الفعلية — يستمر في التحسّن مع الحفاظ على جودة الملاحظات.",
+  "inv.p2":"جودة التوليد، وتجربة الشرح، وكيف يبدو للمرضى، والتشغيل داخل العيادة. بالتحقق من ذلك بعناية، يتطور CaseFlow Studio كاستوديو بصري سريري.",
+  "plan.free.price":"مجاني","plan.free.tokens":"بدون اشتراك شهري","plan.free.desc":"ابدأ مجانًا. جرّب التدفق الأساسي لإنشاء المرئيات المرجعية.",
+  "plan.sketch.price":"1,500 JPY / شهر","plan.sketch.desc":"للاستخدام الفردي. استخدم المرئيات المرجعية في الاستشارات اليومية.",
+  "plan.clinic.price":"5,000 JPY / شهر","plan.clinic.desc":"لعيادة واحدة. شارك مرئيات الحالات عبر العيادة والفريق.",
+  "plans.note":"يستهلك كل توليد رمزين. تتوفر الرموز الإضافية كشراء لمرة واحدة. تتم المدفوعات على شاشة Stripe الآمنة.",
+  "future.eyebrow":"المستقبل","future.h2":"من استوديو فردي إلى منصة بصرية للعيادة.",
+  "future.p1":"سينمو CaseFlow Studio من أداة بصرية لأطباء الأسنان الأفراد إلى منصة بصرية سريرية تشارك فيها العيادات والفرق مرئيات الحالات.",
+  "future.p2":"بدمج المحافظ الفردية والعيادية وإدارة الأعضاء والحالات المشتركة وفيديوهات المورفينغ وصور المحاكاة لتحديث تجربة الشرح.",
+  "final.eyebrow":"ابدأ","final.h2":"من الشرح، إلى التصميم معًا.",
+  "final.note":"الصور والفيديوهات المُولَّدة مرئيات مرجعية للشرح فقط — وليست تشخيصًا أو ضمانًا للنتيجة."
+ },
+ zh:{
+  "atmo.blend":"混合比例","atmo.shuffle":"随机配色","inv.title":"完全邀请制","cta.start":"开始使用","cta.contact":"联系",
+  "hero.eyebrow":"用于沟通，而非诊断。","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"一个临床视觉工作室，让医生的意图与患者未来的笑容，在同一屏幕上共享。",
+  "hero.poem":"CaseFlow Studio™ 从患者本人的照片可视化治疗后的印象，是连接医生意图与患者理解的临床视觉层。",
+  "hero.note":"※ 生成的图像与视频仅为用于说明的参考影像，并非诊断或治疗结果的保证。",
+  "samples.eyebrow":"产品即视觉。","samples.h2":"先让对方看到变化，再解释。",
+  "samples.body":"CaseFlow Studio 不是用来增加说明的工具，而是让治疗后的印象在同一屏幕上被看见的工具。",
+  "samples.sim.sub":"以静态图，共享结果的方向。",
+  "samples.sim.desc":"牙列、色调、牙冠形态、微笑曲线、牙龈线。拖动手柄比较治疗前 / 后，并在 Facial 与 Focus 之间切换。",
+  "samples.morph.sub":"以视频，传达变化的过程。",
+  "samples.morph.desc":"将治疗前 / 后的差异转化为流畅的视觉，便于病例说明与社交发布。",
+  "atmo.eyebrow":"界面氛围","atmo.h2":"选择你的氛围。",
+  "atmo.body":"切换背景色调，体验 CaseFlow Studio 的视觉体验。连临床画面的氛围，也是设计的一部分。",
+  "problem.eyebrow":"落差","problem.h2":"仅凭语言，难以想象未来的笑容。",
+  "problem.body":"在美学、正畸与修复治疗中，患者想知道的不只是流程。我的口部会如何改变？笑容的印象会如何变化？能否共享这幅图像，深刻影响着咨询中的理解与认同。",
+  "solution.eyebrow":"视觉层","solution.h2":"把说明变成可共享的视觉。",
+  "solution.body":"CaseFlow Studio 以患者本人的照片为基础，将医生的治疗意图——正畸、修复、直接粘接、微笑曲线、牙冠形态、色调——作为参考影像呈现，让双方看着同一个目标对话。",
+  "philo.eyebrow":"设计理念","philo.subtitle":"从椅旁出发设计。",
+  "philo.p1":"在临床现场，仅有正确的说明还不够。",
+  "philo.p2":"患者如何接收说明、想象怎样的未来、在哪里不安、在哪里积极——CaseFlow Studio 正是从这种感受出发设计的。",
+  "philo.p3":"不过于医疗，也不过于广告。不是诊断工具，而是用于视觉沟通的临床工作室。",
+  "philo.p4":"它把医生的意图，翻译成患者能看见的形态。",
+  "studios.eyebrow":"两个工作室","studios.h2":"以静图设计，以视频传达。",
+  "studios.sim":"用于生成治疗后印象、在调整修正量的同时于咨询中共享的静态图模拟。",
+  "studios.morph":"将治疗前 / 后的变化转化为流畅的病例视频，便于患者说明、病例展示与社交发布。",
+  "studios.photo":"用于病例图像的管理、预处理、分类与保存的基础功能。",
+  "workflow.eyebrow":"工作流程","workflow.h2":"三步，椅旁完成。",
+  "wf.1.h":"导入","wf.1.p":"导入患者的面部照片与口内照片。",
+  "wf.2.h":"生成","wf.2.p":"根据主诉与治疗方案生成参考影像。",
+  "wf.3.h":"共享","wf.3.p":"滑块调整、保存、共享，直至生成病例视频。",
+  "uc.eyebrow":"应用场景","uc.h2":"让美学牙科的说明更易传达。",
+  "uc.1":"正畸咨询","uc.2":"修复 / 全瓷咨询","uc.3":"直接粘接方案","uc.4":"微笑设计","uc.5":"病例说明","uc.6":"社交病例发布","uc.7":"院内咨询","uc.8":"团队内影像共享",
+  "global.eyebrow":"为全球而设计","global.h2":"从日本椅旁工艺，到全球牙科视觉体验。",
+  "global.body":"CaseFlow Studio 生于日本牙科临床的感性，却以成为面向全球美学、正畸与修复现场的临床视觉工作室为目标。请在下方选择语言。",
+  "why.eyebrow":"即将到来的体验","why.h2":"所有体验，终将成为记忆。",
+  "why.subtitle":"由“人工×自然”描绘的现代顾客需求。",
+  "why.p1":"牙科正走向数字扫描、CAD/CAM、隐形矫治与云端工作流，患者也越来越希望在治疗前获得更清晰的想象。",
+  "why.p2":"治疗说明也正从单纯的信息传递，转变为留在患者记忆里的体验。",
+  "why.p3":"与此同时，AI 的临床使用需要安全、问责与避免过度承诺的设计。CaseFlow Studio 将 AI 定位为连接医生临床感觉与患者理解的视觉层，而非诊断者。",
+  "why.p4":"数字的精度，与人的感觉。我们在咨询画面上，设计一种介于人工与自然之间的全新美学体验。",
+  "ethics.eyebrow":"不是滤镜，不是承诺。","ethics.subtitle":"置于意图与理解之间的临床影像。",
+  "ethics.p1":"CaseFlow Studio 不是美化照片的滤镜。",
+  "ethics.p2":"也不是保证治疗结果的预测装置。",
+  "ethics.p3":"它是置于医生意图与患者理解之间、经过审慎设计的视觉层。",
+  "ethics.p4":"生成的图像与视频是用于说明与共享的参考影像——并非诊断或结果保证。",
+  "ethics.p5":"最终的诊断与治疗计划，由医生的检查与判断作出。",
+  "inv.eyebrow":"完全邀请制","inv.subtitle":"以临床之声培育产品。",
+  "inv.p1":"CaseFlow Studio 目前以完全邀请制提供。这并非为了稀缺感，而是作为在真实临床中使用的产品，在保持反馈质量的同时持续改进。",
+  "inv.p2":"生成质量、说明体验、面向患者的呈现、院内运营。在细致验证这些的同时，CaseFlow Studio 作为临床视觉工作室不断进化。",
+  "plan.free.price":"免费","plan.free.tokens":"无月度合约","plan.free.desc":"先免费体验创建参考影像的基本流程。",
+  "plan.sketch.price":"每月 1,500 日元","plan.sketch.desc":"面向个人。在日常咨询中持续使用参考视觉。",
+  "plan.clinic.price":"每月 5,000 日元","plan.clinic.desc":"面向单一诊所。以诊所与团队为单位共享病例视觉。",
+  "plans.note":"每次生成消耗 2 个 token。附加 token 可一次性购买。付款在 Stripe 的安全页面完成。",
+  "future.eyebrow":"未来","future.h2":"从个人工作室，到诊所视觉平台。",
+  "future.p1":"CaseFlow Studio 将从个人牙医使用的视觉工具，扩展为诊所与团队共享病例视觉的临床视觉平台。",
+  "future.p2":"整合个人钱包、诊所钱包、成员管理、共享病例、变形视频与模拟图像，更新美学牙科的说明体验。",
+  "final.eyebrow":"开始","final.h2":"从说明，到共同设计。",
+  "final.note":"生成的图像与视频仅为用于说明的参考影像——并非诊断或结果保证。"
+ },
+ ko:{
+  "atmo.blend":"블렌드 비율","atmo.shuffle":"팔레트 셔플","inv.title":"완전 초대제","cta.start":"시작하기","cta.contact":"문의",
+  "hero.eyebrow":"진단이 아니라, 소통을 위해.","hero.tag":"Clinical beauty, visualized.",
+  "hero.lead":"치과의사의 의도와 환자의 미래 미소를, 같은 화면에서 공유하는 Clinical Visual Studio.",
+  "hero.poem":"CaseFlow Studio™ 는 환자 본인의 사진에서 치료 후 인상을 시각화하여, 치과의사의 의도와 환자의 이해를 잇는 임상 비주얼 레이어입니다.",
+  "hero.note":"※ 생성된 이미지·영상은 설명용 참고 비주얼이며, 진단이나 치료 결과의 보장이 아닙니다.",
+  "samples.eyebrow":"제품은 시각이다.","samples.h2":"설명보다 먼저, 변화를 보여준다.",
+  "samples.body":"CaseFlow Studio 는 설명을 늘리기 위한 도구가 아닙니다. 치료 후 인상을 같은 화면에서 볼 수 있게 하는 도구입니다.",
+  "samples.sim.sub":"정지 이미지로, 결과의 방향을 공유한다.",
+  "samples.sim.desc":"치열, 색조, 치관 형태, 스마일 라인, 잇몸 라인. 핸들을 드래그해 Before / After 를 비교하고 Facial / Focus 를 전환할 수 있습니다.",
+  "samples.morph.sub":"영상으로, 변화의 과정을 전한다.",
+  "samples.morph.desc":"Before / After 의 차이를, 증례 설명과 SNS 에도 쓰기 좋은 흐르는 비주얼로 변환합니다.",
+  "atmo.eyebrow":"인터페이스 분위기","atmo.h2":"분위기를 선택하세요.",
+  "atmo.body":"배경 톤을 바꾸며 CaseFlow Studio 의 시각 경험을 시험해 보세요. 임상 화면의 분위기까지 설계합니다.",
+  "problem.eyebrow":"간극","problem.h2":"말만으로는 미래의 미소를 상상하기 어렵습니다.",
+  "problem.body":"심미·교정·보철 치료에서 환자가 알고 싶은 것은 절차만이 아닙니다. 내 입가는 어떻게 바뀔까. 미소의 인상은 어떻게 달라질까. 그 이미지를 공유할 수 있는지가 상담의 이해도와 납득을 크게 좌우합니다.",
+  "solution.eyebrow":"비주얼 레이어","solution.h2":"설명을 공유 가능한 비주얼로.",
+  "solution.body":"CaseFlow Studio 는 환자 본인의 사진을 바탕으로 치과의사의 치료 의도를 시각화합니다. 교정, 보철, 다이렉트 본딩, 스마일 라인, 치관 형태, 색조의 변화를 참고 비주얼로 제시해 같은 목표를 보며 대화합니다.",
+  "philo.eyebrow":"디자인 철학","philo.subtitle":"체어사이드에서 설계한다.",
+  "philo.p1":"임상 현장에서는 설명의 정확함만으로는 부족합니다.",
+  "philo.p2":"환자가 그 설명을 어떻게 받아들이고, 어떤 미래를 그리며, 어디서 불안하고, 어디서 긍정적이 되는지 — CaseFlow Studio 는 그 감각에서 출발해 설계되었습니다.",
+  "philo.p3":"지나치게 의료적이지도, 지나치게 광고적이지도 않게. 진단 도구가 아니라 시각적 커뮤니케이션을 위한 임상 스튜디오로서.",
+  "philo.p4":"치과의사의 의도를, 환자가 볼 수 있는 형태로 번역합니다.",
+  "studios.eyebrow":"두 개의 스튜디오","studios.h2":"정지 이미지로 설계하고, 영상으로 전달한다.",
+  "studios.sim":"치료 후 인상을 생성하고 보정량을 조정하며 상담에서 공유하기 위한 정지 이미지 시뮬레이션.",
+  "studios.morph":"Before / After 변화를 부드러운 증례 영상으로 변환해 환자 설명·증례 발표·SNS 게시에 쓰기 좋은 비주얼로.",
+  "studios.photo":"증례 이미지의 관리, 전처리, 분류, 저장을 위한 기본 기능.",
+  "workflow.eyebrow":"워크플로","workflow.h2":"세 단계, 체어사이드에서 완결.",
+  "wf.1.h":"불러오기","wf.1.p":"환자의 안모 사진·구강 내 사진을 불러옵니다.",
+  "wf.2.h":"생성","wf.2.p":"주소와 치료 콘셉트에 맞춰 참고 비주얼을 생성합니다.",
+  "wf.3.h":"공유","wf.3.p":"슬라이더 조정, 저장, 공유, 증례 영상화까지 진행합니다.",
+  "uc.eyebrow":"활용 사례","uc.h2":"심미 치과 설명을 더 잘 전달되게.",
+  "uc.1":"교정 상담","uc.2":"보철·세라믹 상담","uc.3":"다이렉트 본딩 제안","uc.4":"스마일 디자인","uc.5":"증례 설명","uc.6":"SNS 증례 게시","uc.7":"원내 상담","uc.8":"팀 내 이미지 공유",
+  "global.eyebrow":"글로벌 바이 디자인","global.h2":"일본의 체어사이드에서, 글로벌 치과 비주얼 경험으로.",
+  "global.body":"CaseFlow Studio 는 일본 치과 임상의 감각에서 태어났지만, 전 세계 심미·교정·보철 현장에서 쓸 수 있는 Clinical Visual Studio 를 지향합니다. 아래에서 언어를 선택하세요.",
+  "why.eyebrow":"다가올 경험","why.h2":"모든 경험은 기억이 된다.",
+  "why.subtitle":"‘인공×자연’이 그려내는 현대의 고객 니즈.",
+  "why.p1":"치과 의료는 디지털 스캔, CAD/CAM, 투명교정, 클라우드 워크플로로 나아가고, 환자도 치료 전에 더 명확한 이미지를 원하게 되었습니다.",
+  "why.p2":"치료 설명 또한 단순한 정보 전달이 아니라, 환자의 기억에 남는 경험으로 바뀌어 가고 있습니다.",
+  "why.p3":"한편 AI 의 임상 활용에는 안전성, 설명 책임, 과도한 기대를 피하는 설계가 필수입니다. CaseFlow Studio 는 AI 를 진단자가 아니라, 치과의사의 임상 감각과 환자의 이해를 잇는 비주얼 레이어로 자리매김합니다.",
+  "why.p4":"디지털의 정밀함과 인간의 감각. 인공과 자연 사이의 새로운 심미 경험을 상담 화면 위에 설계합니다.",
+  "ethics.eyebrow":"필터도, 약속도 아닙니다.","ethics.subtitle":"의도와 이해 사이에 두는 임상의 상.",
+  "ethics.p1":"CaseFlow Studio 는 사진을 꾸미기 위한 필터가 아닙니다.",
+  "ethics.p2":"치료 결과를 보장하는 예측 장치도 아닙니다.",
+  "ethics.p3":"그것은 치과의사의 의도와 환자의 이해 사이에 놓이는, 신중하게 설계된 시각의 레이어입니다.",
+  "ethics.p4":"생성되는 이미지·영상은 설명과 공유를 위한 참고 비주얼이며, 진단이나 결과 보장이 아닙니다.",
+  "ethics.p5":"최종 진단·치료 계획은 치과의사의 진찰과 판단에 따라 이루어집니다.",
+  "inv.eyebrow":"완전 초대제","inv.subtitle":"임상 현장의 목소리로 제품을 키운다.",
+  "inv.p1":"CaseFlow Studio 는 현재 완전 초대제로 제공됩니다. 한정감을 위해서가 아니라, 실제 임상에서 쓰이는 제품으로서 피드백의 질을 지키며 개선을 이어가기 위해서입니다.",
+  "inv.p2":"생성 품질, 설명 경험, 환자에게 보이는 방식, 원내 운영. 이를 정성껏 검증하며 CaseFlow Studio 는 Clinical Visual Studio 로 진화합니다.",
+  "plan.free.price":"무료","plan.free.tokens":"월 계약 없음","plan.free.desc":"먼저 무료로. 참고 비주얼 제작의 기본 흐름을 경험할 수 있습니다.",
+  "plan.sketch.price":"월 1,500엔","plan.sketch.desc":"개인용. 일상의 상담에서 참고 비주얼을 지속적으로 활용합니다.",
+  "plan.clinic.price":"월 5,000엔","plan.clinic.desc":"1개 치과용. 치과·팀 단위로 증례 비주얼을 공유합니다.",
+  "plans.note":"생성 1회당 2 tokens 를 소비합니다. 추가 토큰(Add-on)은 일회성 구매로 이용할 수 있습니다. 결제는 Stripe 의 보안 화면에서 진행됩니다.",
+  "future.eyebrow":"앞으로","future.h2":"개인 스튜디오에서, 치과 비주얼 플랫폼으로.",
+  "future.p1":"CaseFlow Studio 는 개인 치과의사가 쓰는 비주얼 도구에서, 치과·팀 단위로 증례 비주얼을 공유하는 Clinical Visual Platform 으로 확장해 갑니다.",
+  "future.p2":"개인 지갑, 클리닉 지갑, 멤버 관리, 공유 증례, 모핑 영상, 시뮬레이션 이미지를 통합해 심미 치과의 설명 경험을 업데이트합니다.",
+  "final.eyebrow":"시작하기","final.h2":"설명에서, 함께 그리는 상담으로.",
+  "final.note":"생성된 이미지·영상은 설명용 참고 비주얼이며, 진단이나 결과 보장이 아닙니다."
+ }
+};
+</script>
 <script>
 (function(){
   var docEl=document.documentElement;
@@ -890,7 +1183,7 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
       監修歯科医師：上田 智隆<br>
       <span style="font-size:11px;opacity:.82">Supervised by Dr. Tomotaka Ueda</span>
       <div class="footProvider">
-        <img class="ncMark" src="data:image/jpeg;base64,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" alt="NARRATIVE CHERISH">
+        <img class="ncMark" src="media/inline/mark-nc.png" alt="NARRATIVE CHERISH" loading="lazy" decoding="async">
         <span>provided by</span>
       </div>
     </div>
