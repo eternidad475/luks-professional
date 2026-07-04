@@ -261,7 +261,7 @@ body::before{
    so the Hero reads unmistakably as the real CaseFlow Studio top page. */
 .lpPhoneWrap{display:flex;justify-content:center;width:100%}
 /* iPhone 17 Pro proportioned frame holding the real top-screen capture */
-.lpPhone{position:relative;width:min(280px,78vw);aspect-ratio:1206/2228;border-radius:44px;padding:8px;
+.lpPhone{position:relative;width:min(258px,70vw);aspect-ratio:1206/2622;border-radius:46px;padding:8px;
   background:linear-gradient(160deg,#2a2140,#140d24);box-shadow:0 34px 80px rgba(20,10,45,.5);border:1px solid rgba(255,255,255,.16)}
 .lpPhoneScreen{position:relative;width:100%;height:100%;border-radius:40px;overflow:hidden;background:#b07af0}
 .lpPhoneShot{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
@@ -474,8 +474,8 @@ html[data-panel2="light"] .lpBandB{color:#141018; --lpHead:#120d1c; --lpText:#1c
   background-image:radial-gradient(circle, rgba(255,255,255,.55) .8px, transparent 1.3px),radial-gradient(circle, rgba(255,190,60,.5) .8px, transparent 1.5px);
   background-size:18px 22px,31px 26px;background-position:0 0,9px 12px}
 .lpRainbowBand>.wrap{position:relative;z-index:1}
-.lpRainbowStack{display:flex;flex-direction:column;line-height:.9;margin:2px 0 20px;font-weight:900;
-  letter-spacing:-.03em;font-size:clamp(30px,8.2vw,72px);text-transform:uppercase}
+.lpRainbowStack{display:flex;flex-direction:column;line-height:.94;margin:0;font-weight:900;
+  letter-spacing:-.035em;font-size:clamp(22px,6.4vw,58px);text-transform:uppercase}
 .lpRainbowStack span{display:block;white-space:nowrap;text-shadow:0 2px 18px rgba(0,0,0,.35)}
 .lpRainbowStack .s{opacity:.7;font-weight:800}
 .lpRainbowStack .r1{color:#f4d21f}.lpRainbowStack .r2{color:#3f7bff}.lpRainbowStack .r3{color:#ff6a12}
@@ -585,14 +585,17 @@ html[dir="rtl"] .lpHeadWrap,html[dir="rtl"] .lpBody{margin-left:auto}
   </div>
 </section>
 
-<!-- ===== CASEFLOW SIGNAL (hourglass anchor) ===== -->
-<section class="lpSection lpSignal" id="signal">
-  <div class="wrap lpHeadWrap" style="text-align:center;margin-left:auto;margin-right:auto">
-    <img src="media/inline/art-hourglass.webp" alt="" aria-hidden="true" class="lpFloat" loading="lazy" decoding="async" style="display:block;width:min(200px,50vw);margin:0 auto 22px;filter:drop-shadow(0 16px 40px rgba(20,10,45,.4))">
-    <p class="lpEyebrow" data-i18n="signal.eyebrow">Caseflow Signal</p>
-    <h2 data-i18n="signal.h2">見えない治療意図を、視覚の信号へ。</h2>
-    <p class="lpBody" style="margin-left:auto;margin-right:auto" data-i18n="signal.body">臨床の感覚と、人工的な光のあいだに生まれるビジュアルレイヤー。Between clinical intention and visual memory.</p>
-    <svg class="lpSignalWave" viewBox="0 0 520 60" aria-hidden="true" style="margin-left:auto;margin-right:auto"><path d="M0 30 Q 32 4 65 30 T 130 30 T 195 30 T 260 30 T 325 30 T 390 30 T 455 30 T 520 30"/></svg>
+<!-- ===== CASEFLOW SIGNAL (IN RAINBOWS treatment) ===== -->
+<section class="lpSection lpSignal lpRainbowBand" id="signal">
+  <div class="wrap">
+    <div class="lpRainbowStack">
+      <span class="r1">MORPH</span>
+      <span class="r2">SIMULATE</span>
+      <span class="r3">VISUALIZE</span>
+      <span class="r4">SEE THE CHANGE</span>
+      <span class="r5">SHARE THE VISION</span>
+      <span class="r6">CASEFLOW STUDIO</span>
+    </div>
   </div>
 </section>
 
