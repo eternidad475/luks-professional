@@ -27725,7 +27725,8 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
    lower-middle (~50% of the visible height) — but never so low it overlaps the
    nav (min() cap). Safari (bottom bar) and PWA agree because --real-vh tracks
    visualViewport. The card only rises on genuinely short screens. */
-@media (orientation:portrait){
+@media (orientation:portrait) and (max-width:767px){
+  /* Phone portrait ONLY (iPad portrait / desktop keep their existing layout). */
   #home.screen{ padding-top:0 !important; padding-bottom:0 !important; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   #home .hero{
     display:block !important;
@@ -27733,7 +27734,16 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     min-height:calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom)) !important;
     padding:0 !important;
   }
-  #home .brand{ padding-top:calc(var(--safe-top) + clamp(18px,3dvh,36px)) !important; }
+  /* Reference layout (IMG_6326): brand block top ≈ 18–20% of the visible
+     height — generous sky above the logo, not pinned to the top edge. */
+  #home .brand{
+    padding-top:max(calc(var(--safe-top) + 16px), calc(var(--real-vh,1vh) * 18)) !important;
+  }
+  /* Right emblem block (FOR DENTISTRY / CDS) aligned with the brand band. */
+  #home .homePartners{
+    top:max(calc(var(--safe-top) + 18px), calc(var(--real-vh,1vh) * 18)) !important;
+    right:6vw !important;
+  }
   #home .panel{
     position:absolute !important;
     left:50% !important;
@@ -27741,19 +27751,19 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     width:min(92vw, 444px) !important;
     margin:0 !important;
     max-height:none !important;
-    /* desired ≈ 50% of the visible height; capped so the card bottom always
-       clears the nav; floored so it never rides up under the header logos. */
+    /* card top ≈ 50% of the visible height (reference 49–52%); capped so the
+       card bottom always clears the nav; floored below the brand/emblem band. */
     top:max(
-      calc(var(--safe-top) + 176px),
+      calc(var(--real-vh,1vh) * 18 + 150px),
       min(
         calc(var(--real-vh,1vh) * 50),
         calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom) - 336px)
       )
     ) !important;
   }
-  /* Short screens: shrink the header logos so the (raised) card stays clear. */
+  /* Short screens: shrink the header emblems so the (raised) card stays clear. */
   @media (max-height:760px){
-    #home .homePartners{ top:calc(var(--safe-top) + 40px) !important; gap:7px !important; transform:scale(.8); transform-origin:top right; }
+    #home .homePartners{ gap:7px !important; transform:scale(.8); transform-origin:top right; }
     #home .panel{ padding:14px !important; }
   }
 }
