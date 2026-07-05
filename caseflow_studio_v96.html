@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#be7ed6">
 <meta name="robots" content="noindex, nofollow">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="CaseFlow">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-title" content="CaseFlow Studio">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
@@ -5463,7 +5464,27 @@ function sampleSvg(label,c1,c2){const teeth=Array.from({length:8}).map((_,i)=>`<
 function loadSample(){state.photos=[{dataUrl:sampleSvg('Before','#d8b4fe','#fbcfe8'),label:'Before'},{dataUrl:sampleSvg('Progress 01','#c4b5fd','#bfdbfe'),label:'Progress'},{dataUrl:sampleSvg('Progress 02','#a5b4fc','#f0abfc'),label:'Progress'},{dataUrl:sampleSvg('After','#93c5fd','#f9a8d4'),label:'After'}];toast('サンプルを読み込みました');go('preview')}
 
 renderUpload();renderSimulator();
-if('serviceWorker'in navigator){addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
+/* PWA: display-mode detection (body classes) + Service Worker registration.
+   SW caches static app shell only — never patient images / API / auth. */
+(function(){
+  try{
+    var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || (window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches)
+      || window.navigator.standalone === true;
+    var cl = document.body.classList;
+    if(standalone){ cl.add('is-pwa'); cl.add('is-standalone'); }
+    else { cl.add('is-browser'); }
+  }catch(e){ /* non-fatal */ }
+  try{
+    var httpsOk = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if('serviceWorker' in navigator && httpsOk){
+      addEventListener('load',function(){
+        navigator.serviceWorker.register('/sw.js',{ scope:'/' })
+          .catch(function(err){ console.warn('[CF PWA] Service Worker registration failed', err); });
+      });
+    }
+  }catch(e){ console.warn('[CF PWA] SW setup skipped', e); }
+})();
 attachPaletteEvents();
 </script>
 
@@ -27660,6 +27681,152 @@ function boot(){
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
 else boot();
 window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
+})();
+</script>
+
+<!-- ============ PWA: landscape fullscreen views + install hint ============ -->
+<style id="cf-pwa-css">
+/* Short-landscape (phone on its side): let case-image views fill the available
+   height with no giant vertical whitespace, without cropping teeth/lips.
+   Guarded by max-height:520px so desktop / iPad landscape (tall) is untouched. */
+@media (orientation:landscape) and (max-height:520px){
+  .screen{
+    padding-top:calc(8px + env(safe-area-inset-top));
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    padding-left:max(16px, env(safe-area-inset-left));
+    padding-right:max(16px, env(safe-area-inset-right));
+  }
+  /* Before/After comparison — fill height, image contained (never cropped) */
+  .compareSlider{ aspect-ratio:auto; height:calc(100dvh - 150px); max-height:calc(100dvh - 60px); }
+  .compareSlider img, .compareSlider.facial img{ object-fit:contain; }
+  /* Save-before preview / morph canvas */
+  .previewFrame{ min-height:0; height:calc(100dvh - 168px); max-height:calc(100dvh - 60px); }
+  /* Simulation / Reference result stage */
+  .simResultStage{ min-height:0; }
+  .simResultCompare .compareSlider{ height:calc(100dvh - 168px); }
+  /* Two-up comparison grid stacks tall in short landscape — keep each usable */
+  .compareGrid{ gap:10px; }
+}
+/* In installed (standalone) mode, suppress rubber-band / overscroll so it feels
+   like an app. Normal scrollable screens still scroll (screens keep overflow). */
+body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
+
+/* Add-to-Home / install hint banner */
+#cfPwaBanner{
+  position:fixed; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:2147483644; display:none; max-width:460px; margin:0 auto;
+  background:rgba(255,255,255,.98); border:1px solid rgba(124,92,255,.28); border-radius:16px;
+  padding:13px 15px; box-shadow:0 18px 50px rgba(40,20,80,.28);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif;
+  color:#231a3a;
+}
+#cfPwaBanner.show{ display:block; }
+#cfPwaBanner .cfPwaTitle{ font-size:12.5px; font-weight:800; line-height:1.7; margin-bottom:10px; color:#2a2350; }
+#cfPwaBanner .cfPwaRow{ display:flex; gap:8px; flex-wrap:wrap; }
+#cfPwaBanner button{
+  flex:1 1 auto; min-width:88px; padding:9px 10px; border-radius:10px; font-size:12px; font-weight:800;
+  cursor:pointer; border:1px solid rgba(124,92,255,.35); background:#fff; color:#5b3fd6;
+}
+#cfPwaBanner button.cfPwaPrimary{ background:#7c5cff; color:#fff; border-color:#7c5cff; }
+#cfPwaBanner button.cfPwaMute{ color:#9089a6; border-color:rgba(32,27,53,.14); }
+#cfPwaBanner .cfPwaSteps{ font-size:12px; color:#5a5470; line-height:1.9; margin:2px 0 10px; }
+</style>
+<div id="cfPwaBanner" role="dialog" aria-live="polite"></div>
+<script>
+(function(){
+  var KEY='cf_pwa_hint_v1', AGAIN_DAYS=14;
+  var banner=document.getElementById('cfPwaBanner');
+  if(!banner) return;
+  var deferredPrompt=null;
+
+  function lang(){ try{ return (window.cfI18n&&cfI18n.get&&cfI18n.get())||'ja'; }catch(e){ return 'ja'; } }
+  function isEN(){ return String(lang()).slice(0,2)==='en'; }
+  function isStandalone(){
+    try{ return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches))||navigator.standalone===true; }catch(e){ return false; }
+  }
+  function isiOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent||'') || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); }
+  function isiOSSafari(){ var ua=navigator.userAgent||''; return isiOS() && /safari/i.test(ua) && !/crios|fxios|edgios|chrome/i.test(ua); }
+  function dismissedRecently(){
+    try{ var v=localStorage.getItem(KEY); if(v==='never') return true;
+      if(v){ var t=parseInt(v,10); if(!isNaN(t)&&(Date.now()-t)<AGAIN_DAYS*864e5) return true; }
+    }catch(e){}
+    return false;
+  }
+  function hide(){ banner.classList.remove('show'); }
+  function saveLater(){ try{ localStorage.setItem(KEY,String(Date.now())); }catch(e){} }
+  function saveNever(){ try{ localStorage.setItem(KEY,'never'); }catch(e){} }
+
+  function showIOS(){
+    var title=isEN()
+      ? 'Add CaseFlow Studio to your Home Screen for a more app-like viewing experience.'
+      : 'ホーム画面に追加すると、CaseFlow Studio をよりアプリに近い表示で使用できます。';
+    banner.innerHTML=
+      '<div class="cfPwaTitle">'+title+'</div>'+
+      '<div class="cfPwaRow">'+
+        '<button type="button" data-a="later">'+(isEN()?'Later':'あとで')+'</button>'+
+        '<button type="button" class="cfPwaPrimary" data-a="how">'+(isEN()?'Show how':'手順を見る')+'</button>'+
+        '<button type="button" class="cfPwaMute" data-a="never">'+(isEN()?'Don’t show again':'今後表示しない')+'</button>'+
+      '</div>';
+    wire();
+    banner.classList.add('show');
+  }
+  function showSteps(){
+    var steps=isEN()
+      ? '1. Tap the Share button<br>2. Choose “Add to Home Screen”<br>3. Tap “Add”'
+      : '1. 共有ボタンをタップ<br>2.「ホーム画面に追加」を選択<br>3.「追加」をタップ';
+    banner.innerHTML=
+      '<div class="cfPwaTitle">'+(isEN()?'Add to Home Screen':'ホーム画面に追加する手順')+'</div>'+
+      '<div class="cfPwaSteps">'+steps+'</div>'+
+      '<div class="cfPwaRow">'+
+        '<button type="button" class="cfPwaPrimary" data-a="close">'+(isEN()?'Got it':'閉じる')+'</button>'+
+        '<button type="button" class="cfPwaMute" data-a="never">'+(isEN()?'Don’t show again':'今後表示しない')+'</button>'+
+      '</div>';
+    wire();
+  }
+  function showAndroid(){
+    var title=isEN()
+      ? 'Install CaseFlow Studio as an app for a more app-like experience.'
+      : 'CaseFlow Studio をアプリとしてインストールすると、よりアプリに近い表示で使用できます。';
+    banner.innerHTML=
+      '<div class="cfPwaTitle">'+title+'</div>'+
+      '<div class="cfPwaRow">'+
+        '<button type="button" data-a="later">'+(isEN()?'Later':'あとで')+'</button>'+
+        '<button type="button" class="cfPwaPrimary" data-a="install">'+(isEN()?'Install':'インストール')+'</button>'+
+        '<button type="button" class="cfPwaMute" data-a="never">'+(isEN()?'Don’t show again':'今後表示しない')+'</button>'+
+      '</div>';
+    wire();
+    banner.classList.add('show');
+  }
+  function wire(){
+    banner.querySelectorAll('[data-a]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var a=b.getAttribute('data-a');
+        if(a==='later'){ saveLater(); hide(); }
+        else if(a==='never'){ saveNever(); hide(); }
+        else if(a==='how'){ showSteps(); }
+        else if(a==='close'){ saveLater(); hide(); }
+        else if(a==='install'){
+          saveLater(); hide();
+          if(deferredPrompt){ try{ deferredPrompt.prompt(); }catch(e){} deferredPrompt=null; }
+        }
+      });
+    });
+  }
+
+  // Android / Chromium: capture the install opportunity, show only on demand.
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault(); deferredPrompt=e;
+    if(isStandalone()||dismissedRecently()) return;
+    setTimeout(function(){ if(!isStandalone()) showAndroid(); }, 4000);
+  });
+  window.addEventListener('appinstalled',function(){ saveNever(); hide(); deferredPrompt=null; });
+
+  // iOS Safari has no beforeinstallprompt → gentle manual hint.
+  try{
+    if(!isStandalone() && !dismissedRecently() && isiOSSafari()){
+      setTimeout(function(){ if(!isStandalone()) showIOS(); }, 3500);
+    }
+  }catch(e){ /* non-fatal */ }
 })();
 </script>
 
