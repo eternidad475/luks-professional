@@ -27751,15 +27751,12 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     width:min(92vw, 444px) !important;
     margin:0 !important;
     max-height:none !important;
-    /* card top ≈ 50% of the visible height (reference 49–52%); capped so the
-       card bottom always clears the nav; floored below the brand/emblem band. */
-    top:max(
-      calc(var(--real-vh,1vh) * 18 + 150px),
-      min(
-        calc(var(--real-vh,1vh) * 50),
-        calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom) - 336px)
-      )
-    ) !important;
+    /* Anchor the card BOTTOM a fixed 20px above the bottom nav (user request:
+       card and nav closer together). The .app container height tracks 100dvh,
+       so this stays correct in Safari (bar shown/hidden) and PWA alike; the
+       card top lands ~53–57% of the visible height on tall phones. */
+    top:auto !important;
+    bottom:calc(var(--cf-nav-h) + var(--safe-bottom)) !important;
   }
   /* Short screens: shrink the header emblems so the (raised) card stays clear. */
   @media (max-height:760px){
