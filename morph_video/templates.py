@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Dict, List, Optional, Tuple
 
@@ -90,6 +91,11 @@ TEMPLATES: Dict[str, Dict] = {
                  "title": True, "watermark": True, "dots": True, "accent": False},
     "smile": {"label_name": "Smile Design", "pos": "bc", "fill": "gradient",
               "title": True, "watermark": True, "dots": False, "accent": True},
+    # Focus Clinical: 黒背景・口元フォーカスリング・微細ズーム・タイムラインで
+    # 症例写真を臨床的に美しく見せる presentation テンプレート。
+    "focus": {"label_name": "Focus Clinical", "pos": "bc", "fill": "black",
+              "title": True, "watermark": True, "dots": True, "accent": True,
+              "focus": True},
 }
 
 TEMPLATE_DEFAULT_FILL = {k: v["fill"] for k, v in TEMPLATES.items()}
@@ -107,17 +113,29 @@ class TemplateRenderer:
     """テンプレートに従い、各フレームへラベル・タイトル・装飾を合成する。"""
 
     def __init__(self, template: str, title: str = "",
-                 watermark: str = "Smile Morph Studio", colors=("#7c5cff", "#ff9fd6")):
+                 watermark: str = "Smile Morph Studio", colors=("#7c5cff", "#ff9fd6"),
+                 roi: Optional[Tuple[float, float, float]] = None):
         self.cfg = TEMPLATES.get(template, TEMPLATES["minimal"])
         self.title = title or ""
         self.watermark = watermark if self.cfg["watermark"] else ""
         self.accent = _hex_to_bgr(colors[0]) if colors else (255, 92, 124)
+        # focus 用: 口元 ROI（正規化 cx,cy,r）。共通 normalized data から渡す。
+        self.roi = tuple(roi) if roi else (0.5, 0.62, 0.26)
+        self._fi = 0                 # フレームカウンタ（ズーム/パルスの位相）
+        self._vig_cache = None       # ビネットマスクのキャッシュ
 
     def __call__(self, frame: np.ndarray, label: str, idx: int, n: int) -> np.ndarray:
         h, w = frame.shape[:2]
         u = w / 1080.0  # 1080px 基準のスケール
         pos = self.cfg["pos"]
         lab_size = int(46 * u)
+
+        # Focus Clinical: 微細ズーム → ビネット → 口元フォーカスリング/パルスを
+        # 先に適用し、その上にラベル等を描く（presentation layer・幾何は非改変）。
+        if self.cfg.get("focus"):
+            frame = self._focus_present(frame)
+            h, w = frame.shape[:2]
+        self._fi += 1
 
         # タイトル（上部）
         if self.cfg["title"] and self.title:
@@ -165,9 +183,84 @@ class TemplateRenderer:
                       int(22 * u), color=(255, 255, 255), anchor="rs", stroke=2)
         return frame
 
+    # ----------------------- Focus Clinical presentation ---------------------- #
+    _ZOOM_PERIOD = 150   # 微細ズームの周期（フレーム）
+    _PULSE_PERIOD = 66   # フォーカスリングのパルス周期（フレーム）
 
-def make_renderer(template: str, title: str = "", colors=("#7c5cff", "#ff9fd6")) -> TemplateRenderer:
-    return TemplateRenderer(template, title=title, colors=colors)
+    def _focus_present(self, frame: np.ndarray) -> np.ndarray:
+        """微細ズーム + ビネット + 口元フォーカスリング/パルスを合成して返す。"""
+        h, w = frame.shape[:2]
+        base = min(w, h)
+        cx, cy, r = self.roi
+        ccx, ccy = cx * w, cy * h
+        fi = self._fi
+
+        # 1) 微細ズーム（ROI 中心・1.0〜1.03 の緩やかな往復）— subtle zoom
+        z = 1.0 + 0.030 * (0.5 - 0.5 * math.cos(2 * math.pi * (fi % self._ZOOM_PERIOD) / self._ZOOM_PERIOD))
+        mat = cv2.getRotationMatrix2D((ccx, ccy), 0.0, z)
+        frame = cv2.warpAffine(frame, mat, (w, h), flags=cv2.INTER_LINEAR,
+                               borderMode=cv2.BORDER_REPLICATE)
+
+        # 2) ビネット（周辺を落として口元に視線誘導）— 落ち着いた臨床トーン
+        frame = self._apply_vignette(frame, ccx, ccy, r * base)
+
+        # 3) フォーカスリング（静的 1 重）+ パルス（1〜2 重の広がるリング）
+        ring_r = r * base * 1.55
+        self._draw_focus_rings(frame, ccx, ccy, ring_r, base, fi)
+        return frame
+
+    def _apply_vignette(self, frame, ccx, ccy, r_px):
+        h, w = frame.shape[:2]
+        cache = self._vig_cache
+        if cache is None or cache[0] != (w, h):
+            yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+            d = np.sqrt((xx - ccx) ** 2 + (yy - ccy) ** 2)
+            inner = max(1.0, r_px * 1.5)
+            outer = max(inner + 1.0, float(max(w, h)) * 0.62)
+            m = np.clip((outer - d) / (outer - inner), 0.0, 1.0)
+            m = m * m * (3 - 2 * m)               # smoothstep
+            floor = 0.42                          # 周辺の明るさ下限（暗すぎない）
+            mask = (floor + (1.0 - floor) * m)[..., None]
+            self._vig_cache = ((w, h), mask)
+            cache = self._vig_cache
+        out = frame.astype(np.float32) * cache[1]
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    def _draw_focus_rings(self, frame, ccx, ccy, ring_r, base, fi):
+        """控えめな臨床トーン: 静的リング 1 + パルス 1 + 微細な走査弧のみ。
+
+        過剰な SF 感を避けるため本数・不透明度を抑える。
+        """
+        cx, cy = int(round(ccx)), int(round(ccy))
+        thin = max(2, int(base * 0.0032))
+        accent = self.accent
+        white = (255, 255, 255)
+
+        # 静的リング（単一・細く淡く）
+        ov = frame.copy()
+        cv2.circle(ov, (cx, cy), int(ring_r), white, thin, cv2.LINE_AA)
+        cv2.addWeighted(ov, 0.26, frame, 0.74, 0, frame)
+
+        # パルス（1 本のみ・広がって消える radar 風）
+        ph = (fi % self._PULSE_PERIOD) / self._PULSE_PERIOD
+        pr = ring_r * (0.82 + 0.7 * ph)
+        a = 0.30 * (1.0 - ph) ** 1.6
+        if a > 0.02:
+            ov = frame.copy()
+            cv2.circle(ov, (cx, cy), int(pr), white, max(1, thin - 1), cv2.LINE_AA)
+            cv2.addWeighted(ov, a, frame, 1 - a, 0, frame)
+
+        # 微細な走査（scan）: ゆっくり回る短い弧（アクセント色・淡く）
+        ov = frame.copy()
+        ang = (fi * 1.7) % 360
+        cv2.ellipse(ov, (cx, cy), (int(ring_r), int(ring_r)), 0, ang, ang + 36,
+                    accent, thin, cv2.LINE_AA)
+        cv2.addWeighted(ov, 0.24, frame, 0.76, 0, frame)
+
+
+def make_renderer(template: str, title: str = "", colors=("#7c5cff", "#ff9fd6"),
+                  roi: Optional[Tuple[float, float, float]] = None) -> TemplateRenderer:
+    return TemplateRenderer(template, title=title, colors=colors, roi=roi)
 
 
 def list_templates() -> List[Dict[str, str]]:

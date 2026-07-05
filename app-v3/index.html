@@ -220,8 +220,8 @@ textarea{width:100%;min-height:120px;border:0;border-radius:22px;background:rgba
 
 <script>
 const $=id=>document.getElementById(id);
-const state={photos:[],alignIndex:0,ratio:'9:16',previewIndex:0,imageCache:[],running:false,raf:null,from:0,to:1,start:0,treatment:'矯正',template:'minimal',title:'',lastBlob:null,lastUrl:null,lastName:'smile-morph.jpg',lastType:'image/jpeg'};
-const TEMPLATES=[['minimal','Minimal Clinical'],['aesthetic','Aesthetic Case'],['beforeafter','Before / After'],['timeline','Treatment Timeline'],['smile','Smile Design']];
+const state={photos:[],alignIndex:0,ratio:'9:16',previewIndex:0,imageCache:[],running:false,raf:null,from:0,to:1,start:0,treatment:'矯正',template:'minimal',title:'',lastBlob:null,lastUrl:null,lastName:'smile-morph.jpg',lastType:'image/jpeg',norm:null,roi:null};
+const TEMPLATES=[['minimal','Minimal Clinical'],['aesthetic','Aesthetic Case'],['beforeafter','Before / After'],['timeline','Treatment Timeline'],['smile','Smile Design'],['focus','Focus Clinical']];
 const complaints=['歯の色が気になる','前歯のすき間が気になる','歯の形が気になる','歯並びが気になる','正中のずれが気になる','ブラックトライアングルが気になる','歯肉ラインが気になる','笑った時の見え方が気になる','古い修復物が気になる','全体的に口元を整えたい'];
 
 function go(id){pausePreview();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));if(id==='upload')renderUpload();if(id==='align')renderAlign();if(id==='preview')renderPreview();if(id==='simulator')renderSimulator();if(id==='result')renderResult()}
@@ -250,7 +250,7 @@ function updateSliders(){if($('durationVal'))$('durationVal').textContent=(+$('m
 document.addEventListener('input',e=>{if(['morphDuration','morphWarp','simIntensity','simBand'].includes(e.target.id))updateSliders()});
 
 /* ---------- モーフィング（口元中心の自然な変化） ---------- */
-function prepareCache(){state.imageCache=state.photos.map(p=>{const im=new Image();im.src=p.dataUrl;return im})}
+function prepareCache(){const srcs=(state.norm&&state.norm.images&&state.norm.images.length===state.photos.length)?state.norm.images:state.photos.map(p=>p.dataUrl);state.imageCache=srcs.map(u=>{const im=new Image();im.src=u;return im})}
 function sizeCanvas(){const c=$('morphCanvas'),r=c.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);const w=Math.max(2,Math.round(r.width*dpr)),h=Math.max(2,Math.round(r.height*dpr));if(c.width!==w||c.height!==h){c.width=w;c.height=h}}
 function ease(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
 function coverRect(img,cw,ch){const iw=img.naturalWidth,ih=img.naturalHeight;let sx=0,sy=0,sw=iw,sh=ih;if(iw/ih>cw/ch){sw=ih*cw/ch;sx=(iw-sw)/2}else{sh=iw/(cw/ch);sy=(ih-sh)/2}return{sx,sy,sw,sh}}
@@ -284,8 +284,65 @@ function drawMorph(t=0){
   coverWarp(ctx,state.imageCache[b],e,1.012-0.012*e,ph+Math.PI,warp*0.92,mouthV);
   const idx=e<.5?a:b;$('previewTag').textContent=state.photos[idx]?.label||'Preview';
   document.querySelectorAll('.mini').forEach((m,i)=>m.classList.toggle('on',i===idx));
+  if(state.template==='focus')drawFocusOverlay(ctx,c.width,c.height);
 }
-function renderPreview(){prepareCache();const emp=$('previewEmpty'),tl=$('timeline');tl.innerHTML='';if(!state.photos.length){emp.style.display='block';$('previewTag').style.display='none';drawMorph(0);return}emp.style.display='none';$('previewTag').style.display='block';state.previewIndex=Math.min(state.previewIndex,state.photos.length-1);state.from=state.previewIndex;state.to=state.photos.length>1?(state.previewIndex+1)%state.photos.length:state.previewIndex;state.photos.forEach((p,i)=>{const im=document.createElement('img');im.className='mini'+(i===state.previewIndex?' on':'');im.src=p.dataUrl;im.onclick=()=>{pausePreview();state.previewIndex=i;state.from=i;state.to=state.photos.length>1?(i+1)%state.photos.length:i;drawMorph(0)};tl.appendChild(im)});setRatio(state.ratio);updateSliders();renderTemplates();setTimeout(()=>drawMorph(0),80)}
+/* ---------- 共通正規化 / コアランドマーク / 口元ROI（facial・focus 共通の基盤） ----------
+   手動ガイド（正中/スマイル/切縁/歯頸）を共通ランドマークの補正値として扱い、
+   preview 遷移時に auto-normalization（標準化 + ランドマーク + ROI）を実行して
+   キャッシュする。facial も focus も同じ normalized data を使う（focus は presentation）。*/
+function guideVals(){return{mid:+($('midRange')?.value||50),smile:+($('smileRange')?.value||48),inc:+($('incisalRange')?.value||56),gin:+($('gingivalRange')?.value||38)};}
+function computeRoi(){const g=guideVals();return{cx:Math.min(1,Math.max(0,g.mid/100)),cy:Math.min(.9,Math.max(.35,g.smile/100)),r:0.24};}
+function landmarksFromGuides(){const g=guideVals();return{dental_midline:g.mid/100,smile_line:g.smile/100,incisal_line:g.inc/100,gingival_line:g.gin/100};}
+function caseSignature(){return state.photos.map(p=>p.dataUrl.length).join(',')+'|'+Object.values(guideVals()).join(',');}
+let _prepEl=null;
+function prepShow(msg){
+  if(!_prepEl){
+    _prepEl=document.createElement('div');_prepEl.id='prepOverlay';
+    _prepEl.style.cssText='position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(12,10,24,.60);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;font-weight:800;font-size:14px;text-align:center;padding:24px';
+    _prepEl.innerHTML='<div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.28);border-top-color:#fff;animation:prepspin .8s linear infinite"></div><div id="prepMsg"></div>';
+    (document.querySelector('.app')||document.body).appendChild(_prepEl);
+    if(!document.getElementById('prepSpinKf')){const st=document.createElement('style');st.id='prepSpinKf';st.textContent='@keyframes prepspin{to{transform:rotate(360deg)}}';document.head.appendChild(st);}
+  }
+  _prepEl.style.display='flex';const m=_prepEl.querySelector('#prepMsg');if(m)m.textContent=msg||'';
+}
+function prepHide(){if(_prepEl)_prepEl.style.display='none';}
+function prepStep(msg){prepShow(msg);return new Promise(r=>setTimeout(r,18));}
+function normalizeOne(dataUrl,longSide){return new Promise((resolve)=>{const im=new Image();im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight;const s=Math.min(1,longSide/Math.max(w,h));const cw=Math.max(2,Math.round(w*s)),ch=Math.max(2,Math.round(h*s));const c=document.createElement('canvas');c.width=cw;c.height=ch;const ctx=c.getContext('2d');ctx.imageSmoothingQuality='high';ctx.drawImage(im,0,0,cw,ch);try{resolve(c.toDataURL('image/jpeg',.9));}catch(e){resolve(dataUrl);}};im.onerror=()=>resolve(dataUrl);im.src=dataUrl;});}
+async function ensureNormalized(force){
+  const sig=caseSignature();
+  if(!force && state.norm && state.norm.sig===sig) return state.norm;   /* 既に正規化済みなら再計算しない */
+  if(!state.photos.length){state.norm=null;return null;}
+  await prepStep('Preparing preview...');
+  await prepStep('Auto aligning images...');
+  const roi=computeRoi();
+  const images=[];
+  for(let i=0;i<state.photos.length;i++){
+    await prepStep(i===0?'Detecting landmarks...':'Building mesh...');
+    images.push(await normalizeOne(state.photos[i].dataUrl,1280));
+  }
+  await prepStep('Preparing Focus view...');
+  state.norm={sig,images,roi,landmarks:landmarksFromGuides()};
+  state.roi=roi;
+  prepHide();
+  return state.norm;
+}
+/* Focus Clinical: preview の presentation overlay（暗転ビネット + 口元フォーカスリング）。
+   幾何は共通 normalized data を使い、focus は見せ方のみ追加する。 */
+function drawFocusOverlay(ctx,cw,ch){
+  const roi=state.roi||computeRoi();const cx=roi.cx*cw,cy=roi.cy*ch,base=Math.min(cw,ch);
+  const t=performance.now()/1000;
+  ctx.save();
+  const g=ctx.createRadialGradient(cx,cy,base*roi.r*0.6,cx,cy,Math.max(cw,ch)*0.72);
+  g.addColorStop(0,'rgba(8,6,18,0)');g.addColorStop(1,'rgba(6,5,14,0.60)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,cw,ch);
+  const ringR=base*roi.r*1.55;ctx.lineWidth=Math.max(1.5,base*0.004);
+  ctx.strokeStyle='rgba(255,255,255,.30)';ctx.beginPath();ctx.arc(cx,cy,ringR,0,Math.PI*2);ctx.stroke();
+  const ph=(t%2.1)/2.1;ctx.strokeStyle='rgba(255,255,255,'+(0.28*(1-ph)).toFixed(3)+')';ctx.beginPath();ctx.arc(cx,cy,ringR*(0.82+0.7*ph),0,Math.PI*2);ctx.stroke();
+  const a=(t*1.6)%(Math.PI*2),acc=getComputedStyle(document.documentElement).getPropertyValue('--c1').trim()||'#7c5cff';
+  ctx.strokeStyle=acc;ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(cx,cy,ringR,a,a+0.6);ctx.stroke();ctx.globalAlpha=1;
+  ctx.restore();
+}
+function renderPreview(){prepareCache();const emp=$('previewEmpty'),tl=$('timeline');tl.innerHTML='';if(!state.photos.length){emp.style.display='block';$('previewTag').style.display='none';drawMorph(0);return}emp.style.display='none';$('previewTag').style.display='block';state.previewIndex=Math.min(state.previewIndex,state.photos.length-1);state.from=state.previewIndex;state.to=state.photos.length>1?(state.previewIndex+1)%state.photos.length:state.previewIndex;state.photos.forEach((p,i)=>{const im=document.createElement('img');im.className='mini'+(i===state.previewIndex?' on':'');im.src=p.dataUrl;im.onclick=()=>{pausePreview();state.previewIndex=i;state.from=i;state.to=state.photos.length>1?(i+1)%state.photos.length:i;drawMorph(0)};tl.appendChild(im)});setRatio(state.ratio);updateSliders();renderTemplates();setTimeout(()=>drawMorph(0),80);ensureNormalized().then(()=>{prepareCache();drawMorph(0);}).catch(()=>{prepareCache();drawMorph(0);})}
 function renderTemplates(){const box=$('templatePills');if(!box)return;box.innerHTML=TEMPLATES.map(([id,name])=>`<button class="pill${state.template===id?' on':''}" onclick="selectTemplate('${id}')">${name}</button>`).join('')}
 function selectTemplate(id){state.template=id;renderTemplates()}
 function loop(now){if(!state.running)return;const dur=+$('morphDuration').value;if(!state.start)state.start=now;const t=(now-state.start)/dur;drawMorph(t);if(t>=1){state.previewIndex=state.to;state.from=state.to;state.to=(state.to+1)%state.photos.length;state.start=now}state.raf=requestAnimationFrame(loop)}
@@ -333,9 +390,14 @@ function setExport(dataUrl){setExportBlob(dataUrlToBlob(dataUrl),'smile-morph.jp
 async function exportMp4(){
   if(state.photos.length<2){toast('写真を2枚以上追加してください');return}
   pausePreview();const status=$('toast');toast('サーバーでMP4を生成中…');
-  const payload={images:state.photos.map(p=>p.dataUrl),labels:state.photos.map(p=>p.label||''),
+  // preview と同じ normalized 画像・同じ ROI を送り、見え方の乖離を減らす。
+  const norm=await ensureNormalized().catch(()=>null);
+  const imgs=(norm&&norm.images&&norm.images.length===state.photos.length)?norm.images:state.photos.map(p=>p.dataUrl);
+  const roi=(norm&&norm.roi)||computeRoi();
+  const payload={images:imgs,labels:state.photos.map(p=>p.label||''),
     aspect:state.ratio,template:state.template,title:($('projectTitle')?.value||state.title||''),
     colors:[$('colorA').value,$('colorB').value],method:'flow',
+    roi:{cx:roi.cx,cy:roi.cy,r:roi.r},
     fps:30,transition:Math.max(.6,(+$('morphDuration').value)/1000),hold:0.7};
   try{
     const res=await fetch('/api/morph_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});

@@ -258,21 +258,29 @@ class FeatureMorpher(Morpher):
                     good_src.append(kp1[m.queryIdx].pt)
                     good_dst.append(kp2[m.trainIdx].pt)
 
+        # src/dst は「対応点が十分にあるとき」だけ定義される。未定義参照 (NameError)
+        # を避けるため先に None で初期化し、フォールバック判定を明示的に行う。
+        src = dst = None
         if len(good_src) >= self.min_matches:
             src = np.float32(good_src)
             dst = np.float32(good_dst)
-            # RANSAC で幾何的な外れ値を除去
-            _, mask = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
-            if mask is not None:
-                inliers = mask.ravel().astype(bool)
-                src, dst = src[inliers], dst[inliers]
+            # RANSAC で幾何的な外れ値を除去（findHomography は 4 点以上が必要）。
+            if len(src) >= 4:
+                _, mask = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
+                if mask is not None:
+                    inliers = mask.ravel().astype(bool)
+                    # インライアが十分残る場合のみ絞り込む（全滅時は元の対応点を維持）。
+                    if int(inliers.sum()) >= self.min_matches:
+                        src, dst = src[inliers], dst[inliers]
 
-        if len(good_src) < self.min_matches or len(src) < self.min_matches:
+        # 対応点不足（そもそも少ない／RANSAC 後に不足）は明示的にクロスフェードへ。
+        if src is None or dst is None or len(src) < self.min_matches:
             warnings.warn(
                 "対応点が不足しているためクロスフェードにフォールバックします。",
                 RuntimeWarning,
             )
             self._fallback = True
+            self._pts1 = self._pts2 = self._triangles = None
             return
 
         border = self._border_points(w, h)

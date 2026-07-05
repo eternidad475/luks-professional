@@ -404,7 +404,22 @@ class Handler(BaseHTTPRequestHandler):
         trans = float(payload.get("transition", 1.2))
         hold = float(payload.get("hold", 0.7))
 
-        renderer = make_renderer(template, title=title, colors=colors)
+        # focus 用の口元 ROI（正規化 cx,cy,r）。Preview と MP4 の見えを揃えるため
+        # プレビューで使った ROI をそのまま受け取る（無ければ既定の下中央）。
+        roi = None
+        rv = payload.get("roi")
+        if isinstance(rv, dict):
+            try:
+                roi = (float(rv.get("cx", 0.5)), float(rv.get("cy", 0.62)), float(rv.get("r", 0.26)))
+            except (TypeError, ValueError):
+                roi = None
+        elif isinstance(rv, (list, tuple)) and len(rv) >= 3:
+            try:
+                roi = (float(rv[0]), float(rv[1]), float(rv[2]))
+            except (TypeError, ValueError):
+                roi = None
+
+        renderer = make_renderer(template, title=title, colors=colors, roi=roi)
         fill = TEMPLATE_DEFAULT_FILL.get(template, "blur")
         out = os.path.join(case_dir, "studio.mp4")
         build_video(

@@ -16,6 +16,15 @@ from .morphers import (
     get_morpher,
 )
 from .pipeline import build_video
+from .normalize import (
+    CoreLandmarks,
+    ManualAdjust,
+    auto_mouth_roi,
+    core_landmarks,
+    normalize_case,
+    normalize_image,
+    two_layer_mesh,
+)
 
 __all__ = [
     "MORPHERS",
@@ -25,6 +34,14 @@ __all__ = [
     "FeatureMorpher",
     "get_morpher",
     "build_video",
+    # 共通正規化 / ランドマーク / メッシュの基盤
+    "ManualAdjust",
+    "CoreLandmarks",
+    "normalize_image",
+    "normalize_case",
+    "core_landmarks",
+    "two_layer_mesh",
+    "auto_mouth_roi",
 ]
 
 __version__ = "0.1.0"
