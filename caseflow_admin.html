@@ -31,6 +31,13 @@ p.help{font-size:12px;color:var(--sub);line-height:1.7;margin:4px 0 12px}
 .badge.warn{background:rgba(190,140,0,.14);color:var(--warn)}
 .badge.crit{background:rgba(220,50,60,.12);color:var(--crit)}
 .badge.dim{background:rgba(32,27,53,.08);color:var(--sub)}
+.badge.bal{background:rgba(124,92,255,.15);color:#5b3fd6;font-size:12px;padding:6px 13px}
+.uHead{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}
+.uEmail{word-break:break-all;font-size:13.5px}
+.uName{font-size:12px;color:var(--ink);margin-bottom:6px}
+.uName b{font-weight:800}
+.uName .un{color:var(--sub);font-weight:800}
+.uBalRow{margin-bottom:6px}
 .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
 .grid{display:grid;gap:12px}
 @media(min-width:640px){.grid.c2{grid-template-columns:1fr 1fr}.grid.c3{grid-template-columns:1fr 1fr 1fr}.grid.c4{grid-template-columns:repeat(4,1fr)}}
@@ -181,7 +188,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
     <div class="card section" id="sec-users">
       <button class="back" data-back>&larr; トップに戻る</button>
       <h2>Users<small>ユーザー管理</small></h2>
-      <p class="help">登録ユーザーの role・トークン残高・最終ログインを確認します。本名・住所等は保存しません（display_name は任意）。role変更・トークン付与は確認ダイアログ付きです。</p>
+      <p class="help">登録ユーザーの role・表示名・トークン残高・最終ログインを確認します。本名・住所等は保存せず、表示名はユーザーが任意で登録した display_name のみを表示します。role変更・トークン付与は確認ダイアログ付きです。</p>
       <div id="usersList"><div class="empty">読み込み中…</div></div>
     </div>
 
@@ -504,7 +511,10 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       if(r.error) throw r.error;
       if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">ユーザーがまだいません。</div>'; return; }
       box.innerHTML=r.data.map(function(u){
-        var name=u.display_name||u.clinic_name||'';
+        /* 表示名はユーザーが任意で登録した display_name のみ（clinic_name は使わない）。
+           未登録なら「未登録」と明示。本名・住所等は保存しない方針を維持。 */
+        var dn=(u.display_name&&String(u.display_name).trim())?esc(String(u.display_name).trim()):'未登録';
+        var bal=(u.tokens_remaining==null)?'—':esc(u.tokens_remaining);
         var PROF_JA={dentist:'歯科医師',dental_technician:'歯科技工士',dental_hygienist:'歯科衛生士',
           dental_assistant:'歯科助手',dental_student:'歯科学生',clinic_staff:'クリニックスタッフ',
           other_dental_professional:'その他歯科医療関係者'};
@@ -524,13 +534,17 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
         } else {
           phoneHtml='';
         }
-        return '<div class="item"><b>'+esc(u.email)+'</b>'+(name?' <span class="badge dim">'+esc(name)+'</span>':'')+
-          ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+profBadge+
-          (u.beta_access?' <span class="badge ok">招待済</span>':' <span class="badge warn">未招待</span>')+
-          (u.professional_confirmed?' <span class="badge ok">歯科従事者確認済</span>':'')+
-          (u.account_status!=='active'?' <span class="badge crit">'+esc(u.account_status)+'</span>':'')+
-          '<div class="meta">'+phoneHtml+'</div>'+
-          '<div class="meta">tokens: '+esc(u.tokens_remaining)+' / 登録 '+fmtTs(u.created_at)+' / 最終ログイン '+fmtTs(u.last_sign_in_at)+'</div>'+
+        return '<div class="item">'+
+          '<div class="uHead"><b class="uEmail">'+esc(u.email)+'</b>'+
+            ' <span class="badge '+(DASH_ROLES.indexOf(u.role)>=0?'ok':'dim')+'">'+esc(u.role)+'</span>'+profBadge+
+            (u.beta_access?' <span class="badge ok">招待済</span>':' <span class="badge warn">未招待</span>')+
+            (u.professional_confirmed?' <span class="badge ok">歯科従事者確認済</span>':'')+
+            (u.account_status!=='active'?' <span class="badge crit">'+esc(u.account_status)+'</span>':'')+
+          '</div>'+
+          '<div class="uName"><span class="un">表示名 / Display Name：</span><b>'+dn+'</b></div>'+
+          '<div class="uBalRow"><span class="badge bal">残高トークン / Token Balance：'+bal+' tokens</span></div>'+
+          (phoneHtml?'<div class="meta">'+phoneHtml+'</div>':'')+
+          '<div class="meta">登録 '+fmtTs(u.created_at)+' / 最終ログイン '+fmtTs(u.last_sign_in_at)+'</div>'+
           '<div class="row">'+
             '<select class="mini" data-role-sel><option value="">role変更…</option>'+
               ['dentist','staff','viewer','co_developer','developer','admin','billing_manager'].map(function(ro){return '<option value="'+ro+'">'+ro+'</option>';}).join('')+'</select>'+
