@@ -12699,14 +12699,32 @@ window.addEventListener('DOMContentLoaded', () => {
       ctx.save(); ctx.globalAlpha=1; ctx.drawImage(baseA,0,0); ctx.restore();
       ctx.save(); ctx.globalAlpha=e; ctx.drawImage(baseB,0,0); ctx.restore();
     }else{
-      // A as the opaque warped base, B warped over it at e.
+      // A as the opaque warped base, B warped over it.
       tris.forEach(tr=>{
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1);
       });
+      // ── warp_dominant texture handoff ──────────────────────────────────────
+      // Geometry (mid-point lerp) runs across the whole clip, but B's TEXTURE
+      // fades in only in a narrow late window (t 0.70→0.88), so the visible
+      // effect is shape change rather than a full-length cross-dissolve.
+      // Endpoints stay exact (t=0 → pure A, t=1 → pure B).
+      // window.CF_MORPH_TEXTURE_MODE='legacy' restores the previous alpha=e blend.
+      const _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
+      const _tRaw=Math.max(0,Math.min(1,t));
+      // If the pair has no real geometry (no face mesh / no user landmarks →
+      // boundary-only pairs, max displacement ~0), a late handoff would look
+      // frozen for 70% of the clip — fall back to the legacy blend there.
+      if(GC.maxDisp===undefined){
+        let _md=0;
+        for(const p of pairs){ const dx=p.p2.x-p.p1.x, dy=p.p2.y-p.p1.y; const d=dx*dx+dy*dy; if(d>_md) _md=d; }
+        GC.maxDisp=Math.sqrt(_md);
+      }
+      const _texA=(_texMode==='legacy'||GC.maxDisp<2) ? e
+        : (function(x){ x=Math.max(0,Math.min(1,(x-0.70)/0.18)); return x*x*(3-2*x); })(_tRaw);
       tris.forEach(tr=>{
         const [i,j,k]=tr;
-        drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],e);
+        drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],_texA);
       });
       // ── Dental ROI alpha blend ─────────────────────────────────────────────
       // Controlled by variant config (dentalBlend) or debug override.
@@ -23434,12 +23452,33 @@ body.cfPresent .cfPresentExit{display:flex!important}
   // Returns {segmentCount, totalDurationMs, frameMs, totalIntervals, totalFrames}.
   function cfBuildMorphTimeline(photos, speedMs, fps){
     var segmentCount=Math.max(1, photos.length-1);
-    var totalDurationMs=speedMs*segmentCount;
+    // ── Single source of truth + hard clamp ─────────────────────────────────
+    // speedMs×segmentCount silently exploded (e.g. 11 accumulated photos ×
+    // 2.6s = ~26.5s / 794 frames) because state.photos collects uploads,
+    // samples and generated images. A morph clip is 2–8s: clamp the TOTAL
+    // duration; per-segment time compresses to fit. Override cap via
+    // window.CF_MAX_EXPORT_SEC (still hard-limited to 30s).
+    var maxSec=Math.min(30, Math.max(2, Number(window.CF_MAX_EXPORT_SEC)||8));
+    var rawDurationMs=speedMs*segmentCount;
+    var totalDurationMs=Math.min(rawDurationMs, maxSec*1000);
+    totalDurationMs=Math.max(totalDurationMs, 2000);
+    if(rawDurationMs!==totalDurationMs){
+      console.warn('[CaseFlow Export] duration clamped:', Math.round(rawDurationMs), 'ms →', Math.round(totalDurationMs),
+        'ms (photos:', photos.length, '| segments:', segmentCount, '| perSeg:', speedMs, 'ms). Set window.CF_MAX_EXPORT_SEC to raise the cap.');
+    }
     var frameMs=1000/fps;
     // Number of inter-frame intervals; +1 to include both t=0 and t=1 endpoints.
     var totalIntervals=Math.max(1, Math.round(totalDurationMs/frameMs));
     var totalFrames=totalIntervals+1;
-    return {segmentCount:segmentCount, totalDurationMs:totalDurationMs, frameMs:frameMs, totalIntervals:totalIntervals, totalFrames:totalFrames};
+    if(window.CF_MORPH_DEBUG||window.CF_EXPORT_DEBUG) console.log('[MorphExport]',{fps:fps,durationSec:totalDurationMs/1000,totalFrames:totalFrames,segmentCount:segmentCount,photoCount:photos.length,perSegMs:speedMs,clamped:rawDurationMs!==totalDurationMs});
+    return {segmentCount:segmentCount, totalDurationMs:totalDurationMs, frameMs:frameMs, totalIntervals:totalIntervals, totalFrames:totalFrames, clamped:rawDurationMs!==totalDurationMs, maxSec:maxSec};
+  }
+  // Guardrail: never start recording more frames than the cap allows.
+  function cfAssertExportBudget(timeline, fps){
+    var maxFrames=fps*timeline.maxSec+fps; // cap + 1s tolerance
+    if(timeline.totalFrames>maxFrames){
+      throw new Error('書き出しフレーム数が上限を超えています ('+timeline.totalFrames+' > '+maxFrames+')');
+    }
   }
 
   // cfGetTimelinePosition — maps a frame index to morph position.
@@ -23707,9 +23746,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var i=tr[0],j=tr[1],k=tr[2];
         engine.drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
       });
+      // warp_dominant texture handoff — identical to the preview renderer:
+      // geometry moves for the whole clip; B's texture fades in only in the
+      // narrow late window (t 0.70→0.88). 'legacy' mode restores alpha=e.
+      var _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
+      var _tRaw=Math.max(0,Math.min(1,localT));
+      // No real geometry in this pair (boundary-only) → legacy blend fallback,
+      // otherwise the first 70% of the clip would look frozen.
+      if(pairPlan._maxDisp===undefined){
+        var _md=0;
+        for(var _pi=0;_pi<pairs.length;_pi++){ var _dx=pairs[_pi].p2.x-pairs[_pi].p1.x,_dy=pairs[_pi].p2.y-pairs[_pi].p1.y; var _d=_dx*_dx+_dy*_dy; if(_d>_md)_md=_d; }
+        pairPlan._maxDisp=Math.sqrt(_md);
+      }
+      var _texA=(_texMode==='legacy'||pairPlan._maxDisp<2) ? e
+        : (function(x){ x=Math.max(0,Math.min(1,(x-0.70)/0.18)); return x*x*(3-2*x); })(_tRaw);
       tris.forEach(function(tr){
         var i=tr[0],j=tr[1],k=tr[2];
-        engine.drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], e);
+        engine.drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], _texA);
       });
       if((_vdef.oralSoftDiss||0)>0 && pairPlan.oralROI && pairPlan.oralROI.detected){
         if(typeof engine.cfApplyOralSoftDissolve==='function'){
@@ -23766,6 +23819,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
       // Build canonical timeline — same definition as preview play loop
       var timeline=cfBuildMorphTimeline(ph, activeSpeedMs, fps);
+      cfAssertExportBudget(timeline, fps);
       console.log('[CaseFlow Export] speedMs', activeSpeedMs,
         '| segmentCount', timeline.segmentCount,
         '| expectedDurationMs', timeline.totalDurationMs,
@@ -24004,6 +24058,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
       // Build canonical timeline — same definition as preview
       var timeline=cfBuildMorphTimeline(ph, activeSpeedMs2, fps);
+      cfAssertExportBudget(timeline, fps);
       console.log('[CaseFlow Export] speedMs', activeSpeedMs2,
         '| segmentCount', timeline.segmentCount,
         '| expectedDurationMs', timeline.totalDurationMs,
