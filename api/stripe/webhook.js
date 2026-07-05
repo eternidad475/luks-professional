@@ -215,6 +215,19 @@ module.exports = async (req, res) => {
         // アプリ側は警告表示のみ（即時利用制限はしない）
         break;
       }
+      case 'customer.updated': {
+        // Stripe customer ↔ アプリユーザーの紐付けを維持（email 変更等の同期）。
+        // 支払い方法サマリは billing-info API が都度 Stripe から取得するため保存不要。
+        const cust = event.data.object;
+        const userId = (cust.metadata && cust.metadata.supabase_user_id) || await userIdFromCustomer(cust.id);
+        if (userId) {
+          const up = await admin.from('billing_customers').upsert(
+            { user_id: userId, stripe_customer_id: cust.id, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' });
+          if (up.error) console.error('[webhook] billing_customers (customer.updated) upsert failed', up.error);
+        }
+        break;
+      }
       default:
         break;
     }

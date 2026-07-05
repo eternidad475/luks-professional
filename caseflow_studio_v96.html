@@ -26245,9 +26245,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var walletRows=[ walletHead ];
       var canBill = (at.key!=='clinic_member' && at.key!=='clinic_shared_seat');
       if(canBill){
-        walletRows.push(shRow('プランを変更','',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
+        walletRows.push(shRow('お支払い管理 / Billing','プラン・支払い方法・請求履歴・解約',null,function(){ acctOv.classList.remove('open'); openBilling(); }));
         walletRows.push(shRow('トークンを追加購入','Mini 20 · Standard 100 · Plus 300',null,function(){ acctOv.classList.remove('open'); openPricing(); }));
-        walletRows.push(shRow('支払い管理',(curBilling?'Stripeポータル':'未契約'),null,openPortal));
       } else {
         walletRows.push(shRow('プラン・支払い','クリニック管理者にお問い合わせください',null,function(){}));
       }
@@ -26391,6 +26390,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
           addonBtn('addon_standard','Standard — 100 tokens / 2,000円')+
           addonBtn('addon_plus','Plus — 300 tokens / 5,000円')+
         '</div>'+
+        '<div style="margin-top:14px;padding:11px 13px;background:rgba(124,92,255,.06);border-radius:12px;font-size:10.5px;color:#7a7290;line-height:1.85">'+
+          '<div style="font-weight:800;color:#5b3fd6;margin-bottom:4px">ご確認ください / Before you subscribe</div>'+
+          '月額プランは毎月自動更新されます（Sketch 1,500円・100 tokens/月、Clinic Studio 5,000円・500 tokens/月）。お支払いはご登録時および毎月の更新日に発生します。トークンは各請求期間の上限までで、未使用分の返金・翌月繰越は原則として行いません。解約はアカウント画面の「お支払い管理 → サブスクリプションを解約」からいつでも手続きでき、解約後も現在の請求期間終了日までは有料プランの機能をご利用いただけます（次回更新日以降は自動更新されません）。支払い方法の変更・請求履歴・領収書の確認もアカウント画面から行えます。決済はStripeの安全な画面で処理されます。'+
+        '</div>'+
         '<div id="cfPriceMsg"></div>'+
         '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:12px">閉じる</button>'+
       '</div>';
@@ -26473,37 +26476,259 @@ body.cfPresent .cfPresentExit{display:flex!important}
       window.__cfCheckoutBusy=false;
       if(busy) busy(btn,false);
     }
-    async function openPortal(){
-      acctOv.classList.remove('open');
-      /* Stripe customer が無い場合は失敗扱いにせず、プラン選択へ自然に誘導する */
-      if(!curBilling){
-        if(typeof toast==='function') toast('まだ課金プランの契約がありません。先にプランを選択してください');
-        setTimeout(openPricing,600);
-        return;
-      }
+    /* Stripe Customer Portal への遷移（flow 別）。secret はサーバー側のみ。
+       flow: undefined/'manage' | 'change_plan' | 'payment_method' | 'cancel' */
+    async function openPortalFlow(flow,opts){
+      opts=opts||{};
+      var notify=opts.notify||function(t){ if(typeof toast==='function') toast(t); };
       try{
         var s=await sb.auth.getSession();
         var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
-        if(!jwt){ if(typeof toast==='function') toast('セッションが切れています。再ログインしてください'); return; }
+        if(!jwt){ notify('セッションが切れています。再ログインしてください'); if(opts.setBusy) opts.setBusy(false); return; }
         var res=await fetch('/api/stripe/create-portal-session',{
-          method:'POST', headers:{ 'Authorization':'Bearer '+jwt } });
+          method:'POST',
+          headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+jwt },
+          body:JSON.stringify(flow&&flow!=='manage'?{ flow:flow }:{})
+        });
         var j=await res.json().catch(function(){ return {}; });
-        if(res.ok&&j.url){ location.href=j.url; return; }
-        console.error('[CF Billing] portal failed',res.status,j);
-        if(j.error==='no_customer'){
-          if(typeof toast==='function') toast('まだ課金プランの契約がありません。先にプランを選択してください');
-          setTimeout(openPricing,600);
+        if(res.ok&&j.url){ location.href=j.url; return; } /* 遷移するので busy 解除しない */
+        console.error('[CF Billing] portal failed',flow,res.status,j);
+        if(j.error==='no_customer'||j.error==='no_subscription'){
+          notify('まだ課金プランの契約がありません。先にプランを選択してください');
+          setTimeout(function(){ if(billingOv) billingOv.style.display='none'; openPricing(); },600);
         }
-        else if(j.error==='server_not_configured'){ if(typeof toast==='function') toast('決済サーバー設定が未完了です（不足: '+((j.missing&&j.missing.join(', '))||'不明')+'）'); }
-        else if(typeof toast==='function') toast('支払い管理を開けませんでした（HTTP '+res.status+'）');
-      }catch(e){ console.error('[CF Billing] portal exception',e); if(typeof toast==='function') toast('通信エラーで支払い管理を開けませんでした'); }
+        else if(j.error==='server_not_configured'){ notify('決済サーバー設定が未完了です（不足: '+((j.missing&&j.missing.join(', '))||'不明')+'）'); }
+        else notify('お支払い画面を開けませんでした（HTTP '+res.status+'）。時間をおいて再度お試しください。');
+      }catch(e){ console.error('[CF Billing] portal exception',e); notify('通信エラーでお支払い画面を開けませんでした'); }
+      if(opts.setBusy) opts.setBusy(false);
     }
-    /* Checkoutからの復帰通知 */
+    async function openPortal(){ acctOv.classList.remove('open'); openPortalFlow('manage'); }
+
+    /* ---- Account / Billing 画面（お支払い管理） ---- */
+    var billingOv=null;
+    function cfMoneyJa(amount,currency){
+      currency=String(currency||'jpy').toLowerCase();
+      var n=Number(amount||0);
+      if(currency==='jpy') return '¥'+n.toLocaleString('ja-JP');
+      try{ return (n/100).toLocaleString('en-US',{style:'currency',currency:currency.toUpperCase()}); }
+      catch(e){ return (n/100)+' '+currency.toUpperCase(); }
+    }
+    function cfPlanAllowance(key){ return key==='clinic'?500:key==='sketch'?100:10; }
+    function cfBillingState(dispSub){
+      var b=curBilling||dispSub||null;
+      if(b){
+        var st=String(b.status||'');
+        if(st==='past_due') return { label:'支払い遅延 / Past Due', tone:'warn' };
+        if(st==='trialing') return { label:'トライアル / Trial', tone:'info' };
+        if(st==='active') return b.cancel_at_period_end ? { label:'解約予定 / Canceling', tone:'warn' } : { label:'有効 / Active', tone:'ok' };
+        if(st==='canceled'||st==='incomplete_expired'||st==='unpaid') return { label:'解約済み / Canceled', tone:'muted' };
+      }
+      if(curProfile&&curProfile.trial_tokens_granted===true&&(window.__cfTokens||0)>0) return { label:'トライアル / Trial', tone:'info' };
+      return { label:'無料 / Free', tone:'muted' };
+    }
+    function cfToneCss(tone){
+      if(tone==='ok') return 'background:rgba(26,143,87,.12);color:#1a8f57';
+      if(tone==='warn') return 'background:rgba(214,140,20,.14);color:#b5760a';
+      if(tone==='info') return 'background:rgba(124,92,255,.14);color:#5b3fd6';
+      return 'background:rgba(80,74,110,.10);color:#5a5470';
+    }
+    function openBilling(){
+      if(acctOv) acctOv.classList.remove('open');
+      if(!billingOv){
+        billingOv=document.createElement('div');
+        billingOv.id='cfBillingOv';
+        billingOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.55);overflow:auto;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif';
+        document.body.appendChild(billingOv);
+        billingOv.addEventListener('click',function(e){ if(e.target===billingOv) billingOv.style.display='none'; });
+      }
+      var loadingHtml='<div style="width:100%;max-width:440px;background:rgba(255,255,255,.97);border-radius:20px;padding:22px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a;text-align:center">'+
+        '<div style="font-weight:900;font-size:15px;color:#3d2b8f;margin-bottom:10px">お支払い管理 / Billing</div>'+
+        '<div style="font-size:12.5px;color:#7a7290;padding:14px 0">読み込み中…</div>'+
+        '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:8px">閉じる</button></div>';
+      billingOv.innerHTML=loadingHtml;
+      billingOv.style.display='flex';
+      var lc=billingOv.querySelector('[data-close]'); if(lc) lc.addEventListener('click',function(){ billingOv.style.display='none'; });
+
+      /* 表示用: 支払い方法+請求履歴（サーバー）と、canceled も含む最新 sub（表示専用） */
+      var infoP=(async function(){
+        try{
+          var s=await sb.auth.getSession();
+          var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+          if(!jwt) return { paymentMethod:null, invoices:[] };
+          var r=await fetch('/api/stripe/billing-info',{ method:'POST', headers:{ 'Authorization':'Bearer '+jwt } });
+          return await r.json().catch(function(){ return { paymentMethod:null, invoices:[] }; });
+        }catch(e){ console.error('[CF Billing] info failed',e); return { paymentMethod:null, invoices:[] }; }
+      })();
+      var subP=(async function(){
+        if(curBilling) return null; /* active 系は curBilling を使う */
+        try{
+          var q=await sb.from('billing_subscriptions')
+            .select('plan,status,current_period_end,cancel_at_period_end')
+            .eq('user_id',curSession.user.id).order('updated_at',{ascending:false}).limit(1);
+          return (!q.error&&q.data&&q.data.length)?q.data[0]:null;
+        }catch(e){ return null; }
+      })();
+
+      Promise.all([infoP,subP]).then(function(arr){
+        if(billingOv.style.display==='none') return;
+        renderBilling(arr[0]||{ paymentMethod:null, invoices:[] }, arr[1]||null);
+      });
+    }
+    function renderBilling(info,dispSub){
+      var pl=cfCurrentPlan();
+      var hasSub=!!curBilling;
+      var state=cfBillingState(dispSub);
+      var b=curBilling||dispSub||null;
+      var allowance=cfPlanAllowance(pl.key);
+      var bal=(window.__cfTokens==null?'…':window.__cfTokens);
+      var periodEnd=b&&b.current_period_end?fmtDateJa(b.current_period_end):'—';
+      var canceling=!!(b&&b.cancel_at_period_end);
+      var pastDue=!!(b&&String(b.status)==='past_due');
+      var nextRenew=(!b||canceling||String(b.status)==='canceled')?'—（自動更新なし）':(b.current_period_end?fmtDateJa(b.current_period_end):'—');
+      var pm=info&&info.paymentMethod;
+      var pmText=pm&&pm.last4
+        ? (String(pm.brand||'card').replace(/^\w/,function(c){return c.toUpperCase();})+' 下4桁 '+pm.last4+(pm.expMonth?(' · 有効期限 '+pm.expMonth+'/'+String(pm.expYear||'').slice(-2)):''))
+        : (hasSub?'カード情報を取得できませんでした':'未登録');
+      var invoices=(info&&info.invoices)||[];
+
+      function field(label,val,strong){
+        return '<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid rgba(124,92,255,.09)">'+
+          '<span style="font-size:12px;color:#7a7290;flex:0 0 auto">'+label+'</span>'+
+          '<span style="font-size:12.5px;font-weight:'+(strong?'900':'700')+';color:#2a2350;text-align:right">'+val+'</span></div>';
+      }
+      var pastDueBanner=pastDue
+        ? '<div style="background:rgba(214,140,20,.12);border:1px solid rgba(214,140,20,.35);border-radius:12px;padding:11px 12px;margin:0 0 12px;font-size:11.5px;color:#a5670a;line-height:1.7">お支払いが確認できていません（支払い遅延）。ご利用を継続いただくため、<b>支払い方法の更新</b>をお願いします。</div>'
+        : '';
+      var cancelNote=canceling
+        ? '<div style="background:rgba(124,92,255,.08);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:11.5px;color:#5b3fd6;line-height:1.7">解約予定です。<b>'+periodEnd+'</b> までは有料プランの機能と残りトークンをご利用いただけます。以降は自動更新されません。</div>'
+        : '';
+
+      var invHtml;
+      if(invoices.length){
+        invHtml=invoices.map(function(iv){
+          var d=iv.created?fmtDateJa(new Date(iv.created*1000)):'';
+          var amt=cfMoneyJa(iv.amount,iv.currency);
+          var stTxt=iv.status==='paid'?'支払済':iv.status==='open'?'未payment':(iv.status||'');
+          var link=iv.hostedUrl?('<a href="'+esc(iv.hostedUrl)+'" target="_blank" rel="noopener" style="color:#5b3fd6;font-weight:800;text-decoration:none">領収書 ↗</a>'):'';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(124,92,255,.08)">'+
+            '<span style="font-size:11.5px;color:#5a5470">'+esc(d)+'</span>'+
+            '<span style="font-size:11.5px;color:#2a2350;font-weight:800">'+esc(amt)+'</span>'+
+            '<span style="font-size:10.5px;color:#7a7290">'+esc(stTxt)+'</span>'+
+            '<span style="font-size:11px">'+link+'</span></div>';
+        }).join('');
+      } else {
+        invHtml='<div style="font-size:11.5px;color:#9089a6;padding:8px 0">請求履歴はまだありません。</div>';
+      }
+
+      /* アクションボタン */
+      var actions='';
+      if(hasSub){
+        actions+='<button type="button" data-act="change_plan" class="cfG2Btn" style="font-size:13px;padding:11px;margin:0">プランを変更 / Change Plan</button>'+
+          '<button type="button" data-act="payment_method" class="'+(pastDue?'cfG2Btn':'cfG2BtnGhost')+'" style="font-size:13px;padding:11px;margin:0">支払い方法を変更 / Change Payment Method</button>'+
+          '<button type="button" data-act="manage" class="cfG2BtnGhost" style="font-size:13px;padding:11px;margin:0">請求情報を管理 / Manage Billing</button>';
+        if(!canceling){
+          actions+='<button type="button" data-act="cancel" class="cfG2BtnGhost" style="font-size:12.5px;padding:11px;margin:6px 0 0;color:#c0303a;border-color:rgba(192,48,58,.4)">サブスクリプションを解約 / Cancel Subscription</button>';
+        }
+      } else {
+        actions+='<button type="button" data-act="subscribe" class="cfG2Btn" style="font-size:13px;padding:12px;margin:0">プランに登録 / Choose a plan</button>';
+        if(invoices.length){
+          actions+='<button type="button" data-act="manage" class="cfG2BtnGhost" style="font-size:13px;padding:11px;margin:0">請求情報・領収書 / Manage Billing</button>';
+        }
+      }
+
+      var html='<div style="width:100%;max-width:440px;max-height:calc(100dvh - 80px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:rgba(255,255,255,.98);border-radius:20px;padding:20px 18px calc(22px + env(safe-area-inset-bottom,0px));box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+          '<div style="font-weight:900;font-size:16px;color:#3d2b8f">お支払い管理 / Billing</div>'+
+          '<span style="font-size:11px;font-weight:900;padding:4px 10px;border-radius:999px;'+cfToneCss(state.tone)+'">'+esc(state.label)+'</span>'+
+        '</div>'+
+        pastDueBanner+cancelNote+
+        '<div style="background:#fff;border:1px solid rgba(124,92,255,.16);border-radius:16px;padding:4px 14px;margin-bottom:12px">'+
+          field('現在のプラン / Current Plan','<span style="color:#3d2b8f">'+esc(pl.label)+'</span>',true)+
+          field('契約状態 / Status',esc(state.label))+
+          field('残りトークン / Token Balance',esc(bal)+' <span style=\"color:#9089a6;font-weight:700\">tokens</span>',true)+
+          field('月間トークン / Monthly Allowance',(pl.key==='free'?'—':(allowance+' tokens / 月')))+
+          field('現在の請求期間終了 / Current Period End',esc(periodEnd))+
+          field('次回更新日 / Next Renewal',esc(nextRenew))+
+          field('支払い方法 / Payment Method',esc(pmText))+
+        '</div>'+
+        '<div style="font-weight:900;font-size:12.5px;color:#3d2b8f;margin:2px 2px 4px">請求履歴 / Billing History</div>'+
+        '<div style="background:#fff;border:1px solid rgba(124,92,255,.14);border-radius:14px;padding:4px 14px;margin-bottom:14px">'+invHtml+'</div>'+
+        '<div id="cfBillMsg"></div>'+
+        '<div style="display:grid;gap:8px">'+actions+'</div>'+
+        '<div style="font-size:10.5px;color:#9089a6;line-height:1.8;margin-top:14px">月額プランは毎月自動更新されます。解約後も、現在の請求期間終了日までは有料プランの機能をご利用いただけます。次回更新日以降は自動更新されません。未使用トークンの返金・繰越は原則として行いません。支払い方法・請求情報の変更、領収書の確認は上記ボタンから安全な Stripe 画面で行えます。</div>'+
+        '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:12px">閉じる</button>'+
+      '</div>';
+      billingOv.innerHTML=html;
+
+      function billMsg(text,kind){
+        var m=billingOv.querySelector('#cfBillMsg'); if(!m) return;
+        if(!text){ m.style.display='none'; return; }
+        m.style.display='block'; m.style.margin='0 0 10px'; m.style.padding='9px 11px'; m.style.borderRadius='10px'; m.style.fontSize='11.5px'; m.textContent=text;
+        m.style.background=kind==='err'?'rgba(220,50,60,.10)':'rgba(124,92,255,.10)';
+        m.style.color=kind==='err'?'#c0303a':'#5b3fd6';
+      }
+      var cb=billingOv.querySelector('[data-close]'); if(cb) cb.addEventListener('click',function(){ billingOv.style.display='none'; });
+      billingOv.querySelectorAll('[data-act]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var act=btn.getAttribute('data-act');
+          if(act==='subscribe'){ billingOv.style.display='none'; openPricing(); return; }
+          if(act==='cancel'){ openCancelConfirm(); return; }
+          var flow=act==='change_plan'?'change_plan':act==='payment_method'?'payment_method':'manage';
+          if(act==='change_plan'&&!hasSub){ billingOv.style.display='none'; openPricing(); return; }
+          billMsg('Stripeの安全な画面を準備しています…');
+          var was=btn.textContent; btn.disabled=true; btn.classList.add('cfBtnBusy'); btn.textContent='お待ちください…';
+          openPortalFlow(flow,{ notify:function(t){ billMsg(t,'err'); }, setBusy:function(on){ if(!on){ btn.disabled=false; btn.classList.remove('cfBtnBusy'); btn.textContent=was; } } });
+        });
+      });
+    }
+    /* 解約確認モーダル（誤操作防止。即時停止ではなく期末停止であることを明記） */
+    var cancelOv=null;
+    function openCancelConfirm(){
+      var b=curBilling||null;
+      var endTxt=b&&b.current_period_end?fmtDateJa(b.current_period_end):'現在の請求期間終了日';
+      if(!cancelOv){
+        cancelOv=document.createElement('div');
+        cancelOv.id='cfCancelOv';
+        cancelOv.style.cssText='position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(20,12,35,.62);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif';
+        document.body.appendChild(cancelOv);
+        cancelOv.addEventListener('click',function(e){ if(e.target===cancelOv) cancelOv.style.display='none'; });
+      }
+      cancelOv.innerHTML='<div style="width:100%;max-width:400px;background:#fff;border-radius:18px;padding:22px 20px calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 24px 70px rgba(40,20,80,.34);color:#231a3a">'+
+        '<div style="font-weight:900;font-size:16px;color:#231a3a;margin-bottom:10px">サブスクリプションを解約しますか？</div>'+
+        '<div style="font-size:12.5px;color:#5a5470;line-height:1.85;margin-bottom:18px">解約後も、<b>'+esc(endTxt)+'</b>（現在の請求期間終了日）までは有料プランの機能と残りトークンをご利用いただけます。<br>次回更新日以降は自動更新されず、有料プランの機能は停止します。</div>'+
+        '<div style="display:grid;gap:9px">'+
+          '<button type="button" data-cx="back" class="cfG2BtnGhost" style="margin:0;font-size:13px;padding:12px">戻る</button>'+
+          '<button type="button" data-cx="go" class="cfG2Btn" style="margin:0;font-size:13px;padding:12px;background:#c0303a">サブスクリプションを解約する</button>'+
+        '</div></div>';
+      cancelOv.style.display='flex';
+      cancelOv.querySelector('[data-cx="back"]').addEventListener('click',function(){ cancelOv.style.display='none'; });
+      cancelOv.querySelector('[data-cx="go"]').addEventListener('click',function(){
+        var gb=cancelOv.querySelector('[data-cx="go"]');
+        gb.disabled=true; gb.classList.add('cfBtnBusy'); gb.textContent='Stripeへ移動中…';
+        openPortalFlow('cancel',{ setBusy:function(on){ if(!on){ gb.disabled=false; gb.classList.remove('cfBtnBusy'); gb.textContent='サブスクリプションを解約する'; } } });
+      });
+    }
+    window.__cfOpenBilling=openBilling;
+
+    /* Checkout / Portal からの復帰通知・復帰画面 */
     try{
       var co=new URLSearchParams(location.search).get('checkout');
       if(co==='success'&&typeof toast==='function') setTimeout(function(){ toast('ご登録ありがとうございます。反映まで数十秒かかる場合があります'); },800);
       else if(co==='cancel'&&typeof toast==='function') setTimeout(function(){ toast('お手続きはキャンセルされました'); },800);
     }catch(e){ console.error('[CF Billing] checkout param failed',e); }
+    /* Stripe Portal からの return_url（?billing=1）→ Account/Billing 画面に自然復帰。
+       URL は即クリーンにして、ブラウザバック/リロードで意図せず再オープンしないようにする。 */
+    try{
+      var _bp=new URLSearchParams(location.search).get('billing');
+      if(_bp==='1'){
+        if(history.replaceState){ var _u=new URL(location.href); _u.searchParams.delete('billing'); history.replaceState(null,'',_u.pathname+_u.search+_u.hash); }
+        var _tries=0;
+        var _iv=setInterval(function(){
+          _tries++;
+          if((curSession&&curProfile)||_tries>40){ clearInterval(_iv); if(curSession) openBilling(); }
+        },300);
+      }
+    }catch(e){ console.error('[CF Billing] billing return failed',e); }
 
     /* --- Invite screen panel（下部ナビ Invite → shareApp 画面に注入） --- */
     function inviteLink(code){
