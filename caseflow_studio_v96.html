@@ -27684,6 +27684,289 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 })();
 </script>
 
+<!-- ============ Safe-area / PWA responsive fit (home card, landscape cards, floating controls) ============ -->
+<style id="cf-safe-css">
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --cf-nav-h:92px;
+}
+/* Floating language pill (inner screens) + top-right chips must clear the iOS
+   notch / Dynamic Island in landscape (safe-area-inset-right). Harmless on
+   portrait / desktop where the inset is 0. */
+.cfLangFixed{ right:calc(18px + var(--safe-right)) !important; }
+#cfLogoutBtn{ right:calc(8px + var(--safe-right)) !important; }
+#cfTokenBadge{ right:calc(84px + var(--safe-right)) !important; }
+
+/* ---------- PORTRAIT home: card + logo + footer must fit above the bottom nav ---------- */
+@media (orientation:portrait){
+  #home.screen{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  /* The base .hero forces min-height:100dvh-100px and the panel is pushed down
+     ~46vh, so on tall phones the card's lower half (samples / v9.6 / credit)
+     hid behind the fixed nav. Let the hero size to content, scroll if needed,
+     and reserve space for the nav so nothing is clipped. */
+  #home .hero{
+    min-height:auto !important;
+    justify-content:flex-start !important;
+    padding-top:max(20px, calc(var(--safe-top) + 6px)) !important;
+    padding-bottom:calc(var(--cf-nav-h) + var(--safe-bottom) + 18px) !important;
+  }
+  .home .panel{
+    margin-top:clamp(20px, 22vh, 220px) !important;
+    margin-bottom:0 !important;
+    max-height:none !important;
+  }
+  /* Short portrait screens: compress so the whole card fits without scrolling. */
+  @media (max-height:740px){
+    .home .panel{ margin-top:clamp(12px, 10vh, 96px) !important; }
+    #home .panel{ padding:14px !important; }
+    #home .primary{ padding-top:14px !important; padding-bottom:14px !important; }
+  }
+}
+
+/* ---------- LANDSCAPE (phone/tablet, below the desktop side-panel breakpoint) ----------
+   Keep the left nav rail (96px) and reserve room on the right for the floating
+   controls + notch so workflow / Library / Gallery / Account cards are never
+   clipped, and let the centre content scroll. Desktop (>=1176px) is untouched. */
+@media (orientation:landscape) and (min-width:540px) and (max-width:1175px){
+  .screen{
+    padding-left:max(20px, calc((100vw - 96px - 640px) / 2), calc(var(--safe-left) + 20px)) !important;
+    padding-right:max(20px, calc((100vw - 96px - 640px) / 2), calc(var(--safe-right) + 76px)) !important;
+    padding-top:max(18px, var(--safe-top)) !important;
+    padding-bottom:calc(36px + var(--safe-bottom)) !important;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  /* Workflow / list cards fill the safe content column and can't overflow it. */
+  .card.option{ width:100%; max-width:100%; }
+  #start .card.option{ min-height:clamp(120px, 30vh, 220px); }
+}
+
+/* ---------- Very short landscape (phones on their side): compress cards/logo ---------- */
+@media (orientation:landscape) and (max-height:520px){
+  #home .hero{ min-height:auto !important; justify-content:flex-start !important; padding-top:max(10px,var(--safe-top)) !important; }
+  .home .panel{ margin-top:clamp(6px, 3vh, 34px) !important; padding:12px !important; }
+  .card.option{ padding:16px 22px !important; }
+  .card.option h3{ font-size:clamp(18px, 4.6vh, 26px) !important; }
+  .card.option p{ font-size:clamp(12px, 2.6vh, 16px) !important; }
+  .topbar{ margin-bottom:10px !important; }
+}
+</style>
+
+<!-- ============ Library ⇄ Supabase sync (cross-context source of truth) ============ -->
+<script>
+/* Library persistence across Safari / standalone PWA / devices.
+   Supabase (library_projects + private 'library-assets' bucket) is the source of
+   truth; localStorage/IndexedDB remain a fast local cache + offline/logged-out
+   fallback + pre-sync queue. Purely additive: the existing local engine is
+   untouched, and every network call is failure-tolerant so the local Library
+   keeps working if Supabase is unreachable or the user is logged out. */
+(function(){
+  var STORE_KEY='caseflow_project_library_v55';
+  var PUSHED_KEY='cf_lib_pushed_v1';
+  var BUCKET='library-assets';
+  var loading=false, pushing=false, pulledOnce=false;
+
+  function sbc(){ return window.cfSupabase || null; }
+  function log(){ try{ console.log.apply(console,['[Library]'].concat([].slice.call(arguments))); }catch(e){} }
+  function isStandalone(){ try{ return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches))||navigator.standalone===true; }catch(e){ return false; } }
+  function getStore(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]')||[]; }catch(e){ return []; } }
+  function setStore(a){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(a||[])); }catch(e){} }
+  function getPushed(){ try{ return new Set(JSON.parse(localStorage.getItem(PUSHED_KEY)||'[]')); }catch(e){ return new Set(); } }
+  function addPushed(id){ try{ var s=getPushed(); s.add(String(id)); localStorage.setItem(PUSHED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+  function delPushed(id){ try{ var s=getPushed(); s.delete(String(id)); localStorage.setItem(PUSHED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+  function hasLocalItems(){ return getStore().length>0; }
+  function setLibMsg(html){ var root=document.getElementById('libraryList'); if(root) root.innerHTML=html; }
+
+  async function getUser(){
+    var sb=sbc(); if(!sb||!sb.auth) return null;
+    /* getSession() reads the persisted session locally (no network); good for the
+       frequent reconcile path. RLS still enforces ownership on every query. */
+    try{ var r=await sb.auth.getSession(); return (r&&r.data&&r.data.session&&r.data.session.user)||null; }catch(e){ return null; }
+  }
+  function studioTypeOf(r){
+    if(r.kind==='landmark-video' || (r.payload&&String((r.payload.videoMime)||'').indexOf('video')===0)) return 'morphing_video';
+    if(r.kind==='simulation-image'||r.kind==='simulation'||(r.payload&&r.payload.simResult)) return 'visual_simulation';
+    return 'project';
+  }
+  function assetTypeOf(r){
+    var st=studioTypeOf(r);
+    if(st==='morphing_video') return 'video';
+    if(st==='visual_simulation') return (r.kind==='simulation-image'?'image':'reference');
+    return 'project';
+  }
+  function isVideoRec(r){ return studioTypeOf(r)==='morphing_video'; }
+  function expIsoOf(r){
+    try{ if(typeof window.cfLibExpiresAt==='function'){ var e=window.cfLibExpiresAt(r); if(e) return new Date(e).toISOString(); } }catch(e){}
+    var base=Number(String(r.id||'').replace(/\D/g,''))||Date.now();
+    return new Date(base+48*3600*1000).toISOString();
+  }
+  async function dataUrlToBlob(u){ if(!u||String(u).indexOf('blob:')===0) return null; try{ var res=await fetch(u); return await res.blob(); }catch(e){ return null; } }
+  function idbGetVideo(key){
+    return new Promise(function(resolve){
+      try{
+        var req=indexedDB.open('CaseFlowStudioDB',1);
+        req.onupgradeneeded=function(){ try{ var db=req.result; if(!db.objectStoreNames.contains('libraryBlobs')) db.createObjectStore('libraryBlobs'); }catch(e){} };
+        req.onsuccess=function(){ try{ var db=req.result; if(!db.objectStoreNames.contains('libraryBlobs')){ resolve(null); return; } var tx=db.transaction('libraryBlobs','readonly'); var g=tx.objectStore('libraryBlobs').get(key); g.onsuccess=function(){ resolve(g.result||null); }; g.onerror=function(){ resolve(null); }; }catch(e){ resolve(null); } };
+        req.onerror=function(){ resolve(null); };
+      }catch(e){ resolve(null); }
+    });
+  }
+  async function uploadBlob(sb, path, blob, type){
+    if(!blob) return false;
+    try{ var r=await sb.storage.from(BUCKET).upload(path, blob, { contentType:type||blob.type||'application/octet-stream', upsert:true }); return !r.error; }
+    catch(e){ log('upload failed', path, e&&e.message); return false; }
+  }
+  async function pushRecord(sb, uid, r){
+    if(!r||!r.id) return;
+    var cid=String(r.id), base=uid+'/'+cid;
+    var thumbPath=null, assetPath=null, refPath=null;
+    var thumbBlob=await dataUrlToBlob(r.thumb||(r.payload&&r.payload.simResult&&r.payload.simResult.dataUrl));
+    if(thumbBlob){ thumbPath=base+'/thumb.jpg'; if(!(await uploadBlob(sb,thumbPath,thumbBlob,'image/jpeg'))) thumbPath=null; }
+    if(isVideoRec(r)){
+      var vkey=(r.payload&&(r.payload.videoBlobKey||r.payload.blobKey))||r.id;
+      var vblob=await idbGetVideo(vkey);
+      if(!vblob) vblob=await dataUrlToBlob(r.payload&&(r.payload.videoUrl||r.payload.videoDataUrl));
+      if(vblob){ assetPath=base+'/asset.webm'; if(!(await uploadBlob(sb,assetPath,vblob,(r.payload&&r.payload.videoMime)||'video/webm'))) assetPath=null; }
+    } else {
+      var mainBlob=await dataUrlToBlob((r.payload&&r.payload.simResult&&r.payload.simResult.dataUrl)||r.thumb);
+      if(mainBlob){ assetPath=base+'/asset.jpg'; if(!(await uploadBlob(sb,assetPath,mainBlob,'image/jpeg'))) assetPath=null; }
+      var refBlob=await dataUrlToBlob(r.payload&&r.payload.simResult&&r.payload.simResult.source);
+      if(refBlob){ refPath=base+'/reference.jpg'; if(!(await uploadBlob(sb,refPath,refBlob,'image/jpeg'))) refPath=null; }
+    }
+    var row={ user_id:uid, client_id:cid, kind:r.kind||null, title:r.title||null,
+      studio_type:studioTypeOf(r), asset_type:assetTypeOf(r),
+      thumb_path:thumbPath, asset_path:assetPath, reference_path:refPath,
+      meta:{ createdAt:r.createdAt||'', fav:!!(r.fav||(r.payload&&r.payload.simResult&&r.payload.simResult.fav)),
+        videoMime:(r.payload&&r.payload.videoMime)||null, videoName:(r.payload&&r.payload.videoName)||null,
+        settings:(r.payload&&r.payload.simResult&&r.payload.simResult.settings)||null,
+        sourceKind:(r.payload&&r.payload.simResult&&r.payload.simResult.sourceKind)||null },
+      expires_at:expIsoOf(r) };
+    try{ var up=await sb.from('library_projects').upsert(row,{ onConflict:'user_id,client_id' });
+      if(up.error){ log('row upsert failed', up.error.message); return; } addPushed(cid); }
+    catch(e){ log('push exception', e&&e.message); }
+  }
+  var pushTimer=null;
+  function scheduleReconcilePush(){ if(pushTimer) clearTimeout(pushTimer); pushTimer=setTimeout(reconcilePush, 1600); }
+  async function reconcilePush(){
+    if(pushing) return; var sb=sbc(); if(!sb) return;
+    var user=await getUser(); if(!user) return; /* only sync up when logged in */
+    pushing=true;
+    try{
+      var pushed=getPushed(), local=getStore(), now=Date.now();
+      for(var i=0;i<local.length;i++){
+        var r=local[i]; if(!r||!r.id) continue;
+        if(r._sb){ addPushed(r.id); continue; }         /* came from Supabase */
+        if(pushed.has(String(r.id))) continue;
+        try{ if(typeof window.cfLibExpiresAt==='function'){ var e=window.cfLibExpiresAt(r); if(e&&e<now) continue; } }catch(e){}
+        await pushRecord(sb,user.id,r);
+      }
+    }catch(e){ log('reconcile push error', e&&e.message); }
+    pushing=false;
+  }
+  async function signed(sb, path){ if(!path) return ''; try{ var r=await sb.storage.from(BUCKET).createSignedUrl(path, 3600); return (r&&r.data&&r.data.signedUrl)||''; }catch(e){ return ''; } }
+  function rowToRecord(row, urls){
+    var isVid=row.studio_type==='morphing_video';
+    var expMs=row.expires_at?new Date(row.expires_at).getTime():0;
+    var rec={ id:row.client_id, kind:row.kind||(isVid?'landmark-video':'simulation-image'),
+      title:row.title||'Untitled', createdAt:(row.meta&&row.meta.createdAt)||'',
+      thumb:urls.thumb||'icons/icon-512.png', fav:!!(row.meta&&row.meta.fav),
+      _sb:true, expiresAt:expMs, payload:{ title:row.title||'Untitled' } };
+    if(isVid){
+      rec.payload.videoUrl=urls.asset||'';
+      rec.payload.videoMime=(row.meta&&row.meta.videoMime)||'video/webm';
+      rec.payload.videoName=(row.meta&&row.meta.videoName)||'caseflow_video.webm';
+    } else {
+      rec.payload.simResult={ dataUrl:urls.asset||urls.thumb||'', source:urls.reference||urls.asset||urls.thumb||'',
+        sourceKind:(row.meta&&row.meta.sourceKind)||'Image', settings:(row.meta&&row.meta.settings)||{}, fav:!!(row.meta&&row.meta.fav) };
+    }
+    return rec;
+  }
+  async function pullFromSupabase(){
+    var sb=sbc(); if(!sb) return { ok:false, reason:'no-client' };
+    log('mode:', isStandalone()?'standalone':'browser'); log('origin:', location.origin);
+    var user=await getUser();
+    if(!user){ log('no auth user — using local cache fallback'); return { ok:false, reason:'no-user' }; }
+    try{
+      var nowISO=new Date().toISOString();
+      var q=await sb.from('library_projects').select('*').eq('user_id',user.id).gt('expires_at',nowISO).order('created_at',{ascending:false});
+      if(q.error){ log('Supabase load failed:', q.error.message); return { ok:false, reason:'error' }; }
+      var rows=q.data||[];
+      var recs=await Promise.all(rows.map(async function(row){
+        var urls={ thumb:await signed(sb,row.thumb_path), asset:await signed(sb,row.asset_path), reference:await signed(sb,row.reference_path) };
+        return rowToRecord(row, urls);
+      }));
+      var local=getStore(), byId=new Map();
+      local.forEach(function(r){ if(r&&r.id) byId.set(String(r.id), r); });
+      recs.forEach(function(r){ byId.set(String(r.id), Object.assign({}, byId.get(String(r.id))||{}, r)); });
+      var merged=Array.from(byId.values());
+      window.state=window.state||{}; state.projectLibrary=merged; setStore(merged);
+      recs.forEach(function(r){ addPushed(r.id); });
+      log('loaded', recs.length, 'items from Supabase');
+      return { ok:true, count:recs.length };
+    }catch(e){ log('pull exception', e&&e.message); return { ok:false, reason:'exception' }; }
+  }
+  async function deleteFromSupabase(cid){
+    var sb=sbc(); if(!sb) return; var user=await getUser(); if(!user) return;
+    var base=user.id+'/'+cid;
+    try{ await sb.storage.from(BUCKET).remove([base+'/thumb.jpg', base+'/asset.jpg', base+'/asset.webm', base+'/reference.jpg']); }catch(e){}
+    try{ await sb.from('library_projects').delete().eq('user_id',user.id).eq('client_id',String(cid)); }catch(e){}
+    delPushed(cid);
+  }
+
+  /* Loading-state wrapper: never flash "empty" while we're still loading. */
+  function installRenderWrap(){
+    if(window.__cfLibRenderWrapped || typeof window.renderLibrary!=='function') return;
+    window.__cfLibRenderWrapped=true;
+    var orig=window.renderLibrary;
+    window.renderLibrary=function(){
+      if(loading && !hasLocalItems()){ setLibMsg('<div class="pmEmptyHint">Libraryを読み込み中です…</div>'); return; }
+      var out=orig.apply(this, arguments);
+      if(!pushing) scheduleReconcilePush();
+      return out;
+    };
+  }
+
+  async function openLibrary(){
+    installRenderWrap();
+    loading=true;
+    if(!hasLocalItems()) setLibMsg('<div class="pmEmptyHint">Libraryを読み込み中です…</div>');
+    else { try{ window.renderLibrary&&window.renderLibrary(); }catch(e){} }   /* show cache instantly */
+    await pullFromSupabase();                                                  /* Supabase = source of truth */
+    loading=false; pulledOnce=true;
+    try{ window.renderLibrary&&window.renderLibrary(); }catch(e){}
+    scheduleReconcilePush();
+    try{ var sb=sbc(); var u=await getUser(); if(sb&&u) sb.rpc('cleanup_expired_library').then(function(){},function(){}); }catch(e){}
+  }
+  window.cfOpenLibrarySync=openLibrary;
+
+  /* Run the sync loader whenever the Library screen is opened. */
+  (function wrapGo(){
+    var prevGo=window.go;
+    if(typeof prevGo!=='function' || window.__cfLibGoWrapped) return;
+    window.__cfLibGoWrapped=true;
+    window.go=function(id){ var out=prevGo.apply(this, arguments); if(id==='library'){ setTimeout(openLibrary, 40); } return out; };
+  })();
+
+  /* Delete also removes the Supabase row + storage files (not just the UI). */
+  (function wrapDelete(){
+    var prevDelete=window.deleteLibraryProject;
+    window.deleteLibraryProject=function(id){
+      try{ if(typeof prevDelete==='function') prevDelete(id); }catch(e){}
+      deleteFromSupabase(id);
+    };
+  })();
+
+  /* Re-pull after a fresh login. */
+  try{ var sb=sbc(); if(sb&&sb.auth&&sb.auth.onAuthStateChange){ sb.auth.onAuthStateChange(function(evt){ if(evt==='SIGNED_IN'){ pulledOnce=false; var scr=document.getElementById('library'); if(scr&&scr.classList.contains('active')) setTimeout(openLibrary,60); } }); } }catch(e){}
+
+  /* If Library is already the active screen at load (deep link), sync once ready. */
+  try{ if(document.getElementById('library') && document.getElementById('library').classList.contains('active')) setTimeout(openLibrary, 600); }catch(e){}
+})();
+</script>
+
 <!-- ============ PWA: landscape fullscreen views + install hint ============ -->
 <style id="cf-pwa-css">
 /* Short-landscape (phone on its side): let case-image views fill the available
