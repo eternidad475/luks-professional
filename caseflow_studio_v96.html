@@ -27747,7 +27747,9 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   #home .homePartners{
     top:max(calc(var(--safe-top) + 18px), calc(var(--real-vh,1vh) * 13)) !important;
     right:calc(50vw - min(46vw, 222px)) !important;
-    align-items:flex-end !important;
+    /* the block stays anchored to the card's right edge; the two marks are
+       centred on a shared vertical axis (FOR DENTISTRY centred over CDS) */
+    align-items:center !important;
   }
   #home .panel{
     position:absolute !important;
