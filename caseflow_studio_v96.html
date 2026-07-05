@@ -27727,22 +27727,27 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
    visualViewport. The card only rises on genuinely short screens. */
 @media (orientation:portrait) and (max-width:767px){
   /* Phone portrait ONLY (iPad portrait / desktop keep their existing layout). */
-  #home.screen{ padding-top:0 !important; padding-bottom:0 !important; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #home.screen{ padding:0 !important; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   #home .hero{
     display:block !important;
     position:static !important;
     min-height:calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom)) !important;
     padding:0 !important;
   }
-  /* Reference layout (IMG_6326): brand block top ≈ 18–20% of the visible
-     height — generous sky above the logo, not pinned to the top edge. */
+  /* Brand band ≈ 13% of the visible height (slightly higher, per feedback),
+     LEFT-aligned to the glass card's left edge. The card is centred at
+     width:min(92vw,444px), so its edge inset = 50vw - min(46vw,222px). */
   #home .brand{
-    padding-top:max(calc(var(--safe-top) + 16px), calc(var(--real-vh,1vh) * 18)) !important;
+    padding-top:max(calc(var(--safe-top) + 16px), calc(var(--real-vh,1vh) * 13)) !important;
+    padding-left:calc(50vw - min(46vw, 222px)) !important;
+    padding-right:calc(50vw - min(46vw, 222px)) !important;
   }
-  /* Right emblem block (FOR DENTISTRY / CDS) aligned with the brand band. */
+  /* Right emblem block (FOR DENTISTRY / CDS): same band, RIGHT-aligned to the
+     glass card's right edge. */
   #home .homePartners{
-    top:max(calc(var(--safe-top) + 18px), calc(var(--real-vh,1vh) * 18)) !important;
-    right:6vw !important;
+    top:max(calc(var(--safe-top) + 18px), calc(var(--real-vh,1vh) * 13)) !important;
+    right:calc(50vw - min(46vw, 222px)) !important;
+    align-items:flex-end !important;
   }
   #home .panel{
     position:absolute !important;
@@ -27769,6 +27774,17 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
    Keep the left nav rail (96px) and reserve room on the right for the floating
    controls + notch so workflow / Library / Gallery / Account cards are never
    clipped, and let the centre content scroll. Desktop (>=1176px) is untouched. */
+/* Landscape white-blowout fix: the v7.7 pale .app/.screen.soft washes
+   (color-mix with #fff + !important) override the landscape transparency that
+   lets the saturated html gradient show, washing the centre out white. This
+   block is last in the cascade, so re-assert transparency for ALL landscape
+   widths and replace the white .soft veil with a subtle dark scrim. */
+@media (orientation:landscape) and (min-width:540px){
+  .app{ background:transparent !important; }
+  .screen.soft{ background:transparent !important; }
+  .screen.soft:before{ background:rgba(22,14,42,.12) !important; backdrop-filter:none !important; }
+}
+
 @media (orientation:landscape) and (min-width:540px) and (max-width:1175px){
   .screen{
     padding-left:max(20px, calc((100vw - 96px - 640px) / 2), calc(var(--safe-left) + 20px)) !important;
@@ -27924,8 +27940,8 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     return rec;
   }
   async function pullFromSupabase(){
-    var sb=sbc(); if(!sb) return { ok:false, reason:'no-client' };
     log('mode:', isStandalone()?'standalone':'browser'); log('origin:', location.origin);
+    var sb=sbc(); if(!sb){ log('pull skipped: no supabase client'); return { ok:false, reason:'no-client' }; }
     var user=await getUser();
     if(!user){ log('no auth user — using local cache fallback'); return { ok:false, reason:'no-user' }; }
     try{
@@ -27981,13 +27997,51 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   }
   window.cfOpenLibrarySync=openLibrary;
 
-  /* Run the sync loader whenever the Library screen is opened. */
+  /* Background sync (does NOT require opening the Library screen): pull the
+     user's cloud items into the local store, then push any local-only items.
+     This is what makes "generate in Safari → see it in the PWA" work even if
+     the Library screen is never opened in the pushing context. */
+  var lastBgSync=0;
+  async function backgroundSync(reason){
+    var now=Date.now();
+    if(now-lastBgSync<60000) return;          /* max once per minute */
+    lastBgSync=now;
+    var sb=sbc();
+    if(!sb){ log('background sync skipped: no supabase client (',reason,')'); return; }
+    var user=await getUser();
+    if(!user){ log('background sync skipped: not signed in (',reason,')'); return; }
+    log('background sync start (',reason,')');
+    try{ await pullFromSupabase(); }catch(e){ log('bg pull failed', e&&e.message); }
+    scheduleReconcilePush();
+    /* refresh the list if the user is currently looking at it */
+    try{ var scr=document.getElementById('library'); if(scr&&scr.classList.contains('active')&&typeof window.renderLibrary==='function') window.renderLibrary(); }catch(e){}
+  }
+  window.cfLibraryBackgroundSync=backgroundSync;
+
+  /* Trigger paths (belt AND suspenders — none depends on the go() chain alone,
+     which is re-wrapped ~35 times by later modules): */
+  /* 1. go() wrap */
   (function wrapGo(){
     var prevGo=window.go;
     if(typeof prevGo!=='function' || window.__cfLibGoWrapped) return;
     window.__cfLibGoWrapped=true;
     window.go=function(id){ var out=prevGo.apply(this, arguments); if(id==='library'){ setTimeout(openLibrary, 40); } return out; };
   })();
+  /* 2. #library screen activation observer (fires however the screen is shown) */
+  try{
+    var libScr=document.getElementById('library');
+    if(libScr && !libScr.__cfLibObs){
+      libScr.__cfLibObs=true;
+      var lastOpen=0;
+      new MutationObserver(function(){
+        if(libScr.classList.contains('active') && Date.now()-lastOpen>4000){ lastOpen=Date.now(); setTimeout(openLibrary,60); }
+      }).observe(libScr,{attributes:true,attributeFilter:['class']});
+    }
+  }catch(e){}
+  /* 3. boot + login + tab-refocus background sync */
+  setTimeout(function(){ backgroundSync('boot'); }, 5000);
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') backgroundSync('visible'); });
+  try{ var sb0=sbc(); if(sb0&&sb0.auth&&sb0.auth.onAuthStateChange){ sb0.auth.onAuthStateChange(function(evt){ if(evt==='SIGNED_IN'){ pulledOnce=false; setTimeout(function(){ lastBgSync=0; backgroundSync('signed-in'); },800); var scr=document.getElementById('library'); if(scr&&scr.classList.contains('active')) setTimeout(openLibrary,60); } }); } }catch(e){}
 
   /* Delete also removes the Supabase row + storage files (not just the UI). */
   (function wrapDelete(){
@@ -27997,9 +28051,6 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
       deleteFromSupabase(id);
     };
   })();
-
-  /* Re-pull after a fresh login. */
-  try{ var sb=sbc(); if(sb&&sb.auth&&sb.auth.onAuthStateChange){ sb.auth.onAuthStateChange(function(evt){ if(evt==='SIGNED_IN'){ pulledOnce=false; var scr=document.getElementById('library'); if(scr&&scr.classList.contains('active')) setTimeout(openLibrary,60); } }); } }catch(e){}
 
   /* If Library is already the active screen at load (deep link), sync once ready. */
   try{ if(document.getElementById('library') && document.getElementById('library').classList.contains('active')) setTimeout(openLibrary, 600); }catch(e){}
