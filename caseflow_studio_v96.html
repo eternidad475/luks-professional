@@ -12646,29 +12646,48 @@ window.addEventListener('DOMContentLoaded', () => {
       ctx.fillText('Select at least 2 images',44,72);
       return {triangles:0,points:0,userCount:0,fallback:true};
     }
-    const [imgA,imgB]=await Promise.all([loadImage(a.dataUrl),loadImage(b.dataUrl)]);
-    const rectA=fitContain(imgA.naturalWidth||imgA.width,imgA.naturalHeight||imgA.height,w,h,0);
-    const rectB=fitContain(imgB.naturalWidth||imgB.width,imgB.naturalHeight||imgB.height,w,h,0);
-    const baseA=makeBaseCanvas(imgA,w,h,rectA);
-    const baseB=makeBaseCanvas(imgB,w,h,rectB);
     const e=ease(Math.max(0,Math.min(1,t)));
     // Read mode config — all behaviour is driven from cfMorphVariantDefs so future
     // expansions only require changing the config object, not this render loop.
     const _vdef=cfGetVariantDef(window.cfMorphVariant);
     const _dentalBlendEnabled=_vdef.dentalBlend||!!window.CASEFLOW_DEBUG_DENTAL_BLEND;
-    // Pre-assess pair risk (uses base canvases) → drives oral mesh exclusion zone.
-    const _preRoi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
-    var _pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
-    try{
-      _pairRisk=cfAssessPairRisk(a,b,baseA,baseB,_preRoi);
-      if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','risk:',_pairRisk.level,'score:',_pairRisk.score.toFixed(3),'cw:',_pairRisk.coarseWeight.toFixed(2));
-    }catch(e2){}
-    // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
-    const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
-    const _oralExpand=1.1+_effectiveCW*0.5;
-    const collected=collectMorphPairs(a,b,rectA,rectB,w,h,_oralExpand);
-    const pairs=dedupePairs(collected.pairs);
-    const oralROI=collected.oralROI;
+    // ── Per-pair geometry cache (preview stutter fix) ──────────────────────────
+    // Images, base canvases, dental ROI, pair risk (getImageData-based!) and morph
+    // pairs are stable for a given (pair, canvas size, face mesh, variant); they
+    // were being recomputed on EVERY preview frame, which is what made playback
+    // stutter. Only the t-dependent work (mid lerp + Delaunay + warp) stays
+    // per-frame. Face-mesh arrival auto-invalidates via the _faceMesh reference;
+    // cfCapRefresh clears the cache after alignment/landmark edits.
+    let GC=window.__cfMorphGeoCache;
+    if(!(GC && GC.a===a && GC.b===b && GC.w===w && GC.h===h &&
+         GC.fmA===a._faceMesh && GC.fmB===b._faceMesh &&
+         GC.variant===(window.cfMorphVariant||'clinical'))){
+      const [imgA,imgB]=await Promise.all([loadImage(a.dataUrl),loadImage(b.dataUrl)]);
+      const rA=fitContain(imgA.naturalWidth||imgA.width,imgA.naturalHeight||imgA.height,w,h,0);
+      const rB=fitContain(imgB.naturalWidth||imgB.width,imgB.naturalHeight||imgB.height,w,h,0);
+      const bA=makeBaseCanvas(imgA,w,h,rA);
+      const bB=makeBaseCanvas(imgB,w,h,rB);
+      const _preRoi=cfComputeDentalROI(a,b,rA,rB,w,h);
+      var _pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
+      try{
+        _pairRisk=cfAssessPairRisk(a,b,bA,bB,_preRoi);
+        if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','risk:',_pairRisk.level,'score:',_pairRisk.score.toFixed(3),'cw:',_pairRisk.coarseWeight.toFixed(2));
+      }catch(e2){}
+      // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
+      const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
+      const _oralExpand=1.1+_effectiveCW*0.5;
+      const collected=collectMorphPairs(a,b,rA,rB,w,h,_oralExpand);
+      GC=window.__cfMorphGeoCache={
+        a:a, b:b, w:w, h:h, fmA:a._faceMesh, fmB:b._faceMesh,
+        variant:(window.cfMorphVariant||'clinical'),
+        rectA:rA, rectB:rB, baseA:bA, baseB:bB,
+        pairs:dedupePairs(collected.pairs), oralROI:collected.oralROI,
+        userCount:collected.userCount
+      };
+    }
+    const rectA=GC.rectA, rectB=GC.rectB, baseA=GC.baseA, baseB=GC.baseB;
+    const pairs=GC.pairs;
+    const oralROI=GC.oralROI;
     // Endpoint-preserving morph: eW=e means t=0→image A exactly, t=1→image B exactly.
     // coarseWeight shapes mesh topology only (oral exclusion zone), never eW itself.
     const eW=e;
@@ -12727,7 +12746,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if(!state.cfExportMode){
     }
-    return {triangles:tris.length,points:pairs.length,userCount:collected.userCount,fallback:false};
+    return {triangles:tris.length,points:pairs.length,userCount:GC.userCount,fallback:false};
   }
 
   // ── Dental ROI Protection helpers ─────────────────────────────────────────
@@ -23658,6 +23677,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var engine=plan.engine||window.CaseFlowMorphEngine;
     var w=plan.w, h=plan.h;
     var _vdef=pairPlan._vdef;
+    // Event-aware phases: apply the SAME confirmed plan the preview wrapper uses
+    // (preview goes through cfDrawMorphFrame; export renders here — identical
+    // phase remap + local mask ops keep the two paths consistent).
+    var _evOps=null;
+    if(!window.CF_DISABLE_EVENT_MORPH && window.state && state.morphEventPlan &&
+       state.morphEventPlan.confirmed && typeof window.cfEventPlanPhases==='function'){
+      var _evPh=window.cfEventPlanPhases(Math.max(0,Math.min(1,localT)), state.morphEventPlan);
+      localT=_evPh.warpT; _evOps=_evPh.ops;
+    }
     var e=engine.ease(Math.max(0,Math.min(1,localT)));
     var eW=e; // endpoint-preserving: t=0→A exactly, t=1→B exactly
 
@@ -23688,6 +23716,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
           engine.cfApplyOralSoftDissolve(ctx, pairPlan.baseB, pairPlan.oralROI, eW, _vdef.oralSoftDiss, w, h);
         }
       }
+    }
+    // Local event mask ops (装置除去/補綴出現/抜歯の局所処理) — same as preview.
+    if(_evOps && _evOps.length && typeof window.cfEventApplyMaskOps==='function'){
+      try{ window.cfEventApplyMaskOps(ctx.canvas, pairPlan.photoA, _evOps); }catch(eEv){}
     }
   }
 
@@ -23761,13 +23793,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
       console.log('[CaseFlow Export] selected mimeType:', mime);
+      // Still-image export fix: (1) a DETACHED canvas is never composited on
+      // iOS/Safari, so captureStream records nothing after the first frame, and
+      // (2) CanvasCaptureMediaStreamTrack.requestFrame() is unreliable on WebKit.
+      // Attach the replay canvas to the DOM (tiny, effectively invisible) for the
+      // duration of the export, and use passive fps capture on Safari; manual
+      // requestFrame only on engines where it actually pushes frames (Chromium).
+      replayCanvas.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:1';
+      document.body.appendChild(replayCanvas);
+      var isSafariEngine=/^((?!chrome|crios|fxios|edgios|android).)*safari/i.test(navigator.userAgent||'');
       var stream, track, manual=false;
       try{
-        stream=replayCanvas.captureStream(0);
-        track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-        if(track&&typeof track.requestFrame==='function') manual=true;
-        else stream=replayCanvas.captureStream(fps);
+        if(!isSafariEngine){
+          stream=replayCanvas.captureStream(0);
+          track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+          if(track&&typeof track.requestFrame==='function') manual=true;
+          else stream=replayCanvas.captureStream(fps);
+        }else{
+          stream=replayCanvas.captureStream(fps);
+          track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        }
       }catch(e2){ stream=replayCanvas.captureStream(fps); }
+      if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] start | fps',fps,'| durationMs',durationMs,'| manualCapture',manual,'| safariEngine',isSafariEngine,'| hasRequestFrame',!!(track&&track.requestFrame));
 
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000});
       var parts=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) parts.push(e.data); };
@@ -23779,13 +23826,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
       replayCtx.drawImage(exportCanvas, 0, 0);
       await new Promise(requestAnimationFrame); // let browser composite first frame
 
-      rec.start();
+      rec.start(500); /* timeslice: periodic chunks prove capture progresses */
       var recordStart=performance.now();
       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
       if(btn) btn.textContent='エンコード中…';
       toastFn('動画エンコード中…');
 
-      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
+      // Merged render+record loop: absolute-time pacing. Passive-capture mode
+      // (Safari) yields one rAF per frame so the compositor samples the canvas.
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
         // Sleep until this frame's target wall-clock time
@@ -23798,9 +23846,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
         lastFp=fp;
         replayCtx.drawImage(exportCanvas, 0, 0);
         if(manual&&track) track.requestFrame();
+        else await new Promise(requestAnimationFrame);
+        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
         if(btn) btn.textContent='エンコード '+Math.round((f+1)/timeline.totalFrames*100)+'%';
       }
       await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
+      try{ replayCanvas.remove(); }catch(eRm){}
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
@@ -23829,6 +23880,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(result){
         // Safety: reject empty blobs before any save attempt
         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+        // A multi-second video that encodes to almost nothing means the canvas
+        // stream produced no real frames (still-image bug) — abort loudly rather
+        // than saving a static video.
+        var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
+        if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
 
         // Track A: Library save (mandatory — stores blob in app state, navigates to Export page)
         var libSaved=false;
@@ -23966,11 +24022,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
       console.log('[CaseFlow Export] selected mimeType:', mime);
+      // Still-image export fix: a DETACHED canvas is never composited on iOS/Safari
+      // (captureStream records nothing after frame 0) and WebKit's requestFrame()
+      // is unreliable. Attach the replay canvas to the DOM for the export and use
+      // passive fps capture on Safari; manual requestFrame only on Chromium.
+      repCv.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:1';
+      document.body.appendChild(repCv);
+      var isSafariEngine=/^((?!chrome|crios|fxios|edgios|android).)*safari/i.test(navigator.userAgent||'');
       var stream,track,manual=false;
       try{
-        stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-        if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
+        if(!isSafariEngine){
+          stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+          if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
+        }else{
+          stream=repCv.captureStream(fps); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        }
       }catch(e){ stream=repCv.captureStream(fps); }
+      if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] start | fps',fps,'| durationMs',durationMs,'| totalFrames',timeline.totalFrames,'| manualCapture',manual,'| safariEngine',isSafariEngine,'| hasRequestFrame',!!(track&&track.requestFrame));
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
       rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
 
@@ -23981,13 +24049,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
       repCtx.drawImage(expCv, 0, 0);
       await new Promise(requestAnimationFrame);
 
-      rec.start();
+      rec.start(500); /* timeslice: periodic chunks prove capture progresses */
       var recordStart=performance.now();
       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
       toastFn('動画エンコード中…');
       if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
 
-      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
+      // Merged render+record loop: absolute-time pacing. In passive-capture mode
+      // (Safari) yield one rAF per frame so the compositor samples the canvas.
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
         await cfWaitUntil(recordStart+pos.timeMs);
@@ -23998,8 +24067,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
         lastFp=fp;
         repCtx.drawImage(expCv, 0, 0);
         if(manual&&track) track.requestFrame();
+        else await new Promise(requestAnimationFrame);
+        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
       }
       await new Promise(function(r){setTimeout(r,250);});
+      try{ repCv.remove(); }catch(eRm){}
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
@@ -24017,6 +24089,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(result){
         // Safety: reject empty blobs before any save attempt
         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+        // A multi-second video that encodes to almost nothing means the canvas
+        // stream produced no real frames (still-image bug) — abort loudly rather
+        // than saving a static video.
+        var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
+        if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
         // Track A: Library save (mandatory)
         var libSaved2=false;
         if(typeof setExportBlob==='function'){
@@ -27911,7 +27988,11 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var core=window.cfDrawMorphFrame;
     window.cfDrawMorphFrame=async function(canvas, t, options){
       var plan=state.morphEventPlan;
-      if(!plan || !plan.confirmed) return core(canvas, t, options);
+      /* Rollback switch (§legacy fallback): window.CF_DISABLE_EVENT_MORPH=true
+         restores the previous stable renderer without removing the feature.
+         t always comes from the caller — the phase remap derives from it and
+         still progresses 0→1; it is never frozen to a constant. */
+      if(window.CF_DISABLE_EVENT_MORPH || !plan || !plan.confirmed) return core(canvas, t, options);
       var ph=planPhases(Math.max(0,Math.min(1,t)), plan);
       var out=await core(canvas, ph.warpT, options);
       try{
@@ -27925,6 +28006,21 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   installWrap();
   document.addEventListener('DOMContentLoaded', installWrap);
   setTimeout(installWrap, 1500);
+  /* Export path (renderExportFrame) applies the same plan via these hooks. */
+  window.cfEventPlanPhases=planPhases;
+  window.cfEventApplyMaskOps=function(canvas, beforePhoto, ops){ applyMaskOps(canvas, beforePhoto, ops); };
+  /* Geometry-cache invalidation: alignment/landmark edits re-enter via
+     cfCapRefresh — clear the per-pair cache so new landmarks take effect. */
+  (function wrapRefresh(){
+    var tries=0;
+    var iv2=setInterval(function(){
+      var pr=window.cfCapRefresh;
+      if(typeof pr==='function' && !pr.__cfGeoWrap){
+        var wr=function(){ try{ window.__cfMorphGeoCache=null; }catch(e){} return pr.apply(this,arguments); };
+        wr.__cfGeoWrap=true; window.cfCapRefresh=wr; clearInterval(iv2);
+      } else if(++tries>30) clearInterval(iv2);
+    },400);
+  })();
 
   /* ---- AI analysis call (server-side Gemini; key never in frontend) ---- */
   function downscale(dataUrl, maxDim){
