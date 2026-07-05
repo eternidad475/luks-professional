@@ -27703,26 +27703,35 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 /* ---------- PORTRAIT home: card + logo + footer must fit above the bottom nav ---------- */
 @media (orientation:portrait){
   #home.screen{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
-  /* The base .hero forces min-height:100dvh-100px and the panel is pushed down
-     ~46vh, so on tall phones the card's lower half (samples / v9.6 / credit)
-     hid behind the fixed nav. Let the hero size to content, scroll if needed,
-     and reserve space for the nav so nothing is clipped. */
+  /* Poster composition: brand + partner logos at the top, generous gradient
+     space, then the glass card in the lower-middle — clear of the top-right
+     FOR DENTISTRY / CDS logos AND of the bottom nav. The hero fills the space
+     above the nav; the card is placed by a dvh-based margin (not a collapsed
+     min-height), so it never rides up under the logos. */
   #home .hero{
-    min-height:auto !important;
+    min-height:calc(100dvh - var(--cf-nav-h) - var(--safe-top) - var(--safe-bottom)) !important;
+    display:flex !important;
+    flex-direction:column !important;
     justify-content:flex-start !important;
-    padding-top:max(20px, calc(var(--safe-top) + 6px)) !important;
-    padding-bottom:calc(var(--cf-nav-h) + var(--safe-bottom) + 18px) !important;
+    padding-top:max(22px, calc(var(--safe-top) + 8px)) !important;
+    padding-bottom:calc(var(--cf-nav-h) + var(--safe-bottom) + 24px) !important;
   }
   .home .panel{
-    margin-top:clamp(20px, 22vh, 220px) !important;
+    margin-top:clamp(150px, 26dvh, 300px) !important;   /* card top ≈ 45–52% of the viewport */
     margin-bottom:0 !important;
     max-height:none !important;
   }
-  /* Short portrait screens: compress so the whole card fits without scrolling. */
+  /* Only genuinely short screens compress the gap so nothing clips. The partner
+     logos are absolutely-sized, so on short screens shrink them too and keep a
+     margin floor that still clears them. */
   @media (max-height:740px){
-    .home .panel{ margin-top:clamp(12px, 10vh, 96px) !important; }
-    #home .panel{ padding:14px !important; }
+    .home .panel{ margin-top:clamp(132px, 18dvh, 190px) !important; padding:14px !important; }
     #home .primary{ padding-top:14px !important; padding-bottom:14px !important; }
+    #home .homePartners{ top:44px !important; gap:7px !important; transform:scale(.82); transform-origin:top right; }
+  }
+  @media (max-height:600px){
+    .home .panel{ margin-top:clamp(92px, 15dvh, 140px) !important; }
+    #home .homePartners{ transform:scale(.7); }
   }
 }
 
