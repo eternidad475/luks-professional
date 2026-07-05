@@ -27812,6 +27812,244 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 }
 </style>
 
+<!-- ============ Dental Event Plan: AI-assisted case analysis + event-aware morph phases ============ -->
+<script>
+/* Morphing Video Studio — event-aware morphing (Phase 3/4).
+   方針: AI(Gemini)は「構造理解」(症例分類/イベント検出/マスク提案)のみに使用し、
+   最終フレームは従来どおりローカルの mesh warp が描く。全体フェードを主処理にせず、
+   ブラケット除去・補綴出現・抜歯矯正はフェーズ分解＋局所マスク処理で扱う。
+   AI提案は必ずユーザー確認（適用/破棄）を経てから使われる。 */
+(function(){
+  var CASE_TYPES=[
+    ['standard_dental_morph','標準モーフ','通常の歯列移動・スマイル改善'],
+    ['appliance_cleanup','装置除去','ブラケット・ワイヤー・アタッチメント除去'],
+    ['space_closure','空隙閉鎖','正中離開・空隙歯列・スペース閉鎖'],
+    ['prosthetic_emergence','補綴出現','欠損補綴・インプラント・ブリッジ・ベニア'],
+    ['extraction_ortho','抜歯矯正','抜歯・スペース閉鎖・前歯部後退の複合'],
+    ['mixed_event','複合イベント','複数イベントの同時進行'],
+    ['unknown','不明','自動分類に自信なし']
+  ];
+  window.state=window.state||{};
+  state.morphEventPlan=state.morphEventPlan||null;   /* {case_type, detected_events, masks, ..., confirmed} */
+
+  function ss(x){ x=Math.max(0,Math.min(1,x)); return x*x*(3-2*x); }
+  function toastFn(m){ if(typeof toast==='function') toast(m); else console.log(m); }
+
+  /* ---- phase remap: case type → warp progress + local mask ops ---- */
+  function planPhases(t, plan){
+    var ops=[]; var warpT=t;
+    var mk=plan.masks||{};
+    var appl=[].concat(mk.brackets||[], mk.wires||[], mk.attachments||[]);
+    var emrg=[].concat(mk.missing_spaces||[], mk.prosthetic_emergence_regions||[]);
+    var extr=[].concat(mk.extraction_spaces||[]);
+    switch(plan.case_type){
+      case 'appliance_cleanup':
+        warpT=ss((t-0.20)/0.80);
+        if(appl.length && t<0.55) ops.push({rects:appl, mode:'soften', alpha:ss(t/0.20)*(1-ss((t-0.38)/0.17))});
+        break;
+      case 'prosthetic_emergence':
+        warpT=ss(t);
+        if(emrg.length && t<0.88) ops.push({rects:emrg, mode:'holdBefore', alpha:1-ss((t-0.55)/0.30)});
+        break;
+      case 'extraction_ortho':
+        if(t<0.18){ warpT=0; if(extr.length) ops.push({rects:extr, mode:'soften', alpha:ss(t/0.18)}); }
+        else { warpT=ss((t-0.18)/0.82); if(extr.length && t<0.40) ops.push({rects:extr, mode:'soften', alpha:1-ss((t-0.18)/0.22)}); }
+        break;
+      case 'mixed_event':
+        warpT=ss((t-0.15)/0.70);
+        if(appl.length && t<0.40) ops.push({rects:appl, mode:'soften', alpha:ss(t/0.15)*(1-ss((t-0.28)/0.12))});
+        if(emrg.length && t<0.90) ops.push({rects:emrg, mode:'holdBefore', alpha:1-ss((t-0.60)/0.28)});
+        break;
+      default: /* standard_dental_morph / space_closure / unknown → mesh warp as-is */
+        warpT=t;
+    }
+    return { warpT:Math.max(0,Math.min(1,warpT)), ops:ops };
+  }
+
+  /* ---- local mask pass: draw a feathered patch of the BEFORE image over the composite.
+     'soften' blurs the patch (装置・抜歯部位の局所軟化), 'holdBefore' keeps the region
+     showing Before longer so 補綴は局所的に遅れて出現する。 ---- */
+  var _imgCache=new Map();
+  function imgFor(dataUrl){
+    var im=_imgCache.get(dataUrl);
+    if(!im){ im=new Image(); im.src=dataUrl; _imgCache.set(dataUrl, im); }
+    return im;
+  }
+  function containFit(iw, ih, w, h){
+    var s=Math.min(w/iw, h/ih), fw=iw*s, fh=ih*s;
+    return { x:(w-fw)/2, y:(h-fh)/2, w:fw, h:fh };
+  }
+  function applyMaskOps(canvas, beforePhoto, ops){
+    if(!ops.length || !beforePhoto || !beforePhoto.dataUrl) return;
+    var img=imgFor(beforePhoto.dataUrl);
+    if(!img.complete || !img.naturalWidth) return;
+    var ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+    var fit=containFit(img.naturalWidth, img.naturalHeight, w, h);
+    ops.forEach(function(op){
+      var a=Math.max(0,Math.min(1,op.alpha)); if(a<=0.01) return;
+      op.rects.forEach(function(r){
+        var px=fit.x+r.x*fit.w, py=fit.y+r.y*fit.h, pw=r.w*fit.w, ph=r.h*fit.h;
+        if(pw<3||ph<3) return;
+        var rad=Math.min(pw,ph)*0.35;
+        ctx.save();
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(px,py,pw,ph,rad); else ctx.rect(px,py,pw,ph);
+        ctx.clip();
+        ctx.globalAlpha=a;
+        if(op.mode==='soften') ctx.filter='blur('+Math.max(4,Math.round(Math.min(pw,ph)*0.18))+'px) brightness(1.06) saturate(1.02)';
+        ctx.drawImage(img, fit.x, fit.y, fit.w, fit.h);
+        ctx.restore();
+      });
+    });
+  }
+
+  /* ---- wrap the shared production renderer (preview AND export resolve
+     window.cfDrawMorphFrame at call time, so both get the same event plan) ---- */
+  function installWrap(){
+    if(window.__cfEventWrapInstalled || typeof window.cfDrawMorphFrame!=='function') return;
+    window.__cfEventWrapInstalled=true;
+    var core=window.cfDrawMorphFrame;
+    window.cfDrawMorphFrame=async function(canvas, t, options){
+      var plan=state.morphEventPlan;
+      if(!plan || !plan.confirmed) return core(canvas, t, options);
+      var ph=planPhases(Math.max(0,Math.min(1,t)), plan);
+      var out=await core(canvas, ph.warpT, options);
+      try{
+        var photos=(typeof window.cfGetMorphSource==='function')?window.cfGetMorphSource():((state&&state.photos)||[]);
+        var aIdx=(options&&options.aIndex)||0;
+        applyMaskOps(canvas, photos[aIdx], ph.ops);
+      }catch(e){ /* mask pass must never break the frame */ }
+      return out;
+    };
+  }
+  installWrap();
+  document.addEventListener('DOMContentLoaded', installWrap);
+  setTimeout(installWrap, 1500);
+
+  /* ---- AI analysis call (server-side Gemini; key never in frontend) ---- */
+  function downscale(dataUrl, maxDim){
+    return new Promise(function(resolve){
+      var im=new Image();
+      im.onload=function(){
+        var s=Math.min(1, maxDim/Math.max(im.naturalWidth, im.naturalHeight));
+        var c=document.createElement('canvas');
+        c.width=Math.max(2,Math.round(im.naturalWidth*s)); c.height=Math.max(2,Math.round(im.naturalHeight*s));
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        try{ resolve(c.toDataURL('image/jpeg',0.85)); }catch(e){ resolve(dataUrl); }
+      };
+      im.onerror=function(){ resolve(dataUrl); };
+      im.src=dataUrl;
+    });
+  }
+  async function analyzeCase(){
+    var photos=(typeof window.cfGetMorphSource==='function')?window.cfGetMorphSource():((state&&state.photos)||[]);
+    if(!photos || photos.length<2){ toastFn('BeforeとAfterの2枚が必要です'); return; }
+    var sb=window.cfSupabase;
+    var jwt=null;
+    try{ var s=await sb.auth.getSession(); jwt=s&&s.data&&s.data.session&&s.data.session.access_token; }catch(e){}
+    if(!jwt){ toastFn('ログインが必要です'); return; }
+    toastFn('AIが症例構造を解析中…');
+    var before=await downscale(photos[0].dataUrl, 900);
+    var after=await downscale(photos[photos.length-1].dataUrl, 900);
+    try{
+      var res=await fetch('/api/dental_event_plan',{
+        method:'POST',
+        headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+jwt },
+        body:JSON.stringify({ before:before, after:after })
+      });
+      var j=await res.json();
+      if(res.ok && j && j.ok){ showConfirmSheet(j); }
+      else if(j && j.reason==='gemini_not_configured'){ showConfirmSheet(null, 'AI解析は未設定です（サーバーにGEMINI_API_KEYが必要）。症例タイプを手動で選択できます。'); }
+      else { showConfirmSheet(null, 'AI解析に失敗しました。症例タイプを手動で選択できます。'); }
+    }catch(e){ showConfirmSheet(null, '通信エラー。症例タイプを手動で選択できます。'); }
+  }
+
+  /* ---- manual review / confirmation sheet（AI提案は盲信せず必ず確認） ---- */
+  var sheetOv=null;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function showConfirmSheet(ai, note){
+    if(!sheetOv){
+      sheetOv=document.createElement('div');
+      sheetOv.id='cfEventSheet';
+      sheetOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:flex-end;justify-content:center;background:rgba(12,9,24,.55);backdrop-filter:blur(8px);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif';
+      document.body.appendChild(sheetOv);
+      sheetOv.addEventListener('click',function(e){ if(e.target===sheetOv) sheetOv.style.display='none'; });
+    }
+    var sel=(ai&&ai.case_type)||'unknown';
+    var evHtml=(ai&&ai.detected_events&&ai.detected_events.length)
+      ? ai.detected_events.map(function(ev){
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid rgba(124,92,255,.10);font-size:11.5px">'+
+            '<span style="font-weight:800;color:#2a2350">'+esc(ev.type)+'</span>'+
+            '<span style="color:#7a7290">'+esc(ev.region)+' · '+Math.round((ev.confidence||0)*100)+'%</span></div>';
+        }).join('')
+      : '<div style="font-size:11.5px;color:#9089a6;padding:6px 0">検出イベントなし'+(ai?'':'（AI未実行）')+'</div>';
+    var maskCount=0; if(ai&&ai.masks) Object.keys(ai.masks).forEach(function(k){ maskCount+=(ai.masks[k]||[]).length; });
+    sheetOv.innerHTML='<div style="width:100%;max-width:440px;max-height:82dvh;overflow-y:auto;background:rgba(255,255,255,.98);border-radius:22px 22px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))">'+
+      '<div style="font-weight:900;font-size:15px;color:#3d2b8f">症例イベント計画 / Event Plan</div>'+
+      '<div style="font-size:11px;color:#7a7290;line-height:1.7;margin:4px 0 10px">AIの提案は参考情報です。内容を確認し、必要なら症例タイプを修正してから適用してください。適用するとモーフはフェーズ分解（局所処理→本モーフ→局所出現）で描画されます。</div>'+
+      (note?'<div style="background:rgba(214,140,20,.10);border-radius:10px;padding:8px 10px;font-size:11px;color:#a5670a;margin-bottom:10px">'+esc(note)+'</div>':'')+
+      (ai?'<div style="font-size:11px;color:#5b3fd6;font-weight:800;margin-bottom:6px">AI分類: '+esc(ai.case_type)+'（確信度 '+Math.round((ai.case_type_confidence||0)*100)+'%）・マスク提案 '+maskCount+'件</div>':'')+
+      '<div id="cfEvChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
+        CASE_TYPES.map(function(ct){
+          return '<button type="button" data-ct="'+ct[0]+'" style="border:1px solid rgba(124,92,255,.35);border-radius:999px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;background:'+(ct[0]===sel?'#7c5cff':'#fff')+';color:'+(ct[0]===sel?'#fff':'#5b3fd6')+'" title="'+esc(ct[2])+'">'+esc(ct[1])+'</button>';
+        }).join('')+
+      '</div>'+
+      '<div style="font-weight:900;font-size:12px;color:#3d2b8f;margin:2px 0 4px">検出イベント / Detected events</div>'+
+      '<div style="background:#fff;border:1px solid rgba(124,92,255,.14);border-radius:12px;padding:2px 12px;margin-bottom:12px">'+evHtml+'</div>'+
+      '<div style="display:grid;gap:8px">'+
+        '<button type="button" id="cfEvApply" class="cfG2Btn" style="margin:0;font-size:13px;padding:12px">この計画を適用</button>'+
+        '<button type="button" id="cfEvDiscard" class="cfG2BtnGhost" style="margin:0;font-size:12.5px;padding:11px">使わない（従来のモーフ）</button>'+
+      '</div></div>';
+    sheetOv.style.display='flex';
+    sheetOv.querySelectorAll('[data-ct]').forEach(function(b){
+      b.addEventListener('click',function(){
+        sel=b.getAttribute('data-ct');
+        sheetOv.querySelectorAll('[data-ct]').forEach(function(x){
+          var on=x.getAttribute('data-ct')===sel;
+          x.style.background=on?'#7c5cff':'#fff'; x.style.color=on?'#fff':'#5b3fd6';
+        });
+      });
+    });
+    sheetOv.querySelector('#cfEvApply').addEventListener('click',function(){
+      state.morphEventPlan={
+        case_type:sel,
+        case_type_confidence:(ai&&ai.case_type_confidence)||0,
+        detected_events:(ai&&ai.detected_events)||[],
+        masks:(ai&&ai.masks)||{},
+        before_after_correspondence:(ai&&ai.before_after_correspondence)||[],
+        source:ai?'gemini':'manual',
+        confirmed:true
+      };
+      sheetOv.style.display='none';
+      toastFn('イベント計画を適用しました（'+sel+'）');
+      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
+    });
+    sheetOv.querySelector('#cfEvDiscard').addEventListener('click',function(){
+      state.morphEventPlan=null;
+      sheetOv.style.display='none';
+      toastFn('従来のモーフを使用します');
+      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
+    });
+  }
+  window.cfAnalyzeMorphCase=analyzeCase;
+  window.cfShowEventPlanSheet=function(){ showConfirmSheet(null); };
+
+  /* ---- inject the AI解析 button into the Morphing editor transport bar ---- */
+  function injectButton(){
+    var bar=document.getElementById('cfCapTransport');
+    if(!bar || document.getElementById('cfEvBtn')) return;
+    var b=document.createElement('button');
+    b.id='cfEvBtn'; b.type='button'; b.textContent='AI解析';
+    b.title='症例構造をAI解析してイベント計画を作成（β）';
+    b.style.cssText='margin-left:auto;border:1px solid rgba(124,92,255,.4);border-radius:999px;background:rgba(255,255,255,.9);color:#5b3fd6;font-size:11px;font-weight:900;padding:7px 12px;cursor:pointer';
+    b.addEventListener('click',function(){ analyzeCase(); });
+    bar.appendChild(b);
+  }
+  var tries=0;
+  var iv=setInterval(function(){ injectButton(); if(document.getElementById('cfEvBtn')||++tries>40) clearInterval(iv); },500);
+})();
+</script>
+
 <!-- ============ Library ⇄ Supabase sync (cross-context source of truth) ============ -->
 <script>
 /* Library persistence across Safari / standalone PWA / devices.
