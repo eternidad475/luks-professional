@@ -27685,6 +27685,23 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 </script>
 
 <!-- ============ Safe-area / PWA responsive fit (home card, landscape cards, floating controls) ============ -->
+<script>
+/* --real-vh = 実際に見えている高さの 1%（Safari の下部バー表示/非表示や PWA で
+   一致させるため visualViewport.height を使う）。ホーム artboard の比例配置に使用。 */
+(function(){
+  function upd(){
+    try{
+      var vv=window.visualViewport;
+      var h=(vv&&vv.height)?vv.height:window.innerHeight;
+      if(h>0) document.documentElement.style.setProperty('--real-vh',(h*0.01)+'px');
+    }catch(e){}
+  }
+  upd();
+  addEventListener('resize',upd);
+  addEventListener('orientationchange',function(){ setTimeout(upd,250); });
+  if(window.visualViewport){ visualViewport.addEventListener('resize',upd); visualViewport.addEventListener('scroll',upd); }
+})();
+</script>
 <style id="cf-safe-css">
 :root{
   --safe-top:env(safe-area-inset-top,0px);
@@ -27701,37 +27718,43 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 #cfTokenBadge{ right:calc(84px + var(--safe-right)) !important; }
 
 /* ---------- PORTRAIT home: card + logo + footer must fit above the bottom nav ---------- */
+/* Reference-artboard home (portrait): the poster composition is kept by placing
+   the glass card PROPORTIONALLY (absolute, as a % of the *real* visible height
+   via --real-vh) instead of pushing it up to fit. Brand + partner logos sit in
+   the header, a large gradient middle is preserved, and the card sits in the
+   lower-middle (~50% of the visible height) — but never so low it overlaps the
+   nav (min() cap). Safari (bottom bar) and PWA agree because --real-vh tracks
+   visualViewport. The card only rises on genuinely short screens. */
 @media (orientation:portrait){
-  #home.screen{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
-  /* Poster composition: brand + partner logos at the top, generous gradient
-     space, then the glass card in the lower-middle — clear of the top-right
-     FOR DENTISTRY / CDS logos AND of the bottom nav. The hero fills the space
-     above the nav; the card is placed by a dvh-based margin (not a collapsed
-     min-height), so it never rides up under the logos. */
+  #home.screen{ padding-top:0 !important; padding-bottom:0 !important; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   #home .hero{
-    min-height:calc(100dvh - var(--cf-nav-h) - var(--safe-top) - var(--safe-bottom)) !important;
-    display:flex !important;
-    flex-direction:column !important;
-    justify-content:flex-start !important;
-    padding-top:max(22px, calc(var(--safe-top) + 8px)) !important;
-    padding-bottom:calc(var(--cf-nav-h) + var(--safe-bottom) + 24px) !important;
+    display:block !important;
+    position:static !important;
+    min-height:calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom)) !important;
+    padding:0 !important;
   }
-  .home .panel{
-    margin-top:clamp(150px, 26dvh, 300px) !important;   /* card top ≈ 45–52% of the viewport */
-    margin-bottom:0 !important;
+  #home .brand{ padding-top:calc(var(--safe-top) + clamp(18px,3dvh,36px)) !important; }
+  #home .panel{
+    position:absolute !important;
+    left:50% !important;
+    transform:translateX(-50%) !important;
+    width:min(92vw, 444px) !important;
+    margin:0 !important;
     max-height:none !important;
+    /* desired ≈ 50% of the visible height; capped so the card bottom always
+       clears the nav; floored so it never rides up under the header logos. */
+    top:max(
+      calc(var(--safe-top) + 176px),
+      min(
+        calc(var(--real-vh,1vh) * 50),
+        calc(var(--real-vh,1vh) * 100 - var(--cf-nav-h) - var(--safe-bottom) - 336px)
+      )
+    ) !important;
   }
-  /* Only genuinely short screens compress the gap so nothing clips. The partner
-     logos are absolutely-sized, so on short screens shrink them too and keep a
-     margin floor that still clears them. */
-  @media (max-height:740px){
-    .home .panel{ margin-top:clamp(132px, 18dvh, 190px) !important; padding:14px !important; }
-    #home .primary{ padding-top:14px !important; padding-bottom:14px !important; }
-    #home .homePartners{ top:44px !important; gap:7px !important; transform:scale(.82); transform-origin:top right; }
-  }
-  @media (max-height:600px){
-    .home .panel{ margin-top:clamp(92px, 15dvh, 140px) !important; }
-    #home .homePartners{ transform:scale(.7); }
+  /* Short screens: shrink the header logos so the (raised) card stays clear. */
+  @media (max-height:760px){
+    #home .homePartners{ top:calc(var(--safe-top) + 40px) !important; gap:7px !important; transform:scale(.8); transform-origin:top right; }
+    #home .panel{ padding:14px !important; }
   }
 }
 
