@@ -12646,48 +12646,29 @@ window.addEventListener('DOMContentLoaded', () => {
       ctx.fillText('Select at least 2 images',44,72);
       return {triangles:0,points:0,userCount:0,fallback:true};
     }
+    const [imgA,imgB]=await Promise.all([loadImage(a.dataUrl),loadImage(b.dataUrl)]);
+    const rectA=fitContain(imgA.naturalWidth||imgA.width,imgA.naturalHeight||imgA.height,w,h,0);
+    const rectB=fitContain(imgB.naturalWidth||imgB.width,imgB.naturalHeight||imgB.height,w,h,0);
+    const baseA=makeBaseCanvas(imgA,w,h,rectA);
+    const baseB=makeBaseCanvas(imgB,w,h,rectB);
     const e=ease(Math.max(0,Math.min(1,t)));
     // Read mode config — all behaviour is driven from cfMorphVariantDefs so future
     // expansions only require changing the config object, not this render loop.
     const _vdef=cfGetVariantDef(window.cfMorphVariant);
     const _dentalBlendEnabled=_vdef.dentalBlend||!!window.CASEFLOW_DEBUG_DENTAL_BLEND;
-    // ── Per-pair geometry cache (preview stutter fix) ──────────────────────────
-    // Images, base canvases, dental ROI, pair risk (getImageData-based!) and morph
-    // pairs are stable for a given (pair, canvas size, face mesh, variant); they
-    // were being recomputed on EVERY preview frame, which is what made playback
-    // stutter. Only the t-dependent work (mid lerp + Delaunay + warp) stays
-    // per-frame. Face-mesh arrival auto-invalidates via the _faceMesh reference;
-    // cfCapRefresh clears the cache after alignment/landmark edits.
-    let GC=window.__cfMorphGeoCache;
-    if(!(GC && GC.a===a && GC.b===b && GC.w===w && GC.h===h &&
-         GC.fmA===a._faceMesh && GC.fmB===b._faceMesh &&
-         GC.variant===(window.cfMorphVariant||'clinical'))){
-      const [imgA,imgB]=await Promise.all([loadImage(a.dataUrl),loadImage(b.dataUrl)]);
-      const rA=fitContain(imgA.naturalWidth||imgA.width,imgA.naturalHeight||imgA.height,w,h,0);
-      const rB=fitContain(imgB.naturalWidth||imgB.width,imgB.naturalHeight||imgB.height,w,h,0);
-      const bA=makeBaseCanvas(imgA,w,h,rA);
-      const bB=makeBaseCanvas(imgB,w,h,rB);
-      const _preRoi=cfComputeDentalROI(a,b,rA,rB,w,h);
-      var _pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
-      try{
-        _pairRisk=cfAssessPairRisk(a,b,bA,bB,_preRoi);
-        if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','risk:',_pairRisk.level,'score:',_pairRisk.score.toFixed(3),'cw:',_pairRisk.coarseWeight.toFixed(2));
-      }catch(e2){}
-      // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
-      const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
-      const _oralExpand=1.1+_effectiveCW*0.5;
-      const collected=collectMorphPairs(a,b,rA,rB,w,h,_oralExpand);
-      GC=window.__cfMorphGeoCache={
-        a:a, b:b, w:w, h:h, fmA:a._faceMesh, fmB:b._faceMesh,
-        variant:(window.cfMorphVariant||'clinical'),
-        rectA:rA, rectB:rB, baseA:bA, baseB:bB,
-        pairs:dedupePairs(collected.pairs), oralROI:collected.oralROI,
-        userCount:collected.userCount
-      };
-    }
-    const rectA=GC.rectA, rectB=GC.rectB, baseA=GC.baseA, baseB=GC.baseB;
-    const pairs=GC.pairs;
-    const oralROI=GC.oralROI;
+    // Pre-assess pair risk (uses base canvases) → drives oral mesh exclusion zone.
+    const _preRoi=cfComputeDentalROI(a,b,rectA,rectB,w,h);
+    var _pairRisk={level:'low',score:0,coarseWeight:0.20,factors:{}};
+    try{
+      _pairRisk=cfAssessPairRisk(a,b,baseA,baseB,_preRoi);
+      if(window.CASEFLOW_DEBUG) console.log('[CW] variant:',window.cfMorphVariant||'clinical','risk:',_pairRisk.level,'score:',_pairRisk.score.toFixed(3),'cw:',_pairRisk.coarseWeight.toFixed(2));
+    }catch(e2){}
+    // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
+    const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
+    const _oralExpand=1.1+_effectiveCW*0.5;
+    const collected=collectMorphPairs(a,b,rectA,rectB,w,h,_oralExpand);
+    const pairs=dedupePairs(collected.pairs);
+    const oralROI=collected.oralROI;
     // Endpoint-preserving morph: eW=e means t=0→image A exactly, t=1→image B exactly.
     // coarseWeight shapes mesh topology only (oral exclusion zone), never eW itself.
     const eW=e;
@@ -12746,7 +12727,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if(!state.cfExportMode){
     }
-    return {triangles:tris.length,points:pairs.length,userCount:GC.userCount,fallback:false};
+    return {triangles:tris.length,points:pairs.length,userCount:collected.userCount,fallback:false};
   }
 
   // ── Dental ROI Protection helpers ─────────────────────────────────────────
@@ -23677,15 +23658,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var engine=plan.engine||window.CaseFlowMorphEngine;
     var w=plan.w, h=plan.h;
     var _vdef=pairPlan._vdef;
-    // Event-aware phases: apply the SAME confirmed plan the preview wrapper uses
-    // (preview goes through cfDrawMorphFrame; export renders here — identical
-    // phase remap + local mask ops keep the two paths consistent).
-    var _evOps=null;
-    if(!window.CF_DISABLE_EVENT_MORPH && window.state && state.morphEventPlan &&
-       state.morphEventPlan.confirmed && typeof window.cfEventPlanPhases==='function'){
-      var _evPh=window.cfEventPlanPhases(Math.max(0,Math.min(1,localT)), state.morphEventPlan);
-      localT=_evPh.warpT; _evOps=_evPh.ops;
-    }
     var e=engine.ease(Math.max(0,Math.min(1,localT)));
     var eW=e; // endpoint-preserving: t=0→A exactly, t=1→B exactly
 
@@ -23716,10 +23688,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
           engine.cfApplyOralSoftDissolve(ctx, pairPlan.baseB, pairPlan.oralROI, eW, _vdef.oralSoftDiss, w, h);
         }
       }
-    }
-    // Local event mask ops (装置除去/補綴出現/抜歯の局所処理) — same as preview.
-    if(_evOps && _evOps.length && typeof window.cfEventApplyMaskOps==='function'){
-      try{ window.cfEventApplyMaskOps(ctx.canvas, pairPlan.photoA, _evOps); }catch(eEv){}
     }
   }
 
@@ -23793,28 +23761,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){ return MediaRecorder.isTypeSupported(m); })||'video/webm';
       console.log('[CaseFlow Export] selected mimeType:', mime);
-      // Still-image export fix: (1) a DETACHED canvas is never composited on
-      // iOS/Safari, so captureStream records nothing after the first frame, and
-      // (2) CanvasCaptureMediaStreamTrack.requestFrame() is unreliable on WebKit.
-      // Attach the replay canvas to the DOM (tiny, effectively invisible) for the
-      // duration of the export, and use passive fps capture on Safari; manual
-      // requestFrame only on engines where it actually pushes frames (Chromium).
-      replayCanvas.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:1';
-      document.body.appendChild(replayCanvas);
-      var isSafariEngine=/^((?!chrome|crios|fxios|edgios|android).)*safari/i.test(navigator.userAgent||'');
       var stream, track, manual=false;
       try{
-        if(!isSafariEngine){
-          stream=replayCanvas.captureStream(0);
-          track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-          if(track&&typeof track.requestFrame==='function') manual=true;
-          else stream=replayCanvas.captureStream(fps);
-        }else{
-          stream=replayCanvas.captureStream(fps);
-          track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-        }
+        stream=replayCanvas.captureStream(0);
+        track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        if(track&&typeof track.requestFrame==='function') manual=true;
+        else stream=replayCanvas.captureStream(fps);
       }catch(e2){ stream=replayCanvas.captureStream(fps); }
-      if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] start | fps',fps,'| durationMs',durationMs,'| manualCapture',manual,'| safariEngine',isSafariEngine,'| hasRequestFrame',!!(track&&track.requestFrame));
 
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000});
       var parts=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) parts.push(e.data); };
@@ -23826,14 +23779,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
       replayCtx.drawImage(exportCanvas, 0, 0);
       await new Promise(requestAnimationFrame); // let browser composite first frame
 
-      rec.start(500); /* timeslice: periodic chunks prove capture progresses */
+      rec.start();
       var recordStart=performance.now();
       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
       if(btn) btn.textContent='エンコード中…';
       toastFn('動画エンコード中…');
 
-      // Merged render+record loop: absolute-time pacing. Passive-capture mode
-      // (Safari) yields one rAF per frame so the compositor samples the canvas.
+      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
         // Sleep until this frame's target wall-clock time
@@ -23846,12 +23798,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
         lastFp=fp;
         replayCtx.drawImage(exportCanvas, 0, 0);
         if(manual&&track) track.requestFrame();
-        else await new Promise(requestAnimationFrame);
-        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
         if(btn) btn.textContent='エンコード '+Math.round((f+1)/timeline.totalFrames*100)+'%';
       }
       await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
-      try{ replayCanvas.remove(); }catch(eRm){}
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
@@ -23880,11 +23829,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(result){
         // Safety: reject empty blobs before any save attempt
         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
-        // A multi-second video that encodes to almost nothing means the canvas
-        // stream produced no real frames (still-image bug) — abort loudly rather
-        // than saving a static video.
-        var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
-        if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
 
         // Track A: Library save (mandatory — stores blob in app state, navigates to Export page)
         var libSaved=false;
@@ -24022,23 +23966,11 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
       var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
       console.log('[CaseFlow Export] selected mimeType:', mime);
-      // Still-image export fix: a DETACHED canvas is never composited on iOS/Safari
-      // (captureStream records nothing after frame 0) and WebKit's requestFrame()
-      // is unreliable. Attach the replay canvas to the DOM for the export and use
-      // passive fps capture on Safari; manual requestFrame only on Chromium.
-      repCv.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:1';
-      document.body.appendChild(repCv);
-      var isSafariEngine=/^((?!chrome|crios|fxios|edgios|android).)*safari/i.test(navigator.userAgent||'');
       var stream,track,manual=false;
       try{
-        if(!isSafariEngine){
-          stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-          if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
-        }else{
-          stream=repCv.captureStream(fps); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
-        }
+        stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+        if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
       }catch(e){ stream=repCv.captureStream(fps); }
-      if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] start | fps',fps,'| durationMs',durationMs,'| totalFrames',timeline.totalFrames,'| manualCapture',manual,'| safariEngine',isSafariEngine,'| hasRequestFrame',!!(track&&track.requestFrame));
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
       rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
 
@@ -24049,14 +23981,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
       repCtx.drawImage(expCv, 0, 0);
       await new Promise(requestAnimationFrame);
 
-      rec.start(500); /* timeslice: periodic chunks prove capture progresses */
+      rec.start();
       var recordStart=performance.now();
       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
       toastFn('動画エンコード中…');
       if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
 
-      // Merged render+record loop: absolute-time pacing. In passive-capture mode
-      // (Safari) yield one rAF per frame so the compositor samples the canvas.
+      // Merged render+record loop: absolute-time pacing, no rAF per frame, no blob round-trip
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
         await cfWaitUntil(recordStart+pos.timeMs);
@@ -24067,11 +23998,8 @@ body.cfPresent .cfPresentExit{display:flex!important}
         lastFp=fp;
         repCtx.drawImage(expCv, 0, 0);
         if(manual&&track) track.requestFrame();
-        else await new Promise(requestAnimationFrame);
-        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
       }
       await new Promise(function(r){setTimeout(r,250);});
-      try{ repCv.remove(); }catch(eRm){}
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
@@ -24089,11 +24017,6 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(result){
         // Safety: reject empty blobs before any save attempt
         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
-        // A multi-second video that encodes to almost nothing means the canvas
-        // stream produced no real frames (still-image bug) — abort loudly rather
-        // than saving a static video.
-        var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
-        if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
         // Track A: Library save (mandatory)
         var libSaved2=false;
         if(typeof setExportBlob==='function'){
@@ -27888,263 +27811,6 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   .topbar{ margin-bottom:10px !important; }
 }
 </style>
-
-<!-- ============ Dental Event Plan: AI-assisted case analysis + event-aware morph phases ============ -->
-<script>
-/* Morphing Video Studio — event-aware morphing (Phase 3/4).
-   方針: AI(Gemini)は「構造理解」(症例分類/イベント検出/マスク提案)のみに使用し、
-   最終フレームは従来どおりローカルの mesh warp が描く。全体フェードを主処理にせず、
-   ブラケット除去・補綴出現・抜歯矯正はフェーズ分解＋局所マスク処理で扱う。
-   AI提案は必ずユーザー確認（適用/破棄）を経てから使われる。 */
-(function(){
-  var CASE_TYPES=[
-    ['standard_dental_morph','標準モーフ','通常の歯列移動・スマイル改善'],
-    ['appliance_cleanup','装置除去','ブラケット・ワイヤー・アタッチメント除去'],
-    ['space_closure','空隙閉鎖','正中離開・空隙歯列・スペース閉鎖'],
-    ['prosthetic_emergence','補綴出現','欠損補綴・インプラント・ブリッジ・ベニア'],
-    ['extraction_ortho','抜歯矯正','抜歯・スペース閉鎖・前歯部後退の複合'],
-    ['mixed_event','複合イベント','複数イベントの同時進行'],
-    ['unknown','不明','自動分類に自信なし']
-  ];
-  window.state=window.state||{};
-  state.morphEventPlan=state.morphEventPlan||null;   /* {case_type, detected_events, masks, ..., confirmed} */
-
-  function ss(x){ x=Math.max(0,Math.min(1,x)); return x*x*(3-2*x); }
-  function toastFn(m){ if(typeof toast==='function') toast(m); else console.log(m); }
-
-  /* ---- phase remap: case type → warp progress + local mask ops ---- */
-  function planPhases(t, plan){
-    var ops=[]; var warpT=t;
-    var mk=plan.masks||{};
-    var appl=[].concat(mk.brackets||[], mk.wires||[], mk.attachments||[]);
-    var emrg=[].concat(mk.missing_spaces||[], mk.prosthetic_emergence_regions||[]);
-    var extr=[].concat(mk.extraction_spaces||[]);
-    switch(plan.case_type){
-      case 'appliance_cleanup':
-        warpT=ss((t-0.20)/0.80);
-        if(appl.length && t<0.55) ops.push({rects:appl, mode:'soften', alpha:ss(t/0.20)*(1-ss((t-0.38)/0.17))});
-        break;
-      case 'prosthetic_emergence':
-        warpT=ss(t);
-        if(emrg.length && t<0.88) ops.push({rects:emrg, mode:'holdBefore', alpha:1-ss((t-0.55)/0.30)});
-        break;
-      case 'extraction_ortho':
-        if(t<0.18){ warpT=0; if(extr.length) ops.push({rects:extr, mode:'soften', alpha:ss(t/0.18)}); }
-        else { warpT=ss((t-0.18)/0.82); if(extr.length && t<0.40) ops.push({rects:extr, mode:'soften', alpha:1-ss((t-0.18)/0.22)}); }
-        break;
-      case 'mixed_event':
-        warpT=ss((t-0.15)/0.70);
-        if(appl.length && t<0.40) ops.push({rects:appl, mode:'soften', alpha:ss(t/0.15)*(1-ss((t-0.28)/0.12))});
-        if(emrg.length && t<0.90) ops.push({rects:emrg, mode:'holdBefore', alpha:1-ss((t-0.60)/0.28)});
-        break;
-      default: /* standard_dental_morph / space_closure / unknown → mesh warp as-is */
-        warpT=t;
-    }
-    return { warpT:Math.max(0,Math.min(1,warpT)), ops:ops };
-  }
-
-  /* ---- local mask pass: draw a feathered patch of the BEFORE image over the composite.
-     'soften' blurs the patch (装置・抜歯部位の局所軟化), 'holdBefore' keeps the region
-     showing Before longer so 補綴は局所的に遅れて出現する。 ---- */
-  var _imgCache=new Map();
-  function imgFor(dataUrl){
-    var im=_imgCache.get(dataUrl);
-    if(!im){ im=new Image(); im.src=dataUrl; _imgCache.set(dataUrl, im); }
-    return im;
-  }
-  function containFit(iw, ih, w, h){
-    var s=Math.min(w/iw, h/ih), fw=iw*s, fh=ih*s;
-    return { x:(w-fw)/2, y:(h-fh)/2, w:fw, h:fh };
-  }
-  function applyMaskOps(canvas, beforePhoto, ops){
-    if(!ops.length || !beforePhoto || !beforePhoto.dataUrl) return;
-    var img=imgFor(beforePhoto.dataUrl);
-    if(!img.complete || !img.naturalWidth) return;
-    var ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
-    var fit=containFit(img.naturalWidth, img.naturalHeight, w, h);
-    ops.forEach(function(op){
-      var a=Math.max(0,Math.min(1,op.alpha)); if(a<=0.01) return;
-      op.rects.forEach(function(r){
-        var px=fit.x+r.x*fit.w, py=fit.y+r.y*fit.h, pw=r.w*fit.w, ph=r.h*fit.h;
-        if(pw<3||ph<3) return;
-        var rad=Math.min(pw,ph)*0.35;
-        ctx.save();
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(px,py,pw,ph,rad); else ctx.rect(px,py,pw,ph);
-        ctx.clip();
-        ctx.globalAlpha=a;
-        if(op.mode==='soften') ctx.filter='blur('+Math.max(4,Math.round(Math.min(pw,ph)*0.18))+'px) brightness(1.06) saturate(1.02)';
-        ctx.drawImage(img, fit.x, fit.y, fit.w, fit.h);
-        ctx.restore();
-      });
-    });
-  }
-
-  /* ---- wrap the shared production renderer (preview AND export resolve
-     window.cfDrawMorphFrame at call time, so both get the same event plan) ---- */
-  function installWrap(){
-    if(window.__cfEventWrapInstalled || typeof window.cfDrawMorphFrame!=='function') return;
-    window.__cfEventWrapInstalled=true;
-    var core=window.cfDrawMorphFrame;
-    window.cfDrawMorphFrame=async function(canvas, t, options){
-      var plan=state.morphEventPlan;
-      /* Rollback switch (§legacy fallback): window.CF_DISABLE_EVENT_MORPH=true
-         restores the previous stable renderer without removing the feature.
-         t always comes from the caller — the phase remap derives from it and
-         still progresses 0→1; it is never frozen to a constant. */
-      if(window.CF_DISABLE_EVENT_MORPH || !plan || !plan.confirmed) return core(canvas, t, options);
-      var ph=planPhases(Math.max(0,Math.min(1,t)), plan);
-      var out=await core(canvas, ph.warpT, options);
-      try{
-        var photos=(typeof window.cfGetMorphSource==='function')?window.cfGetMorphSource():((state&&state.photos)||[]);
-        var aIdx=(options&&options.aIndex)||0;
-        applyMaskOps(canvas, photos[aIdx], ph.ops);
-      }catch(e){ /* mask pass must never break the frame */ }
-      return out;
-    };
-  }
-  installWrap();
-  document.addEventListener('DOMContentLoaded', installWrap);
-  setTimeout(installWrap, 1500);
-  /* Export path (renderExportFrame) applies the same plan via these hooks. */
-  window.cfEventPlanPhases=planPhases;
-  window.cfEventApplyMaskOps=function(canvas, beforePhoto, ops){ applyMaskOps(canvas, beforePhoto, ops); };
-  /* Geometry-cache invalidation: alignment/landmark edits re-enter via
-     cfCapRefresh — clear the per-pair cache so new landmarks take effect. */
-  (function wrapRefresh(){
-    var tries=0;
-    var iv2=setInterval(function(){
-      var pr=window.cfCapRefresh;
-      if(typeof pr==='function' && !pr.__cfGeoWrap){
-        var wr=function(){ try{ window.__cfMorphGeoCache=null; }catch(e){} return pr.apply(this,arguments); };
-        wr.__cfGeoWrap=true; window.cfCapRefresh=wr; clearInterval(iv2);
-      } else if(++tries>30) clearInterval(iv2);
-    },400);
-  })();
-
-  /* ---- AI analysis call (server-side Gemini; key never in frontend) ---- */
-  function downscale(dataUrl, maxDim){
-    return new Promise(function(resolve){
-      var im=new Image();
-      im.onload=function(){
-        var s=Math.min(1, maxDim/Math.max(im.naturalWidth, im.naturalHeight));
-        var c=document.createElement('canvas');
-        c.width=Math.max(2,Math.round(im.naturalWidth*s)); c.height=Math.max(2,Math.round(im.naturalHeight*s));
-        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-        try{ resolve(c.toDataURL('image/jpeg',0.85)); }catch(e){ resolve(dataUrl); }
-      };
-      im.onerror=function(){ resolve(dataUrl); };
-      im.src=dataUrl;
-    });
-  }
-  async function analyzeCase(){
-    var photos=(typeof window.cfGetMorphSource==='function')?window.cfGetMorphSource():((state&&state.photos)||[]);
-    if(!photos || photos.length<2){ toastFn('BeforeとAfterの2枚が必要です'); return; }
-    var sb=window.cfSupabase;
-    var jwt=null;
-    try{ var s=await sb.auth.getSession(); jwt=s&&s.data&&s.data.session&&s.data.session.access_token; }catch(e){}
-    if(!jwt){ toastFn('ログインが必要です'); return; }
-    toastFn('AIが症例構造を解析中…');
-    var before=await downscale(photos[0].dataUrl, 900);
-    var after=await downscale(photos[photos.length-1].dataUrl, 900);
-    try{
-      var res=await fetch('/api/dental_event_plan',{
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+jwt },
-        body:JSON.stringify({ before:before, after:after })
-      });
-      var j=await res.json();
-      if(res.ok && j && j.ok){ showConfirmSheet(j); }
-      else if(j && j.reason==='gemini_not_configured'){ showConfirmSheet(null, 'AI解析は未設定です（サーバーにGEMINI_API_KEYが必要）。症例タイプを手動で選択できます。'); }
-      else { showConfirmSheet(null, 'AI解析に失敗しました。症例タイプを手動で選択できます。'); }
-    }catch(e){ showConfirmSheet(null, '通信エラー。症例タイプを手動で選択できます。'); }
-  }
-
-  /* ---- manual review / confirmation sheet（AI提案は盲信せず必ず確認） ---- */
-  var sheetOv=null;
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function showConfirmSheet(ai, note){
-    if(!sheetOv){
-      sheetOv=document.createElement('div');
-      sheetOv.id='cfEventSheet';
-      sheetOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:flex-end;justify-content:center;background:rgba(12,9,24,.55);backdrop-filter:blur(8px);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif';
-      document.body.appendChild(sheetOv);
-      sheetOv.addEventListener('click',function(e){ if(e.target===sheetOv) sheetOv.style.display='none'; });
-    }
-    var sel=(ai&&ai.case_type)||'unknown';
-    var evHtml=(ai&&ai.detected_events&&ai.detected_events.length)
-      ? ai.detected_events.map(function(ev){
-          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid rgba(124,92,255,.10);font-size:11.5px">'+
-            '<span style="font-weight:800;color:#2a2350">'+esc(ev.type)+'</span>'+
-            '<span style="color:#7a7290">'+esc(ev.region)+' · '+Math.round((ev.confidence||0)*100)+'%</span></div>';
-        }).join('')
-      : '<div style="font-size:11.5px;color:#9089a6;padding:6px 0">検出イベントなし'+(ai?'':'（AI未実行）')+'</div>';
-    var maskCount=0; if(ai&&ai.masks) Object.keys(ai.masks).forEach(function(k){ maskCount+=(ai.masks[k]||[]).length; });
-    sheetOv.innerHTML='<div style="width:100%;max-width:440px;max-height:82dvh;overflow-y:auto;background:rgba(255,255,255,.98);border-radius:22px 22px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))">'+
-      '<div style="font-weight:900;font-size:15px;color:#3d2b8f">症例イベント計画 / Event Plan</div>'+
-      '<div style="font-size:11px;color:#7a7290;line-height:1.7;margin:4px 0 10px">AIの提案は参考情報です。内容を確認し、必要なら症例タイプを修正してから適用してください。適用するとモーフはフェーズ分解（局所処理→本モーフ→局所出現）で描画されます。</div>'+
-      (note?'<div style="background:rgba(214,140,20,.10);border-radius:10px;padding:8px 10px;font-size:11px;color:#a5670a;margin-bottom:10px">'+esc(note)+'</div>':'')+
-      (ai?'<div style="font-size:11px;color:#5b3fd6;font-weight:800;margin-bottom:6px">AI分類: '+esc(ai.case_type)+'（確信度 '+Math.round((ai.case_type_confidence||0)*100)+'%）・マスク提案 '+maskCount+'件</div>':'')+
-      '<div id="cfEvChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
-        CASE_TYPES.map(function(ct){
-          return '<button type="button" data-ct="'+ct[0]+'" style="border:1px solid rgba(124,92,255,.35);border-radius:999px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;background:'+(ct[0]===sel?'#7c5cff':'#fff')+';color:'+(ct[0]===sel?'#fff':'#5b3fd6')+'" title="'+esc(ct[2])+'">'+esc(ct[1])+'</button>';
-        }).join('')+
-      '</div>'+
-      '<div style="font-weight:900;font-size:12px;color:#3d2b8f;margin:2px 0 4px">検出イベント / Detected events</div>'+
-      '<div style="background:#fff;border:1px solid rgba(124,92,255,.14);border-radius:12px;padding:2px 12px;margin-bottom:12px">'+evHtml+'</div>'+
-      '<div style="display:grid;gap:8px">'+
-        '<button type="button" id="cfEvApply" class="cfG2Btn" style="margin:0;font-size:13px;padding:12px">この計画を適用</button>'+
-        '<button type="button" id="cfEvDiscard" class="cfG2BtnGhost" style="margin:0;font-size:12.5px;padding:11px">使わない（従来のモーフ）</button>'+
-      '</div></div>';
-    sheetOv.style.display='flex';
-    sheetOv.querySelectorAll('[data-ct]').forEach(function(b){
-      b.addEventListener('click',function(){
-        sel=b.getAttribute('data-ct');
-        sheetOv.querySelectorAll('[data-ct]').forEach(function(x){
-          var on=x.getAttribute('data-ct')===sel;
-          x.style.background=on?'#7c5cff':'#fff'; x.style.color=on?'#fff':'#5b3fd6';
-        });
-      });
-    });
-    sheetOv.querySelector('#cfEvApply').addEventListener('click',function(){
-      state.morphEventPlan={
-        case_type:sel,
-        case_type_confidence:(ai&&ai.case_type_confidence)||0,
-        detected_events:(ai&&ai.detected_events)||[],
-        masks:(ai&&ai.masks)||{},
-        before_after_correspondence:(ai&&ai.before_after_correspondence)||[],
-        source:ai?'gemini':'manual',
-        confirmed:true
-      };
-      sheetOv.style.display='none';
-      toastFn('イベント計画を適用しました（'+sel+'）');
-      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
-    });
-    sheetOv.querySelector('#cfEvDiscard').addEventListener('click',function(){
-      state.morphEventPlan=null;
-      sheetOv.style.display='none';
-      toastFn('従来のモーフを使用します');
-      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
-    });
-  }
-  window.cfAnalyzeMorphCase=analyzeCase;
-  window.cfShowEventPlanSheet=function(){ showConfirmSheet(null); };
-
-  /* ---- inject the AI解析 button into the Morphing editor transport bar ---- */
-  function injectButton(){
-    var bar=document.getElementById('cfCapTransport');
-    if(!bar || document.getElementById('cfEvBtn')) return;
-    var b=document.createElement('button');
-    b.id='cfEvBtn'; b.type='button'; b.textContent='AI解析';
-    b.title='症例構造をAI解析してイベント計画を作成（β）';
-    b.style.cssText='margin-left:auto;border:1px solid rgba(124,92,255,.4);border-radius:999px;background:rgba(255,255,255,.9);color:#5b3fd6;font-size:11px;font-weight:900;padding:7px 12px;cursor:pointer';
-    b.addEventListener('click',function(){ analyzeCase(); });
-    bar.appendChild(b);
-  }
-  var tries=0;
-  var iv=setInterval(function(){ injectButton(); if(document.getElementById('cfEvBtn')||++tries>40) clearInterval(iv); },500);
-})();
-</script>
 
 <!-- ============ Library ⇄ Supabase sync (cross-context source of truth) ============ -->
 <script>
