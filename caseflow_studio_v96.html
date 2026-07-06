@@ -28013,6 +28013,174 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 }
 </style>
 
+<!-- ============ Auto Dental Outline (Focus/intraoral): teeth+gingiva+lip landmarks ============ -->
+<script>
+/* Focus（口腔内）写真では MediaPipe の顔メッシュが検出できず、モーフが
+   crossfade に落ちていた。本モジュールは画像処理（明度・彩度による歯冠
+   セグメンテーション）で 歯頸ライン(9点)・切縁/咬合ライン(9点)・リップ枠(8点)
+   を自動抽出し、既存の manualLandmarks（手動ランドマーク機構）に注入する。
+   → 既存のメッシュワープがそのまま効く／既存のランドマーク編集UIで手動微調整可能。
+   顔メッシュがある写真・ユーザーが手動点を置いた type には一切書き込まない。
+   window.CF_DISABLE_AUTO_OUTLINE=true で無効化（ロールバック）。 */
+(function(){
+  function detect(dataUrl){
+    return new Promise(function(resolve){
+      var im=new Image();
+      im.onload=function(){
+        try{
+          var W=360, sc=Math.min(1,W/im.naturalWidth);
+          var w=Math.max(40,Math.round(im.naturalWidth*sc)), h=Math.max(40,Math.round(im.naturalHeight*sc));
+          var c=document.createElement('canvas'); c.width=w; c.height=h;
+          var x=c.getContext('2d',{willReadFrequently:true});
+          x.drawImage(im,0,0,w,h);
+          var d=x.getImageData(0,0,w,h).data;
+          // 歯: 高明度・低彩度。中央帯（横10-90% / 縦12-92%）のみ対象。
+          var x0=Math.round(w*0.10), x1=Math.round(w*0.90);
+          var y0=Math.round(h*0.12), y1=Math.round(h*0.92);
+          var top=new Array(w).fill(-1), bot=new Array(w).fill(-1), colN=new Array(w).fill(0);
+          var total=0;
+          for(var cx=x0; cx<x1; cx++){
+            var run=0;
+            for(var cy=y0; cy<y1; cy++){
+              var i=(cy*w+cx)*4, r=d[i],g=d[i+1],b=d[i+2];
+              var mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+              var L=(mx+mn)/510, S=mx===0?0:(mx-mn)/mx;
+              var isTooth = L>0.52 && S<0.40 && b>70; // 歯冠（白〜アイボリー）
+              if(isTooth){
+                run++;
+                if(run>=3){
+                  if(top[cx]<0) top[cx]=cy-run+1;
+                  bot[cx]=cy; colN[cx]++; total++;
+                }
+              } else run=0;
+            }
+          }
+          // 歯列弓の横範囲: 歯画素が十分ある列
+          var need=Math.max(3,(y1-y0)*0.03), ax0=-1, ax1=-1;
+          for(var q=x0;q<x1;q++){ if(colN[q]>=need){ if(ax0<0)ax0=q; ax1=q; } }
+          if(ax0<0 || (ax1-ax0)<w*0.22 || total<(w*h)*0.012){ resolve(null); return; } // 口腔内らしくない
+          // 移動平均で輪郭を平滑化
+          function smooth(arr){
+            var out=arr.slice();
+            for(var k=ax0;k<=ax1;k++){
+              var s2=0,n2=0;
+              for(var o=-4;o<=4;o++){ var v=arr[k+o]; if(v>=0){ s2+=v; n2++; } }
+              out[k]=n2? s2/n2 : -1;
+            }
+            return out;
+          }
+          var topS=smooth(top), botS=smooth(bot);
+          function sample(arr,n){
+            var pts=[];
+            for(var k2=0;k2<n;k2++){
+              var px=ax0+(ax1-ax0)*k2/(n-1);
+              var xi=Math.round(px), v=arr[xi];
+              if(v<0){ for(var o2=1;o2<12&&v<0;o2++){ v=arr[xi+o2]>=0?arr[xi+o2]:(arr[xi-o2]>=0?arr[xi-o2]:-1); } }
+              if(v<0) v=(y0+y1)/2;
+              pts.push({x:px/w*100, y:v/h*100});
+            }
+            return pts;
+          }
+          var gingiva=sample(topS,9);    // 上顎歯頸側の輪郭
+          var incisal=sample(botS,9);    // 切縁/咬合側の輪郭
+          // リップ/開口部の枠: 歯列bboxを12%拡張した8点
+          var minY=1e9,maxY=-1;
+          for(var q2=ax0;q2<=ax1;q2++){ if(topS[q2]>=0&&topS[q2]<minY)minY=topS[q2]; if(botS[q2]>maxY)maxY=botS[q2]; }
+          var exX=(ax1-ax0)*0.12, exY=(maxY-minY)*0.28+4;
+          var L0=Math.max(0,ax0-exX)/w*100, R0=Math.min(w-1,ax1+exX)/w*100;
+          var T0=Math.max(0,minY-exY)/h*100, B0=Math.min(h-1,maxY+exY)/h*100, MX=(L0+R0)/2;
+          var lip=[{x:L0,y:T0},{x:MX,y:T0},{x:R0,y:T0},{x:R0,y:(T0+B0)/2},{x:R0,y:B0},{x:MX,y:B0},{x:L0,y:B0},{x:L0,y:(T0+B0)/2}];
+          resolve({lip:lip,gingiva:gingiva,incisal:incisal});
+        }catch(e){ resolve(null); }
+      };
+      im.onerror=function(){ resolve(null); };
+      im.src=dataUrl;
+    });
+  }
+
+  async function ensureOutline(photo){
+    if(!photo || !photo.dataUrl) return null;
+    if(window.CF_DISABLE_AUTO_OUTLINE) return null;
+    if(photo._faceMesh) return null;                    // 顔写真は顔メッシュ経路
+    if(photo._dentalOutline!==undefined) return photo._dentalOutline;
+    photo._dentalOutline=null;                          // 二重実行防止（先に確定）
+    var o=await detect(photo.dataUrl);
+    photo._dentalOutline=o;
+    if(!o) return null;
+    // 手動点が無い type にだけ自動点を注入（手動編集は常に優先・上書きしない）
+    photo.manualLandmarks=photo.manualLandmarks||{lip:[],gingiva:[],incisal:[]};
+    photo._autoLM=photo._autoLM||{};
+    ['lip','gingiva','incisal'].forEach(function(t){
+      if((photo.manualLandmarks[t]||[]).length===0){
+        photo.manualLandmarks[t]=o[t].map(function(p){ return {x:p.x,y:p.y}; });
+        photo._autoLM[t]=true;
+      }
+    });
+    return o;
+  }
+  window.cfEnsureDentalOutline=ensureOutline;
+
+  async function ensureAll(){
+    if(window.CF_DISABLE_AUTO_OUTLINE) return;
+    var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]))||[];
+    if(ph.length<2) return;
+    var changed=false;
+    for(var i=0;i<Math.min(ph.length,12);i++){
+      var before=ph[i]._dentalOutline;
+      var r=await ensureOutline(ph[i]);
+      if(r && before===undefined) changed=true;
+    }
+    if(changed){
+      try{ window.__cfMorphGeoCache=null; }catch(e){}
+      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
+      if(window.CF_MORPH_DEBUG) console.log('[DentalOutline] auto landmarks applied');
+    }
+  }
+  window.cfEnsureDentalOutlines=ensureAll;
+
+  /* 編集画面が開く/更新されるたびに自動検出（顔メッシュ非検出=口腔内ケースのみ書込） */
+  (function hookRefresh(){
+    var tries=0;
+    var iv=setInterval(function(){
+      var pr=window.cfCapRefresh;
+      if(typeof pr==='function' && !pr.__cfOutline){
+        var wr=function(){ var r=pr.apply(this,arguments); setTimeout(ensureAll,700); return r; };
+        wr.__cfOutline=true; window.cfCapRefresh=wr; clearInterval(iv);
+      } else if(++tries>30) clearInterval(iv);
+    },400);
+  })();
+
+  /* ── ミニマルUI: 補正ツール行を「詳細調整」に格納（主要操作だけを一列に） ── */
+  function tidyUI(){
+    var box=document.getElementById('cfCapCut');
+    if(!box || document.getElementById('cfCapAdvanced')) return;
+    var alignRow=document.getElementById('cfCapAlignRow');
+    var alignStatus=document.getElementById('cfCapAlignStatus');
+    if(!alignRow) return;
+    var det=document.createElement('details');
+    det.id='cfCapAdvanced';
+    det.style.cssText='margin:10px 0 2px;border:1px solid rgba(32,27,53,.10);border-radius:14px;background:rgba(255,255,255,.55);overflow:hidden';
+    det.innerHTML='<summary style="list-style:none;cursor:pointer;padding:10px 14px;font-size:11.5px;font-weight:800;color:rgba(32,27,53,.6);letter-spacing:.06em">詳細調整 / Advanced</summary><div id="cfCapAdvBody" style="padding:2px 10px 10px"></div>';
+    alignRow.parentNode.insertBefore(det, alignRow);
+    var body=det.querySelector('#cfCapAdvBody');
+    body.appendChild(alignRow);
+    if(alignStatus) body.appendChild(alignStatus);
+    var ev=document.getElementById('cfEvBtn'); if(ev) body.appendChild(ev), ev.style.marginTop='8px';
+  }
+  var t2=0;
+  var iv2=setInterval(function(){ tidyUI(); if(document.getElementById('cfCapAdvanced')||++t2>40) clearInterval(iv2); },500);
+  /* cfEvBtn は別インジェクタが後から挿すことがあるため、遅延回収する */
+  var t3=0;
+  var iv3=setInterval(function(){
+    var body=document.getElementById('cfCapAdvBody');
+    var ev=document.getElementById('cfEvBtn');
+    if(body && ev && ev.parentNode!==body){ body.appendChild(ev); ev.style.marginTop='8px'; clearInterval(iv3); return; }
+    if(body && ev && ev.parentNode===body) { clearInterval(iv3); return; }
+    if(++t3>40) clearInterval(iv3);
+  },600);
+})();
+</script>
+
 <!-- ============ Dental Event Plan: AI-assisted case analysis + event-aware morph phases ============ -->
 <script>
 /* Morphing Video Studio — event-aware morphing (Phase 3/4).
