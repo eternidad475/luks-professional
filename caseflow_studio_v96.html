@@ -12458,7 +12458,76 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // oralExpand: how far to extend the oral exclusion zone around face-mesh points
   // (1.1 = tight, 1.6 = very wide). Driven by cfAssessPairRisk coarseWeight.
-  function collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand){
+  // ── Grid block-matching correspondences (Focus/intraoral) ──────────────────
+  // Two composited base canvases → sparse grid of TRUE point correspondences via
+  // coarse-to-fine NCC block matching. Unlike outline heuristics these vectors
+  // track real pixel structures, so warp motion follows actual tooth/gingiva
+  // features instead of pseudo-landmarks. Low-confidence and outlier vectors are
+  // rejected; on failure returns [] and the caller falls back to prior behaviour.
+  // window.CF_DISABLE_FLOW_LM=true disables (rollback).
+  function cfFlowGridPairs(baseA, baseB, w, h){
+    function gray(cv, gw){
+      const gh=Math.max(24,Math.round(gw*h/w));
+      const c=document.createElement('canvas'); c.width=gw; c.height=gh;
+      const x=c.getContext('2d',{willReadFrequently:true});
+      x.drawImage(cv,0,0,gw,gh);
+      const d=x.getImageData(0,0,gw,gh).data;
+      const g=new Float32Array(gw*gh);
+      for(let i=0;i<gw*gh;i++) g[i]=d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114;
+      return {g:g,w:gw,h:gh};
+    }
+    function ncc(A,B,ax,ay,bx,by,r){
+      let sa=0,sb=0,saa=0,sbb=0,sab=0,n=0;
+      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        const va=A.g[(ay+dy)*A.w+ax+dx], vb=B.g[(by+dy)*B.w+bx+dx];
+        sa+=va; sb+=vb; saa+=va*va; sbb+=vb*vb; sab+=va*vb; n++;
+      }
+      const ma=sa/n, mb=sb/n;
+      const va_=saa/n-ma*ma, vb_=sbb/n-mb*mb;
+      if(va_<18||vb_<18) return -2;                       // 無地ブロックは信頼不可
+      return (sab/n-ma*mb)/Math.sqrt(va_*vb_);
+    }
+    function bestMatch(A,B,ax,ay,cx,cy,search,r){
+      let bs=-2,bx=cx,by=cy;
+      const x0=Math.max(r,cx-search), x1=Math.min(B.w-1-r,cx+search);
+      const y0=Math.max(r,cy-search), y1=Math.min(B.h-1-r,cy+search);
+      for(let yy=y0;yy<=y1;yy++)for(let xx=x0;xx<=x1;xx++){
+        const s=ncc(A,B,ax,ay,xx,yy,r);
+        if(s>bs){ bs=s; bx=xx; by=yy; }
+      }
+      return {s:bs,x:bx,y:by};
+    }
+    const A1=gray(baseA,132), B1=gray(baseB,132);
+    const A2=gray(baseA,264), B2=gray(baseB,264);
+    const step=20, m=17, cand=[];
+    for(let gy=m;gy<A2.h-m;gy+=step)for(let gx=m;gx<A2.w-m;gx+=step){
+      // 粗探索(1/2解像度) → 精密化(基準解像度)
+      const c1=bestMatch(A1,B1,gx>>1,gy>>1,gx>>1,gy>>1,14,4);
+      if(c1.s<0.25) continue;
+      const c2=bestMatch(A2,B2,gx,gy,Math.min(A2.w-9,Math.max(8,c1.x*2)),Math.min(A2.h-9,Math.max(8,c1.y*2)),4,6);
+      if(c2.s<0.45) continue;
+      const vx=c2.x-gx, vy=c2.y-gy;
+      if(Math.hypot(vx,vy)>A2.w*0.17) continue;           // 非現実的な大変位は除外
+      cand.push({x:gx,y:gy,vx:vx,vy:vy,s:c2.s});
+    }
+    // 近傍中央値との乖離が大きい外れベクトルを除去（局所平滑性の担保）
+    function med(arr){ const a2=arr.slice().sort((p,q)=>p-q); return a2[a2.length>>1]; }
+    const keep=[];
+    for(const p of cand){
+      const nb=cand.filter(q=>Math.abs(q.x-p.x)<=step*2 && Math.abs(q.y-p.y)<=step*2);
+      if(nb.length<3) continue;
+      const mx=med(nb.map(q=>q.vx)), my=med(nb.map(q=>q.vy));
+      if(Math.hypot(p.vx-mx,p.vy-my)>7) continue;
+      keep.push(p);
+    }
+    if(keep.length<25) return [];                          // 全体として信頼できない場合は不使用
+    const sc=w/A2.w;
+    let out=keep.map(p=>({p1:{x:p.x*sc,y:p.y*sc}, p2:{x:(p.x+p.vx)*sc,y:(p.y+p.vy)*sc}}));
+    if(out.length>110){ const st2=Math.ceil(out.length/110); out=out.filter((_,i)=>i%st2===0); }
+    return out;
+  }
+
+  function collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand, baseA, baseB){
     const pairs = [];
     const expand = oralExpand || 1.3;
     // Canvas boundary: fixed, keeps the white frame stable.
@@ -12479,9 +12548,23 @@ window.addEventListener('DOMContentLoaded', () => {
       addPair(pairs,{x:rectA.x+rectA.w,y:rectA.y+rectA.h*t},{x:rectB.x+rectB.w,y:rectB.y+rectB.h*t},'image-boundary');
     });
 
+    // True correspondences via grid block matching (intraoral: no face mesh).
+    // These are measured motion vectors between the two composited images, so
+    // when confident they outrank the heuristic auto-outline pseudo-landmarks.
+    let flowPairs=[];
+    const _noFace=!(photoA&&photoA._faceMesh)&&!(photoB&&photoB._faceMesh);
+    if(_noFace && baseA && baseB && !window.CF_DISABLE_FLOW_LM){
+      try{ flowPairs=cfFlowGridPairs(baseA,baseB,w,h); }catch(eF){ flowPairs=[]; }
+    }
+    const flowOK=flowPairs.length>=25;
+
     const la = ensureLM(photoA), lb = ensureLM(photoB);
     let userCount = 0;
     ['lip','gingiva','incisal'].forEach(type=>{
+      // Auto-injected outline lines are index-paired heuristics; when the flow
+      // grid is confident they only add noise, so keep manual points but skip
+      // the auto ones. (photo._autoLM marks types filled by auto-detection.)
+      if(flowOK && photoA._autoLM && photoA._autoLM[type] && photoB._autoLM && photoB._autoLM[type]) return;
       const A = la[type] || [], B = lb[type] || [];
       const n = Math.min(A.length, B.length);
       for(let i=0;i<n;i++){
@@ -12489,6 +12572,23 @@ window.addEventListener('DOMContentLoaded', () => {
         userCount++;
       }
     });
+
+    // Per-tooth contour rings (Focus/intraoral auto-detection). Matched teeth
+    // contribute 8 corresponding points each so individual crowns morph
+    // shape-to-shape; unmatched teeth (missing/extracted) add no pairs and are
+    // carried by the arch-level lines above. When the flow grid is confident,
+    // rings are only kept if both sides detected a solid arch (≥4 teeth).
+    try{
+      if(typeof window.cfToothPairs==='function'){
+        const _ta=(photoA._toothOutlines||[]).length, _tb=(photoB._toothOutlines||[]).length;
+        if(!flowOK || (_ta>=4 && _tb>=4)){
+          const _tp=window.cfToothPairs(photoA,photoB)||[];
+          for(const q of _tp){ addPair(pairs, normToRect(q.a,rectA), normToRect(q.b,rectB), 'tooth'); userCount++; }
+        }
+      }
+    }catch(eT){}
+
+    for(const q of flowPairs){ addPair(pairs, q.p1, q.p2, 'flow'); userCount++; }
 
     // Detect oral ROI for dual mesh: fine-mesh points inside are excluded below.
     const oralROI = cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
@@ -12676,7 +12776,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // coarseWeight + mode bias → oral exclusion zone expansion (1.1=tight, 1.6=wide)
       const _effectiveCW=Math.max(0,Math.min(1,_pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
       const _oralExpand=1.1+_effectiveCW*0.5;
-      const collected=collectMorphPairs(a,b,rA,rB,w,h,_oralExpand);
+      const collected=collectMorphPairs(a,b,rA,rB,w,h,_oralExpand,bA,bB);
       GC=window.__cfMorphGeoCache={
         a:a, b:b, w:w, h:h, fmA:a._faceMesh, fmB:b._faceMesh,
         variant:(window.cfMorphVariant||'clinical'),
@@ -23704,7 +23804,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var effectiveCW=Math.max(0,Math.min(1, pairRisk.coarseWeight+(_vdef.coarseWeightBias||0)));
       var oralExpand=1.1+effectiveCW*0.5;
 
-      var collected=engine.collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand);
+      var collected=engine.collectMorphPairs(photoA, photoB, rectA, rectB, w, h, oralExpand, baseA, baseB);
       var morphPairs=engine.dedupePairs(collected.pairs);
 
       pairPlans.push({
@@ -28083,6 +28183,29 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
           }
           var gingiva=sample(topS,9);    // 上顎歯頸側の輪郭
           var incisal=sample(botS,9);    // 切縁/咬合側の輪郭
+          // ── 一歯単位の分割: 隣接面（コンタクト）は暗く写り歯画素が減る。
+          //    列ごとの歯画素数の谷で歯列を分割し、歯ごとに8点の輪郭リングを作る。
+          var colS=colN.slice();
+          for(var k3=ax0;k3<=ax1;k3++){ var s3=0,n3=0; for(var o3=-2;o3<=2;o3++){ if(k3+o3>=ax0&&k3+o3<=ax1){ s3+=colN[k3+o3]; n3++; } } colS[k3]=n3?s3/n3:0; }
+          var vals=[]; for(var k4=ax0;k4<=ax1;k4++) vals.push(colS[k4]);
+          vals.sort(function(p,q){return p-q;});
+          var med=vals[Math.floor(vals.length/2)]||0, thr=Math.max(need,med*0.45);
+          var teeth=[], segS=-1;
+          function pushSeg(xs,xe){
+            var sw=xe-xs;
+            if(sw<w*0.022 || sw>w*0.24) return;      // 歯として狭すぎ/広すぎは除外
+            var ring=[], stops=[0,1/3,2/3,1];
+            for(var si=0;si<4;si++){ var sx=Math.round(xs+sw*stops[si]); var v=topS[sx]>=0?topS[sx]:(y0+y1)/2; ring.push({x:sx/w*100,y:v/h*100}); }
+            for(var si2=3;si2>=0;si2--){ var sx2=Math.round(xs+sw*stops[si2]); var v2=botS[sx2]>=0?botS[sx2]:(y0+y1)/2; ring.push({x:sx2/w*100,y:v2/h*100}); }
+            teeth.push({cx:(xs+xe)/2/w*100, ring:ring});
+          }
+          for(var k5=ax0;k5<=ax1+1;k5++){
+            var onTooth=(k5<=ax1)&&colS[k5]>=thr;
+            if(onTooth && segS<0) segS=k5;
+            else if(!onTooth && segS>=0){ pushSeg(segS,k5-1); segS=-1; }
+          }
+          if(teeth.length>14) teeth=teeth.slice(0,14);
+          if(teeth.length<2) teeth=[];                // 分割できなければ歯列ラインのみで動作
           // リップ/開口部の枠: 歯列bboxを12%拡張した8点
           var minY=1e9,maxY=-1;
           for(var q2=ax0;q2<=ax1;q2++){ if(topS[q2]>=0&&topS[q2]<minY)minY=topS[q2]; if(botS[q2]>maxY)maxY=botS[q2]; }
@@ -28090,7 +28213,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
           var L0=Math.max(0,ax0-exX)/w*100, R0=Math.min(w-1,ax1+exX)/w*100;
           var T0=Math.max(0,minY-exY)/h*100, B0=Math.min(h-1,maxY+exY)/h*100, MX=(L0+R0)/2;
           var lip=[{x:L0,y:T0},{x:MX,y:T0},{x:R0,y:T0},{x:R0,y:(T0+B0)/2},{x:R0,y:B0},{x:MX,y:B0},{x:L0,y:B0},{x:L0,y:(T0+B0)/2}];
-          resolve({lip:lip,gingiva:gingiva,incisal:incisal});
+          resolve({lip:lip,gingiva:gingiva,incisal:incisal,teeth:teeth});
         }catch(e){ resolve(null); }
       };
       im.onerror=function(){ resolve(null); };
@@ -28107,6 +28230,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var o=await detect(photo.dataUrl);
     photo._dentalOutline=o;
     if(!o) return null;
+    photo._toothOutlines=o.teeth||[];              // 一歯単位の輪郭リング（0..100座標）
     // 手動点が無い type にだけ自動点を注入（手動編集は常に優先・上書きしない）
     photo.manualLandmarks=photo.manualLandmarks||{lip:[],gingiva:[],incisal:[]};
     photo._autoLM=photo._autoLM||{};
@@ -28119,6 +28243,27 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     return o;
   }
   window.cfEnsureDentalOutline=ensureOutline;
+
+  /* 一歯単位の対応付け: 歯列内の相対位置(0..1)が最も近い歯同士を1対1でマッチ。
+     欠損などで相手が見つからない歯はペアを作らない（歯列ラインだけで補間）。
+     window.CF_DISABLE_TOOTH_MORPH=true で無効化。 */
+  window.cfToothPairs=function(a,b){
+    if(window.CF_DISABLE_AUTO_OUTLINE || window.CF_DISABLE_TOOTH_MORPH) return [];
+    if(!a || !b || a._faceMesh || b._faceMesh) return [];
+    var TA=a._toothOutlines||[], TB=b._toothOutlines||[];
+    if(TA.length<2 || TB.length<2) return [];
+    function u(list){ var m0=1e9,m1=-1e9; list.forEach(function(t){ if(t.cx<m0)m0=t.cx; if(t.cx>m1)m1=t.cx; }); var sp=Math.max(1,m1-m0); return list.map(function(t){ return (t.cx-m0)/sp; }); }
+    var uA=u(TA), uB=u(TB), usedB={}, out=[];
+    for(var i=0;i<TA.length;i++){
+      var best=-1, bd=0.055;                        // 歯幅の約半分以内のみマッチ
+      for(var j=0;j<TB.length;j++){ if(usedB[j]) continue; var d=Math.abs(uA[i]-uB[j]); if(d<bd){ bd=d; best=j; } }
+      if(best<0) continue;
+      usedB[best]=true;
+      var rA=TA[i].ring, rB=TB[best].ring, n=Math.min(rA.length,rB.length);
+      for(var k=0;k<n;k++) out.push({a:rA[k], b:rB[k]});
+    }
+    return out;
+  };
 
   async function ensureAll(){
     if(window.CF_DISABLE_AUTO_OUTLINE) return;
@@ -28135,8 +28280,42 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
       try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
       if(window.CF_MORPH_DEBUG) console.log('[DentalOutline] auto landmarks applied');
     }
+    if(window.__cfShowToothOutline && window.cfDrawToothOverlay) setTimeout(window.cfDrawToothOverlay,380);
   }
   window.cfEnsureDentalOutlines=ensureAll;
+
+  /* 検出した一歯単位アウトラインをプレビュー上に描画（確認用オーバーレイ）。
+     A=シアン実線 / B=ピンク破線。書き出しには一切影響しない（別キャンバス）。 */
+  function drawToothOverlay(){
+    var stage=document.getElementById('cfCapStage'), src=document.getElementById('cfCapCanvas');
+    var cv=document.getElementById('cfToothOverlay');
+    if(!window.__cfShowToothOutline){ if(cv) cv.remove(); return; }
+    if(!stage || !src) return;
+    if(!cv){
+      cv=document.createElement('canvas'); cv.id='cfToothOverlay';
+      cv.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none';
+      stage.appendChild(cv);
+    }
+    cv.width=src.width; cv.height=src.height;
+    var ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height);
+    var GC=window.__cfMorphGeoCache;
+    if(!GC || !GC.a || !GC.rectA) return;
+    function rings(ph,rect,color,dash){
+      ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.setLineDash(dash||[]);
+      (ph._toothOutlines||[]).forEach(function(t){
+        ctx.beginPath();
+        (t.ring||[]).forEach(function(p,i){
+          var X=rect.x+rect.w*p.x/100, Y=rect.y+rect.h*p.y/100;
+          if(i) ctx.lineTo(X,Y); else ctx.moveTo(X,Y);
+        });
+        ctx.closePath(); ctx.stroke();
+      });
+      ctx.restore();
+    }
+    rings(GC.a,GC.rectA,'rgba(0,229,255,.95)');
+    rings(GC.b,GC.rectB,'rgba(255,64,180,.80)',[6,5]);
+  }
+  window.cfDrawToothOverlay=drawToothOverlay;
 
   /* 編集画面が開く/更新されるたびに自動検出（顔メッシュ非検出=口腔内ケースのみ書込） */
   (function hookRefresh(){
@@ -28165,6 +28344,17 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var body=det.querySelector('#cfCapAdvBody');
     body.appendChild(alignRow);
     if(alignStatus) body.appendChild(alignStatus);
+    var lab=document.createElement('label');
+    lab.style.cssText='display:flex;align-items:center;gap:8px;margin:8px 4px 2px;font-size:12px;font-weight:700;color:rgba(32,27,53,.65);cursor:pointer';
+    lab.innerHTML='<input type="checkbox" id="cfToothOutlineChk" style="width:16px;height:16px;accent-color:#7c5cff"> 歯牙アウトライン表示 / Show tooth outlines';
+    body.appendChild(lab);
+    lab.querySelector('#cfToothOutlineChk').addEventListener('change',function(ev2){
+      window.__cfShowToothOutline=!!ev2.target.checked;
+      if(window.__cfShowToothOutline){
+        ensureAll().then(function(){ setTimeout(function(){ if(window.cfDrawToothOverlay) cfDrawToothOverlay(); },350); });
+      }
+      if(window.cfDrawToothOverlay) cfDrawToothOverlay();
+    });
     var ev=document.getElementById('cfEvBtn'); if(ev) body.appendChild(ev), ev.style.marginTop='8px';
   }
   var t2=0;
