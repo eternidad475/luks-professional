@@ -12705,24 +12705,28 @@ window.addEventListener('DOMContentLoaded', () => {
         drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1);
       });
       // ── warp_dominant texture handoff ──────────────────────────────────────
-      // Geometry (mid-point lerp) runs across the whole clip, but B's TEXTURE
-      // fades in only in a narrow late window (t 0.70→0.88), so the visible
-      // effect is shape change rather than a full-length cross-dissolve.
-      // Endpoints stay exact (t=0 → pure A, t=1 → pure B).
-      // window.CF_MORPH_TEXTURE_MODE='legacy' restores the previous alpha=e blend.
+      // Geometry (mid-point lerp) runs across the whole clip; B's TEXTURE fades
+      // in over a mid window (t 0.45→0.80, smoothstep) so shape change leads and
+      // the dissolve is neither full-length (fade-dominant) nor last-moment
+      // (slideshow pop). Endpoints stay exact (t=0 → pure A, t=1 → pure B).
+      // window.CF_MORPH_TEXTURE_MODE='legacy' restores the previous alpha=e blend;
+      // window.CF_TEX_WINDOW=[a,b] tunes the window.
       const _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
       const _tRaw=Math.max(0,Math.min(1,t));
+      const _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.45,0.80];
       // If the pair has no real geometry (no face mesh / no user landmarks →
-      // boundary-only pairs, max displacement ~0), a late handoff would look
-      // frozen for 70% of the clip — fall back to the legacy blend there.
+      // boundary-only pairs, max displacement ~0), a delayed handoff would look
+      // frozen for much of the clip — fall back to the legacy blend there.
       if(GC.maxDisp===undefined){
         let _md=0;
         for(const p of pairs){ const dx=p.p2.x-p.p1.x, dy=p.p2.y-p.p1.y; const d=dx*dx+dy*dy; if(d>_md) _md=d; }
         GC.maxDisp=Math.sqrt(_md);
       }
       const _texA=(_texMode==='legacy'||GC.maxDisp<2) ? e
-        : (function(x){ x=Math.max(0,Math.min(1,(x-0.70)/0.18)); return x*x*(3-2*x); })(_tRaw);
-      tris.forEach(tr=>{
+        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(_tRaw);
+      // Skip the whole B layer while its alpha is 0 (t below the window) —
+      // roughly halves per-frame triangle draws early in each segment.
+      if(_texA>0.001) tris.forEach(tr=>{
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseB,p2[i],p2[j],p2[k],mid[i],mid[j],mid[k],_texA);
       });
@@ -23570,14 +23574,20 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function play(){
     var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[])); if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
     playing=true; setPlayIcon(true);
-    var token=++playToken, segCount=Math.max(1,ph.length-1), dur=speedMs()*segCount, start=performance.now(), scrub=$id('cfCapScrub');
+    var token=++playToken, scrub=$id('cfCapScrub');
+    // Preview plays EXACTLY what export saves: the same clamped timeline
+    // (cfBuildMorphTimeline — single source of truth) and a one-way 0→1 pass,
+    // so the smoothness, playback speed and total time seen here match the
+    // saved video. (The old loop used the UNclamped duration and oscillated
+    // 0→1→0, so preview and export never matched.)
+    var tl=cfBuildMorphTimeline(ph, speedMs(), 30);
+    var dur=tl.totalDurationMs, start=performance.now();
     (function loop(now){
       if(!playing||token!==playToken) return;
-      /* Oscillate 0→1→0→1… so before/after comparison is obvious */
-      var cycle=(now-start)%(dur*2);
-      var t=cycle<dur ? cycle/dur : 2-(cycle/dur);
+      var t=Math.min(1,(now-start)/dur);
       if(scrub) scrub.value=String(Math.round(t*100)); setPct(t);
       render(t);
+      if(t>=1){ stop(); return; }
       requestAnimationFrame(loop);
     })(performance.now());
   }
@@ -23747,20 +23757,22 @@ body.cfPresent .cfPresentExit{display:flex!important}
         engine.drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
       });
       // warp_dominant texture handoff — identical to the preview renderer:
-      // geometry moves for the whole clip; B's texture fades in only in the
-      // narrow late window (t 0.70→0.88). 'legacy' mode restores alpha=e.
+      // geometry moves for the whole clip; B's texture fades in over the mid
+      // window (t 0.45→0.80). 'legacy' mode restores alpha=e; CF_TEX_WINDOW tunes.
       var _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
       var _tRaw=Math.max(0,Math.min(1,localT));
+      var _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.45,0.80];
       // No real geometry in this pair (boundary-only) → legacy blend fallback,
-      // otherwise the first 70% of the clip would look frozen.
+      // otherwise much of the clip would look frozen.
       if(pairPlan._maxDisp===undefined){
         var _md=0;
         for(var _pi=0;_pi<pairs.length;_pi++){ var _dx=pairs[_pi].p2.x-pairs[_pi].p1.x,_dy=pairs[_pi].p2.y-pairs[_pi].p1.y; var _d=_dx*_dx+_dy*_dy; if(_d>_md)_md=_d; }
         pairPlan._maxDisp=Math.sqrt(_md);
       }
       var _texA=(_texMode==='legacy'||pairPlan._maxDisp<2) ? e
-        : (function(x){ x=Math.max(0,Math.min(1,(x-0.70)/0.18)); return x*x*(3-2*x); })(_tRaw);
-      tris.forEach(function(tr){
+        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(_tRaw);
+      // Skip the whole B layer while its alpha is 0 — big per-frame saving.
+      if(_texA>0.001) tris.forEach(function(tr){
         var i=tr[0],j=tr[1],k=tr[2];
         engine.drawWarpedTriangle(ctx, pairPlan.baseB, p2[i],p2[j],p2[k], mid[i],mid[j],mid[k], _texA);
       });
@@ -23798,7 +23810,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var rDims=cfGetOutputSizeForRatio(activeRatio);
     var w=rDims.w, h=rDims.h;
 
-    var fps=30;
+    var fps=Math.min(60,Math.max(12,Number(window.CF_EXPORT_FPS)||30)); /* CF_EXPORT_FPS overrides (quality/speed tuning) */
     var segCount=Math.max(1,ph.length-1);
     var activeSpeedMs=cfGetActiveSpeedMs();
     var durationMs=activeSpeedMs*segCount;
@@ -23886,26 +23898,45 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(btn) btn.textContent='エンコード中…';
       toastFn('動画エンコード中…');
 
-      // Merged render+record loop: absolute-time pacing. Passive-capture mode
-      // (Safari) yields one rAF per frame so the compositor samples the canvas.
+      // ── Deterministic duration via pause/resume (see cfCapDoExport) ─────────
+      // Recorder runs only for one frame-window per rendered frame, so output
+      // duration = totalFrames × frameMs even when rendering is slower than
+      // real time on mobile.
+      var pausedMode=false;
+      if(typeof rec.pause==='function'&&typeof rec.resume==='function'){
+        try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
+      }
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
-        // Sleep until this frame's target wall-clock time
-        await cfWaitUntil(recordStart+pos.timeMs);
-        // Render frame and push to encoder
+        if(!pausedMode) await cfWaitUntil(recordStart+pos.timeMs);
         renderExportFrame(exportCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
         drawWatermark(exportCtx, w, h);
-        var fp=computeFrameFingerprint(exportCtx, w, h);
-        if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
-        lastFp=fp;
+        if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
+          var fp=computeFrameFingerprint(exportCtx, w, h);
+          if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+          lastFp=fp;
+        }
         replayCtx.drawImage(exportCanvas, 0, 0);
-        if(manual&&track) track.requestFrame();
-        else await new Promise(requestAnimationFrame);
-        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
+        if(pausedMode){
+          try{ rec.resume(); }catch(eR1){}
+          if(manual&&track) track.requestFrame();
+          else await new Promise(requestAnimationFrame);
+          await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
+          try{ rec.pause(); }catch(eR2){}
+        }else{
+          if(manual&&track) track.requestFrame();
+          else await new Promise(requestAnimationFrame);
+        }
+        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length,'| paused',pausedMode);
         if(btn) btn.textContent='エンコード '+Math.round((f+1)/timeline.totalFrames*100)+'%';
       }
+      if(pausedMode){ try{ rec.resume(); }catch(eR3){} }
       await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
       try{ replayCanvas.remove(); }catch(eRm){}
+      if(!pausedMode){
+        var _elapsed=performance.now()-recordStart;
+        if(_elapsed>timeline.totalDurationMs*1.6) toastFn('端末負荷により動画が想定('+Math.round(timeline.totalDurationMs/100)/10+'s)より長くなっています');
+      }
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
@@ -24034,7 +24065,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var w=rDims2.w, h=rDims2.h;
     var activeSpeedMs2=cfGetActiveSpeedMs();
     var durationMs=activeSpeedMs2*segCount;
-    var fps=30;
+    var fps=Math.min(60,Math.max(12,Number(window.CF_EXPORT_FPS)||30)); /* CF_EXPORT_FPS overrides (quality/speed tuning) */
     var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
     var frameMs=1000/fps;
     console.log('[CaseFlow Export] active ratio', activeRatio2, 'size', w, h, 'speed ms', activeSpeedMs2, 'duration ms', durationMs, 'totalFrames', totalFrames);
@@ -24110,23 +24141,48 @@ body.cfPresent .cfPresentExit{display:flex!important}
       toastFn('動画エンコード中…');
       if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
 
-      // Merged render+record loop: absolute-time pacing. In passive-capture mode
-      // (Safari) yield one rAF per frame so the compositor samples the canvas.
+      // ── Deterministic duration via pause/resume ─────────────────────────────
+      // MediaRecorder timestamps in WALL-CLOCK time: when a frame takes longer to
+      // render than frameMs (mesh warp at export resolution on mobile), the clip
+      // silently stretches (241 frames rendered over ~156s → a 2:36 video). Pause
+      // the recorder while rendering and resume it for exactly one frame window,
+      // so output duration = totalFrames × frameMs regardless of render speed.
+      var pausedMode=false;
+      if(typeof rec.pause==='function'&&typeof rec.resume==='function'){
+        try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
+      }
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
-        await cfWaitUntil(recordStart+pos.timeMs);
+        if(!pausedMode) await cfWaitUntil(recordStart+pos.timeMs);
         renderExportFrame(expCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
         drawWatermark(expCtx, w, h);
-        var fp=computeFrameFingerprint(expCtx, w, h);
-        if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
-        lastFp=fp;
+        if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
+          var fp=computeFrameFingerprint(expCtx, w, h);
+          if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+          lastFp=fp;
+        }
         repCtx.drawImage(expCv, 0, 0);
-        if(manual&&track) track.requestFrame();
-        else await new Promise(requestAnimationFrame);
-        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length);
+        if(pausedMode){
+          try{ rec.resume(); }catch(eR1){}
+          if(manual&&track) track.requestFrame();
+          else await new Promise(requestAnimationFrame);
+          await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
+          try{ rec.pause(); }catch(eR2){}
+        }else{
+          if(manual&&track) track.requestFrame();
+          else await new Promise(requestAnimationFrame);
+        }
+        if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length,'| paused',pausedMode);
+        if(waitOvEl && (f%10===0)){ var _msgP=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msgP) _msgP.textContent='録画中 '+Math.round((f+1)/timeline.totalFrames*100)+'%…'; }
       }
+      if(pausedMode){ try{ rec.resume(); }catch(eR3){} }
       await new Promise(function(r){setTimeout(r,250);});
       try{ repCv.remove(); }catch(eRm){}
+      // Legacy path (no pause support): warn when the clip stretched noticeably.
+      if(!pausedMode){
+        var _elapsed=performance.now()-recordStart;
+        if(_elapsed>timeline.totalDurationMs*1.6) toastFn('端末負荷により動画が想定('+Math.round(timeline.totalDurationMs/100)/10+'s)より長くなっています');
+      }
 
       var actualElapsedMs=performance.now()-recordStart;
       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
