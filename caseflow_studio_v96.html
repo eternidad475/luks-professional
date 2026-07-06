@@ -26960,10 +26960,23 @@ body.cfPresent .cfPresentExit{display:flex!important}
       else { try{ prompt('コピーしてください', text); }catch(_){} }
       return ok;
     }
+    /* 招待メール文はUIの言語切替に追従（原文=jaの翻訳。未知の言語は英語）。 */
+    var CF_INVITE_MAIL={
+      ja:{intro:'CaseFlow Studioへの招待コードをお送りします。',codeLabel:'招待コード:',how:'以下のリンクからアクセスし、招待コードを入力してください。'},
+      en:{intro:'Here is your invitation code for CaseFlow Studio.',codeLabel:'Invitation code:',how:'Open the link below and enter the invitation code.'},
+      pt:{intro:'Aqui está o seu código de convite para o CaseFlow Studio.',codeLabel:'Código de convite:',how:'Abra o link abaixo e insira o código de convite.'},
+      it:{intro:'Ecco il tuo codice di invito per CaseFlow Studio.',codeLabel:'Codice di invito:',how:'Apri il link qui sotto e inserisci il codice di invito.'},
+      ar:{intro:'إليك رمز الدعوة الخاص بك إلى CaseFlow Studio.',codeLabel:'رمز الدعوة:',how:'افتح الرابط أدناه وأدخل رمز الدعوة.'},
+      zh:{intro:'这是您的 CaseFlow Studio 邀请码。',codeLabel:'邀请码：',how:'请打开下方链接并输入邀请码。'},
+      ko:{intro:'CaseFlow Studio 초대 코드를 보내드립니다.',codeLabel:'초대 코드:',how:'아래 링크에 접속하여 초대 코드를 입력해 주세요.'}
+    };
     function cfInviteMail(code){
       var link=inviteLink(code);
-      return 'CaseFlow Studioへの招待コードをお送りします。\n\n招待コード:\n'+code+'\n\n'+
-             '以下のリンクからアクセスし、招待コードを入力してください。\n'+link+'\n\n'+
+      var lang='ja';
+      try{ lang=(window.cfI18n&&cfI18n.get&&cfI18n.get())||'ja'; }catch(e){}
+      var m=CF_INVITE_MAIL[lang]||CF_INVITE_MAIL.en;
+      return m.intro+'\n\n'+m.codeLabel+'\n'+code+'\n\n'+
+             m.how+'\n'+link+'\n\n'+
              'CaseFlow Studio\nhttps://caseflow-studio.com';
     }
     /* post-issue popup: show + copy the freshly issued code (no reliance on the link) */
