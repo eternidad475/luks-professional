@@ -12825,26 +12825,26 @@ window.addEventListener('DOMContentLoaded', () => {
         const [i,j,k]=tr;
         drawWarpedTriangle(ctx,baseA,p1[i],p1[j],p1[k],mid[i],mid[j],mid[k],1);
       });
-      // ── warp_dominant texture handoff ──────────────────────────────────────
-      // Geometry (mid-point lerp) runs across the whole clip; B's TEXTURE fades
-      // in over a mid window (t 0.45→0.80, smoothstep) so shape change leads and
-      // the dissolve is neither full-length (fade-dominant) nor last-moment
-      // (slideshow pop). Endpoints stay exact (t=0 → pure A, t=1 → pure B).
-      // window.CF_MORPH_TEXTURE_MODE='legacy' restores the previous alpha=e blend;
-      // window.CF_TEX_WINDOW=[a,b] tunes the window.
+      // ── Seamless texture handoff ───────────────────────────────────────────
+      // Beier–Neely morph: A and B are BOTH warped to the same intermediate
+      // shape, then cross-dissolved. To avoid a "static → sudden reveal →
+      // static" feel (a mid-clip texture burst reads as a seam), the dissolve
+      // is driven by the EASED geometry position eW — so shape and texture
+      // advance together across the whole clip. A wide window [0.12,0.88] keeps
+      // a slight shape-lead while guaranteeing pristine endpoints (t=0 → pure A,
+      // t=1 → pure B). window.CF_MORPH_TEXTURE_MODE='legacy' restores alpha=e;
+      // window.CF_TEX_WINDOW=[a,b] tunes the window (now measured on eW).
       const _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
-      const _tRaw=Math.max(0,Math.min(1,t));
-      const _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.45,0.80];
+      const _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.12,0.88];
       // If the pair has no real geometry (no face mesh / no user landmarks →
-      // boundary-only pairs, max displacement ~0), a delayed handoff would look
-      // frozen for much of the clip — fall back to the legacy blend there.
+      // boundary-only pairs, max displacement ~0), tie the blend straight to e.
       if(GC.maxDisp===undefined){
         let _md=0;
         for(const p of pairs){ const dx=p.p2.x-p.p1.x, dy=p.p2.y-p.p1.y; const d=dx*dx+dy*dy; if(d>_md) _md=d; }
         GC.maxDisp=Math.sqrt(_md);
       }
       const _texA=(_texMode==='legacy'||GC.maxDisp<2) ? e
-        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(_tRaw);
+        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(eW);
       // Skip the whole B layer while its alpha is 0 (t below the window) —
       // roughly halves per-frame triangle draws early in each segment.
       if(_texA>0.001) tris.forEach(tr=>{
@@ -23629,6 +23629,27 @@ body.cfPresent .cfPresentExit{display:flex!important}
     return new Promise(function(resolve){ setTimeout(resolve, delay); });
   }
 
+  // cfProbeRenderSpeed — render a handful of frames off-stream and return the
+  // MEDIAN render time (ms). Used to choose the recording strategy:
+  //   fast device (render << frameMs)  → smooth absolute-time real-time pacing
+  //                                       (evenly spaced frames, exact duration)
+  //   slow device (render ≈/> frameMs) → pause/resume determinism (keeps the
+  //                                       duration correct at the cost of jitter)
+  // Probing also warms the JIT + image decode caches so the first real frames
+  // aren't slow outliers. renderFrame(localT) must draw to an OFF-stream canvas.
+  async function cfProbeRenderSpeed(renderFrame, samples){
+    samples=Math.max(3, samples||5);
+    var times=[];
+    for(var i=0;i<samples;i++){
+      var t0=performance.now();
+      try{ renderFrame(samples>1? i/(samples-1):0); }catch(eP){}
+      await new Promise(requestAnimationFrame);
+      times.push(performance.now()-t0);
+    }
+    times.sort(function(a,b){ return a-b; });
+    return times[times.length>>1];
+  }
+
   // ── CASEFLOW STUDIO™ watermark — drawn on preview canvas AND export frames ──
   function drawWatermark(ctx, w, h){
     var fs=Math.round(w*0.032);               // ~35px at 1080w; scales with canvas
@@ -23877,21 +23898,20 @@ body.cfPresent .cfPresentExit{display:flex!important}
         var i=tr[0],j=tr[1],k=tr[2];
         engine.drawWarpedTriangle(ctx, pairPlan.baseA, p1[i],p1[j],p1[k], mid[i],mid[j],mid[k], 1);
       });
-      // warp_dominant texture handoff — identical to the preview renderer:
-      // geometry moves for the whole clip; B's texture fades in over the mid
-      // window (t 0.45→0.80). 'legacy' mode restores alpha=e; CF_TEX_WINDOW tunes.
+      // Seamless texture handoff — identical to the preview renderer: the
+      // cross-dissolve is driven by the EASED geometry position eW over a wide
+      // window [0.12,0.88], so shape and texture advance together with no
+      // mid-clip reveal/seam. 'legacy' mode restores alpha=e; CF_TEX_WINDOW tunes.
       var _texMode=window.CF_MORPH_TEXTURE_MODE||'warp_dominant';
-      var _tRaw=Math.max(0,Math.min(1,localT));
-      var _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.45,0.80];
-      // No real geometry in this pair (boundary-only) → legacy blend fallback,
-      // otherwise much of the clip would look frozen.
+      var _tw=(Array.isArray(window.CF_TEX_WINDOW)&&window.CF_TEX_WINDOW.length===2)?window.CF_TEX_WINDOW:[0.12,0.88];
+      // No real geometry in this pair (boundary-only) → tie the blend to e.
       if(pairPlan._maxDisp===undefined){
         var _md=0;
         for(var _pi=0;_pi<pairs.length;_pi++){ var _dx=pairs[_pi].p2.x-pairs[_pi].p1.x,_dy=pairs[_pi].p2.y-pairs[_pi].p1.y; var _d=_dx*_dx+_dy*_dy; if(_d>_md)_md=_d; }
         pairPlan._maxDisp=Math.sqrt(_md);
       }
       var _texA=(_texMode==='legacy'||pairPlan._maxDisp<2) ? e
-        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(_tRaw);
+        : (function(x){ x=Math.max(0,Math.min(1,(x-_tw[0])/Math.max(0.05,_tw[1]-_tw[0]))); return x*x*(3-2*x); })(eW);
       // Skip the whole B layer while its alpha is 0 — big per-frame saving.
       if(_texA>0.001) tris.forEach(function(tr){
         var i=tr[0],j=tr[1],k=tr[2];
@@ -24006,6 +24026,18 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000});
       var parts=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) parts.push(e.data); };
 
+      // ── Recording strategy (see cfCapDoExport): probe render speed BEFORE
+      // recording (so probe frames aren't captured; also warms caches), then use
+      // smooth real-time absolute-schedule pacing on fast devices (even frames,
+      // exact duration) and fall back to pause/resume determinism only when the
+      // device can't render under frameMs. ──────────────────────────────────
+      var _probeMedianMs=await cfProbeRenderSpeed(function(lt){
+        var pp=cfGetTimelinePosition(timeline, Math.round(lt*(timeline.totalFrames-1)));
+        renderExportFrame(exportCtx, plan, plan.pairPlans[pp.pairIndex], pp.localT);
+      }, 5);
+      var _deviceFastEnough=_probeMedianMs < timeline.frameMs*0.85;
+      if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] render probe median',Math.round(_probeMedianMs*100)/100,'ms | frameMs',timeline.frameMs.toFixed(2),'| realtimePacing',_deviceFastEnough);
+
       // Pre-render frame 0 before rec.start() — prevents leading black frame
       var pos0=cfGetTimelinePosition(timeline, 0);
       renderExportFrame(exportCtx, plan, plan.pairPlans[pos0.pairIndex], pos0.localT);
@@ -24019,17 +24051,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
       if(btn) btn.textContent='エンコード中…';
       toastFn('動画エンコード中…');
 
-      // ── Deterministic duration via pause/resume (see cfCapDoExport) ─────────
-      // Recorder runs only for one frame-window per rendered frame, so output
-      // duration = totalFrames × frameMs even when rendering is slower than
-      // real time on mobile.
       var pausedMode=false;
-      if(typeof rec.pause==='function'&&typeof rec.resume==='function'){
+      if(!_deviceFastEnough && typeof rec.pause==='function'&&typeof rec.resume==='function'){
         try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
       }
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
-        if(!pausedMode) await cfWaitUntil(recordStart+pos.timeMs);
         renderExportFrame(exportCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
         drawWatermark(exportCtx, w, h);
         if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
@@ -24045,6 +24072,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
           try{ rec.pause(); }catch(eR2){}
         }else{
+          await cfWaitUntil(recordStart+pos.timeMs);
           if(manual&&track) track.requestFrame();
           else await new Promise(requestAnimationFrame);
         }
@@ -24249,6 +24277,25 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
       rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
 
+      // ── Recording strategy: smooth real-time vs deterministic pause/resume ───
+      // MediaRecorder timestamps in WALL-CLOCK time. Two failure modes:
+      //   • pause/resume + setTimeout(frameMs) keeps duration exact but the
+      //     per-frame recorder window jitters (browser timer variance) → uneven
+      //     frame spacing (the "カク付き" the user reported: 33fps, jerky).
+      //   • plain real-time recording is perfectly even BUT stretches the clip
+      //     if a frame renders slower than frameMs (the old 2:36 export).
+      // Resolution: probe render speed FIRST (before recording, so the probe
+      // frames aren't captured; it also warms JIT + decode caches). When the
+      // device renders well under frameMs (true since the geometry cache —
+      // ~3ms/frame), record in real time on an ABSOLUTE per-frame schedule
+      // (even frames, exact duration). Fall back to pause/resume only if slow.
+      var _probeMedianMs=await cfProbeRenderSpeed(function(lt){
+        var pp=cfGetTimelinePosition(timeline, Math.round(lt*(timeline.totalFrames-1)));
+        renderExportFrame(expCtx, plan, plan.pairPlans[pp.pairIndex], pp.localT);
+      }, 5);
+      var _deviceFastEnough=_probeMedianMs < timeline.frameMs*0.85;
+      console.log('[CaseFlow Export] render probe median', Math.round(_probeMedianMs*100)/100, 'ms | frameMs', timeline.frameMs.toFixed(2), '| realtimePacing', _deviceFastEnough);
+
       // Pre-render frame 0 before rec.start() — prevents leading black frame
       var p0=cfGetTimelinePosition(timeline,0);
       renderExportFrame(expCtx, plan, plan.pairPlans[p0.pairIndex], p0.localT);
@@ -24262,19 +24309,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
       toastFn('動画エンコード中…');
       if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
 
-      // ── Deterministic duration via pause/resume ─────────────────────────────
-      // MediaRecorder timestamps in WALL-CLOCK time: when a frame takes longer to
-      // render than frameMs (mesh warp at export resolution on mobile), the clip
-      // silently stretches (241 frames rendered over ~156s → a 2:36 video). Pause
-      // the recorder while rendering and resume it for exactly one frame window,
-      // so output duration = totalFrames × frameMs regardless of render speed.
       var pausedMode=false;
-      if(typeof rec.pause==='function'&&typeof rec.resume==='function'){
+      if(!_deviceFastEnough && typeof rec.pause==='function'&&typeof rec.resume==='function'){
         try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
       }
       for(var f=0;f<timeline.totalFrames;f++){
         var pos=cfGetTimelinePosition(timeline, f);
-        if(!pausedMode) await cfWaitUntil(recordStart+pos.timeMs);
         renderExportFrame(expCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
         drawWatermark(expCtx, w, h);
         if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
@@ -24290,6 +24330,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
           await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
           try{ rec.pause(); }catch(eR2){}
         }else{
+          // Real-time pacing: render is already done — present the finished
+          // frame at its EXACT absolute schedule time so MediaRecorder stamps
+          // frames at even frameMs intervals (no jitter, exact duration).
+          await cfWaitUntil(recordStart+pos.timeMs);
           if(manual&&track) track.requestFrame();
           else await new Promise(requestAnimationFrame);
         }
@@ -28359,8 +28403,13 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var rings=(teeth||[]).map(function(t){
       var ring=resampleRing((t.poly||[]).map(function(p){ return {x:p[0]*100,y:p[1]*100}; }),16);
       if(!ring) return null;
-      var cx=0; ring.forEach(function(p){ cx+=p.x; }); cx/=ring.length;
-      return {fdi:t.fdi, cx:cx, ring:ring};
+      // Reject collapsed rings: AI polygons sometimes flatten into a thin band
+      // (poor vertical precision) — those look wrong in the overlay AND distort
+      // the morph. Require a crown-sized bbox (≥3.5% W and ≥5% H of the image).
+      var mnx=100,mxx=0,mny=100,mxy=0,cx=0;
+      ring.forEach(function(p){ if(p.x<mnx)mnx=p.x; if(p.x>mxx)mxx=p.x; if(p.y<mny)mny=p.y; if(p.y>mxy)mxy=p.y; cx+=p.x; });
+      if((mxx-mnx)<3.5 || (mxy-mny)<5) return null;
+      return {fdi:t.fdi, cx:cx/ring.length, ring:ring};
     }).filter(Boolean);
     if(rings.length<2) return false;
     photo._toothOutlines=rings;
