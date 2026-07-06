@@ -12557,14 +12557,18 @@ window.addEventListener('DOMContentLoaded', () => {
       try{ flowPairs=cfFlowGridPairs(baseA,baseB,w,h); }catch(eF){ flowPairs=[]; }
     }
     const flowOK=flowPairs.length>=25;
+    // Server AI outlines (RE:Flex-style per-tooth masks) are the highest-trust
+    // auto source: exact crown silhouettes matched by FDI number.
+    const _srvRings=!!(photoA._serverOutline && photoB._serverOutline &&
+      (photoA._toothOutlines||[]).length>=2 && (photoB._toothOutlines||[]).length>=2);
 
     const la = ensureLM(photoA), lb = ensureLM(photoB);
     let userCount = 0;
     ['lip','gingiva','incisal'].forEach(type=>{
       // Auto-injected outline lines are index-paired heuristics; when the flow
-      // grid is confident they only add noise, so keep manual points but skip
-      // the auto ones. (photo._autoLM marks types filled by auto-detection.)
-      if(flowOK && photoA._autoLM && photoA._autoLM[type] && photoB._autoLM && photoB._autoLM[type]) return;
+      // grid or server rings are confident they only add noise, so keep manual
+      // points but skip the auto ones. (photo._autoLM marks auto-filled types.)
+      if((flowOK||_srvRings) && photoA._autoLM && photoA._autoLM[type] && photoB._autoLM && photoB._autoLM[type]) return;
       const A = la[type] || [], B = lb[type] || [];
       const n = Math.min(A.length, B.length);
       for(let i=0;i<n;i++){
@@ -12573,22 +12577,39 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Per-tooth contour rings (Focus/intraoral auto-detection). Matched teeth
-    // contribute 8 corresponding points each so individual crowns morph
-    // shape-to-shape; unmatched teeth (missing/extracted) add no pairs and are
-    // carried by the arch-level lines above. When the flow grid is confident,
-    // rings are only kept if both sides detected a solid arch (≥4 teeth).
+    // Per-tooth contour rings. Server rings are always included; local CV rings
+    // are kept only when they beat the flow grid in reliability (no confident
+    // flow, or a solid arch of ≥4 teeth detected on both sides). Unmatched
+    // teeth (missing/extracted) add no pairs and are carried by neighbours.
+    let _ringPolysA=null;
     try{
       if(typeof window.cfToothPairs==='function'){
         const _ta=(photoA._toothOutlines||[]).length, _tb=(photoB._toothOutlines||[]).length;
-        if(!flowOK || (_ta>=4 && _tb>=4)){
+        if(_srvRings || !flowOK || (_ta>=4 && _tb>=4)){
           const _tp=window.cfToothPairs(photoA,photoB)||[];
           for(const q of _tp){ addPair(pairs, normToRect(q.a,rectA), normToRect(q.b,rectB), 'tooth'); userCount++; }
+          if(_srvRings && _tp.length){
+            _ringPolysA=(photoA._toothOutlines||[]).map(t=>(t.ring||[]).map(p=>normToRect(p,rectA)));
+          }
         }
       }
     }catch(eT){}
 
-    for(const q of flowPairs){ addPair(pairs, q.p1, q.p2, 'flow'); userCount++; }
+    // Flow vectors complement the rings: rings own the crown interiors, flow
+    // handles gingiva/lips/background. Inside-ring flow points are dropped to
+    // avoid fighting the contour correspondence.
+    function _inPoly(pt,poly){
+      let c=false;
+      for(let i2=0,j2=poly.length-1;i2<poly.length;j2=i2++){
+        const a2=poly[i2], b2=poly[j2];
+        if(((a2.y>pt.y)!==(b2.y>pt.y)) && pt.x < (b2.x-a2.x)*(pt.y-a2.y)/((b2.y-a2.y)||1e-9)+a2.x) c=!c;
+      }
+      return c;
+    }
+    for(const q of flowPairs){
+      if(_ringPolysA && _ringPolysA.some(poly=>_inPoly(q.p1,poly))) continue;
+      addPair(pairs, q.p1, q.p2, 'flow'); userCount++;
+    }
 
     // Detect oral ROI for dual mesh: fine-mesh points inside are excluded below.
     const oralROI = cfComputeDentalROI(photoA, photoB, rectA, rectB, w, h);
@@ -28230,7 +28251,10 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var o=await detect(photo.dataUrl);
     photo._dentalOutline=o;
     if(!o) return null;
-    photo._toothOutlines=o.teeth||[];              // 一歯単位の輪郭リング（0..100座標）
+    if(!photo._serverOutline){                     // サーバーAI輪郭があればそちらを優先
+      photo._toothOutlines=o.teeth||[];            // 一歯単位の輪郭リング（0..100座標）
+      photo._outlineSrc='local';
+    }
     // 手動点が無い type にだけ自動点を注入（手動編集は常に優先・上書きしない）
     photo.manualLandmarks=photo.manualLandmarks||{lip:[],gingiva:[],incisal:[]};
     photo._autoLM=photo._autoLM||{};
@@ -28244,26 +28268,159 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   }
   window.cfEnsureDentalOutline=ensureOutline;
 
-  /* 一歯単位の対応付け: 歯列内の相対位置(0..1)が最も近い歯同士を1対1でマッチ。
-     欠損などで相手が見つからない歯はペアを作らない（歯列ラインだけで補間）。
+  /* 一歯単位の対応付け（RE:Flex 型: 輪郭→輪郭のシェイプ対応）。
+     優先1: FDI歯番が両画像で一致する歯（サーバーAI解析時）
+     優先2: 歯列内の相対位置(0..1)が最も近い歯同士を1対1でマッチ。
+     欠損などで相手が見つからない歯はペアを作らない（周辺だけで補間）。
      window.CF_DISABLE_TOOTH_MORPH=true で無効化。 */
   window.cfToothPairs=function(a,b){
     if(window.CF_DISABLE_AUTO_OUTLINE || window.CF_DISABLE_TOOTH_MORPH) return [];
     if(!a || !b || a._faceMesh || b._faceMesh) return [];
     var TA=a._toothOutlines||[], TB=b._toothOutlines||[];
     if(TA.length<2 || TB.length<2) return [];
-    function u(list){ var m0=1e9,m1=-1e9; list.forEach(function(t){ if(t.cx<m0)m0=t.cx; if(t.cx>m1)m1=t.cx; }); var sp=Math.max(1,m1-m0); return list.map(function(t){ return (t.cx-m0)/sp; }); }
-    var uA=u(TA), uB=u(TB), usedB={}, out=[];
+    if((a._outlineSrc||'local')!==(b._outlineSrc||'local')) return []; // ソース混在は点順が対応しない
+    var usedA={}, usedB={}, out=[];
+    function pushRing(rA,rB){ var n=Math.min(rA.length,rB.length); for(var k=0;k<n;k++) out.push({a:rA[k], b:rB[k]}); }
     for(var i=0;i<TA.length;i++){
+      var f=TA[i].fdi; if(!f || f==='unknown') continue;
+      for(var j=0;j<TB.length;j++){
+        if(usedB[j] || TB[j].fdi!==f) continue;
+        pushRing(TA[i].ring,TB[j].ring); usedA[i]=true; usedB[j]=true; break;
+      }
+    }
+    function u(list){ var m0=1e9,m1=-1e9; list.forEach(function(t){ if(t.cx<m0)m0=t.cx; if(t.cx>m1)m1=t.cx; }); var sp=Math.max(1,m1-m0); return list.map(function(t){ return (t.cx-m0)/sp; }); }
+    var uA=u(TA), uB=u(TB);
+    for(var i2=0;i2<TA.length;i2++){
+      if(usedA[i2]) continue;
       var best=-1, bd=0.055;                        // 歯幅の約半分以内のみマッチ
-      for(var j=0;j<TB.length;j++){ if(usedB[j]) continue; var d=Math.abs(uA[i]-uB[j]); if(d<bd){ bd=d; best=j; } }
+      for(var j2=0;j2<TB.length;j2++){ if(usedB[j2]) continue; var d=Math.abs(uA[i2]-uB[j2]); if(d<bd){ bd=d; best=j2; } }
       if(best<0) continue;
       usedB[best]=true;
-      var rA=TA[i].ring, rB=TB[best].ring, n=Math.min(rA.length,rB.length);
-      for(var k=0;k<n;k++) out.push({a:rA[k], b:rB[k]});
+      pushRing(TA[i2].ring,TB[best].ring);
     }
     return out;
   };
+
+  /* 閉ポリゴン → 等弧長16点リング。向き=時計回り・始点=最左頂点に正規化する
+     ことで、Before/After 双方に同じ規則を適用すれば index 対応が解剖学的対応になる。 */
+  function resampleRing(poly,N){
+    N=N||16;
+    if(!poly || poly.length<3) return null;
+    var area=0,i;
+    for(i=0;i<poly.length;i++){ var p=poly[i], q=poly[(i+1)%poly.length]; area+=(q.x-p.x)*(q.y+p.y); }
+    var pts=area<0 ? poly.slice().reverse() : poly.slice();
+    var s=0; for(i=1;i<pts.length;i++){ if(pts[i].x<pts[s].x-1e-6 || (Math.abs(pts[i].x-pts[s].x)<=1e-6 && pts[i].y<pts[s].y)) s=i; }
+    pts=pts.slice(s).concat(pts.slice(0,s));
+    var per=0, segs=[];
+    for(i=0;i<pts.length;i++){ var a2=pts[i], b2=pts[(i+1)%pts.length]; var L=Math.hypot(b2.x-a2.x,b2.y-a2.y); segs.push(L); per+=L; }
+    if(per<=0) return null;
+    var out=[], acc=0, seg=0;
+    for(var k=0;k<N;k++){
+      var target=per*k/N;
+      while(seg<pts.length-1 && acc+segs[seg]<target){ acc+=segs[seg]; seg++; }
+      var a3=pts[seg], b3=pts[(seg+1)%pts.length], tt=segs[seg]>0?(target-acc)/segs[seg]:0;
+      out.push({x:a3.x+(b3.x-a3.x)*tt, y:a3.y+(b3.y-a3.y)*tt});
+    }
+    return out;
+  }
+
+  /* ── サーバーAI輪郭（バックグラウンド自動実行）───────────────────────────
+     /api/dental_outline に Before/After を送り、歯1本ごとの閉輪郭(FDI付き)を受取る。
+     成功時はローカル検出の輪郭を上書き（サーバー優先）。失敗・未設定時は
+     ローカル検出のまま動作。window.CF_DISABLE_SERVER_OUTLINE=true で無効化。 */
+  function setOutlineStatus(msg){
+    var host=document.getElementById('cfCapCut'); if(!host) return;
+    var el=document.getElementById('cfOutlineStatus');
+    if(!el){
+      el=document.createElement('div'); el.id='cfOutlineStatus';
+      el.style.cssText='font-size:11px;font-weight:700;color:#7c5cff;margin:2px 2px 6px;min-height:14px;transition:opacity .3s';
+      var tr=document.getElementById('cfCapTransport');
+      if(tr && tr.parentNode===undefined) return;
+      if(tr) tr.parentNode.insertBefore(el,tr); else host.appendChild(el);
+    }
+    el.textContent=msg||'';
+    el.style.opacity=msg?'1':'0';
+  }
+  function shrinkForApi(dataUrl){
+    return new Promise(function(resolve){
+      var im=new Image();
+      im.onload=function(){
+        var sc=Math.min(1,768/Math.max(im.naturalWidth,im.naturalHeight));
+        var c=document.createElement('canvas');
+        c.width=Math.max(64,Math.round(im.naturalWidth*sc)); c.height=Math.max(64,Math.round(im.naturalHeight*sc));
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        resolve(c.toDataURL('image/jpeg',0.85));
+      };
+      im.onerror=function(){ resolve(null); };
+      im.src=dataUrl;
+    });
+  }
+  function applyServerTeeth(photo,teeth){
+    var rings=(teeth||[]).map(function(t){
+      var ring=resampleRing((t.poly||[]).map(function(p){ return {x:p[0]*100,y:p[1]*100}; }),16);
+      if(!ring) return null;
+      var cx=0; ring.forEach(function(p){ cx+=p.x; }); cx/=ring.length;
+      return {fdi:t.fdi, cx:cx, ring:ring};
+    }).filter(Boolean);
+    if(rings.length<2) return false;
+    photo._toothOutlines=rings;
+    photo._outlineSrc='server';
+    photo._serverOutline=true;
+    return true;
+  }
+  var serverBusy=false;
+  async function serverOutlines(){
+    if(window.CF_DISABLE_SERVER_OUTLINE || window.CF_DISABLE_AUTO_OUTLINE || serverBusy) return;
+    var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]))||[];
+    if(ph.length<2) return;
+    var sb=window.cfSupabase; if(!sb || !sb.auth) return;
+    var sess=null;
+    try{ sess=(await sb.auth.getSession()).data.session; }catch(e){}
+    if(!sess || !sess.access_token) return;
+    var todo=[];
+    for(var i=0;i<Math.min(ph.length-1,3);i++){
+      var A=ph[i], B=ph[i+1];
+      if(A._faceMesh || B._faceMesh) continue;
+      if((A._serverOutline||A._serverOutlineFail) && (B._serverOutline||B._serverOutlineFail)) continue;
+      todo.push([A,B]);
+    }
+    if(!todo.length) return;
+    serverBusy=true;
+    setOutlineStatus('AIが歯牙輪郭を解析中…');
+    var changed=false;
+    try{
+      for(var t2=0;t2<todo.length;t2++){
+        var A2=todo[t2][0], B2=todo[t2][1];
+        var imgs=await Promise.all([shrinkForApi(A2.dataUrl),shrinkForApi(B2.dataUrl)]);
+        if(!imgs[0]||!imgs[1]){ A2._serverOutlineFail=B2._serverOutlineFail=true; continue; }
+        var resp=await fetch('/api/dental_outline',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token},
+          body:JSON.stringify({before:imgs[0],after:imgs[1]})
+        });
+        var j=await resp.json().catch(function(){ return null; });
+        if(j && j.ok && j.before && j.after){
+          var okA=applyServerTeeth(A2,j.before.teeth), okB=applyServerTeeth(B2,j.after.teeth);
+          if(okA&&okB) changed=true; else { A2._serverOutlineFail=B2._serverOutlineFail=true; }
+        } else {
+          A2._serverOutlineFail=B2._serverOutlineFail=true;
+          if(j && j.reason==='gemini_not_configured'){ setOutlineStatus(''); serverBusy=false; return; }
+        }
+      }
+    }catch(e){ /* オフライン等 — ローカル検出のまま */ }
+    if(changed){
+      try{ window.__cfMorphGeoCache=null; }catch(e){}
+      try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
+      var n=((ph[0]&&ph[0]._toothOutlines)||[]).length;
+      setOutlineStatus('✓ AI歯牙輪郭を適用（'+n+'本検出）');
+      setTimeout(function(){ setOutlineStatus(''); },6000);
+      if(window.__cfShowToothOutline && window.cfDrawToothOverlay) setTimeout(window.cfDrawToothOverlay,400);
+    } else {
+      setOutlineStatus('');
+    }
+    serverBusy=false;
+  }
+  window.cfServerToothOutlines=serverOutlines;
 
   async function ensureAll(){
     if(window.CF_DISABLE_AUTO_OUTLINE) return;
@@ -28281,6 +28438,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
       if(window.CF_MORPH_DEBUG) console.log('[DentalOutline] auto landmarks applied');
     }
     if(window.__cfShowToothOutline && window.cfDrawToothOverlay) setTimeout(window.cfDrawToothOverlay,380);
+    try{ serverOutlines(); }catch(e){}             // バックグラウンドAI輪郭（await しない）
   }
   window.cfEnsureDentalOutlines=ensureAll;
 
@@ -28304,11 +28462,18 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
       ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.setLineDash(dash||[]);
       (ph._toothOutlines||[]).forEach(function(t){
         ctx.beginPath();
+        var cx=0,cy=0,n=(t.ring||[]).length||1;
         (t.ring||[]).forEach(function(p,i){
           var X=rect.x+rect.w*p.x/100, Y=rect.y+rect.h*p.y/100;
+          cx+=X; cy+=Y;
           if(i) ctx.lineTo(X,Y); else ctx.moveTo(X,Y);
         });
         ctx.closePath(); ctx.stroke();
+        if(t.fdi && t.fdi!=='unknown' && !dash){
+          ctx.setLineDash([]); ctx.fillStyle=color;
+          ctx.font='700 24px -apple-system,sans-serif';
+          ctx.fillText(t.fdi, cx/n-13, cy/n+8);
+        }
       });
       ctx.restore();
     }
