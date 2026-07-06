@@ -4757,9 +4757,9 @@ button[id="localMLDetectButton"]{
         </button>
 
       </div>
-      <button class="primary" data-i18n="home.cta" onclick="go('start')"><span class="ctaEn">Create a CaseFlow</span><br>はじめる</button>
+      <button class="primary" data-i18n="home.cta" onclick="go('start')"><span class="ctaEn">CREATE A CASEFLOW</span><br>はじめる</button>
       <div class="sampleSplit homeSampleButtons"><button class="secondary morphingSampleButton" onclick="openMorphingVideoSample()"><span class="sampleBtnTitle">Morphing Video Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()"><span class="sampleBtnTitle">Visual Simulation Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button></div>
-      <p class="note">v9.6</p>
+      <p class="note noteVer">V9.6</p>
       <p class="brandCredit">CASEFLOW STUDIO™ provided by NARRATIVE CHERISH</p>
     </div>
   </div>
@@ -27549,13 +27549,13 @@ var LANGS=[
 /* ja values mirror the original markup so the default look never changes. */
 var STR={
   'home.cta':{
-    ja:'<span class="ctaEn">Create a CaseFlow</span><br>はじめる',
-    en:'<span class="ctaEn">Create a CaseFlow</span>',
+    ja:'<span class="ctaEn">CREATE A CASEFLOW</span><br>はじめる',
+    en:'<span class="ctaEn">CREATE A CASEFLOW</span>',
     pt:'<span class="ctaEn">Criar um CaseFlow</span><br>Começar',
     it:'<span class="ctaEn">Crea un CaseFlow</span><br>Inizia',
     ar:'<span class="ctaEn">إنشاء CaseFlow</span><br>ابدأ',
     zh:'<span class="ctaEn">创建 CaseFlow</span><br>开始',
-    ko:'<span class="ctaEn">Create a CaseFlow</span><br>시작하기'},
+    ko:'<span class="ctaEn">CREATE A CASEFLOW</span><br>시작하기'},
   'common.viewSample':{
     ja:'サンプルをみる', en:'View sample', pt:'Ver amostra', it:'Vedi esempio',
     ar:'عرض نموذج', zh:'查看示例', ko:'샘플 보기'},
@@ -28530,6 +28530,20 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
 /* In installed (standalone) mode, suppress rubber-band / overscroll so it feels
    like an app. Normal scrollable screens still scroll (screens keep overflow). */
 body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
+
+/* Version badge (V9.6): bold gothic, slightly larger, coloured like the
+   CREATE A CASEFLOW button (var(--brandAccent) = the CTA background). */
+#home .panel .noteVer{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif!important;
+  font-weight:900!important;
+  font-size:15px!important;
+  letter-spacing:.05em;
+  color:var(--brandAccent,#7c5cff)!important;
+  background:transparent!important;
+  text-shadow:none!important;
+}
+/* CTA reads all-caps in every language that keeps Latin text */
+#home .primary .ctaEn{ text-transform:uppercase; letter-spacing:.03em; }
 
 /* Add-to-Home / install hint banner */
 #cfPwaBanner{
