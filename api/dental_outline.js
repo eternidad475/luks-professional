@@ -63,14 +63,19 @@ function normSide(side) {
 }
 
 const PROMPT = [
-  'You are a dental imaging analyst. You receive a BEFORE intraoral/smile photo (first image) and an AFTER photo (second image) of the same patient.',
-  'For EACH image, trace the visible crown outline of EACH clearly visible tooth as a closed polygon, like a rotoscoping mask around every individual tooth.',
+  'You are a dental imaging analyst tracing precise per-tooth masks for a morphing tool (like manually rotoscoping each tooth in After Effects).',
+  'You receive a BEFORE intraoral/smile photo (first image) and an AFTER photo (second image) of the same patient.',
+  'For EACH image, trace the visible crown outline of EACH clearly visible tooth as a CLOSED polygon that hugs the true crown silhouette tightly.',
+  'Precision requirements (these are essential — trace them carefully, do not approximate with a rounded blob):',
+  '1. INCISAL / OCCLUSAL EDGE: for upper and lower anterior teeth, place SEVERAL points along the incisal edge so its exact contour (including chips, wear, curvature) is captured, not a single flat line.',
+  '2. INTERPROXIMAL CONTACTS: follow the mesial and distal surfaces down into each interproximal contact point. Where there is a gap/space (diastema) or a missing/worn area, trace the real edge of the space — do NOT bridge across it.',
+  '3. GINGIVAL SCALLOP: follow the scalloped gingival margin (the zenith and the interdental papilla curve) precisely along the top of each crown — this scallop shape is required.',
   'Rules:',
-  '- One polygon per tooth. 10 to 24 points per polygon, ordered clockwise, following the actual crown silhouette (gingival margin, mesial/distal line angles, incisal/occlusal edge).',
-  '- Coordinates normalized 0..1 relative to THAT image: [x, y] with x rightward, y downward.',
-  '- Label each tooth with its FDI two-digit number (11-48). Use the SAME FDI number for the same tooth in both images so they can be matched.',
-  '- Only outline teeth whose full crown silhouette is clearly visible; skip badly blurred or mostly hidden teeth. Never invent teeth.',
-  '- A tooth missing in one image simply has no entry for that image.',
+  '- One polygon per tooth. 14 to 30 points, ordered clockwise, denser where curvature is high (incisal edge, line angles, papilla).',
+  '- Coordinates normalized 0..1 relative to THAT image: [x, y], x rightward, y downward. Use full decimal precision.',
+  '- Label each tooth with its FDI two-digit number (11-48). Use the SAME FDI number for the same tooth in both images so they can be matched. Double-check central incisors are 11/21 and laterals 12/22.',
+  '- Only outline teeth whose crown silhouette is clearly visible; skip badly blurred or mostly hidden teeth. Never invent teeth or edges you cannot see.',
+  '- A tooth missing in one image simply has no entry for that image (do not fabricate it).',
   'Respond with STRICT JSON only (no markdown), schema:',
   '{"before":{"teeth":[{"fdi":"11","confidence":0..1,"poly":[[0.42,0.31],[0.44,0.30], "..."]}]},"after":{"teeth":[ "..." ]}}'
 ].join('\n');
