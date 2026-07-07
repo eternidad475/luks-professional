@@ -12564,11 +12564,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const la = ensureLM(photoA), lb = ensureLM(photoB);
     let userCount = 0;
+    // A type counts as "pure auto" only if it still holds EXACTLY the points the
+    // auto-outline injected (untouched). The moment the user adds/moves/deletes a
+    // point the count changes → it's treated as manual and ALWAYS included, so
+    // manual edits are never dropped by the flow/server preference below.
+    function _pureAuto(p, lm, type){
+      return p._autoLM && p._autoLM[type] && p._autoLMN &&
+             (lm[type]||[]).length === p._autoLMN[type];
+    }
     ['lip','gingiva','incisal'].forEach(type=>{
-      // Auto-injected outline lines are index-paired heuristics; when the flow
-      // grid or server rings are confident they only add noise, so keep manual
-      // points but skip the auto ones. (photo._autoLM marks auto-filled types.)
-      if((flowOK||_srvRings) && photoA._autoLM && photoA._autoLM[type] && photoB._autoLM && photoB._autoLM[type]) return;
+      // When the flow grid or server rings are confident, the auto-injected
+      // outline lines (index-paired heuristics) only add noise — skip them, but
+      // NEVER skip a type the user has actually edited.
+      if((flowOK||_srvRings) && _pureAuto(photoA,la,type) && _pureAuto(photoB,lb,type)) return;
       const A = la[type] || [], B = lb[type] || [];
       const n = Math.min(A.length, B.length);
       for(let i=0;i<n;i++){
@@ -24165,10 +24173,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   function refresh(){
     var box=ensureUI(); if(!box) return;
+    // Keep the ratio buttons, the stage aspect and the export size all locked to
+    // state.ratio — a restored/persisted ratio must show its button as active AND
+    // shape the stage (they could previously desync: markup defaults to 4:5).
+    var _r=(window.state&&state.ratio)||'4:5';
+    box.querySelectorAll('.cfCapRat').forEach(function(b){ b.classList.toggle('on', b.dataset.ratio===_r); });
     var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
     // Sync canvas intrinsic size to current ratio (clears canvas, re-render follows below)
     var cv=$id('cfCapCanvas');
-    if(cv){ var rd=ratioWH((window.state&&state.ratio)||'4:5'); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
+    if(cv){ var rd=ratioWH(_r); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
     /* Show Clinical Warp waiting overlay while canvas initialises */
     var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]));
     var wait=$id('cfCWWait');
@@ -25324,7 +25337,28 @@ body.cfPresent .cfPresentExit{display:flex!important}
       drawImgTf(ctx,s.imgs[i],s.tf[i],s.fits[i]);
       ctx.restore();
       var src=photos[i]||{};
-      out.push({dataUrl:cv.toDataURL('image/jpeg',0.95), label:src.label||'', category:src.category||'focus', _alignFrom:i});
+      // Carry the user's MANUAL landmarks into the aligned image so they still
+      // drive the morph (the aligned copy is what the preview/export reads via
+      // cfGetMorphSource). Points are 0..100 of the source image; map each
+      // through the exact align transform into 0..100 of the aligned crop.
+      // Pure-auto points are skipped — auto-outline re-derives them on the new
+      // image (its _dentalOutline is undefined on this fresh object).
+      var _tf=s.tf[i], _fit=s.fits[i], _cos=Math.cos(_tf.rot), _sin=Math.sin(_tf.rot);
+      function _mapLM(pt){
+        var lx=(pt.x/100-0.5)*_fit.w, ly=(pt.y/100-0.5)*_fit.h;
+        var wx=C.x+_tf.tx+_tf.scale*(_cos*lx-_sin*ly);
+        var wy=C.y+_tf.ty+_tf.scale*(_sin*lx+_cos*ly);
+        return {x:(wx-crop.x0)*so/outW*100, y:(wy-crop.y0)*so/outH*100};
+      }
+      var _srcLM=src.manualLandmarks||{}, _outLM={lip:[],gingiva:[],incisal:[]}, _carried=false;
+      ['lip','gingiva','incisal'].forEach(function(t){
+        var arr=_srcLM[t]||[];
+        var pureAuto=src._autoLM&&src._autoLM[t]&&src._autoLMN&&arr.length===src._autoLMN[t];
+        if(arr.length && !pureAuto){ _outLM[t]=arr.map(_mapLM); _carried=true; }
+      });
+      var op={dataUrl:cv.toDataURL('image/jpeg',0.95), label:src.label||'', category:src.category||'focus', _alignFrom:i};
+      if(_carried) op.manualLandmarks=_outLM;
+      out.push(op);
     }
     return out;
   }
@@ -28302,10 +28336,12 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     // 手動点が無い type にだけ自動点を注入（手動編集は常に優先・上書きしない）
     photo.manualLandmarks=photo.manualLandmarks||{lip:[],gingiva:[],incisal:[]};
     photo._autoLM=photo._autoLM||{};
+    photo._autoLMN=photo._autoLMN||{};                 // 注入時の点数（手動編集の検出用）
     ['lip','gingiva','incisal'].forEach(function(t){
       if((photo.manualLandmarks[t]||[]).length===0){
         photo.manualLandmarks[t]=o[t].map(function(p){ return {x:p.x,y:p.y}; });
         photo._autoLM[t]=true;
+        photo._autoLMN[t]=o[t].length;
       }
     });
     return o;
@@ -28389,7 +28425,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     return new Promise(function(resolve){
       var im=new Image();
       im.onload=function(){
-        var sc=Math.min(1,768/Math.max(im.naturalWidth,im.naturalHeight));
+        var sc=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight));
         var c=document.createElement('canvas');
         c.width=Math.max(64,Math.round(im.naturalWidth*sc)); c.height=Math.max(64,Math.round(im.naturalHeight*sc));
         c.getContext('2d').drawImage(im,0,0,c.width,c.height);
@@ -28401,7 +28437,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
   }
   function applyServerTeeth(photo,teeth){
     var rings=(teeth||[]).map(function(t){
-      var ring=resampleRing((t.poly||[]).map(function(p){ return {x:p[0]*100,y:p[1]*100}; }),16);
+      var ring=resampleRing((t.poly||[]).map(function(p){ return {x:p[0]*100,y:p[1]*100}; }),24);
       if(!ring) return null;
       // Reject collapsed rings: AI polygons sometimes flatten into a thin band
       // (poor vertical precision) — those look wrong in the overlay AND distort
