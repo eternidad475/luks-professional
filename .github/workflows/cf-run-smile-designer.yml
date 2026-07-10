@@ -29,13 +29,14 @@ jobs:
           set +e
           python3 - <<'PY' > docs/smile-designer-run.log 2>&1
           from pathlib import Path
-          import textwrap, traceback
+          import traceback
           try:
               wf=Path('.github/workflows/cf-smile-designer-implement.yml').read_text(encoding='utf-8')
               marker="python3 - <<'PY'\n"
               start=wf.index(marker)+len(marker)
               end=wf.index("\n          PY", start)
-              code=textwrap.dedent(wf[start:end])
+              raw=wf[start:end].splitlines()
+              code='\n'.join(line[10:] if line.startswith('          ') else line for line in raw)
               ns={'__name__':'__main__'}
               exec(compile(code,'cf-smile-designer-implement','exec'),ns,ns)
               print('PATCH_OK')
