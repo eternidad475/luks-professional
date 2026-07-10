@@ -1,0 +1,3122 @@
+line_count=30183
+hit_count=109
+
+===== LINES 4521-4562 =====
+04521:   function show(){
+04522:     var g=document.getElementById('cfDemoGate'); if(!g) return;
+04523:     g.style.display='flex';
+04524:     var inp=document.getElementById('cfDemoInput'), btn=document.getElementById('cfDemoBtn'), err=document.getElementById('cfDemoErr');
+04525:     function tryUnlock(){
+04526:       if((inp.value||'').trim()===CF_DEMO_CODE){
+04527:         try{ localStorage.setItem(KEY,'1'); }catch(e){}
+04528:         g.style.display='none';
+04529:       } else { err.style.display='block'; inp.value=''; inp.focus(); }
+04530:     }
+04531:     btn.addEventListener('click',tryUnlock);
+04532:     inp.addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
+04533:     setTimeout(function(){ try{inp.focus();}catch(e){} },50);
+04534:   }
+04535:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',show); else show();
+04536: })();
+04537: </script>
+04538: <!-- ===== Supabase login gate (Phase 3-A) ===== -->
+04539: <div id="cfAuthGate" style="position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:24px;
+04540:   background:linear-gradient(150deg,#7c5cff 0%,#be7ed6 50%,#ff9fd6 100%);
+04541:   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif">
+04542:   <div style="width:100%;max-width:380px;background:rgba(255,255,255,.94);border-radius:24px;padding:30px 26px;
+04543:     box-shadow:0 24px 70px rgba(40,20,80,.28);color:#231a3a">
+04544:     <div style="text-align:center">
+04545:       <div style="font-weight:900;letter-spacing:.06em;font-size:15px;color:#5b3fd6">CASEFLOW STUDIO™</div>
+04546:       <div style="font-size:12.5px;color:#7a7290;margin:6px 0 18px">Clinical beauty, visualized.</div>
+04547:     </div>
+04548:     <div style="display:flex;gap:6px;background:rgba(124,92,255,.08);border-radius:12px;padding:4px;margin-bottom:18px">
+04549:       <button id="cfTabLogin"  type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:#fff;color:#5b3fd6;box-shadow:0 2px 8px rgba(40,20,80,.10)">ログイン</button>
+04550:       <button id="cfTabSignup" type="button" style="flex:1;padding:9px;border:0;border-radius:9px;cursor:pointer;font-weight:800;font-size:13.5px;background:transparent;color:#7a7290">新規登録</button>
+04551:     </div>
+04552:     <label style="display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px">メールアドレス</label>
+04553:     <input id="cfAuthEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@clinic.jp"
+04554:       style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:12px">
+04555:     <label style="display:block;font-size:12px;font-weight:700;color:#5b3fd6;margin:0 0 4px">パスワード</label>
+04556:     <input id="cfAuthPass" type="password" autocomplete="current-password" placeholder="6文字以上"
+04557:       style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid rgba(124,92,255,.3);border-radius:11px;font-size:16px;outline:none;margin-bottom:14px">
+04558:     <div id="cfAuthMsg" style="display:none;font-size:12.5px;margin-bottom:12px;padding:9px 11px;border-radius:9px;line-height:1.6"></div>
+04559:     <button id="cfAuthSubmit" type="button" style="width:100%;padding:13px;border:0;border-radius:12px;cursor:pointer;
+04560:       background:linear-gradient(135deg,#7c5cff,#b06bff);color:#fff;font-weight:800;font-size:15px">ログイン</button>
+04561:     <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:#9a93b0;font-size:11px;font-weight:700">
+04562:       <span style="flex:1;height:1px;background:rgba(124,92,255,.18)"></span>または<span style="flex:1;height:1px;background:rgba(124,92,255,.18)"></span>
+
+===== LINES 4673-4762 =====
+04673:        Supabase → Authentication → Providers. Redirects back to this app. ---- */
+04674:     async function oauth(provider){
+04675:       clearMsg(); showMsg('Googleに接続しています…','info');
+04676:       try{
+04677:         var r = await sb.auth.signInWithOAuth({
+04678:           provider: provider,
+04679:           options: { redirectTo: window.location.origin + window.location.pathname }
+04680:         });
+04681:         if(r.error){ showMsg(translate(r.error.message),'err'); }
+04682:       }catch(e){ showMsg('外部ログインに接続できませんでした。','err'); }
+04683:     }
+04684:     var gBtn=el('cfOAuthGoogle');
+04685:     if(gBtn) gBtn.addEventListener('click',function(){ oauth('google'); });
+04686: 
+04687:     /* ---- Token balance: badge, refresh, consume (free-trial = 10) ---- */
+04688:     function renderBadge(n){
+04689:       if(!badge) return;
+04690:       badge.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:2px;display:inline-block"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2"/></svg>' + (n==null ? '…' : n);
+04691:       badge.style.color = (n!=null && n<=0) ? '#c0303a' : '#5b3fd6';
+04692:     }
+04693:     window.cfRenderTokenBadge = renderBadge;
+04694:     async function refreshTokens(){
+04695:       try{
+04696:         var s = await sb.auth.getUser();
+04697:         var uid = s && s.data && s.data.user && s.data.user.id;
+04698:         if(!uid){ renderBadge(null); return; }
+04699:         var q = await sb.from('profiles').select('tokens_remaining').eq('id', uid).single();
+04700:         if(q.error){ renderBadge(null); return; }
+04701:         var n = q.data ? q.data.tokens_remaining : null;
+04702:         window.__cfTokens = n; renderBadge(n);
+04703:       }catch(e){ renderBadge(null); }
+04704:     }
+04705:     window.cfRefreshTokens = refreshTokens;
+04706: 
+04707:     /* Consume one token for an AI generation. Returns {ok:true,remaining} or
+04708:        {ok:false,reason:'insufficient'|'auth'|'error'}. Atomic on the server. */
+04709:     window.cfConsumeToken = async function(reason){
+04710:       try{
+04711:         var r = await sb.rpc('consume_token', { p_reason: reason||'generation' });
+04712:         if(r.error){
+04713:           var m = String(r.error.message||'');
+04714:           if(/insufficient/i.test(m)) { renderBadge(0); return { ok:false, reason:'insufficient' }; }
+04715:           if(/not authenticated|28000/i.test(m)) return { ok:false, reason:'auth' };
+04716:           return { ok:false, reason:'error', message:m };
+04717:         }
+04718:         var n = r.data; window.__cfTokens = n; renderBadge(n);
+04719:         return { ok:true, remaining:n };
+04720:       }catch(e){ return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+04721:     };
+04722: 
+04723:     /* Token-empty modal */
+04724:     var emptyModal=el('cfTokenEmpty'), emptyClose=el('cfTokenEmptyClose');
+04725:     window.cfShowTokenEmpty = function(){ if(emptyModal) emptyModal.style.display='flex'; };
+04726:     if(emptyClose) emptyClose.addEventListener('click',function(){ if(emptyModal) emptyModal.style.display='none'; });
+04727: 
+04728:     sb.auth.onAuthStateChange(function(_evt, session){
+04729:       if(session){ closeGate(); } else { openGate(); }
+04730:     });
+04731:     sb.auth.getSession().then(function(res){
+04732:       if(res && res.data && res.data.session){ closeGate(); } else { openGate(); setMode('login'); }
+04733:     }).catch(function(){ openGate(); setMode('login'); });
+04734:   }
+04735:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+04736: })();
+04737: </script>
+04738: <main class="app">
+04739: <div class="marble"></div>
+04740: 
+04741: 
+04742: <section class="screen active" id="home">
+04743:   <div class="hero">
+04744:     <div class="brand">
+04745:       <div class="brandLogo" role="img" aria-label="CaseFlow Studio"></div>
+04746:       <p class="brandSubtitle">&nbsp;Clinical beauty, visualized.</p>
+04747:     </div>
+04748: <div class="homePartners" aria-hidden="true">
+04749:       <span class="partnerMark partnerDentistry" role="img" aria-label="For Dentistry"></span>
+04750:       <span class="partnerMark partnerCds" role="img" aria-label="Clinical Design Systems"></span>
+04751:     </div>
+04752:     <div class="panel">
+04753:       <div class="homeUtility">
+04754:         <button type="button" class="cfLangBtn" id="cfLangHomeBtn" aria-label="Language / 言語設定" aria-haspopup="dialog">JA</button>
+04755:         <button type="button" class="cfPaletteButton" id="cfPaletteTrigger" aria-label="Open gradient palette">
+04756:           <span class="cfPaletteSplit" aria-hidden="true"></span>
+04757:         </button>
+04758: 
+04759:       </div>
+04760:       <button class="primary" data-i18n="home.cta" onclick="go('start')"><span class="ctaEn">Create a CaseFlow</span><br>はじめる</button>
+04761:       <div class="sampleSplit homeSampleButtons"><button class="secondary morphingSampleButton" onclick="openMorphingVideoSample()"><span class="sampleBtnTitle">Morphing Video Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button><button class="secondary simulationSampleButton" onclick="showSimulationSampleResults()"><span class="sampleBtnTitle">Visual Simulation Studio™︎</span><span class="sampleBtnSub" data-i18n="common.viewSample">サンプルをみる</span></button></div>
+04762:       <p class="note noteVer">V9.6</p>
+
+===== LINES 4923-4964 =====
+04923:     <p class="caption" id="resultCaption">UI確認用の仮生成です。</p>
+04924:   </div>
+04925:   </div>
+04926:   <div id="cfSmileDesignerHost"></div>
+04927:   <div class="card simEditPanel" id="simResultEditPanel">
+04928:     <div class="simFinishHead">
+04929:       <div><b>Image edit controls</b><span>中央＝エビデンスベース／左＝現状／右＝最大。動かすと自動で再生成。Shade はローカルでも反映、歯列・形態・歯肉ライン等の形状変更は AI バックエンド接続時に術後イメージへ反映されます。</span></div>
+04930:       <div class="simSourceBadge">Edit</div>
+04931:     </div>
+04932:     <!-- v9.6 aesthetic correction axes. Built/bound by the v9.6 script (cf-v96-simulation-studio). -->
+04933:     <div class="simSliderGrid" id="simV96EditGrid"></div>
+04934:   </div>
+04935:   <div class="toolbar cfResultActions">
+04936:     <button class="tool" data-i18n="result.regenerate" onclick="generateSimulation()">再生成<br>Again</button>
+04937:     <button class="tool" id="cfRefineBtn" onclick="runSecondaryRefinement()" title="上顎前歯ゴールデンプロポーション二次精密生成" style="display:none;background:linear-gradient(135deg,#7c5cff,#c47eff);color:#fff;border-color:transparent">✦ Refine<br>精密生成</button>
+04938:     <button class="tool cfLibraryBtn" onclick="go('library')" title="Library を開く（生成画像は自動保存されます）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
+04939:   </div>
+04940:   <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
+04941: </section>
+04942: 
+04943: 
+04944: 
+04945: <section class="screen soft" id="sampleResults">
+04946:   <div class="topbar">
+04947:     <button class="iconbtn" onclick="go('home')">‹</button>
+04948:     <div><h2 class="title">Sample Results</h2><p class="subtitle">Before / After comparison / スライダー比較</p></div>
+04949:     <button class="linkbtn" onclick="go('simulator')">Studio</button>
+04950:   </div>
+04951:   <div class="compareGrid">
+04952:     <article class="compareCard">
+04953:       <div class="compareHead"><b>Focus</b><span>micro / lip-teeth comparison</span></div>
+04954:       <div class="compareSlider focus" id="focusCompare">
+04955:         <img class="compareBefore" id="sampleFocusBefore" alt="Focus before">
+04956:         <img class="compareAfter" id="sampleFocusAfter" alt="Focus after">
+04957:         <div class="compareDivider"></div><div class="compareHandle"></div>
+04958:         <div class="compareLabels"><span>Before</span><span>After</span></div>
+04959:       </div>
+04960:       <div class="compareNote">口元・歯列の変化を確認するための Focus 比較です。左右にドラッグして確認できます。</div>
+04961:     </article>
+04962:     <article class="compareCard">
+04963:       <div class="compareHead"><b>Facial</b><span>macro / face-smile comparison</span></div>
+04964:       <div class="compareSlider facial" id="facialCompare">
+
+===== LINES 5399-5443 =====
+05399:   // Update subtitle to reflect actual Library save status
+05400:   const sub=document.getElementById('exportSubtitle');
+05401:   if(sub) sub.textContent='Libraryに保存済み / Saved to Library';
+05402:   go('export');
+05403: }
+05404: function setExport(dataUrl){setExportBlob(dataUrlToBlob(dataUrl),'caseflow.jpg','image/jpeg')}
+05405: async function exportMp4(){
+05406:   if(state.photos.length<2){toast('写真を2枚以上追加してください');return}
+05407:   pausePreview();const status=$('toast');toast('Rendering case video…');
+05408:   const payload={images:state.photos.map(p=>p.dataUrl),labels:state.photos.map(p=>p.label||''),
+05409:     aspect:state.ratio,template:state.template,title:($('projectTitle')?.value||state.title||''),
+05410:     colors:[$('colorA').value,$('colorB').value],method:'flow',
+05411:     fps:30,transition:Math.max(.6,(+$('morphDuration').value)/1000),hold:0.7};
+05412:   try{
+05413:     const res=await fetch('/api/morph_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+05414:     const j=await res.json();
+05415:     if(!j.ok){toast('生成エラー: '+(j.error||'不明'));return}
+05416:     const vres=await fetch(j.video_url);const blob=await vres.blob();
+05417:     setExportBlob(blob,'caseflow.mp4','video/mp4');toast('MP4を作成しました。保存先を選択してください');
+05418:   }catch(err){toast('動画生成エンジンに接続できません（画像書き出しをご利用ください）')}
+05419: }
+05420: function exportPreview(){if(!state.photos.length){toast('写真を追加してください');return}pausePreview();drawMorph(.5);const src=$('morphCanvas'),c=document.createElement('canvas');c.width=1080;c.height=state.ratio==='16:9'?608:state.ratio==='1:1'?1080:state.ratio==='4:5'?1350:1920;const ctx=c.getContext('2d'),grad=ctx.createLinearGradient(0,0,c.width,c.height);grad.addColorStop(0,getComputedStyle(document.documentElement).getPropertyValue('--c1').trim()||'#7c5cff');grad.addColorStop(1,getComputedStyle(document.documentElement).getPropertyValue('--c2').trim()||'#ff9fd6');ctx.fillStyle=grad;ctx.fillRect(0,0,c.width,c.height);const scale=Math.max(c.width/src.width,c.height/src.height),w=src.width*scale,h=src.height*scale;ctx.drawImage(src,(c.width-w)/2,(c.height-h)/2,w,h);ctx.fillStyle='rgba(255,255,255,.78)';roundRect(ctx,44,44,260,58,29);ctx.fill();ctx.fillStyle='#201b35';ctx.font='bold 30px -apple-system,BlinkMacSystemFont,sans-serif';ctx.fillText(state.photos[state.previewIndex]?.label||'Preview',68,83);ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='24px -apple-system,BlinkMacSystemFont,sans-serif';ctx.fillText('CaseFlow Studio',44,c.height-54);setExport(c.toDataURL('image/jpeg',.93));toast('書き出し画像を作成しました')}
+05421: function saveResult(){const img=$('resultAfter').src;if(!img){toast('生成結果がありません');return}setExport(img);toast('保存先を選択してください')}
+05422: function exportFile(){return state.lastBlob?new File([state.lastBlob],state.lastName,{type:state.lastType}):null}
+05423: async function savePhotos(){const f=exportFile();if(!f){toast('先に書き出してください');return}const isVid=state.lastType.indexOf('video')===0;if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){try{await navigator.share({files:[f],title:'CaseFlow Studio'});toast(isVid?'共有シートから「ビデオを保存」を選んでください':'共有シートから「画像を保存」を選んでください');return}catch(e){if(e.name==='AbortError')return}}if(state.lastUrl)window.open(state.lastUrl,'_blank');toast(isVid?'動画を長押しして保存してください':'画像を長押しして「“写真”に追加」を選んでください')}
+05424: function saveFiles(){if(!state.lastUrl){toast('先に書き出してください');return}const a=document.createElement('a');a.href=state.lastUrl;a.download=state.lastName;document.body.appendChild(a);a.click();a.remove();toast('「ファイル」アプリに保存されます')}
+05425: async function shareSNS(){
+05426:   // Validate blob before attempting any save
+05427:   if(!state.lastBlob||!state.lastBlob.size){
+05428:     console.error('[CaseFlow Export Save Error] No valid blob in state for share');
+05429:     toast('保存できる動画がありません。先にプレビュー動画を生成してください');
+05430:     return;
+05431:   }
+05432:   // Build File from stored blob — prefer .mp4 filename for iOS compatibility
+05433:   var blobType=state.lastType||'video/mp4';
+05434:   var ext=blobType.indexOf('mp4')>=0?'mp4':'webm';
+05435:   var fileName='caseflow_preview_video.'+ext;
+05436:   var f=new File([state.lastBlob],fileName,{type:blobType});
+05437:   // Track B: Device save via navigator.share() (iOS Safari compatible)
+05438:   if(navigator.share){
+05439:     try{
+05440:       if(navigator.canShare&&navigator.canShare({files:[f]})){
+05441:         await navigator.share({files:[f],title:'CaseFlow Preview Video',text:'CASEFLOW STUDIO™ Preview Video'});
+05442:       }else{
+05443:         await navigator.share({title:'CaseFlow Preview Video',text:'CASEFLOW STUDIO™ Preview Video'});
+
+===== LINES 5657-5698 =====
+05657:     try{
+05658:       var saved = JSON.parse(localStorage.getItem('caseflow_v43_colors') || localStorage.getItem('caseflow_v37_colors') || localStorage.getItem('caseflow_v35_colors') || 'null');
+05659:       if(saved && ca && cb){
+05660:         ca.value = saved.a || ca.value;
+05661:         cb.value = saved.b || cb.value;
+05662:       }
+05663:     }catch(e){}
+05664:     if(ca) ca.addEventListener('input', window.caseflowApplyPalette);
+05665:     if(cb) cb.addEventListener('input', window.caseflowApplyPalette);
+05666:     document.addEventListener('keydown', function(e){
+05667:       if(e.key === 'Escape') window.closePalette();
+05668:     });
+05669:     window.caseflowApplyPalette();
+05670:   }
+05671:   if(document.readyState === 'loading'){
+05672:     document.addEventListener('DOMContentLoaded', init);
+05673:   }else{
+05674:     init();
+05675:   }
+05676: })();
+05677: </script>
+05678: 
+05679: 
+05680: <script>
+05681: /* v4.4 rebuilt palette controller */
+05682: (function(){
+05683:   const root = document.documentElement;
+05684:   const $id = id => document.getElementById(id);
+05685: 
+05686:   function rgb(hex){
+05687:     hex = String(hex || '').replace('#','').trim();
+05688:     if(!/^[0-9a-fA-F]{6}$/.test(hex)) return [255,255,255];
+05689:     return [parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16)];
+05690:   }
+05691:   function mix(a,b,t){
+05692:     const A=rgb(a), B=rgb(b);
+05693:     const m=A.map((v,i)=>Math.round(v*(1-t)+B[i]*t));
+05694:     return '#' + m.map(v=>v.toString(16).padStart(2,'0')).join('');
+05695:   }
+05696:   function luminance(hex){
+05697:     const vals = rgb(hex).map(v=>{
+05698:       v/=255;
+
+===== LINES 5802-5843 =====
+05802:     $id('cfColorA')?.addEventListener('input',()=>applyPalette());
+05803:     $id('cfColorB')?.addEventListener('input',()=>applyPalette());
+05804:     $id('cfColorA')?.addEventListener('change',()=>applyPalette());
+05805:     $id('cfColorB')?.addEventListener('change',()=>applyPalette());
+05806:     $id('cfShufflePalette')?.addEventListener('click',shuffle);
+05807:     $id('cfPalettePreview')?.addEventListener('click',swap);
+05808:     document.querySelectorAll('.cfPreset').forEach(btn=>{
+05809:       btn.addEventListener('click',()=>setPalette(btn.dataset.a,btn.dataset.b));
+05810:     });
+05811:     document.addEventListener('keydown',e=>{ if(e.key==='Escape') setOpen(false); });
+05812:     applyPalette(false);
+05813:     window.cfApplyPalette=applyPalette;
+05814:     window.cfSetPalette=setPalette;
+05815:   }
+05816:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+05817:   else init();
+05818: })();
+05819: </script>
+05820: 
+05821: 
+05822: <script>
+05823: /* ---------- v4.5 overrides: reliable sample sets + categories ---------- */
+05824: (function(){
+05825:   const SAMPLE_FOCUS_BEFORE = "media/inline/sample-focus-before.jpg";
+05826:   const SAMPLE_FOCUS_AFTER  = "media/inline/sample-focus-after.jpg";
+05827:   const SAMPLE_FACIAL_BEFORE = "media/inline/sample-facial-before.jpg";
+05828:   const SAMPLE_FACIAL_AFTER  = "media/inline/sample-facial-after.jpg";
+05829:   window.__CFI={focusBefore:SAMPLE_FOCUS_BEFORE,focusAfter:SAMPLE_FOCUS_AFTER,facialBefore:SAMPLE_FACIAL_BEFORE,facialAfter:SAMPLE_FACIAL_AFTER};
+05830: 
+05831:   function ensureCategories(){
+05832:     if(!window.state || !Array.isArray(state.photos)) return;
+05833:     state.photos.forEach((p,idx)=>{
+05834:       if(!p.category) p.category = (idx >= 2 ? 'facial' : 'focus');
+05835:       if(!p.label) p.label = idx % 2 === 0 ? 'Before' : 'After';
+05836:     });
+05837:   }
+05838: 
+05839:   window.setCategory = function(i,v){
+05840:     if(!state.photos[i]) return;
+05841:     state.photos[i].category = v;
+05842:     renderUpload();
+05843:   };
+
+===== LINES 6342-6383 =====
+06342:     const st = $id('aiStatus');
+06343:     if(ai && st){
+06344:       st.textContent = ai.checked ? 'AI backend mode: Replit API connection required.' : 'Local preview mode. Replit backend can be connected.';
+06345:       ai.onchange = () => {
+06346:         st.textContent = ai.checked ? 'AI backend mode: Replit API connection required.' : 'Local preview mode. Replit backend can be connected.';
+06347:       };
+06348:     }
+06349:   };
+06350: 
+06351:   async function callAISimulation(){
+06352:     const source = state.simMicro || state.simMacro || state.photos.find(p=>p.category==='focus') || state.photos[0];
+06353:     if(!source){ toast('先に Macro / Facial と Micro / Focus を設定してください'); return false; }
+06354:     toast('AI Simulation backend に接続中…');
+06355:     try{
+06356:       const res = await fetch('/api/ai_simulation',{
+06357:         method:'POST',
+06358:         headers:{'Content-Type':'application/json'},
+06359:         body:JSON.stringify({
+06360:           macro:(state.simMacro||{}).dataUrl||'',
+06361:           micro:(state.simMicro||{}).dataUrl||source.dataUrl,
+06362:           treatment:state.treatment||'',
+06363:           prompt:($id('promptBox')||{}).value||'',
+06364:           intensity:+(($id('simIntensity')||{}).value||55)
+06365:         })
+06366:       });
+06367:       const j = await res.json();
+06368:       if(!j.ok){
+06369:         toast(j.error || 'AI backend is not configured');
+06370:         return false;
+06371:       }
+06372:       if($id('resultBefore')) $id('resultBefore').src = source.dataUrl;
+06373:       if($id('resultAfter')) $id('resultAfter').src = j.image;
+06374:       if($id('resultCaption')) $id('resultCaption').textContent = 'AI-generated reference preview. Not diagnostic, not a guaranteed result.';
+06375:       go('result');
+06376:       return true;
+06377:     }catch(e){
+06378:       toast('AI backend に接続できません。Local preview に切り替えます。');
+06379:       return false;
+06380:     }
+06381:   }
+06382: 
+06383:   const localGenerate = window.generateSimulation;
+
+===== LINES 8848-8889 =====
+08848:     if(window.renderUpload) renderUpload();
+08849:   });
+08850: })();
+08851: </script>
+08852: 
+08853: 
+08854: <script type="module">
+08855: /* ---------- v5.2 result-only samples + MediaPipe local ML ---------- */
+08856: const CASEFLOW_SAMPLE_MORPH_VIDEO = "media/inline/sample-morph-video.webm";
+08857: const CASEFLOW_SAMPLE_FACIAL_OUTPUT = window.__CFI.facialAfter;
+08858: const CASEFLOW_SAMPLE_FOCUS_OUTPUT = window.__CFI.focusAfter;
+08859: 
+08860: const CaseFlowLocalML = {
+08861:   ready:false,
+08862:   loading:false,
+08863:   faceLandmarker:null,
+08864:   source:'rule-based',
+08865:   _promise:null,
+08866: };
+08867: 
+08868: window.showMorphSampleResult = async function(){
+08869:   try{
+08870:     const video = document.getElementById('exportVideo');
+08871:     const image = document.getElementById('exportImage');
+08872:     if(image) image.style.display='none';
+08873:     if(video){
+08874:       video.style.display='block';
+08875:       video.src = CASEFLOW_SAMPLE_MORPH_VIDEO;
+08876:       video.load();
+08877:     }
+08878:     if(window.state){
+08879:       state.lastUrl = CASEFLOW_SAMPLE_MORPH_VIDEO;
+08880:       state.lastName = 'caseflow-sample-morph.webm';
+08881:       state.lastType = 'video/webm';
+08882:       state.lastBlob = null;
+08883:     }
+08884:     if(typeof go === 'function') go('export');
+08885:     if(typeof toast === 'function') toast('モーフィング動画サンプルを表示しました');
+08886:   }catch(e){
+08887:     if(typeof toast === 'function') toast('動画サンプルを表示できませんでした');
+08888:   }
+08889: };
+
+===== LINES 8913-9008 =====
+08913:   if(typeof toast==='function') toast('先に動画を書き出してください');
+08914: };
+08915: 
+08916: // MediaPipe Face Landmarker loader.
+08917: // FIXES for "AI自動検出 が使えない":
+08918: //   (1) Version was pinned to '@latest' for the JS, WASM *and* model — a moving target.
+08919: //       When MediaPipe publishes a new tasks-vision build, the dynamic ESM import, the
+08920: //       wasm fileset and the model can fall out of sync and the whole load throws, so the
+08921: //       button silently fails. Now pinned to a single known-good version (matches the
+08922: //       official MediaPipe Face Landmarker web sample) across all three URLs.
+08923: //   (2) Single CDN: if jsdelivr is momentarily unreachable the feature dies. Added an
+08924: //       unpkg fallback.
+08925: //   (3) delegate:'GPU' can throw on devices/browsers without a usable WebGL2/GPU path.
+08926: //       Now falls back to 'CPU'.
+08927: //   (4) The old loading-guard returned `ready` (=false) to any caller that arrived while a
+08928: //       load was already in flight (e.g. a click during the startup preload) — a spurious
+08929: //       failure. Now every caller awaits the SAME cached promise; on failure the cache is
+08930: //       cleared so a later retry (after network recovers) can try again.
+08931: const MEDIAPIPE_VISION_VER = '0.10.3';
+08932: async function initMediaPipeLocalML(){
+08933:   if(CaseFlowLocalML.ready) return true;
+08934:   if(CaseFlowLocalML._promise) return CaseFlowLocalML._promise;
+08935:   CaseFlowLocalML.loading=true;
+08936:   CaseFlowLocalML._promise = (async ()=>{
+08937:     const ver=MEDIAPIPE_VISION_VER;
+08938:     // Each source pairs the ESM entry with its matching wasm directory. NOTE: jsdelivr serves
+08939:     // the package's ESM "module" build for the bare root, but unpkg serves CJS unless ?module
+08940:     // is appended — and unpkg's wasm dir is the plain path (no ?module). Hence explicit pairs.
+08941:     const SOURCES=[
+08942:       { js:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+ver,          wasm:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+ver+'/wasm' },
+08943:       { js:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'?module',           wasm:'https://unpkg.com/@mediapipe/tasks-vision@'+ver+'/wasm' }
+08944:     ];
+08945:     const MODEL='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+08946:     // Track which stage fails so the UI can surface a precise reason code.
+08947:     let stage='import';
+08948:     CaseFlowLocalML.lastError=null;
+08949:     try{
+08950:       let vision=null, wasmBase=null, lastErr=null;
+08951:       for(const src of SOURCES){
+08952:         try{ vision=await import(src.js); wasmBase=src.wasm; break; }
+08953:         catch(e){ lastErr=e; console.warn('tasks-vision import failed from '+src.js, e); }
+08954:       }
+08955:       if(!vision) throw lastErr || new Error('tasks-vision import failed (all CDNs)');
+08956:       const {FaceLandmarker, FilesetResolver} = vision;
+08957:       stage='wasm';
+08958:       const filesetResolver = await FilesetResolver.forVisionTasks(wasmBase);
+08959:       stage='model';
+08960:       const build = (delegate)=>FaceLandmarker.createFromOptions(filesetResolver, {
+08961:         baseOptions:{ modelAssetPath:MODEL, delegate:delegate },
+08962:         outputFaceBlendshapes:false,
+08963:         outputFacialTransformationMatrixes:false,
+08964:         runningMode:'IMAGE',
+08965:         numFaces:1
+08966:       });
+08967:       try{ CaseFlowLocalML.faceLandmarker = await build('GPU'); }
+08968:       catch(e){ console.warn('GPU delegate unavailable, retrying with CPU', e); CaseFlowLocalML.faceLandmarker = await build('CPU'); }
+08969:       CaseFlowLocalML.ready=true;
+08970:       CaseFlowLocalML.source='mediapipe-face-landmarker';
+08971:       if(typeof toast==='function') toast('Local ML Face Landmarker を読み込みました');
+08972:       return true;
+08973:     }catch(e){
+08974:       CaseFlowLocalML.ready=false;
+08975:       CaseFlowLocalML.source='rule-based-fallback';
+08976:       CaseFlowLocalML.lastError={stage:stage, message:String((e&&e.message)||e).slice(0,160)};
+08977:       CaseFlowLocalML._promise=null;   // allow a later retry once network/GPU recovers
+08978:       console.warn('MediaPipe local ML unavailable ['+stage+']; using fallback detection.', e);
+08979:       return false;
+08980:     }finally{
+08981:       CaseFlowLocalML.loading=false;
+08982:     }
+08983:   })();
+08984:   return CaseFlowLocalML._promise;
+08985: }
+08986: 
+08987: // ── Expose module-scoped ML helpers to the global scope ───────────────────────────────────
+08988: // CRITICAL: this <script type="module"> has its OWN scope — top-level bindings here are NOT
+08989: // global. caseflowV75AutoDetect (the "AI自動検出" button) lives in a separate classic <script>
+08990: // and was calling initMediaPipeLocalML() / imageElementFromDataURL() / CaseFlowLocalML by bare
+08991: // name → ReferenceError every time, so AI auto-detect NEVER worked. Publish them on window so
+08992: // the button's script can reach them (as window.*).
+08993: window.CaseFlowLocalML = CaseFlowLocalML;
+08994: window.initMediaPipeLocalML = initMediaPipeLocalML;
+08995: window.MEDIAPIPE_VISION_VER = MEDIAPIPE_VISION_VER;
+08996: 
+08997: async function imageElementFromDataURL(src){
+08998:   return await new Promise((resolve,reject)=>{
+08999:     const im=new Image();
+09000:     im.onload=()=>resolve(im);
+09001:     im.onerror=reject;
+09002:     im.src=src;
+09003:   });
+09004: }
+09005: window.imageElementFromDataURL = imageElementFromDataURL;
+09006: 
+09007: async function detectFaceWithLocalML(photo){
+09008:   const ok = await initMediaPipeLocalML();
+
+===== LINES 9118-9159 =====
+09118:   focusBefore: window.__CFI.focusBefore,
+09119:   focusAfter: window.__CFI.focusAfter,
+09120:   facialBefore: window.__CFI.facialBefore,
+09121:   facialAfter: "media/inline/cfi-facial-after.jpg"
+09122: };
+09123: 
+09124: // Inject the global film-grain layer once. Respects prefers-reduced-motion (the CSS
+09125: // already disables the animation; we still render a static grain for texture).
+09126: function cfEnsureGrain(){
+09127:   if(document.querySelector('.cfGrain')) return;
+09128:   const g=document.createElement('div');
+09129:   g.className='cfGrain'; g.setAttribute('aria-hidden','true');
+09130:   document.body.appendChild(g);
+09131: }
+09132: if(document.readyState!=='loading') cfEnsureGrain();
+09133: else document.addEventListener('DOMContentLoaded', cfEnsureGrain);
+09134: window.cfEnsureGrain=cfEnsureGrain;
+09135: 
+09136: function setupCompareSlider(el){
+09137:   if(!el || el.dataset.bound === '1') return;
+09138:   el.dataset.bound = '1';
+09139:   function setFromClientX(clientX){
+09140:     const r = el.getBoundingClientRect();
+09141:     const pct = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+09142:     el.style.setProperty('--split', pct.toFixed(2) + '%');
+09143:   }
+09144: 
+09145:   // ── Halation: ignite the split line while dragging, scaled to drag velocity ──
+09146:   let hal = el.querySelector('.compareHalation');
+09147:   if(!hal){ hal=document.createElement('div'); hal.className='compareHalation'; el.appendChild(hal); }
+09148:   let lastX=null, lastT=0, vel=0, raf=0, pumping=false;
+09149:   const prefersReduced = window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches;
+09150:   function pump(){
+09151:     vel *= 0.86;                                   // exponential decay → fades when you stop
+09152:     el.style.setProperty('--halation', Math.min(1, vel).toFixed(3));
+09153:     if(vel > 0.012){ raf=requestAnimationFrame(pump); }
+09154:     else { vel=0; el.style.setProperty('--halation','0'); pumping=false; }
+09155:   }
+09156:   function bump(clientX){
+09157:     if(prefersReduced) return;
+09158:     const now = performance.now();
+09159:     if(lastX != null){
+
+===== LINES 9402-9443 =====
+09402:           state.photos.push(photo);
+09403:         }catch(err){ toastFn('読み込めない画像をスキップしました'); }
+09404:       }
+09405:       renderUpload(); if(window.renderSimulator) renderSimulator(); toastFn('Photo gallery に追加しました'); e.target.value='';
+09406:     });
+09407:   }
+09408: 
+09409:   const oldRemove = window.removePhoto;
+09410:   window.removePhoto = function(i){ if(!Number.isInteger(i)) return; state.photos.splice(i,1); renderUpload(); if(window.renderSimulator) renderSimulator(); if(window.renderPreview) renderPreview(); toastFn('削除しました'); };
+09411:   const oldMove = window.movePhoto;
+09412:   window.movePhoto = function(i,d){ const j=i+d; if(j<0||j>=state.photos.length) return; const t=state.photos[i]; state.photos[i]=state.photos[j]; state.photos[j]=t; renderUpload(); };
+09413:   const oldClear = window.clearPhotos;
+09414:   window.clearPhotos = function(){ state.photos=[]; state.photoSearch=''; renderUpload(); if(window.renderSimulator) renderSimulator(); if(window.renderPreview) renderPreview(); toastFn('Photo gallery をクリアしました'); };
+09415: 
+09416:   if(document.readyState === 'loading'){
+09417:     window.addEventListener('DOMContentLoaded', ()=>{ bindEditorControls(); resetFileInputV54(); ensureAllMeta(); renderUpload(); });
+09418:   } else {
+09419:     bindEditorControls(); resetFileInputV54(); ensureAllMeta(); renderUpload();
+09420:   }
+09421: })();
+09422: </script>
+09423: 
+09424: 
+09425: <script>
+09426: /* ---------- v5.5 manual animation / library / share / nav ---------- */
+09427: (function(){
+09428:   // `state` is a global lexical `const` (NOT window.state, which isn't assigned until a later
+09429:   // script). Guarding on window.state made this whole block early-return, leaving
+09430:   // saveCurrentProject/persistLibrary/etc. undefined → "Library に保存" silently failed.
+09431:   if(typeof state==='undefined') return;
+09432:   if(!window.state){ try{ window.state=state; }catch(e){} }
+09433:   const $id=id=>document.getElementById(id);
+09434:   const toastFn=msg=>window.toast?toast(msg):console.log(msg);
+09435:   state.projectLibrary = state.projectLibrary || [];
+09436:   state.manualAnim = state.manualAnim || {frames:[],selected:-1,playing:false,raf:null,playTimer:null,current:{base:-1,overlay:-1,opacity:55,scale:100,offsetX:0,offsetY:0,duration:70,label:''}};
+09437: 
+09438:   function todayStamp(){ return new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+09439:   function loadLibrary(){ try{ state.projectLibrary = JSON.parse(localStorage.getItem('caseflow_project_library_v55')||'[]'); }catch(e){ state.projectLibrary=[]; } }
+09440:   function persistLibrary(){ try{ localStorage.setItem('caseflow_project_library_v55', JSON.stringify(state.projectLibrary)); }catch(e){} }
+09441:   function deep(obj){ return JSON.parse(JSON.stringify(obj)); }
+09442:   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+09443: 
+
+===== LINES 11970-12011 =====
+11970:       var p=palettes[Math.floor(Math.random()*palettes.length)];
+11971:       applyPalette(p[0],p[1],false);
+11972:     };
+11973:     document.querySelectorAll('.cfPreset').forEach(function(btn){
+11974:       btn.onclick=function(e){
+11975:         e.preventDefault();
+11976:         applyPalette(btn.dataset.a, btn.dataset.b, false);
+11977:       };
+11978:     });
+11979:     document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+11980:   }
+11981:   window.caseflowApplyPaletteV67 = applyPalette;
+11982:   window.openPalette = open;
+11983:   window.closePalette = close;
+11984:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+11985:   else init();
+11986: })();
+11987: </script>
+11988: 
+11989: 
+11990: <script>
+11991: /* ---------- v6.8 visible Hue sliders for palette popup ---------- */
+11992: (function(){
+11993:   function q(id){ return document.getElementById(id); }
+11994: 
+11995:   function hexToRgb(hex){
+11996:     hex = String(hex || '').replace('#','').trim();
+11997:     if(!/^[0-9a-fA-F]{6}$/.test(hex)) return [124,92,255];
+11998:     return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+11999:   }
+12000:   function rgbToHex(r,g,b){
+12001:     return '#' + [r,g,b].map(function(v){
+12002:       v = Math.max(0,Math.min(255,Math.round(v)));
+12003:       return v.toString(16).padStart(2,'0');
+12004:     }).join('');
+12005:   }
+12006:   function rgbToHsl(r,g,b){
+12007:     r/=255; g/=255; b/=255;
+12008:     var max=Math.max(r,g,b), min=Math.min(r,g,b);
+12009:     var h=0,s=0,l=(max+min)/2;
+12010:     if(max!==min){
+12011:       var d=max-min;
+
+===== LINES 12097-12138 =====
+12097:     }
+12098:     [ca,cb].forEach(function(input){
+12099:       if(input && input.dataset.boundV68Color!=='1'){
+12100:         input.dataset.boundV68Color='1';
+12101:         input.addEventListener('input', syncSlidersFromColors);
+12102:         input.addEventListener('change', syncSlidersFromColors);
+12103:       }
+12104:     });
+12105:     document.querySelectorAll('.cfPreset,#cfShufflePalette').forEach(function(btn){
+12106:       if(btn.dataset.boundV68Preset==='1') return;
+12107:       btn.dataset.boundV68Preset='1';
+12108:       btn.addEventListener('click', function(){ setTimeout(syncSlidersFromColors,30); }, true);
+12109:     });
+12110:   }
+12111:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+12112:   else init();
+12113: })();
+12114: </script>
+12115: 
+12116: 
+12117: <script>
+12118: /* ---------- v6.9 blend ratio controller + reliable swap ---------- */
+12119: (function(){
+12120:   function q(id){ return document.getElementById(id); }
+12121:   function setBlend(v, silent){
+12122:     v = Math.max(0, Math.min(100, Number(v || 50)));
+12123:     document.documentElement.style.setProperty('--blend', v + '%');
+12124:     var slider=q('cfBlendSlider');
+12125:     if(slider) slider.value = v;
+12126:     var val=q('cfBlendVal');
+12127:     if(val) val.textContent = v + ' / ' + (100 - v);
+12128:     try{ localStorage.setItem('caseflow_v69_blend', String(v)); }catch(e){}
+12129:     if(!silent && typeof toast === 'function') toast('Blend ratio updated');
+12130:   }
+12131:   function applyPaletteNoToast(a,b){
+12132:     if(typeof window.caseflowApplyPaletteV67 === 'function'){
+12133:       window.caseflowApplyPaletteV67(a,b,true);
+12134:     }else{
+12135:       document.documentElement.style.setProperty('--c1', a);
+12136:       document.documentElement.style.setProperty('--c2', b);
+12137:     }
+12138:   }
+
+===== LINES 12147-12188 =====
+12147:       slider.dataset.boundV69='1';
+12148:       slider.addEventListener('input', function(){ setBlend(slider.value, true); }, {passive:true});
+12149:       slider.addEventListener('change', function(){ setBlend(slider.value, false); });
+12150:     }
+12151: 
+12152:     // Keep blend preview stable when presets/shuffle/color inputs change.
+12153:     document.querySelectorAll('.cfPreset,#cfShufflePalette,#cfColorA,#cfColorB').forEach(function(el){
+12154:       if(el.dataset.boundV69Blend === '1') return;
+12155:       el.dataset.boundV69Blend = '1';
+12156:       el.addEventListener('input', function(){ setBlend((q('cfBlendSlider')||{}).value || 50, true); }, true);
+12157:       el.addEventListener('click', function(){ setTimeout(function(){ setBlend((q('cfBlendSlider')||{}).value || 50, true); }, 40); }, true);
+12158:       el.addEventListener('change', function(){ setBlend((q('cfBlendSlider')||{}).value || 50, true); }, true);
+12159:     });
+12160:   }
+12161:   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+12162:   else init();
+12163: })();
+12164: </script>
+12165: 
+12166: 
+12167: <script>
+12168: /* ---------- v7.0 True Mesh Morph Engine: Delaunay + affine triangle warp ---------- */
+12169: (function(){
+12170:   const $id = id => document.getElementById(id);
+12171:   window.state = window.state || {};
+12172:   state.trueMeshEnabled = state.trueMeshEnabled !== false;
+12173:   state.meshOverlayEnabled = state.meshOverlayEnabled || false;
+12174:   state.v70MeshToken = 0;
+12175: 
+12176:   function toastFn(msg){ if(typeof toast==='function') toast(msg); else console.log(msg); }
+12177: 
+12178:   function ensureMeshControls(){
+12179:     const panel = document.querySelector('.pairPreviewPanel');
+12180:     if(!panel || $id('meshEnginePanel')) return;
+12181:     const div = document.createElement('div');
+12182:     div.id = 'meshEnginePanel';
+12183:     div.className = 'meshEnginePanel';
+12184:     div.innerHTML = `
+12185:       <div class="meshEngineHead">
+12186:         <b>True Mesh Morph Engine</b>
+12187:         <div class="meshSwitches">
+12188:           <label><input id="trueMeshToggle" type="checkbox" checked> Mesh warp</label>
+
+===== LINES 16750-16791 =====
+16750:       wrapped.__v84wrapped=true; window.cfSetPalette=wrapped;
+16751:     }
+16752:     if(typeof window.go==='function' && !window.go.__v84wrapped){
+16753:       const prev=window.go;
+16754:       const wrapped=function(){ const r=prev.apply(this,arguments); setTimeout(updateUiContrast,16); return r; };
+16755:       wrapped.__v84wrapped=true; window.go=wrapped;
+16756:     }
+16757:     const observer=new MutationObserver((muts)=>{
+16758:       for(const m of muts){ if(m.attributeName==='style'){ updateUiContrast(); break; } }
+16759:     });
+16760:     observer.observe(root,{attributes:true,attributeFilter:['style']});
+16761:     window.addEventListener('pageshow',updateUiContrast);
+16762:     window.addEventListener('resize',updateUiContrast);
+16763:   }
+16764:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hook); else hook();
+16765: })();
+16766: </script>
+16767: 
+16768: 
+16769: <style id="cf-v85-library-fix">
+16770: .libraryCard .libraryOpenHint{
+16771:   display:block;
+16772:   margin-top:5px;
+16773:   font-size:10px;
+16774:   line-height:1.35;
+16775:   color:var(--cfUiSub,rgba(32,27,53,.62));
+16776:   font-weight:800;
+16777: }
+16778: .libraryCard button[disabled]{
+16779:   opacity:.46;
+16780:   pointer-events:none;
+16781: }
+16782: </style>
+16783: <script id="cf-v85-library-fix-script">
+16784: /* ---------- v8.5 adaptive watermark + robust Library open ---------- */
+16785: (function(){
+16786:   const $id=id=>document.getElementById(id);
+16787:   window.state=window.state||{};
+16788:   const STORE_KEY='caseflow_project_library_v55';
+16789: 
+16790:   function toastFn(msg){ if(typeof toast==='function') toast(msg); else console.log(msg); }
+16791:   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+===== LINES 17575-17616 =====
+17575:   function cfSortLibItems(items, sortMode){
+17576:     const arr=items.slice();
+17577:     const ts=r=>{ const e=libExpAt(r); return e?e:(Number(String(r.id||'').replace(/\D/g,''))||0); };
+17578:     if(sortMode==='oldest')      arr.sort((a,b)=>ts(a)-ts(b));
+17579:     else if(sortMode==='favorite') arr.sort((a,b)=>{ const fb=Number(libFavOf(b))-Number(libFavOf(a)); return fb!==0?fb:ts(b)-ts(a); });
+17580:     else                         arr.sort((a,b)=>ts(b)-ts(a));
+17581:     return arr;
+17582:   }
+17583:   window.cfLibSortMode = window.cfLibSortMode || 'newest';
+17584:   window.cfSetLibSort = function(mode){ window.cfLibSortMode = mode||'newest'; if(typeof window.renderLibrary==='function') window.renderLibrary(); };
+17585: 
+17586:   // Reload with explicit user feedback (the bare renderLibrary() gave no signal).
+17587:   window.cfReloadLibraryWithFeedback = async function(){
+17588:     try{
+17589:       toastFn('Reloading…');
+17590:       await new Promise(r=>setTimeout(r,300)); // brief delay so the action is perceptible
+17591:       if(typeof window.renderLibrary==='function') window.renderLibrary();
+17592:       toastFn('Libraryを更新しました');
+17593:     }catch(err){
+17594:       console.error('[CaseFlow Library Reload Error]', err);
+17595:       toastFn('Libraryの更新に失敗しました');
+17596:     }
+17597:   };
+17598: 
+17599:   window.renderLibrary=function(){
+17600:     const root=$id('libraryList');
+17601:     if(!root) return;
+17602:     let arr=mergeLibrary();
+17603:     if(!arr.length){
+17604:       root.innerHTML='<div class="pmEmptyHint">保存中の生成物はありません。<br>Visual Simulation Studio または Morphing Video Studio で作成した画像・動画が、48時間ここに表示されます。</div>';
+17605:       return;
+17606:     }
+17607:     arr=cfSortLibItems(arr,'newest');
+17608:     let html='';
+17609: 
+17610:     // Favourites pick-up row (only when ≥1 favourite)
+17611:     const favs=arr.filter(libFavOf);
+17612:     if(favs.length){
+17613:       html+=`<div class="cfLibPick"><div class="cfLibPickHead">お気に入り / Favorites</div><div class="cfLibPickScroll">`+
+17614:         favs.map(r=>{
+17615:           const rem=libExpAt(r)?libRem(r):'';
+17616:           return `<div class="cfLibPickCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div class="cfLibPickTitle">${esc(libStudioLabel(r))}</div>${rem?`<div class="cfLibPickTime">${esc(rem)}</div>`:''}<button type="button" data-lib-open="${esc(r.id)}">Open</button></div>`;
+
+===== LINES 18520-18561 =====
+18520: <script id="cf-v96-simulation-studio">
+18521: /* ==================================================================================
+18522:    v9.6 Simulation Studio
+18523:    - Post-generation adjustment sliders replaced by 5 aesthetic correction axes:
+18524:        Shade / 色調, Alignment / 歯列, Tooth Shape / 歯冠形態,
+18525:        Scallop / 歯肉ライン, Smile Frame / スマイルフレーム
+18526:    - Each slider: left = current (no correction, 0), center = evidence-based (50),
+18527:      right = maximum correction (100). Default position = center (EBM).
+18528:    - Moving a slider re-generates the reference image so the change is reflected.
+18529:    - Generator upgraded toward Align SmileView / Smile Architect direction: feathered
+18530:      tooth-region detection, texture-preserving whitening, a smooth arch / crown / smile
+18531:      frame mesh-warp, and an even gingival scallop, instead of flat overlay shapes.
+18532:    NOTE: a fully photoreal result requires the ML backend (aiMode / Replit hook). This is
+18533:    the strongest natural-looking local heuristic; the 5 axis values are also the exact
+18534:    parameters a backend would consume.
+18535:    ================================================================================== */
+18536: (function(){
+18537:   const $id = id => document.getElementById(id);
+18538:   const clamp = (v,a,b)=>Math.max(a,Math.min(b,Number(v)));
+18539:   function toastFn(m){ if(typeof toast==='function') toast(m); else console.log(m); }
+18540: 
+18541:   window.state = window.state || {};
+18542:   const DEF = {shade:50,alignment:50,toothShape:50,scallop:50,smileFrame:50,bioBlend:50,master:40};
+18543:   state.simV96 = Object.assign({}, DEF, state.simV96 || {});
+18544: 
+18545:   const AXES = [
+18546:     ['shade','Color','色調'],
+18547:     ['alignment','Alignment','歯列補正'],
+18548:     ['toothShape','Shape','歯冠形態'],
+18549:     ['scallop','Scallop','歯肉ライン'],
+18550:     ['smileFrame','Smile Frame','スマイルフレーム']
+18551:   ];
+18552: 
+18553:   /* ---- source selection ---- */
+18554:   function pickSource(){
+18555:     return state.simMicro || state.simMacro ||
+18556:       (state.photos||[]).find(p=>p.category==='focus') ||
+18557:       (state.photos||[]).find(p=>p.category==='facial') ||
+18558:       (state.photos||[])[0] || null;
+18559:   }
+18560:   function sourceKind(p){
+18561:     if(!p) return 'Image';
+
+===== LINES 19509-19552 =====
+19509:       'FINAL OUTPUT — ONE raw JSON object only, no markdown, no code fences, no explanation:\n'+
+19510:       '{"findings":[{"en":"...","ja":"..."}], "structured":{ ...layers as specified above... }}'
+19511:     );
+19512:   }
+19513:   window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
+19514: 
+19515:   // ── Orchestrator: try Vision AI /screen, fall back to pixel heuristic ─────────
+19516:   async function buildProblemList(dataUrl){
+19517:     try{
+19518:       // Tier 1: Vision AI screening (preferred when endpoint is configured)
+19519:       const epRaw=(typeof aiEndpoint==='function')?aiEndpoint():null;
+19520:       if(epRaw){
+19521:         try{
+19522:           const base=epRaw.replace(/\/+$/,'').replace(/\/simulate$/,'');
+19523:           const ctrl=new AbortController();
+19524:           const tid=setTimeout(()=>ctrl.abort(),12000);
+19525:           const res=await fetch(base+'/screen',{
+19526:             method:'POST',
+19527:             headers:{'Content-Type':'application/json'},
+19528:             body:JSON.stringify({image:dataUrl,prompt:buildClinicalScreeningPrompt(),format:'findings'}),
+19529:             signal:ctrl.signal
+19530:           });
+19531:           clearTimeout(tid);
+19532:           if(res.ok){
+19533:             const j=await res.json();
+19534:             const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);
+19535:             if(arr&&arr.length){
+19536:               const out=arr.slice(0,6);
+19537:               // v9.7: structured 4-layer findings (backwards compatible — old backends return only the array)
+19538:               if(j&&j.structured&&typeof j.structured==='object'){
+19539:                 try{ Object.defineProperty(out,'__structured',{value:j.structured,enumerable:false}); }
+19540:                 catch(e){ out.__structured=j.structured; }
+19541:               }
+19542:               return out;
+19543:             }
+19544:           }
+19545:         }catch(e){ /* no /screen endpoint or timeout → fall through */ }
+19546:       }
+19547:       // Tier 2: Enhanced pixel heuristic (offline / no endpoint)
+19548:       return await buildProblemListPixel(dataUrl);
+19549:     }catch(e){ return []; }
+19550:   }
+19551:   window.caseflowProblemList = buildProblemList;
+19552: 
+
+===== LINES 19989-20030 =====
+19989:     }catch(e){}
+19990:     drawBadge(ctx,w,h);
+19991:     return c.toDataURL('image/jpeg',0.94);
+19992:   }
+19993: 
+19994:   // Transient backend/upstream conditions worth retrying. 529 = upstream model
+19995:   // "Overloaded"; 429 = rate limit; 5xx = gateway/server hiccups.
+19996:   const RETRY_STATUS={408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1};
+19997:   function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+19998:   async function fetchSimWithRetry(ep, body, maxAttempts){
+19999:     maxAttempts=maxAttempts||4;
+20000:     let lastErr=null;
+20001:     for(let attempt=1; attempt<=maxAttempts; attempt++){
+20002:       try{
+20003:         const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body});
+20004:         if(res.ok) return res;
+20005:         // Retry transient statuses; surface anything else immediately.
+20006:         if(RETRY_STATUS[res.status] && attempt<maxAttempts){
+20007:           let t=''; try{ t=await res.text(); }catch(e){}
+20008:           lastErr=new Error('HTTP '+res.status+' '+t.slice(0,400));
+20009:         }else{
+20010:           let t=''; try{ t=await res.text(); }catch(e){}
+20011:           throw new Error('HTTP '+res.status+' '+t.slice(0,400));
+20012:         }
+20013:       }catch(e){
+20014:         // Network/abort errors are retryable too; rethrow non-retryable HTTP errors.
+20015:         if(/^HTTP \d/.test(e&&e.message||'') && !RETRY_STATUS[parseInt((e.message.match(/HTTP (\d+)/)||[])[1],10)]) throw e;
+20016:         lastErr=e;
+20017:         if(attempt>=maxAttempts) break;
+20018:       }
+20019:       // Exponential backoff with jitter: ~1s, 2s, 4s (+0-400ms).
+20020:       const wait=Math.pow(2,attempt-1)*1000 + Math.floor(Math.random()*400);
+20021:       const msg='サーバー混雑のため再試行中… ('+attempt+'/'+(maxAttempts-1)+')';
+20022:       try{
+20023:         const subEl=document.querySelector('.cfWaitOverlay .cfWaitSub');
+20024:         if(subEl) subEl.textContent=msg;
+20025:         else if(typeof toastFn==='function') toastFn(msg);
+20026:         else if(typeof toast==='function') toast(msg);
+20027:       }catch(e){}
+20028:       await sleep(wait);
+20029:     }
+20030:     throw lastErr || new Error('リクエストに失敗しました');
+
+===== LINES 20119-20184 =====
+20119:     payload.intent_mode=intentMode;
+20120:     payload.minimal_change=minimalChange;
+20121:     payload.correction_scope=state.simCorrectionScope||'combined';
+20122:     payload.image_role=(source&&source.intraoralDark)?'contrastor_anterior_closeup'
+20123:       :(source&&source.intraoral)?'intraoral_retracted_frontal'
+20124:       :(isFacialSrc?'frontal_smile':'anterior_closeup');
+20125:     if(source&&source.structuredFindings) payload.structured_findings=source.structuredFindings;
+20126:     if(typeof window.cfTeethTypeMeta==='function') payload.teeth_type=window.cfTeethTypeMeta();
+20127:     return payload;
+20128:   }
+20129:   window.buildSimulationPayload=buildSimulationPayload;
+20130: 
+20131:   async function generateViaAI(source){
+20132:     const epRaw=aiEndpoint(); if(!epRaw) return null;
+20133:     // Token gate: 1回作成 = 2 tokens。失敗時は refund_generation_tokens で返却。
+20134:     let _ledgerId=null;
+20135:     if(typeof window.cfConsumeToken==='function'){
+20136:       const _tk = await window.cfConsumeToken('generation');
+20137:       if(_tk && _tk.ok===false){
+20138:         if(_tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function'){ window.cfShowTokenEmpty(); }
+20139:         const _e=new Error(_tk.reason==='insufficient'?'トークンが不足しています':'トークンの確認に失敗しました');
+20140:         _e.cfNoTokens=true; throw _e;
+20141:       }
+20142:       _ledgerId=(_tk&&_tk.ledgerId)||null;
+20143:     }
+20144:     try{
+20145:       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
+20146:       const res=await fetchSimWithRetry(ep, JSON.stringify(buildSimulationPayload(source)));
+20147:       const j=await res.json();
+20148:       if(j && j.error) throw new Error(String(j.error).slice(0,400));
+20149:       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
+20150:       if(!out) throw new Error('画像が返りませんでした (no image in response)');
+20151:       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
+20152:       try{ return await finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}); }
+20153:       catch(e){ console.warn('finalize failed, using raw AI image', e); return out; }
+20154:     }catch(genErr){
+20155:       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
+20156:       if(_ledgerId!=null && typeof window.cfRefundGeneration==='function'){
+20157:         try{ window.cfRefundGeneration(_ledgerId); }catch(e){ console.error('[CF Gate] refund call failed',e); }
+20158:       }
+20159:       if(typeof window.cfLogEvent==='function') window.cfLogEvent('generation_failed','visual-simulation',{ message:String((genErr&&genErr.message)||'').slice(0,120) });
+20160:       throw genErr;
+20161:     }
+20162:   }
+20163:   // AI is used whenever a backend endpoint is configured (the legacy #aiMode toggle is
+20164:   // hidden in the rebuilt studio, so configuring an endpoint is what turns AI on).
+20165:   function aiEnabled(){ return !!aiEndpoint(); }
+20166:   window.caseflowSimAIEnabled=aiEnabled;
+20167: 
+20168:   async function createSimulationImageV96(source, raw){
+20169:     // Shade is BIDIRECTIONAL around the 50 centre: >50 whitens, <50 ages
+20170:     // (aging = LOWER value + ADD chroma — a deeper, warmer, more saturated amber shade).
+20171:     const shadeSigned = (clamp(raw.shade,0,100)-50)/50;   // -1 (max aging) .. +1 (max whitening)
+20172:     const shadeWhiten = Math.max(0,  shadeSigned);          // 0..1
+20173:     const shadeAge    = Math.max(0, -shadeSigned);          // 0..1
+20174:     const shadeAct    = Math.abs(shadeSigned);              // 0..1 (either direction)
+20175:     const P = {
+20176:       shade:      shadeAct,
+20177:       alignment:  clamp(raw.alignment,0,100)/100,
+20178:       // Tooth Shape is bidirectional (tapering ↔ square); locally we can only smooth, so the
+20179:       // tapering side drives mild surface smoothing and the square side does nothing here.
+20180:       toothShape: Math.max(0,(50-clamp(raw.toothShape,0,100))/50),
+20181:       scallop:    clamp(raw.scallop,0,100)/100,
+20182:       smileFrame: clamp(raw.smileFrame,0,100)/100
+20183:     };
+20184:     const img=await loadImage(source.dataUrl);
+
+===== LINES 20623-20703 =====
+20623:         src.intraoral=!!(a && a.intraoral);
+20624:         src.intraoralDark=!!(a && a.intraoralDark);
+20625:         resolveLips();
+20626:         return src.intraoral;
+20627:       }
+20628:     }catch(e){}
+20629:     if(typeof src.intraoral!=='boolean') src.intraoral=false;
+20630:     if(typeof src.intraoralDark!=='boolean') src.intraoralDark=false;
+20631:     resolveLips();
+20632:     return src.intraoral;
+20633:   }
+20634:   window.caseflowEnsureIntraoral=ensureIntraoralFlag;
+20635:   // Produce the after-image: photoreal AI backend when enabled+configured, else the local
+20636:   // artifact-free colour/finish pass.
+20637:   async function produceImage(src){
+20638:     // Shot type (リップの有無・コントラスター) is chosen in the Micro/Focus upload card; here we
+20639:     // only make sure the flags are resolved (no popup at generation time).
+20640:     try{ await ensureIntraoralFlag(src); }catch(e){}
+20641:     try{ await ensureProblemList(src); }catch(e){}
+20642:     const _aiOn=aiEnabled();
+20643:     try{ if(window.cfWait) cfWait.show(_aiOn?'AIシミュレーション中':'画像を処理中', _aiOn?0:220); }catch(e){}
+20644:     // Progressive sub-messages for AI path
+20645:     let _progressTimer=null;
+20646:     if(_aiOn){
+20647:       const _msgs=['患者写真を分析中…','臨床パラメータを適用中…','AIに送信中…','シミュレーション生成中…','仕上げ処理中…'];
+20648:       let _mi=0;
+20649:       const _subEl=()=>document.querySelector('.cfWaitOverlay .cfWaitSub');
+20650:       const _tick=()=>{ try{ const s=_subEl(); if(s) s.textContent=_msgs[_mi]; }catch(e){} _mi=(_mi+1)%_msgs.length; };
+20651:       _tick();
+20652:       _progressTimer=setInterval(_tick, 2400);
+20653:     }
+20654:     try{
+20655:       if(_aiOn){
+20656:         try{ const u=await generateViaAI(src); if(u) return u; }
+20657:         catch(e){
+20658:           if(e && e.cfNoTokens){ throw e; } // empty tokens → block, do not give a free local result
+20659:           console.warn(e); window.__caseflowLastAIError=String((e&&e.message)||e); toastFn('AI生成に失敗: '+((e&&e.message)||e));
+20660:         }
+20661:       }
+20662:       return await createSimulationImageV96(src, state.simV96);
+20663:     } finally {
+20664:       clearInterval(_progressTimer);
+20665:       try{ if(window.cfWait) cfWait.hide(); }catch(e){}
+20666:     }
+20667:   }
+20668:   window.caseflowProduceSimImage=produceImage;
+20669: 
+20670:   async function regenerate(){
+20671:     if(regenBusy){ regenQueued=true; return; }
+20672:     const src=state._simSource||pickSource();
+20673:     if(!src) return;
+20674:     regenBusy=true; setBusy(true);
+20675:     try{
+20676:       const url=await produceImage(src);
+20677:       // Slider edits UPDATE the currently selected gallery slot in place (other variations
+20678:       // stay intact), so re-editing never makes a previously generated image disappear.
+20679:       const r=Object.assign({}, state.simResult, {
+20680:         dataUrl:url, source:src.dataUrl, srcObj:src, sourceKind:sourceKind(src),
+20681:         createdAt:new Date().toISOString(), settings:JSON.parse(JSON.stringify(state.simV96))
+20682:       });
+20683:       if(Array.isArray(state.simResults) && state.simResults.length){ state.simResults[state.simResultIndex||0]=r; }
+20684:       else { state.simResults=[r]; state.simResultIndex=0; }
+20685:       state.simResult=r;
+20686:       cfAutoSaveTempSim(r);   // ① keep the 48h temp Library copy in sync with slider edits
+20687:       renderResultImages();
+20688:       // Persist the new result immediately so a reload won't lose it
+20689:       try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
+20690:     }catch(e){ console.error(e); toastFn('再生成に失敗しました'); }
+20691:     regenBusy=false; setBusy(false);
+20692:     if(regenQueued){ regenQueued=false; regenerate(); }
+20693:   }
+20694:   function scheduleRegen(delay){
+20695:     clearTimeout(regenTimer);
+20696:     regenTimer=setTimeout(regenerate, delay==null?60:delay);
+20697:   }
+20698: 
+20699:   function buildEditGrid(){
+20700:     const grid=$id('simV96EditGrid');
+20701:     if(!grid) return;
+20702:     state.simV96=Object.assign({}, DEF, state.simV96||{});
+20703:     const legend=`<div class="simV96Legend"><span>現状 / none</span><span>EBM</span><span>最大 / max</span></div>`+
+
+===== LINES 20859-20900 =====
+20859:     const _concept=(state.simV82||{}).concept||'ortho';
+20860:     const _ortho=(_concept==='ortho'||_concept==='hybrid');
+20861:     // Iterative orthodontic refinement: a REGENERATION (i.e. not the first generation
+20862:     // launched from the studio page) builds FURTHER on the after-image already shown in
+20863:     // the preview, so each pass keeps improving the alignment instead of restarting from
+20864:     // the original. The before image is unaffected — renderResultImages always reads the
+20865:     // original from state._simSource.
+20866:     let _genSrc = src;
+20867:     if(!fromSim && _ortho && state.simResult && state.simResult.dataUrl){
+20868:       _genSrc = Object.assign({}, src, {dataUrl: state.simResult.dataUrl});
+20869:     }
+20870: 
+20871:     toastFn(aiEnabled()?'AIで術後イメージを生成中…':'Reference Image を作成中…');
+20872:     try{
+20873:       const url = await produceImage(_genSrc);
+20874:       // Each explicit generation becomes a NEW gallery variation (up to 5) so earlier
+20875:       // generations are never lost when you re-edit.
+20876:       pushSimResult({
+20877:         dataUrl:url, source:src.dataUrl, srcObj:src, sourceKind:sourceKind(src),
+20878:         createdAt:new Date().toISOString(), settings:JSON.parse(JSON.stringify(state.simV96))
+20879:       });
+20880:       if(typeof go==='function') go('result');
+20881:       // After an orthodontic generation, recentre the alignment slider so the NEXT
+20882:       // regeneration applies a further, incremental correction on top of this result.
+20883:       if(_ortho){ state.simV96.alignment=50; window._cfExtractWarned=false; }
+20884:       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
+20885:       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);
+20886:     }catch(e){ console.error(e); toastFn('画像の作成に失敗しました'); }
+20887:   };
+20888: 
+20889:   /* ---- keep the result edit grid in sync whenever the result page renders ---- */
+20890:   const prevRenderResult = window.renderResult;
+20891:   window.renderResult = function(){
+20892:     const r = (typeof prevRenderResult==='function') ? prevRenderResult.apply(this,arguments) : undefined;
+20893:     setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 40);
+20894:     setTimeout(buildEditGrid, 180);
+20895:     return r;
+20896:   };
+20897: 
+20898:   const prevGo = window.go;
+20899:   if(typeof prevGo==='function' && !window.__v96GoWrapped){
+20900:     window.__v96GoWrapped=true;
+
+===== LINES 20922-20963 =====
+20922:     var curId=cur && cur.id;
+20923:     var r = prevGo ? prevGo.apply(this,arguments) : undefined;
+20924:     if(!navigatingBack && curId && curId!==id){
+20925:       if(navHistory[navHistory.length-1]!==curId){
+20926:         navHistory.push(curId);
+20927:         if(navHistory.length>60) navHistory.shift();
+20928:       }
+20929:     }
+20930:     return r;
+20931:   };
+20932:   window.cfGoBack=function(){
+20933:     if(!navHistory.length) return false;
+20934:     var target=navHistory.pop();
+20935:     navigatingBack=true;
+20936:     try{ window.go(target); } finally { navigatingBack=false; }
+20937:     return true;
+20938:   };
+20939: 
+20940:   // If an overlay / modal / sheet is open, let its own close control handle dismissal
+20941:   // instead of navigating the screen underneath.
+20942:   function overlayOpen(){
+20943:     var sel='.cropModal,.photoManagerModal,.sampleVideoOverlay,.sampleVideoSheet,.studioChooserOverlay,.studioChooser,[role="dialog"]';
+20944:     var els=document.querySelectorAll(sel);
+20945:     for(var i=0;i<els.length;i++){
+20946:       var el=els[i];
+20947:       if(el.offsetParent===null) continue;            // not rendered
+20948:       var cs=getComputedStyle(el);
+20949:       if(cs.display!=='none' && cs.visibility!=='hidden' && parseFloat(cs.opacity||'1')>0.02 && el.offsetWidth>0 && el.offsetHeight>0){
+20950:         return true;
+20951:       }
+20952:     }
+20953:     return false;
+20954:   }
+20955: 
+20956:   // Edge-swipe (start near the left edge, drag right) — mirrors the iOS back gesture and
+20957:   // avoids clashing with before/after compare sliders or horizontal content drags.
+20958:   var sx=0, sy=0, st=0, tracking=false;
+20959:   var EDGE=32, DIST_X=64, MAX_Y=80, MAX_T=800;
+20960:   document.addEventListener('touchstart',function(e){
+20961:     if(e.touches.length!==1){ tracking=false; return; }
+20962:     var t=e.touches[0];
+20963:     if(t.clientX<=EDGE && !overlayOpen()){ sx=t.clientX; sy=t.clientY; st=Date.now(); tracking=true; }
+
+===== LINES 21406-21452 =====
+21406:   function forceWrite(){ lastKey=''; apply(); }
+21407: 
+21408:   // MO: only re-apply when c1/c2 actually changed (prevents write→MO→write loops).
+21409:   var mo=new MutationObserver(function(){
+21410:     if(_applying) return;
+21411:     var cs=getComputedStyle(document.documentElement);
+21412:     var k=cs.getPropertyValue('--c1').trim()+'|'+cs.getPropertyValue('--c2').trim();
+21413:     if(k!==lastKey) apply();
+21414:   });
+21415:   mo.observe(document.documentElement,{attributes:true,attributeFilter:['style']});
+21416: 
+21417:   // Expose so palette scripts can trigger a forced re-write after their own init.
+21418:   window.cfApplyBrandAccent=function(){ lastKey=''; apply(); };
+21419: 
+21420:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){
+21421:     apply();
+21422:     setTimeout(forceWrite,100); // safety net after all DOMContentLoaded handlers settle
+21423:   });
+21424:   else { apply(); setTimeout(forceWrite,100); }
+21425:   setTimeout(forceWrite,400); // second safety net for late-loading palette scripts
+21426: })();
+21427: </script>
+21428: <style id="cf-brand-accent">
+21429: /* Scope the contrasting-hue accent to ONLY the home brand logo + subtitle,
+21430:    leaving panel/note/credit text on their normal adaptive colour. */
+21431: #home .brand .brandLogo{ background:var(--brandAccent, var(--logoColor)) !important; }
+21432: #home .brand .brandSubtitle{
+21433:   color:var(--brandAccent, var(--homeText)) !important;
+21434:   text-shadow:0 2px 16px var(--brandGlow, var(--logoGlow)) !important;
+21435: }
+21436: /* smaller home disclaimer note */
+21437: #home .panel .note{ font-size:12px !important; line-height:1.5 !important; letter-spacing:0 !important; text-align:center !important; font-weight:800 !important; background:transparent !important; border:0 !important; box-shadow:none !important; padding:4px 0 0 !important; }
+21438: 
+21439: /* ---------- consent gate ---------- */
+21440: .consentGate{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(12,9,24,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+21441: html.cf-consented .consentGate{display:none}
+21442: .consentSheet{display:flex;flex-direction:column;width:100%;max-width:460px;max-height:100%;overflow:hidden;background:#fbf8ff;border-radius:24px;box-shadow:0 30px 80px rgba(20,12,45,.42);color:#201b35}
+21443: .consentScroll{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:20px 18px 4px}
+21444: .consentSheet h2{margin:0 0 10px;font-size:18px;letter-spacing:-.02em}
+21445: .consentIntro{font-size:11px;line-height:1.65;color:rgba(32,27,53,.72);margin:0 0 14px}
+21446: .consentSub{font-size:10px;font-weight:900;letter-spacing:.08em;color:rgba(32,27,53,.46);margin:0 0 6px}
+21447: .consentList{display:flex;flex-direction:column;gap:3px}
+21448: .consentItem{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-radius:12px;font-size:12px;line-height:1.55;font-weight:600;cursor:pointer;color:#2a2440}
+21449: .consentItem input{margin:2px 0 0;width:20px;height:20px;flex:0 0 auto;accent-color:var(--c1)}
+21450: .consentItem.lastItem{font-weight:850;background:rgba(124,92,255,.09)}
+21451: .consentActions{flex:0 0 auto;display:flex;flex-direction:column;gap:9px;padding:12px 18px calc(16px + env(safe-area-inset-bottom));border-top:1px solid rgba(32,27,53,.08);background:#fbf8ff}
+21452: .consentHint{font-size:11px;font-weight:800;text-align:center;color:rgba(32,27,53,.55);margin:0 0 2px}
+
+===== LINES 21486-21527 =====
+21486:   agreeBtn.addEventListener('click',function(){
+21487:     if(agreeBtn.disabled) return;
+21488:     try{ localStorage.setItem(KEY,'1'); }catch(e){}
+21489:     document.documentElement.classList.add('cf-consented');
+21490:   });
+21491:   declineBtn.addEventListener('click',function(){ gate.classList.add('declined'); });
+21492:   if(backBtn) backBtn.addEventListener('click',function(){ gate.classList.remove('declined'); });
+21493: 
+21494:   if(hasConsent()){
+21495:     document.documentElement.classList.add('cf-consented');
+21496:   }else{
+21497:     refresh();
+21498:   }
+21499: }
+21500: if(document.readyState==='loading'){
+21501:   document.addEventListener('DOMContentLoaded',cfInitConsentGate);
+21502: }else{
+21503:   cfInitConsentGate();
+21504: }
+21505: </script>
+21506: 
+21507: <div class="consentGate" id="consentGate" role="dialog" aria-modal="true" aria-labelledby="consentTitle">
+21508:   <div class="consentSheet">
+21509:     <div class="consentScroll">
+21510:       <h2 id="consentTitle">ご利用前の確認・同意事項</h2>
+21511:       <p class="consentIntro">CaseFlow Studio™︎ は、Morphing Video Studio™︎ および Visual Simulation Studio™︎ を備えた、歯科症例のビジュアル作成を補助するためのツールです。<br>本サービスは、AIによる診断、治療方針の決定、治療結果の保証、医療上の助言を行うものではありません。<br>以下の内容をすべて確認し、同意いただいた場合のみ、本サービスをご利用いただけます。</p>
+21512:       <div class="consentSub">確認事項</div>
+21513:       <div class="consentList">
+21514:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>私は、歯科医師免許を有する歯科医師です。</span></label>
+21515:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>本サービスは、歯科症例のビジュアル作成を補助するためのツールであり、診断、治療方針の決定、予後判定を行うものではないことを理解しています。</span></label>
+21516:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>AIが生成、補正、変形した画像や動画は、実際の治療結果を保証するものではないことを理解しています。</span></label>
+21517:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>本サービスで作成された画像・動画は、患者説明、症例検討、資料作成等の補助目的で使用し、最終的な診断・治療判断は歯科医師である利用者自身の責任で行います。</span></label>
+21518:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>画像・動画に表示される色調、歯列、歯冠形態、歯肉ライン、スマイルフレーム等は、実際の口腔内状態や治療後の状態と異なる場合があることを理解しています。</span></label>
+21519:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>患者画像・症例画像を使用する場合は、必要に応じて患者本人の同意を取得し、氏名、診察券番号、その他の識別情報を含まないよう適切に管理します。</span></label>
+21520:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>本サービスで作成した画像・動画をSNS、広告、ウェブサイト、学会発表、院内外資料等に掲載、公開、共有する場合は、必ず患者本人から必要な同意を取得します。</span></label>
+21521:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>SNS、広告、ウェブサイト等に掲載する場合は、医療広告ガイドラインその他の関連法令・規制を確認し、治療内容、費用、リスク、副作用等、必要な情報を適切に表示します。</span></label>
+21522:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>本サービスの出力結果を、患者に対して「必ずこのようになる」「この結果を保証する」等の確定的・保証的な表現で説明しません。</span></label>
+21523:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>患者画像・症例画像の使用、保存、共有、掲載、公開、および患者同意の取得に関する責任は、利用者である歯科医師または所属医療機関にあることを理解しています。</span></label>
+21524:         <label class="consentItem"><input type="checkbox" class="consentChk"><span>患者同意の未取得、画像の不適切な使用、SNS・広告・ウェブサイト等への不適切な掲載、または関連法令・規制への違反により生じたトラブル、損害、紛争について、本サービス提供者は責任を負わないことを理解しています。</span></label>
+21525:         <label class="consentItem lastItem"><input type="checkbox" class="consentChk"><span>上記の内容を確認し、同意します。</span></label>
+21526:       </div>
+21527:     </div>
+
+===== LINES 21638-21720 =====
+21638: /* Extraction mode badge — appears below the Alignment slider when value ≥ 80 */
+21639: .cfExtractBadge{
+21640:   display:none;align-items:center;gap:5px;
+21641:   margin-top:5px;padding:4px 10px;
+21642:   border-radius:20px;font-size:10.5px;font-weight:800;
+21643:   letter-spacing:.03em;line-height:1.2;
+21644:   color:#fff;background:linear-gradient(135deg,#b01c1c 0%,#d92121 100%);
+21645:   box-shadow:0 2px 8px rgba(180,20,20,.35);
+21646:   border:1px solid rgba(255,255,255,.18);
+21647:   width:fit-content;
+21648: }
+21649: .cfExtractBadge::before{content:'⚠';font-size:11px;margin-right:2px;}
+21650: </style>
+21651: <script>
+21652: /* Global "Waiting •••" popup shown during image / video generation. */
+21653: /* Red ⚠️ warning popup shown when the alignment slider is pushed to MAX
+21654:    (extraction-orthodontics simulation). */
+21655: window.cfShowExtractionWarning = function(){
+21656:   if(!document.getElementById('cfExtractWarnCss')){
+21657:     var st=document.createElement('style'); st.id='cfExtractWarnCss';
+21658:     st.textContent='.cfExtractWarn{position:fixed;left:50%;top:18px;transform:translateX(-50%) translateY(-14px);z-index:2147483600;max-width:min(440px,92vw);opacity:0;visibility:hidden;transition:opacity .22s ease,transform .22s ease,visibility .22s ease;pointer-events:none}'
+21659:       +'.cfExtractWarn.show{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);pointer-events:auto}'
+21660:       +'.cfExtractWarnCard{display:flex;align-items:flex-start;gap:10px;background:#d92121;color:#fff;border-radius:14px;padding:13px 14px;box-shadow:0 16px 40px rgba(160,20,20,.42);border:1px solid rgba(255,255,255,.28)}'
+21661:       +'.cfExtractWarnIcon{font-size:20px;line-height:1.2;flex-shrink:0}'
+21662:       +'.cfExtractWarnText{display:flex;flex-direction:column;gap:3px;min-width:0}'
+21663:       +'.cfExtractWarnText b{font-size:13.5px;font-weight:900;letter-spacing:.01em}'
+21664:       +'.cfExtractWarnText span{font-size:11.5px;font-weight:600;line-height:1.5;opacity:.96}'
+21665:       +'.cfExtractWarnClose{flex-shrink:0;border:0;background:rgba(255,255,255,.22);color:#fff;width:24px;height:24px;border-radius:999px;font-size:15px;font-weight:800;cursor:pointer;line-height:1}';
+21666:     document.head.appendChild(st);
+21667:   }
+21668:   var el=document.getElementById('cfExtractWarn');
+21669:   if(!el){
+21670:     el=document.createElement('div'); el.id='cfExtractWarn'; el.className='cfExtractWarn';
+21671:     el.innerHTML='<div class="cfExtractWarnCard"><span class="cfExtractWarnIcon">⚠️</span>'
+21672:       +'<div class="cfExtractWarnText"><b>抜歯矯正シミュレーション</b>'
+21673:       +'<span>Alignment 80%以上では抜歯矯正モードが有効になります。前歯を大きく後退させた抜歯ケースの仕上がりイメージを生成します。参考イメージであり、抜歯の要否や治療方針を示すものではありません。</span></div>'
+21674:       +'<button type="button" class="cfExtractWarnClose" aria-label="閉じる">×</button></div>';
+21675:     document.body.appendChild(el);
+21676:     el.querySelector('.cfExtractWarnClose').addEventListener('click',function(){ el.classList.remove('show'); clearTimeout(el._t); });
+21677:   }
+21678:   el.classList.add('show');
+21679:   clearTimeout(el._t);
+21680:   el._t=setTimeout(function(){ el.classList.remove('show'); }, 7000);
+21681: };
+21682: 
+21683: window.cfWait = (function(){
+21684:   var el, sub, showTimer, depth=0;
+21685:   function ensure(){
+21686:     if(el) return el;
+21687:     el=document.createElement('div');
+21688:     el.className='cfWaitOverlay';
+21689:     el.setAttribute('role','status');
+21690:     el.setAttribute('aria-live','polite');
+21691:     el.innerHTML='<div class="cfWaitCard">'+
+21692:       '<div class="cfWaitSpinner"></div>'+
+21693:       '<div class="cfWaitText"><span>Waiting</span>'+
+21694:       '<span class="cfWaitDots"><span>•</span><span>•</span><span>•</span></span></div>'+
+21695:       '<div class="cfWaitSub"></div></div>';
+21696:     document.body.appendChild(el);
+21697:     sub=el.querySelector('.cfWaitSub');
+21698:     return el;
+21699:   }
+21700:   function show(msg, delay){
+21701:     depth++;
+21702:     ensure();
+21703:     if(sub) sub.textContent = msg || '';
+21704:     clearTimeout(showTimer);
+21705:     showTimer=setTimeout(function(){ if(el) el.classList.add('show'); }, delay==null?0:delay);
+21706:   }
+21707:   function hide(){
+21708:     depth=Math.max(0, depth-1);
+21709:     if(depth>0) return;
+21710:     clearTimeout(showTimer);
+21711:     if(el) el.classList.remove('show');
+21712:   }
+21713:   function hideAll(){ depth=0; clearTimeout(showTimer); if(el) el.classList.remove('show'); }
+21714:   return { show:show, hide:hide, hideAll:hideAll };
+21715: })();
+21716: 
+21717: /* Universal hook: every video export in this app goes through MediaRecorder,
+21718:    so showing the popup on start and hiding it on stop/error covers them all. */
+21719: (function(){
+21720:   if(typeof MediaRecorder==='undefined' || MediaRecorder.__cfWaitPatched) return;
+
+===== LINES 21917-21958 =====
+21917:     var empty=document.getElementById('wrEmpty');
+21918:     if(!grid) return;
+21919:     var saved=loadSavedSims();
+21920:     var items=_wrFilter==='fav'?saved.filter(function(s){return s.fav;}):saved;
+21921:     if(!items.length){
+21922:       grid.innerHTML='';
+21923:       if(empty) empty.style.display='block';
+21924:       return;
+21925:     }
+21926:     if(empty) empty.style.display='none';
+21927:     grid.innerHTML=items.map(function(s,i){
+21928:       var favCls=s.fav?' on':'';
+21929:       var label=s.title||(s.date||'').slice(5)||(i+1+' 番目')||'';
+21930:       return '<div class="wideRecentThumb" onclick="wrOpenThumb(\''+s._savedKey+'\')">'
+21931:         +'<img src="'+s.dataUrl+'" loading="lazy">'
+21932:         +(label?'<div class="wrLabel">'+label+'</div>':'')
+21933:         +'<button class="wrFav'+favCls+'" onclick="event.stopPropagation();wrToggleFav(\''+s._savedKey+'\')" title="お気に入り">✦</button>'
+21934:         +'<button class="wrInfo" onclick="event.stopPropagation();wrOpenInfo(\''+s._savedKey+'\')" title="情報を編集">i</button>'
+21935:         +'</div>';
+21936:     }).join('');
+21937:   }
+21938:   window.wrOpenThumb=function(key){
+21939:     // For now, just show the image in a new tab (or toast). Could navigate to result screen.
+21940:     var saved=loadSavedSims();
+21941:     var s=saved.find(function(x){ return x._savedKey===key; });
+21942:     if(!s) return;
+21943:     if(typeof toast==='function') toast('画像 '+(s.title||s.date||key)+' を選択中');
+21944:   };
+21945:   window.wrToggleFav=function(key){
+21946:     var saved=loadSavedSims();
+21947:     var s=saved.find(function(x){ return x._savedKey===key; });
+21948:     if(!s) return;
+21949:     s.fav=!s.fav;
+21950:     persistSavedSims(saved);
+21951:     /* Also update in state if current */
+21952:     if(window.state&&Array.isArray(state.simResults)){
+21953:       var r=state.simResults.find(function(x){ return x&&x._savedKey===key; });
+21954:       if(r) r.fav=s.fav;
+21955:     }
+21956:     renderRightPanel();
+21957:     if(typeof cfRenderSimGallery==='function') cfRenderSimGallery();
+21958:   };
+
+===== LINES 22214-22255 =====
+22214:   }
+22215: 
+22216:   // ── Preview-strip multi-select → batch save to CAMERA ROLL ──────────────────
+22217:   // Every generated image is ALSO auto-saved to the Library (48h temp) by the studio
+22218:   // module, so selection mode here is purely for exporting one-or-more variations to the
+22219:   // device camera roll at once.
+22220:   // CRITICAL: renderSimGallery() lives in a DIFFERENT IIFE (the v9.6 studio module); from
+22221:   // here it is only reachable via the global alias window.cfRenderSimGallery — calling it by
+22222:   // bare name silently no-ops (typeof === 'undefined'), which is why the checkboxes / save /
+22223:   // cancel buttons previously appeared dead.
+22224:   function reRenderStrip(){ if(typeof window.cfRenderSimGallery==='function') window.cfRenderSimGallery(); }
+22225: 
+22226:   // Convert any data:/http image URL to a File for the share sheet / download fallback.
+22227:   async function urlToFile(url, name){
+22228:     var resp=await fetch(url); var blob=await resp.blob();
+22229:     return new File([blob], name, {type:blob.type||'image/jpeg'});
+22230:   }
+22231:   // Save a list of image URLs to the camera roll (share sheet) with a per-file download fallback.
+22232:   async function saveUrlsToCameraRoll(urls){
+22233:     var files=[];
+22234:     for(var i=0;i<urls.length;i++){ if(!urls[i]) continue; try{ files.push(await urlToFile(urls[i],'caseflow_'+(i+1)+'.jpg')); }catch(e){} }
+22235:     if(!files.length){ if(typeof toast==='function') toast('保存できる画像がありません'); return false; }
+22236:     if(navigator.canShare && navigator.canShare({files:files}) && navigator.share){
+22237:       try{ await navigator.share({files:files, title:'CaseFlow Studio'}); if(typeof toast==='function') toast('共有シートから「画像を保存」を選んでください'); return true; }
+22238:       catch(e){ if(e && e.name==='AbortError') return false; }
+22239:     }
+22240:     files.forEach(function(f){ var a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1200); });
+22241:     if(typeof toast==='function') toast(files.length+' 枚をダウンロードしました');
+22242:     return true;
+22243:   }
+22244:   window.cfSaveUrlsToCameraRoll=saveUrlsToCameraRoll;
+22245: 
+22246:   // Long-press a preview thumbnail to ENTER selection mode (that thumb pre-checked).
+22247:   window.cfEnterStripSelect = function(i){
+22248:     var arr=cfResolveSaveableResults();
+22249:     if(!arr.length){ if(typeof toast==='function') toast('保存する画像がありません'); return; }
+22250:     window.state.cfLibrarySelectMode=true;
+22251:     window.state.cfLibrarySel=arr.map(function(_,k){ return k===i; });
+22252:     reRenderStrip();
+22253:   };
+22254:   // Toolbar fallback entry (kept for any legacy caller): toggle selection mode on/off.
+22255:   window.cfToggleLibrarySelect = function(){
+
+===== LINES 22335-22376 =====
+22335:           'box-shadow:0 4px 16px rgba(108,63,252,.4);transition:opacity .14s;}' +
+22336:         '.cfBatchSaveBtn:disabled{opacity:.4;cursor:default;}';
+22337:       document.head.appendChild(st);
+22338:     }
+22339:     // Remove any existing sheet
+22340:     var old=document.getElementById('cfBatchBackdrop');
+22341:     if(old) old.remove();
+22342:     // Track selection (default: all selected)
+22343:     var sel = arr.map(function(){ return true; });
+22344:     function countSel(){ return sel.filter(Boolean).length; }
+22345:     function renderGrid(){
+22346:       var html='';
+22347:       arr.forEach(function(r,i){
+22348:         html+='<div class="cfBatchThumb'+(sel[i]?' sel':'')+'" role="button" tabindex="0" data-i="'+i+'">'
+22349:           +'<img src="'+r.dataUrl+'" loading="lazy">'
+22350:           +'<span class="cfBatchNum">'+(i+1)+'</span>'
+22351:           +'<span class="cfBatchCheck">✓</span>'
+22352:           +'</div>';
+22353:       });
+22354:       return html;
+22355:     }
+22356:     function updateBtn(){
+22357:       var btn=document.getElementById('cfBatchSaveBtn');
+22358:       var n=countSel();
+22359:       if(btn){ btn.textContent='選択した '+n+' 枚を Library に保存'; btn.disabled=(n===0); }
+22360:     }
+22361:     var bd=document.createElement('div');
+22362:     bd.id='cfBatchBackdrop'; bd.className='cfBatchBackdrop';
+22363:     bd.innerHTML='<div class="cfBatchSheet">'
+22364:       +'<div class="cfBatchSheetHandle"></div>'
+22365:       +'<div class="cfBatchSheetHead"><h3>Library に保存する画像を選択</h3><button onclick="document.getElementById(\'cfBatchBackdrop\').remove()">×</button></div>'
+22366:       +'<div class="cfBatchGrid" id="cfBatchGrid">'+renderGrid()+'</div>'
+22367:       +'<div class="cfBatchFooter"><button class="cfBatchSaveBtn" id="cfBatchSaveBtn">選択した '+arr.length+' 枚を Library に保存</button></div>'
+22368:       +'</div>';
+22369:     document.body.appendChild(bd);
+22370:     // Toggle selection on thumbnail click
+22371:     document.getElementById('cfBatchGrid').addEventListener('click', function(e){
+22372:       var thumb=e.target.closest('.cfBatchThumb');
+22373:       if(!thumb) return;
+22374:       var i=parseInt(thumb.dataset.i,10);
+22375:       sel[i]=!sel[i];
+22376:       thumb.classList.toggle('sel', sel[i]);
+
+===== LINES 22392-22433 =====
+22392:     // Tap backdrop to close
+22393:     bd.addEventListener('click', function(e){ if(e.target===bd) bd.remove(); });
+22394:     // Animate in
+22395:     requestAnimationFrame(function(){ bd.classList.add('show'); });
+22396:   };
+22397: 
+22398:   window.cfSaveToLibrary = function(){ window.cfOpenLibraryBatchSheet(); };
+22399: 
+22400:   window.cfExportToDevice = async function(){
+22401:     var img = document.getElementById('resultAfter');
+22402:     if(!img || !img.src){ if(typeof toastFn==='function') toastFn('生成結果がありません'); return; }
+22403:     var url = img.src;
+22404:     try{
+22405:       // If Web Share API supports files, use it (iOS Safari)
+22406:       var res = await fetch(url);
+22407:       var blob = await res.blob();
+22408:       var file = new File([blob], 'caseflow_simulation.jpg', {type:'image/jpeg'});
+22409:       if(navigator.canShare && navigator.canShare({files:[file]})){
+22410:         await navigator.share({files:[file], title:'CaseFlow Simulation'});
+22411:         return;
+22412:       }
+22413:     }catch(e){}
+22414:     // Fallback: trigger <a download>
+22415:     try{
+22416:       var a = document.createElement('a');
+22417:       a.href = url;
+22418:       a.download = 'caseflow_simulation.jpg';
+22419:       document.body.appendChild(a);
+22420:       a.click();
+22421:       setTimeout(function(){ document.body.removeChild(a); }, 100);
+22422:       if(typeof toastFn==='function') toastFn('画像をダウンロードしました');
+22423:     }catch(e){
+22424:       if(typeof toastFn==='function') toastFn('書き出しに失敗しました');
+22425:     }
+22426:   };
+22427: 
+22428:   /* ── 4. Undo snackbar ─────────────────────────────────────────
+22429:      Call cfUndoable(label, doFn, undoFn) before any destructive
+22430:      action. Shows a snackbar for 5s; tapping Undo calls undoFn. */
+22431:   var _cfUndoBanner = null, _cfUndoTimer = null, _cfUndoFn = null;
+22432: 
+22433:   function ensureUndoBanner(){
+
+===== LINES 22772-22813 =====
+22772:     if(photoCount || resultCount){
+22773:       var msg = photoCount
+22774:         ? 'セッションを復元しました（写真 '+photoCount+'枚）'
+22775:         : 'シミュレーション結果を復元しました';
+22776:       setTimeout(function(){
+22777:         try{ if(typeof toastFn==='function') toastFn(msg); else if(typeof toast==='function') toast(msg); }catch(e){}
+22778:       }, 900);
+22779:     }
+22780: 
+22781:     // Sync polling counters
+22782:     _prevPhotoCount  = (s.photos  ||[]).length;
+22783:     _prevResultCount = (s.simResults||[]).filter(function(r){return r&&r.dataUrl;}).length;
+22784:   }
+22785: 
+22786:   if(document.readyState==='loading'){
+22787:     document.addEventListener('DOMContentLoaded', function(){ setTimeout(tryRestore, 650); });
+22788:   } else {
+22789:     setTimeout(tryRestore, 650);
+22790:   }
+22791: 
+22792: })();
+22793: </script>
+22794: 
+22795: <style>
+22796: /* Library: favourite star + multi-select camera-roll export */
+22797: #library .cfLibToolbar{display:flex;gap:8px;margin:10px 0 4px}
+22798: #library .cfLibToolbar:empty{display:none}
+22799: #library .cfLibToolBtn{flex:1;padding:11px 12px;border-radius:13px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanel,rgba(255,255,255,.86));color:var(--cfUiText,#201b35);font:inherit;font-size:12.5px;font-weight:850;cursor:pointer}
+22800: #library .cfLibToolBtn.primary{border:0;color:#fff;background:linear-gradient(135deg,#6a3de8,#7c5cfc);box-shadow:0 3px 12px rgba(108,63,252,.35)}
+22801: #library .cfLibToolBtn:disabled{opacity:.42;cursor:default}
+22802: #library .libraryCard{position:relative}
+22803: #library .libraryCard .cfLibFav{position:absolute;top:7px;right:7px;z-index:5;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;background:rgba(0,0,0,.42);color:rgba(255,255,255,.85);transition:.15s}
+22804: #library .libraryCard .cfLibFav.on{background:rgba(255,206,0,.92);color:#201b35}
+22805: #library .libraryCard .cfLibCheck{position:absolute;top:7px;left:7px;z-index:5;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:transparent;background:rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.8);transition:.15s}
+22806: #library .libraryCard.cfLibSelMode{cursor:pointer}
+22807: #library .libraryCard.cfLibSelMode .cfLibCheck.on{background:#7c5cfc;border-color:#7c5cfc;color:#fff}
+22808: #library .libraryCard.cfLibSelMode .libraryBtns,
+22809: #library .libraryCard.cfLibSelMode .libraryTitleEdit{pointer-events:none;opacity:.5}
+22810: /* Favourite body badge */
+22811: #library .cfLibFavBadge{display:inline-flex;align-items:center;gap:3px;margin:2px 0 0;font-size:10.5px;font-weight:900;color:#7a5a00;background:rgba(255,206,0,.22);border-radius:8px;padding:3px 8px;letter-spacing:.01em}
+22812: /* Favourites pick-up row */
+22813: #library .cfLibPick{margin:2px 0 14px;padding:11px 0 4px;border-top:1px solid rgba(32,27,53,.08);border-bottom:1px solid rgba(32,27,53,.08)}
+
+===== LINES 22909-22964 =====
+22909:     var nv=!recFav(r); r.fav=nv; if(r.payload&&r.payload.simResult) r.payload.simResult.fav=nv;
+22910:     persist(recs);
+22911:     // Full re-render so the body ★ badge, favourites pick-up row and 'お気に入り' sort all reflect the change.
+22912:     if(typeof window.renderLibrary==='function') window.renderLibrary(); else refresh();
+22913:     toastFn(nv?'お気に入りに追加しました':'お気に入りを解除しました');
+22914:   };
+22915:   window.cfLibSaveSelected=async function(){
+22916:     var recs=libRecords();
+22917:     var ids=Object.keys(selected).filter(function(k){return selected[k];});
+22918:     if(!ids.length) return;
+22919:     var files=[];
+22920:     for(var i=0;i<ids.length;i++){
+22921:       var r=recs.find(function(x){return x.id===ids[i];}); if(!r) continue;
+22922:       var url=recImage(r); if(!url) continue;
+22923:       try{ var resp=await fetch(url); var blob=await resp.blob(); files.push(new File([blob],'caseflow_'+(i+1)+'.jpg',{type:blob.type||'image/jpeg'})); }catch(e){}
+22924:     }
+22925:     if(!files.length){ toastFn('保存できる画像がありません'); return; }
+22926:     // iOS / Android share sheet with multiple image files → "画像を保存" = camera roll
+22927:     if(navigator.canShare && navigator.canShare({files:files}) && navigator.share){
+22928:       try{ await navigator.share({files:files, title:'CaseFlow Studio'}); toastFn('共有シートから「画像を保存」を選んでください'); cfLibCancelSelect(); return; }
+22929:       catch(e){ if(e.name==='AbortError') return; }
+22930:     }
+22931:     // Fallback: download each file
+22932:     files.forEach(function(f){ var a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },120); });
+22933:     toastFn(files.length+' 枚をダウンロードしました'); cfLibCancelSelect();
+22934:   };
+22935: 
+22936:   function init(){ hook(); refresh(); }
+22937:   if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
+22938:   var go0=window.go;
+22939:   if(typeof go0==='function' && !go0.__cfLibGo){ var gw=function(id){ var r=go0.apply(this,arguments); if(id==='library'){ selectMode=false; selected={}; setTimeout(init,40); } return r; }; gw.__cfLibGo=true; window.go=gw; }
+22940: })();
+22941: </script>
+22942: 
+22943: <style>
+22944: /* ===== CapCut-style morphing editor (injected at the top of #align) ===== */
+22945: #cfCapCut{margin:0 0 14px}
+22946: #cfCapStage{position:relative;width:100%;aspect-ratio:var(--cfcap-ar,4/5);border-radius:16px;overflow:hidden;background:linear-gradient(145deg,var(--c1) 0%,color-mix(in srgb,var(--c1) var(--blend,50%),var(--c2)) 50%,var(--c2) 100%);box-shadow:0 20px 60px -24px rgba(20,12,40,.6),inset 0 0 0 1px rgba(255,255,255,.06)}
+22947: #cfCapStage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 70% 60% at 22% 26%,var(--c1) 0%,transparent 60%),radial-gradient(ellipse 66% 64% at 80% 74%,var(--c2) 0%,transparent 60%),radial-gradient(ellipse 50% 48% at 52% 50%,color-mix(in srgb,var(--c1) 50%,var(--c2)) 0%,transparent 58%);background-size:185% 185%,185% 185%,160% 160%;filter:saturate(1.45) contrast(1.03) blur(4px);animation:cfBgEdge 18s ease-in-out infinite alternate}
+22948: #cfCapCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+22949: #cfCapStage .cfCapLbl{position:absolute;top:10px;font-family:ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.16em;color:#fff;background:rgba(8,6,16,.5);padding:4px 9px;border-radius:999px;backdrop-filter:blur(6px);pointer-events:none}
+22950: #cfCapStage .cfCapLbl.l{left:10px}#cfCapStage .cfCapLbl.r{right:10px}
+22951: #cfCapStage .cfCapEmpty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:rgba(255,255,255,.72);font-size:13px;font-weight:700;text-align:center;padding:24px;line-height:1.6}
+22952: #cfCapTransport{display:flex;align-items:center;gap:11px;margin-top:11px}
+22953: #cfCapPlay{flex:0 0 auto;width:48px;height:48px;border:0;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;font-size:15px;display:grid;place-items:center;cursor:pointer;box-shadow:0 6px 18px rgba(124,92,255,.4)}
+22954: #cfCapScrubWrap{flex:1;display:flex;flex-direction:column;gap:3px}
+22955: #cfCapScrub{width:100%;accent-color:var(--c1,#7c5cff);height:26px}
+22956: #cfCapScrubMeta{display:flex;justify-content:space-between;font-family:ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.08em;color:rgba(32,27,53,.5);text-transform:uppercase}
+22957: #cfCapSpeed{display:flex;gap:6px;margin-top:12px}
+22958: #cfCapSpeed button{flex:1;border:0;border-radius:12px;min-height:40px;font-family:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;background:rgba(32,27,53,.06);color:rgba(32,27,53,.62);cursor:pointer}
+22959: #cfCapSpeed button.on{background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.32)}
+22960: #cfCapHint{margin-top:9px;font-size:10.5px;line-height:1.55;color:rgba(32,27,53,.55);font-weight:600}
+22961: #cfCapHint b{color:#6a3de8;font-weight:900}
+22962: #cfCapRatioRow{display:flex;gap:6px;margin-top:10px}
+22963: #cfCapRatioRow .cfCapRat{flex:1;border:1.5px solid rgba(124,92,255,.22);border-radius:12px;background:rgba(32,27,53,.05);color:rgba(32,27,53,.58);font-size:12px;font-weight:700;padding:9px 4px 7px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .18s;line-height:1.2}
+22964: #cfCapRatioRow .cfCapRat span{font-size:9px;font-weight:600;color:rgba(32,27,53,.42);letter-spacing:.04em}
+
+===== LINES 23089-23175 =====
+23089: .v75SrcMenuItem.danger{color:#e53e3e;}
+23090: .v75SrcMenuItem:active{background:rgba(0,0,0,.05);}
+23091: .v75SrcMenuCancel{display:block;width:calc(100% - 32px);margin:8px 16px 20px;padding:14px;border:0;border-radius:13px;background:rgba(0,0,0,.07);font-size:16px;font-weight:700;color:#201b35;cursor:pointer;text-align:center;-webkit-appearance:none;}
+23092: /* Add-photo button in source strip */
+23093: .v73SrcAddBtn{flex:0 0 96px;height:96px;border:2px dashed rgba(124,92,255,.35);border-radius:16px;background:rgba(124,92,255,.07);color:#7c5cff;font-size:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;flex-shrink:0;transition:background .15s,border-color .15s;}
+23094: .v73SrcAddBtn:active{background:rgba(124,92,255,.14);}
+23095: .v73SrcAddBtn span{font-size:9.5px;font-weight:700;letter-spacing:.05em;color:#7c5cff;}
+23096: /* Pattern selector */
+23097: #cfCapPatternRow{display:flex;gap:7px;margin:10px 0 4px;}
+23098: .cfCapPat{flex:1;border:1.5px solid rgba(124,92,255,.22);border-radius:13px;padding:8px 4px;background:rgba(255,255,255,.62);color:#8878bb;font-size:10px;font-weight:700;cursor:pointer;text-align:center;line-height:1.3;transition:border-color .15s,background .15s,color .15s;backdrop-filter:blur(4px);}
+23099: .cfCapPat b{display:block;font-size:11px;font-weight:800;}
+23100: .cfCapPat span{display:block;font-size:8.5px;font-weight:500;opacity:.7;margin-top:2px;letter-spacing:.04em;}
+23101: .cfCapPat.on{border-color:#7c5cff;background:rgba(124,92,255,.13);color:#7c5cff;}
+23102: .cfCapPat.on span{opacity:1;}
+23103: /* Clinical Warp waiting overlay */
+23104: #cfCWWait{display:none;position:absolute;inset:0;z-index:25;background:rgba(8,6,16,.82);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);flex-direction:column;align-items:center;justify-content:center;gap:18px;border-radius:inherit;text-align:center;padding:24px;}
+23105: #cfCWWait.active{display:flex;}
+23106: .cfCWSpinner{width:44px;height:44px;border:3.5px solid rgba(255,255,255,.12);border-top-color:#7c5cff;border-radius:50%;animation:cfCWSpin .85s linear infinite;}
+23107: @keyframes cfCWSpin{to{transform:rotate(360deg);}}
+23108: .cfCWMsg{font-size:13.5px;font-weight:700;color:#fff;line-height:1.6;}
+23109: .cfCWMsg span{display:block;font-size:11px;font-weight:500;color:rgba(255,255,255,.58);margin-top:5px;}
+23110: /* Source Images section header */
+23111: .v73SrcHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+23112: .v73SrcHeader b{font-size:12px;font-weight:800;color:#1a1040;}
+23113: .v73SrcHeader .v73SrcCount{font-size:10px;font-weight:600;color:#8878bb;background:rgba(124,92,255,.09);border-radius:8px;padding:3px 8px;}
+23114: </style>
+23115: <script>
+23116: /* ---------- CapCut-style live morphing editor (beginner-friendly) ---------- */
+23117: (function(){
+23118:   if(window.__cfCapCut) return; window.__cfCapCut=true;
+23119:   function $id(id){return document.getElementById(id);}
+23120:   function toastFn(m){ if(typeof toast==='function') toast(m); }
+23121:   var rendering=false, pendingT=null, playing=false, playToken=0, _speedMs=2600, _gpuVidBlob=null;
+23122: 
+23123:   function pair(){
+23124:     var ph=(window.state&&state.photos)||[];
+23125:     var a=(state.morphPair&&Number.isInteger(state.morphPair.a))?state.morphPair.a:0;
+23126:     var b=(state.morphPair&&Number.isInteger(state.morphPair.b))?state.morphPair.b:Math.min(1,ph.length-1);
+23127:     return {ph:ph,a:a,b:b};
+23128:   }
+23129:   function ratioAR(){
+23130:     var r=(window.state&&state.ratio)||'4:5';
+23131:     if(r==='16:9') return '16/9'; if(r==='1:1') return '1/1'; if(r==='9:16') return '9/16'; return '4/5';
+23132:   }
+23133:   function ratioWH(r){
+23134:     if(r==='16:9') return {w:1920,h:1080};
+23135:     if(r==='1:1')  return {w:1080,h:1080};
+23136:     if(r==='9:16') return {w:1080,h:1920};
+23137:     return {w:1080,h:1350}; // 4:5 default
+23138:   }
+23139:   function ensureUI(){
+23140:     var align=$id('align'); if(!align) return null;
+23141:     var box=$id('cfCapCut'); if(box) return box;
+23142:     box=document.createElement('div'); box.id='cfCapCut';
+23143:     box.innerHTML=
+23144:       '<div id="cfCapStage" style="--cfcap-ar:'+ratioAR()+'">'+
+23145:         '<canvas id="cfCapCanvas" width="1080" height="1350"></canvas>'+
+23146:         '<span class="cfCapLbl l">BEFORE</span><span class="cfCapLbl r">AFTER</span>'+
+23147:         '<div class="cfCapEmpty" id="cfCapEmpty">Source Images で 2 枚以上の画像を追加してください。</div>'+
+23148:         /* Clinical Warp — preview generation waiting overlay */
+23149:         '<div id="cfCWWait">'+
+23150:           '<div class="cfCWSpinner"></div>'+
+23151:           '<div class="cfCWMsg">プレビューを作成しています。<br><span>口元・歯列・表情の位置を整えています。</span></div>'+
+23152:         '</div>'+
+23153:       '</div>'+
+23154:       /* Edit / Align (Morph Prep) entry — optional pre-processing step */
+23155:       '<div id="cfCapAlignRow" style="display:flex;gap:8px;align-items:center;margin:10px 0">'+
+23156:         '<button id="cfCapEditAlignBtn" style="flex:1;border:0;border-radius:12px;min-height:44px;font-weight:800;font-size:13px;background:linear-gradient(135deg,#7c5cff,#ff9fd6);color:#fff;cursor:pointer">✎ Edit / Align（Morph Prep）</button>'+
+23157:         '<button id="cfCapAlignResetBtn" title="元画像に戻す" style="display:none;border:0;border-radius:12px;min-height:44px;padding:0 12px;font-weight:700;font-size:12px;background:rgba(32,27,53,.08);color:rgba(32,27,53,.7);cursor:pointer">元画像</button>'+
+23158:       '</div>'+
+23159:       '<div id="cfCapAlignStatus" style="display:none;font-size:11px;color:#34a853;margin:-4px 2px 8px">✓ 補正済みのモーフィング用画像を使用中</div>'+
+23160:       /* Clinical Warp pattern selector (3 presets, pure client-side, no API) */
+23161:       '<div id="cfCapPatternRow">'+
+23162:         '<button class="cfCapPat on" data-pat="clinical" data-warp="2" data-ms="2800"><b>純粋な臨床</b><span>Pure Clinical</span></button>'+
+23163:         '<button class="cfCapPat" data-pat="oral" data-warp="10" data-ms="2200"><b>口元重点</b><span>Oral Focus</span></button>'+
+23164:         '<button class="cfCapPat" data-pat="stable" data-warp="5" data-ms="3400"><b>安定性重視</b><span>Stability</span></button>'+
+23165:       '</div>'+
+23166:       /* Playback transport */
+23167:       '<div id="cfCapTransport">'+
+23168:         '<button id="cfCapPlay" aria-label="再生">&#9654;</button>'+
+23169:         '<div id="cfCapScrubWrap">'+
+23170:           '<input type="range" id="cfCapScrub" min="0" max="100" value="0">'+
+23171:           '<div id="cfCapScrubMeta"><span id="cfCapPair">1 → 2</span><span id="cfCapPct">0%</span></div>'+
+23172:         '</div>'+
+23173:       '</div>'+
+23174:       '<div id="cfCapSpeed">'+
+23175:         '<button data-ms="3800">Slow</button>'+
+
+===== LINES 23240-23352 =====
+23240:     });
+23241:   }
+23242: 
+23243:   function gpuShowOverlay(show){
+23244:     var ov=$id('cfCapGpuOverlay');
+23245:     if(ov) ov.classList.toggle('active',!!show);
+23246:     if(!show){ gpuSetProgress(0,'処理を準備中…'); }
+23247:   }
+23248: 
+23249:   // ── Fetch with auto-retry on 429 / 503 (exponential back-off) ───────────
+23250:   async function _gpuFetchRetry(url, options, maxRetries, progressMsg){
+23251:     maxRetries=maxRetries||5;
+23252:     for(var attempt=0; attempt<maxRetries; attempt++){
+23253:       var res;
+23254:       try{ res=await fetch(url, options); }
+23255:       catch(netErr){
+23256:         if(options&&options.signal&&options.signal.aborted) throw netErr;
+23257:         if(attempt===maxRetries-1) throw netErr;
+23258:         var nd=Math.min(Math.pow(2,attempt)*1000,16000);
+23259:         gpuSetProgress(5,'ネットワークエラー — '+Math.round(nd/1000)+'秒後に再試行…');
+23260:         await new Promise(function(r){setTimeout(r,nd);});
+23261:         continue;
+23262:       }
+23263:       if(res.status===429||res.status===503){
+23264:         if(attempt===maxRetries-1)
+23265:           throw new Error('サーバーが混雑しています。しばらく待ってから再試行してください ('+res.status+')');
+23266:         var ra=res.headers.get('Retry-After');
+23267:         var delay=ra?parseInt(ra)*1000:Math.min(Math.pow(2,attempt)*2000,30000);
+23268:         var secs=Math.round(delay/1000);
+23269:         gpuSetProgress(5,'サーバー混雑中 — '+secs+'秒後に自動再試行 ('+(attempt+1)+'/'+maxRetries+')…');
+23270:         await new Promise(function(r){setTimeout(r,delay);});
+23271:         if(options&&options.signal&&options.signal.aborted) throw new Error('cancelled');
+23272:         continue;
+23273:       }
+23274:       return res;
+23275:     }
+23276:   }
+23277: 
+23278:   // ── GPU async export (submits to /api/morph/submit, polls /api/morph/status) ──
+23279:   async function cfCapGpuExport(opts){
+23280:     opts=opts||{};
+23281:     var ph=(window.state&&state.photos)||[];
+23282:     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+23283:     /* Prevent duplicate submission while a job is already in flight */
+23284:     if(_gpuAbort){ toastFn('すでにAI生成中です。完了後に再試行してください'); return; }
+23285:     // Endpoint resolution order: window global → localStorage → fallback to local export
+23286:     var endpoint=(
+23287:       (window.CASEFLOW_GPU_ENDPOINT||'') ||
+23288:       (typeof localStorage!=='undefined' && localStorage.getItem('cfGpuEndpoint')) ||
+23289:       ''
+23290:     ).replace(/\/$/,'');
+23291:     if(!endpoint){
+23292:       // GPU backend not yet configured — fall back to local high-quality export
+23293:       return cfCapDoExport();
+23294:     }
+23295:     stop();
+23296:     gpuShowOverlay(true);
+23297:     gpuSetProgress(2,'画像を準備中…');
+23298:     var controller=new AbortController();
+23299:     _gpuAbort=controller;
+23300: 
+23301:     try{
+23302:       /* 1. Convert each photo to blob and build FormData */
+23303:       var fd=new FormData();
+23304:       var segCount=Math.max(1,ph.length-1);
+23305:       var totalSec=Math.min(10,Math.max(1.5,speedMs()*segCount/1000));
+23306:       fd.append('durationMs', String(Math.round(totalSec*1000)));
+23307:       fd.append('fps','30');
+23308:       if(opts.treatment) fd.append('treatmentName', opts.treatment);
+23309:       if(opts.period)    fd.append('treatmentDuration', opts.period);
+23310:       if(opts.story)     fd.append('patientInfo', opts.story);
+23311:       if(opts.ratio)     fd.append('outputRatio', opts.ratio);
+23312:       fd.append('showCaption',    opts.showCaption  ? '1' : '0');
+23313:       fd.append('seamlessMode',   opts.seamless     ? '1' : '0');
+23314:       fd.append('aiKeyframes',    opts.aiKeyframes  ? '1' : '0');
+23315:       fd.append('keyframeCount',  String(opts.keyframeCount||3));
+23316:       fd.append('warpOnly',       opts.warpOnly     ? '1' : '0');
+23317:       fd.append('noDissolve',     opts.noDissolve   ? '1' : '0');
+23318:       fd.append('motionSmooth',   opts.motionSmooth ||'normal');
+23319:       fd.append('dentalPres',     opts.dentalPres   ||'high');
+23320:       for(var i=0;i<ph.length;i++){
+23321:         var src=(typeof ph[i]==='string'?ph[i]:(ph[i].src||ph[i].dataUrl||ph[i].dataURL||''));
+23322:         var blob;
+23323:         if(src.startsWith('data:')){
+23324:           // data URL — convert directly without Image load
+23325:           var res2=await fetch(src);
+23326:           blob=await res2.blob();
+23327:         } else {
+23328:           var imgEl=new window.Image();
+23329:           if(src.startsWith('http')) imgEl.crossOrigin='anonymous';
+23330:           var ii=i;
+23331:           await new Promise(function(res,rej){
+23332:             imgEl.onload=res;
+23333:             imgEl.onerror=function(){ rej(new Error('写真'+(ii+1)+'の読み込みに失敗しました')); };
+23334:             imgEl.src=src;
+23335:           });
+23336:           var tmp=document.createElement('canvas');
+23337:           tmp.width=imgEl.naturalWidth; tmp.height=imgEl.naturalHeight;
+23338:           tmp.getContext('2d').drawImage(imgEl,0,0);
+23339:           blob=await new Promise(function(res){ tmp.toBlob(res,'image/jpeg',0.92); });
+23340:         }
+23341:         fd.append('frame', blob, 'frame_'+i+'.jpg');
+23342:       }
+23343: 
+23344:       /* 1b. Submit with up to 5 retries (handles 429 / 503 gracefully) */
+23345:       gpuSetProgress(5,'GPUに送信中…');
+23346:       var submitRes=await _gpuFetchRetry(
+23347:         endpoint+'/api/morph/submit',
+23348:         {method:'POST', body:fd, signal:controller.signal},
+23349:         5
+23350:       );
+23351:       if(!submitRes.ok) throw new Error('Submit failed: '+submitRes.status);
+23352:       var submitJson=await submitRes.json();
+
+===== LINES 23359-23408 =====
+23359:       while(!done){
+23360:         var jitter=(Math.random()-0.5)*800;
+23361:         await new Promise(function(r){setTimeout(r,2000+jitter);});
+23362:         if(controller.signal.aborted) throw new Error('cancelled');
+23363:         if(Date.now()-pollStart > 12*60*1000) throw new Error('タイムアウト（12分経過）');
+23364:         var pollRes=await _gpuFetchRetry(
+23365:           endpoint+'/api/morph/status?jobId='+encodeURIComponent(jobId),
+23366:           {signal:controller.signal},
+23367:           3
+23368:         );
+23369:         var pollJson=await pollRes.json();
+23370:         var s=pollJson.status||'';
+23371:         var p=Number(pollJson.progress)||8;
+23372:         /* Map backend status labels to JP strings */
+23373:         var LABELS={downloading:'画像を取得中…',segmenting:'口腔内セグメンテーション中…',interpolating:'フロー補間中…',encoding:'MP4エンコード中…',uploading:'アップロード中…',queued:'処理待ち…',done:'完了！',unknown:'ジョブ待機中…'};
+23374:         gpuSetProgress(p, LABELS[s]||s);
+23375:         if(s==='done'){ done=true; result=pollJson.resultUrl; }
+23376:         else if(s==='error') throw new Error(pollJson.error||'GPU処理エラー');
+23377:       }
+23378: 
+23379:       /* 3. Download result via Modal proxy (avoids R2 CORS on Safari) */
+23380:       gpuSetProgress(100,'ダウンロード中…');
+23381:       var vidRes=await fetch(endpoint+'/api/morph/download?jobId='+encodeURIComponent(jobId),{signal:controller.signal});
+23382:       if(!vidRes.ok) throw new Error('ダウンロード失敗: '+vidRes.status);
+23383:       var vidBlob=await vidRes.blob();
+23384:       gpuShowOverlay(false);
+23385: 
+23386:       /* 4. Show GPU video inside the canvas stage — same UI (speed/scrub/play all work) */
+23387:       var gpuVid=$id('cfCapGpuVid');
+23388:       if(gpuVid){
+23389:         var blobUrl=URL.createObjectURL(vidBlob);
+23390:         if(gpuVid._prevUrl){ URL.revokeObjectURL(gpuVid._prevUrl); }
+23391:         gpuVid._prevUrl=blobUrl;
+23392:         gpuVid.src=blobUrl;
+23393:         _gpuVidBlob=vidBlob;
+23394:         var rateMap={'3800':0.5,'2600':1.0,'1400':2.0};
+23395:         gpuVid.playbackRate=rateMap[String(_speedMs)]||1.0;
+23396:         gpuVid.classList.add('active');
+23397:         var badge=$id('cfCapGpuBadge'); if(badge) badge.classList.add('active');
+23398:         var gpuBackBtn=$id('cfCapGpuBack'); if(gpuBackBtn) gpuBackBtn.classList.add('active');
+23399:         /* Repurpose the save button to download the GPU video */
+23400:         var saveBtnEl=$id('cfCapSaveBtn');
+23401:         if(saveBtnEl){
+23402:           saveBtnEl.innerHTML='&#9660;&nbsp; AI動画を保存';
+23403:           saveBtnEl._gpuDownload=function(){
+23404:             if(typeof setExportBlob==='function'){
+23405:               setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+23406:             } else {
+23407:               var u=URL.createObjectURL(vidBlob);
+23408:               var a=document.createElement('a'); a.href=u; a.download='caseflow_ai_morph.mp4'; a.click();
+
+===== LINES 23418-23459 =====
+23418:       } else {
+23419:         if(typeof setExportBlob==='function'){
+23420:           setExportBlob(vidBlob,'caseflow_ai_morph.mp4','video/mp4');
+23421:         } else {
+23422:           var u2=URL.createObjectURL(vidBlob);
+23423:           var a2=document.createElement('a'); a2.href=u2; a2.download='caseflow_ai_morph.mp4'; a2.click();
+23424:           setTimeout(function(){URL.revokeObjectURL(u2);},5000);
+23425:         }
+23426:         toastFn('AI動画を書き出しました ✓');
+23427:       }
+23428: 
+23429:     }catch(e){
+23430:       gpuShowOverlay(false);
+23431:       if(e&&e.message!=='cancelled') toastFn('GPUエラー: '+(e.message||String(e)).slice(0,80));
+23432:     } finally {
+23433:       _gpuAbort=null;
+23434:     }
+23435:   }
+23436: 
+23437:   function bind(box){
+23438:     var scrub=box.querySelector('#cfCapScrub');
+23439:     scrub.addEventListener('input',function(){
+23440:       var gv=$id('cfCapGpuVid');
+23441:       if(gv&&gv.classList.contains('active')&&gv.duration){
+23442:         gv.currentTime=Number(scrub.value)/100*gv.duration;
+23443:         setPct(gv.currentTime/gv.duration);
+23444:         return;
+23445:       }
+23446:       stop(); var t=Number(scrub.value)/100; setPct(t); render(t);
+23447:     });
+23448:     /* GPU video: update scrub bar as it plays */
+23449:     var gpuVidEl=box.querySelector('#cfCapGpuVid');
+23450:     if(gpuVidEl){
+23451:       gpuVidEl.addEventListener('timeupdate',function(){
+23452:         if(!gpuVidEl.classList.contains('active')||!gpuVidEl.duration) return;
+23453:         var s=$id('cfCapScrub');
+23454:         if(s) s.value=String(gpuVidEl.currentTime/gpuVidEl.duration*100);
+23455:         setPct(gpuVidEl.currentTime/gpuVidEl.duration);
+23456:       });
+23457:     }
+23458:     box.querySelector('#cfCapPlay').addEventListener('click',toggle);
+23459:     box.querySelectorAll('#cfCapSpeed button').forEach(function(b){
+
+===== LINES 24174-24234 =====
+24174:             setTimeout(function(){ URL.revokeObjectURL(dlUrl); },5000);
+24175:             toastFn('プレビュー動画を保存しました ✓');
+24176:           }catch(dlErr){
+24177:             console.error('[CaseFlow Export Save Error] Fallback download failed',dlErr);
+24178:             toastFn('保存に失敗しました。端末の共有メニューをご利用ください');
+24179:           }
+24180:         }
+24181:       }else{
+24182:         throw new Error('MediaRecorder produced no result');
+24183:       }
+24184: 
+24185:     }catch(err){
+24186:       console.error('[CaseFlow Export Save Error]',err);
+24187:       toastFn('プレビュー動画の保存に失敗しました: '+(err&&err.message||String(err)).slice(0,60));
+24188:     }finally{
+24189:       window._cfExportInProgress=false;
+24190:       if(window.state){ state.cfExportMode=prevExportMode; }
+24191:       if(waitEl) waitEl.classList.remove('active');
+24192:       if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビュー動画を保存'; }
+24193:     }
+24194:   }
+24195: 
+24196:   function refresh(){
+24197:     var box=ensureUI(); if(!box) return;
+24198:     // Keep the ratio buttons, the stage aspect and the export size all locked to
+24199:     // state.ratio — a restored/persisted ratio must show its button as active AND
+24200:     // shape the stage (they could previously desync: markup defaults to 4:5).
+24201:     var _r=(window.state&&state.ratio)||'4:5';
+24202:     box.querySelectorAll('.cfCapRat').forEach(function(b){ b.classList.toggle('on', b.dataset.ratio===_r); });
+24203:     var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
+24204:     // Sync canvas intrinsic size to current ratio (clears canvas, re-render follows below)
+24205:     var cv=$id('cfCapCanvas');
+24206:     if(cv){ var rd=ratioWH(_r); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
+24207:     /* Show Clinical Warp waiting overlay while canvas initialises */
+24208:     var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]));
+24209:     var wait=$id('cfCWWait');
+24210:     if(wait && ph.length>=2){
+24211:       wait.classList.add('active');
+24212:       setTimeout(function(){ if(wait) wait.classList.remove('active'); }, 1400);
+24213:     }
+24214:     try{ cfCapSyncAlignStatus(); }catch(e){}
+24215:     window.cfCapRender();
+24216:     /* Background: auto-detect face mesh so morphs WARP (not crossfade), re-render on complete */
+24217:     try{
+24218:       if(window.cfEnsureFaceMesh && ph.length>=2){
+24219:         Promise.all(ph.map(function(p){ return window.cfEnsureFaceMesh(p); }))
+24220:           .then(function(){ window.cfCapRender(); }).catch(function(){});
+24221:       }
+24222:     }catch(e){}
+24223:   }
+24224:   window.cfCapRefresh=refresh;
+24225: 
+24226:   var prevGo=window.go;
+24227:   if(typeof prevGo==='function' && !prevGo.__cfCap){
+24228:     var gw=function(id){ var r=prevGo.apply(this,arguments); if(id!=='align') stop(); if(id==='align') setTimeout(refresh,140); return r; };
+24229:     gw.__cfCap=true; window.go=gw;
+24230:   }
+24231:   var prevRA=window.renderAlign;
+24232:   if(typeof prevRA==='function' && !prevRA.__cfCap){
+24233:     var raw=function(){ var r=prevRA.apply(this,arguments); setTimeout(refresh,90); return r; };
+24234:     raw.__cfCap=true; window.renderAlign=raw;
+
+===== LINES 24242-24283 =====
+24242:     if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
+24243:       toastFn('この環境では動画書き出しが未対応です'); return;
+24244:     }
+24245:     var _engine2; try{ _engine2=cfValidateExportDependencies(); }catch(depErr){ console.error('[CaseFlow Export] dependency error',depErr); toastFn('書き出しエラー: '+depErr.message); return; }
+24246:     var segCount=Math.max(1,ph.length-1);
+24247:     var activeRatio2=cfGetActiveAspectRatio();
+24248:     var rDims2=cfGetOutputSizeForRatio(activeRatio2);
+24249:     var w=rDims2.w, h=rDims2.h;
+24250:     var activeSpeedMs2=cfGetActiveSpeedMs();
+24251:     var durationMs=activeSpeedMs2*segCount;
+24252:     var fps=Math.min(60,Math.max(12,Number(window.CF_EXPORT_FPS)||30)); /* CF_EXPORT_FPS overrides (quality/speed tuning) */
+24253:     var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
+24254:     var frameMs=1000/fps;
+24255:     console.log('[CaseFlow Export] active ratio', activeRatio2, 'size', w, h, 'speed ms', activeSpeedMs2, 'duration ms', durationMs, 'totalFrames', totalFrames);
+24256:     // Show waiting overlay
+24257:     var waitOvEl=$id('cfCWWait');
+24258:     if(waitOvEl){
+24259:       var _msg=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg');
+24260:       if(_msg) _msg.textContent='書き出し準備中…';
+24261:       waitOvEl.classList.add('active');
+24262:     }
+24263:     toastFn('書き出し準備中…');
+24264:     stop();
+24265:     window._cfExportInProgress=true;
+24266:     var prevMesh=(window.state&&state.trueMeshEnabled);
+24267:     var prevOverlay=(window.state&&state.meshOverlayEnabled);
+24268:     var prevExportMode=(window.state&&!!state.cfExportMode);
+24269:     if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
+24270:     try{
+24271:       // Phase 0: precompute mesh/image data — no async IO inside the recording loop
+24272:       var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine2);
+24273: 
+24274:       // Build canonical timeline — same definition as preview
+24275:       var timeline=cfBuildMorphTimeline(ph, activeSpeedMs2, fps);
+24276:       cfAssertExportBudget(timeline, fps);
+24277:       console.log('[CaseFlow Export] speedMs', activeSpeedMs2,
+24278:         '| segmentCount', timeline.segmentCount,
+24279:         '| expectedDurationMs', timeline.totalDurationMs,
+24280:         '| fps', fps,
+24281:         '| totalFrames', timeline.totalFrames,
+24282:         '| frameMs', timeline.frameMs.toFixed(2));
+24283: 
+
+===== LINES 24419-24460 =====
+24419:         }
+24420:         if(libSaved2){
+24421:           toastFn('プレビュー動画を保存しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+24422:         }else{
+24423:           console.error('[CaseFlow Export Save Error] No Library save method available');
+24424:           toastFn('端末への保存は共有メニューからご利用ください');
+24425:         }
+24426:       }else{
+24427:         throw new Error('MediaRecorder produced no result');
+24428:       }
+24429:     }catch(err2){
+24430:       console.error('[CaseFlow Export Save Error]',err2);
+24431:       if(waitOvEl) waitOvEl.classList.remove('active');
+24432:       toastFn('プレビュー動画の保存に失敗しました: '+(err2&&err2.message||String(err2)).slice(0,60));
+24433:     }finally{
+24434:       if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
+24435:       window._cfExportInProgress=false;
+24436:     }
+24437:   }
+24438: 
+24439:   // ── Source image management: Prev / Next / Undo / Delete ──────────────────
+24440:   window._cfCapUndoStack = window._cfCapUndoStack || [];
+24441:   function cfCapPushUndo(){
+24442:     var ph=(window.state&&state.photos)||[];
+24443:     window._cfCapUndoStack.push(JSON.stringify(ph.map(function(p){ return {dataUrl:p.dataUrl,label:p.label,name:p.name,category:p.category}; })));
+24444:     if(window._cfCapUndoStack.length>6) window._cfCapUndoStack.shift();
+24445:   }
+24446:   window.cfCapPrevImage=function(){
+24447:     var ph=(window.state&&state.photos)||[];
+24448:     var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+24449:     if(ph.length<2||i<=0){ toastFn('これ以上前に移動できません'); return; }
+24450:     cfCapPushUndo();
+24451:     var tmp=ph[i]; ph[i]=ph[i-1]; ph[i-1]=tmp;
+24452:     state.v75ActiveIndex=i-1;
+24453:     if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24454:     else refresh();
+24455:   };
+24456:   window.cfCapNextImage=function(){
+24457:     var ph=(window.state&&state.photos)||[];
+24458:     var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+24459:     if(ph.length<2||i>=ph.length-1){ toastFn('これ以上後ろに移動できません'); return; }
+24460:     cfCapPushUndo();
+
+===== LINES 24487-24564 =====
+24487:     if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24488:     if(typeof window.renderUpload==='function') window.renderUpload();
+24489:     if(typeof window.renderSimulator==='function') window.renderSimulator();
+24490:     refresh();
+24491:     toastFn('画像を削除しました');
+24492:   };
+24493: 
+24494:   // header / step-3 "書き出し"
+24495:   window.cfMorphExport=function(){
+24496:     var p=pair(); if(!p.ph||p.ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+24497:     stop();
+24498:     cfCapDoExport().catch(function(e){ toastFn('書き出しエラー: '+(e&&e.message||String(e)).slice(0,80)); });
+24499:   };
+24500: 
+24501:   if(document.readyState!=='loading') setTimeout(refresh,400);
+24502:   else document.addEventListener('DOMContentLoaded',function(){ setTimeout(refresh,400); });
+24503: })();
+24504: </script>
+24505: 
+24506: 
+24507: 
+24508: <script>
+24509: /* ── Secondary Refinement (二次生成) — Golden Proportion Upper Anterior Teeth ── */
+24510: (function(){
+24511:   'use strict';
+24512:   if(window.__cfSecondaryRefinement) return;
+24513:   window.__cfSecondaryRefinement = true;
+24514: 
+24515:   function toast(m){ if(typeof window.toast==='function') window.toast(m); }
+24516: 
+24517:   function loadImg(src){
+24518:     return new Promise(function(res,rej){
+24519:       var im=new Image(); im.crossOrigin='anonymous';
+24520:       im.onload=function(){res(im);}; im.onerror=rej; im.src=src;
+24521:     });
+24522:   }
+24523: 
+24524:   function getAiEndpoint(){
+24525:     try{
+24526:       return window.CASEFLOW_AI_ENDPOINT ||
+24527:              localStorage.getItem('caseflow_ai_endpoint') ||
+24528:              'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
+24529:     }catch(e){ return window.CASEFLOW_AI_ENDPOINT || ''; }
+24530:   }
+24531: 
+24532:   async function fetchWithRetry(ep, body, maxAttempts){
+24533:     maxAttempts = maxAttempts||4;
+24534:     var delay = 1200;
+24535:     for(var attempt=1; attempt<=maxAttempts; attempt++){
+24536:       try{
+24537:         var r = await fetch(ep, {
+24538:           method:'POST',
+24539:           headers:{'Content-Type':'application/json','Accept':'application/json'},
+24540:           body: body
+24541:         });
+24542:         if(r.ok || !(r.status in {408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1})) return r;
+24543:       }catch(e){ if(attempt>=maxAttempts) throw e; }
+24544:       await new Promise(function(r){ setTimeout(r, delay); });
+24545:       delay = Math.min(delay*2, 10000);
+24546:     }
+24547:     throw new Error('AIバックエンドに接続できませんでした');
+24548:   }
+24549: 
+24550:   // CLAMPED, conservative golden-balance prompt. The goal is NOT to force the ideal
+24551:   // 1.618 ratio — it is a small, clinically-plausible tidy-up of the SAME teeth. Facial
+24552:   // gets the most conservative wording (full-frame, identity-preserving); focus may
+24553:   // refine crown form a little more but still gently.
+24554:   function buildGoldenProportionPrompt(imageType){
+24555:     if(imageType==='facial'){
+24556:       return [
+24557:         'Edit ONLY the visible upper anterior teeth in THIS exact portrait (image-to-image);',
+24558:         'keep it the SAME person — face, eyes, nose, skin, lips, expression, framing and background pixel-identical.',
+24559:         'Apply a SUBTLE, conservative balancing of the existing teeth: very slightly even the incisal edge line and',
+24560:         'soften obvious width asymmetries toward (not all the way to) natural proportions; keep the patient\'s own tooth',
+24561:         'shape, length, shade and individual character. Do NOT whiten to pure white, do NOT flatten or fuse teeth,',
+24562:         'do NOT create generic veneers, do NOT move the gingival margin or the lips. The change must be barely',
+24563:         'perceptible and look like the patient\'s real teeth, gently tidied. Return the FULL image at the same crop',
+24564:         'and head position so it overlays the original exactly.'
+
+===== LINES 24643-24685 =====
+24643:     c.width = cropRect.w; c.height = cropRect.h;
+24644:     var ctx = c.getContext('2d');
+24645:     ctx.drawImage(img, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, cropRect.w, cropRect.h);
+24646:     return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };
+24647:   }
+24648:   window.cfCropUpperAnteriorTeeth = cropUpperAnteriorTeeth;
+24649: 
+24650:   // Generate the refined image. FACIAL: full-frame, identity-preserving, LOW denoising
+24651:   // (a gentle balance pass — never an intraoral close-up). FOCUS: dental crop, intraoral,
+24652:   // a little more latitude. Golden-proportion change is clamped via low denoising_strength.
+24653:   async function generateRefinedViaAI(imageDataUrl, imageType){
+24654:     var epRaw = getAiEndpoint();
+24655:     if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
+24656:     var _refineLedgerId=null;
+24657:     if(typeof window.cfConsumeToken==='function'){
+24658:       var tk = await window.cfConsumeToken('generation');
+24659:       if(tk && tk.ok===false){
+24660:         if(tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+24661:         var err = new Error(tk.reason==='insufficient' ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
+24662:         err.cfNoTokens = true; throw err;
+24663:       }
+24664:       _refineLedgerId=(tk&&tk.ledgerId)||null;
+24665:     }
+24666:     var ep = epRaw.replace(/\/+$/,'');
+24667:     if(!/\/simulate$/.test(ep)) ep += '/simulate';
+24668:     var basePayload = {};
+24669:     if(typeof window.buildSimulationPayload==='function' && window.state && window.state.simResult && window.state.simResult.srcObj){
+24670:       try{ basePayload = window.buildSimulationPayload(window.state.simResult.srcObj); }catch(e){}
+24671:     }
+24672:     var facial = (imageType==='facial');
+24673:     var payload = Object.assign({}, basePayload, {
+24674:       image: imageDataUrl,
+24675:       prompt: buildGoldenProportionPrompt(imageType) + (typeof window.cfSmileDesignerPromptFragment==='function' ? ' ' + window.cfSmileDesignerPromptFragment(imageType) : ''),
+24676:       concept: 'prosthetic',
+24677:       // CLAMP: facial gets a much smaller denoise so the pass stays a gentle balance,
+24678:       // not a re-generation that can drift identity / over-whiten.
+24679:       denoising_strength: facial ? 0.26 : 0.42,
+24680:       control_weight: facial ? 0.85 : 0.72,
+24681:       // FACIAL is NEVER intraoral and keeps the lips — that focus-mode flag is exactly
+24682:       // what produced the "focus-style local replacement on a facial photo" breakage.
+24683:       intraoral: !facial,
+24684:       lips: facial,
+24685:       extraction_mode: false,
+
+===== LINES 24690-24732 =====
+24690:         'unnatural color, brackets, braces, wires, metal, discoloration, stains,',
+24691:         'uneven gingiva, misaligned gingival zenith, gaps, crowding, dark shadows,',
+24692:         'changed face, changed lips, changed skin, deformed teeth, cartoon, painting, sketch, anime'
+24693:       ].join(' ')
+24694:     });
+24695:     try{
+24696:       var res = await fetchWithRetry(ep, JSON.stringify(payload));
+24697:       var j = await res.json();
+24698:       if(j && j.error) throw new Error(String(j.error).slice(0,300));
+24699:       var out = j.image || j.dataUrl || j.output || (Array.isArray(j.images) ? j.images[0] : null) || null;
+24700:       if(!out) throw new Error('二次生成で画像が返りませんでした');
+24701:       return out;
+24702:     }catch(refErr){
+24703:       // 生成失敗 → トークン返却
+24704:       if(_refineLedgerId!=null && typeof window.cfRefundGeneration==='function'){
+24705:         try{ window.cfRefundGeneration(_refineLedgerId); }catch(e){ console.error('[CF Gate] refine refund failed',e); }
+24706:       }
+24707:       throw refErr;
+24708:     }
+24709:   }
+24710: 
+24711:   function toneMatchSimple(refCtx, srcCtx, w, h, str){
+24712:     // Fast global mean-channel shift: match refinedCrop colour to primary at crop region
+24713:     try{
+24714:       var rd = refCtx.getImageData(0,0,w,h).data;
+24715:       var sd = srcCtx.getImageData(0,0,w,h).data;
+24716:       var rR=0,rG=0,rB=0, sR=0,sG=0,sB=0, n=0;
+24717:       for(var i=3; i<rd.length; i+=4){
+24718:         if(rd[i]>20 && sd[i]>20){
+24719:           rR+=rd[i-3]; rG+=rd[i-2]; rB+=rd[i-1];
+24720:           sR+=sd[i-3]; sG+=sd[i-2]; sB+=sd[i-1];
+24721:           n++;
+24722:         }
+24723:       }
+24724:       if(!n) return;
+24725:       var dR=(sR-rR)/n*str, dG=(sG-rG)/n*str, dB=(sB-rB)/n*str;
+24726:       var id=refCtx.getImageData(0,0,w,h);
+24727:       var d=id.data;
+24728:       for(var i=3; i<d.length; i+=4){
+24729:         if(d[i]>20){
+24730:           d[i-3]=Math.max(0,Math.min(255,(d[i-3]+dR)|0));
+24731:           d[i-2]=Math.max(0,Math.min(255,(d[i-2]+dG)|0));
+24732:           d[i-1]=Math.max(0,Math.min(255,(d[i-1]+dB)|0));
+
+===== LINES 24864-24905 =====
+24864:     var isFacial = result && result.sourceKind === 'Facial';
+24865:     if(isFacial && !result._secondaryRefined){
+24866:       btn.style.display = '';
+24867:       btn.disabled = false;
+24868:       btn.style.opacity = '';
+24869:       btn.innerHTML = '✦ Refine<br>精密生成';
+24870:     } else {
+24871:       btn.style.display = 'none';
+24872:     }
+24873:   }
+24874: 
+24875:   // Gated refinement: 1) evaluate ROI/landmarks/imageType → 2) decide if a refine is safe →
+24876:   // 3) run a CLAMPED full-frame pass → 4) soft-matte composite (no rectangle) →
+24877:   // 5) quality check → 6) reject & keep the first-pass on any artifact, else adopt.
+24878:   window.runSecondaryRefinement = async function(){
+24879:     var btn = document.getElementById('cfRefineBtn');
+24880:     var result = window.state && window.state.simResult;
+24881:     var dbg = { imageType:null, secondaryRefineEnabled:false, secondaryRefineSkippedReason:null,
+24882:       roiCore:null, roiSupport:null, roiContext:null, blendMode:null, seamScore:null,
+24883:       outsideRegionChangeScore:null, artifactReject:null, finalSource:'first-pass' };
+24884: 
+24885:     if(!result || !result.dataUrl){ toast('生成結果が見つかりません'); return; }
+24886:     if(!getAiEndpoint()){ toast('AI バックエンドが設定されていません'); return; }
+24887: 
+24888:     var imageType = (result.sourceKind==='Facial') ? 'facial' : 'focus';
+24889:     dbg.imageType = imageType;
+24890: 
+24891:     if(btn){ btn.disabled=true; btn.innerHTML='…<br>処理中'; }
+24892:     try{
+24893:       var primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+24894:       var primImg = await loadImg(primaryDataUrl);
+24895:       var w = primImg.naturalWidth||primImg.width, h = primImg.naturalHeight||primImg.height;
+24896: 
+24897:       // ── GATE: facial needs reliable mouth landmarks; without them, a safe local refine
+24898:       //    is impossible → SKIP and keep the first-pass (never force a blind patch). ──
+24899:       var poly = null;
+24900:       if(imageType==='facial'){
+24901:         poly = await getLipOuterRing(primImg, w, h);
+24902:         if(!poly){
+24903:           dbg.secondaryRefineSkippedReason='no_facial_landmarks';
+24904:           console.log('[CaseFlow Refine]', dbg);
+24905:           if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+
+===== LINES 24968-25009 =====
+24968:     window.renderResult = function(){
+24969:       var r = _origRR.apply(this, arguments);
+24970:       setTimeout(updateRefineBtn, 100);
+24971:       return r;
+24972:     };
+24973:   }
+24974:   setTimeout(updateRefineBtn, 400);
+24975: })();
+24976: </script>
+24977: 
+24978: <script>
+24979: /* ===================================================================================
+24980:    CaseFlow Morphing Video Studio — Edit / Align (Morph Prep)  [MVP, self-contained]
+24981:    - Optional pre-processing step between Photo and Preview.
+24982:    - Produces "morph-ready" aligned + commonly-cropped images consumed by the
+24983:      morph preview/export ONLY when the user completes an align session.
+24984:    - Zero impact on other studios: when no align session is active, the source
+24985:      resolver returns state.photos unchanged (existing behaviour byte-for-byte).
+24986:    =================================================================================== */
+24987: (function(){
+24988:   'use strict';
+24989:   if(window.__cfMorphAlignInit) return; window.__cfMorphAlignInit=true;
+24990: 
+24991:   function $id(x){ return document.getElementById(x); }
+24992:   function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+24993:   function toastFn(m){ if(typeof window.toast==='function'){ try{ window.toast(m); return; }catch(e){} } }
+24994:   function loadImg(src){
+24995:     if(window.cfLoadImageForExport) return window.cfLoadImageForExport(src);
+24996:     return new Promise(function(res,rej){ var im=new Image(); im.onload=function(){res(im);}; im.onerror=function(){rej(new Error('img load failed'));}; im.src=src; });
+24997:   }
+24998: 
+24999:   /* ---- Morph-ready source resolver (used by preview render AND export) ----------- */
+25000:   function srcSig(photos){
+25001:     try{ return (photos||[]).map(function(p){ var d=(p&&p.dataUrl)||''; return d.length+':'+d.slice(-20); }).join('|'); }catch(e){ return ''; }
+25002:   }
+25003:   window.cfMorphSourceSig=srcSig;
+25004:   // Returns aligned morph-ready photos if a completed, still-valid session exists;
+25005:   // otherwise the original state.photos. Invalidated automatically if the source
+25006:   // photo set changes (add/remove/edit) so stale alignments are never used.
+25007:   window.cfGetMorphSource=function(){
+25008:     try{
+25009:       var base=(window.state&&state.photos)||[];
+
+===== LINES 25904-25945 =====
+25904:     ' padding:12px 13px;font:inherit;font-size:13px;font-weight:800;color:#241c46;cursor:pointer;border-bottom:1px solid rgba(124,92,255,.10);touch-action:manipulation}',
+25905:     '.cfShRow:last-child{border-bottom:0}',
+25906:     '.cfShRow:active{background:rgba(124,92,255,.10)}',
+25907:     '.cfShRow .sub{font-size:10.5px;color:rgba(42,35,80,.5);font-weight:700}',
+25908:     '.cfShRow.danger{color:#c0303a}',
+25909:     '.cfShRow .chev{color:rgba(42,35,80,.35);font-size:13px}',
+25910:     /* nav token badge */
+25911:     '#navSimBtn{position:relative}',
+25912:     '.cfNavTokBadge{position:absolute;top:3px;left:50%;transform:translateX(9px);min-width:16px;height:15px;line-height:15px;padding:0 4px;',
+25913:     ' border-radius:999px;background:var(--cf-theme-badge-bg,linear-gradient(135deg,#7c5cff,#b06bff));color:#fff;font-size:9px;font-weight:900;text-align:center;',
+25914:     ' box-shadow:0 2px 8px rgba(90,60,220,.45);pointer-events:none;letter-spacing:0}',
+25915:     '.cfNavTokBadge.big{transform:translateX(7px);padding:0 5px}',
+25916:     /* depleted (0 tokens) warning — red, overrides the theme gradient */
+25917:     '.cfNavTokBadge.empty{background:linear-gradient(135deg,#d0455a,#e0607a)!important}',
+25918:     /* pricing modal: in-modal message + button loading */
+25919:     '#cfPriceMsg{display:none;font-size:12px;font-weight:750;margin:10px 0 0;padding:9px 11px;border-radius:10px;line-height:1.6}',
+25920:     '.cfBtnBusy{opacity:.6;pointer-events:none}',
+25921:     /* profile edit sheet */
+25922:     '#cfProfEditOv{position:fixed;inset:0;z-index:2147483644;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.5);overflow:auto;',
+25923:     " font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Noto Sans JP',sans-serif}",
+25924:     '#cfProfEditOv.open{display:flex}',
+25925:     '.cfPeCard{width:100%;max-width:380px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55);border-radius:20px;padding:20px 18px;box-shadow:0 24px 70px rgba(30,18,60,.35);color:#241c46}',
+25926:     '.cfPeTitle{font-weight:900;font-size:15px;color:#241c46;margin:0 0 12px}'
+25927:   ].join('\n');
+25928:   document.head.appendChild(css);
+25929: 
+25930:   /* ---------------- gate DOM (dynamic; 既存DOMと非干渉) ---------------- */
+25931:   var wrap=document.createElement('div');
+25932:   wrap.id='cfGateV2';
+25933:   wrap.innerHTML=
+25934:     '<div class="cfG2Card">'+
+25935:       '<div class="cfG2Brand">CASEFLOW STUDIO&trade;</div>'+
+25936:       '<div class="cfG2Sub">Clinical beauty, visualized.</div>'+
+25937:       '<div class="cfG2Invited">Currently available to invited dental professionals only.<br>招待された歯科医療関係者のみご利用いただけます。</div>'+
+25938:       /* --- view: auth --- */
+25939:       '<div id="cfG2AuthView">'+
+25940:         '<div class="cfG2Tabs">'+
+25941:           '<button type="button" class="cfG2Tab on" id="cfG2TabLogin">ログイン</button>'+
+25942:           '<button type="button" class="cfG2Tab" id="cfG2TabSignup">新規登録</button>'+
+25943:         '</div>'+
+25944:         '<label class="cfG2Label">メールアドレス</label>'+
+25945:         '<input class="cfG2Input" id="cfG2Email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@clinic.jp">'+
+
+===== LINES 26108-26201 =====
+26108:     try{
+26109:       var u=await sb.auth.getUser();
+26110:       var uid=u&&u.data&&u.data.user&&u.data.user.id;
+26111:       if(!uid){ renderBadge(null); return; }
+26112:       var q=await sb.from('profiles').select('tokens_remaining,role,beta_access,professional_type').eq('id',uid).single();
+26113:       if(q.error){ console.error('[CF Gate] profile fetch failed',q.error); renderBadge(null); return; }
+26114:       curProfile=Object.assign(curProfile||{},q.data||{});
+26115:       window.__cfTokens=q.data?q.data.tokens_remaining:null;
+26116:       renderBadge(window.__cfTokens);
+26117:     }catch(e){ console.error('[CF Gate] refreshTokens failed',e); renderBadge(null); }
+26118:   }
+26119:   window.cfRefreshTokens=refreshTokens;
+26120: 
+26121:   /* 1回作成 = 2 tokens（Visual Simulation / Morphing Video / 再生成）。
+26122:      consume_tokens RPC（migration 6）を優先し、未適用環境では旧 consume_token(1) にフォールバック。 */
+26123:   var CF_GEN_COST=2;
+26124:   window.cfGenCost=CF_GEN_COST;
+26125:   window.cfConsumeToken=async function(reason,amount){
+26126:     if(!sb) return { ok:false, reason:'error', message:'supabase not ready' };
+26127:     var amt=(amount==null)?CF_GEN_COST:amount;
+26128:     try{
+26129:       var r=await sb.rpc('consume_tokens',{ p_amount:amt, p_reason: reason||'generation' });
+26130:       if(r.error){
+26131:         var m=String(r.error.message||'');
+26132:         if(/does not exist|schema cache|Could not find/i.test(m)){
+26133:           /* migration 6 未適用 → 旧RPC（1トークン）フォールバック */
+26134:           console.warn('[CF Gate] consume_tokens missing — falling back to consume_token(1)');
+26135:           var r0=await sb.rpc('consume_token',{ p_reason: reason||'generation' });
+26136:           if(r0.error){
+26137:             var m0=String(r0.error.message||'');
+26138:             if(/insufficient/i.test(m0)){ renderBadge(0); return { ok:false, reason:'insufficient' }; }
+26139:             if(/not authenticated|28000/i.test(m0)) return { ok:false, reason:'auth' };
+26140:             return { ok:false, reason:'error', message:m0 };
+26141:           }
+26142:           window.__cfTokens=r0.data; renderBadge(r0.data);
+26143:           cfLogEvent('token_consumed','token',{ reason:reason||'generation', amount:1, balance:r0.data });
+26144:           if((reason||'generation')==='generation') cfLogEvent('visual_simulation_generated','visual-simulation');
+26145:           return { ok:true, remaining:r0.data, ledgerId:null };
+26146:         }
+26147:         if(/not authenticated|28000/i.test(m)) return { ok:false, reason:'auth' };
+26148:         console.error('[CF Gate] consume_tokens failed',r.error);
+26149:         return { ok:false, reason:'error', message:m };
+26150:       }
+26151:       var d=r.data||{};
+26152:       if(d.ok===false){
+26153:         if(d.reason==='insufficient'){ renderBadge(window.__cfTokens); return { ok:false, reason:'insufficient' }; }
+26154:         return { ok:false, reason:'error', message:String(d.reason||'') };
+26155:       }
+26156:       window.__cfTokens=d.balance; renderBadge(d.balance);
+26157:       cfLogEvent('token_consumed','token',{ reason:reason||'generation', amount:amt, balance:d.balance });
+26158:       if((reason||'generation')==='generation') cfLogEvent('visual_simulation_generated','visual-simulation');
+26159:       return { ok:true, remaining:d.balance, ledgerId:d.ledger_id||null };
+26160:     }catch(e){ console.error('[CF Gate] consume_tokens exception',e); return { ok:false, reason:'error', message:String((e&&e.message)||e) }; }
+26161:   };
+26162:   /* 生成失敗時の返却（migration 6 の refund_generation_tokens。15分以内・二重返却防止付き） */
+26163:   window.cfRefundGeneration=async function(ledgerId){
+26164:     if(!sb||ledgerId==null) return { ok:false };
+26165:     try{
+26166:       var r=await sb.rpc('refund_generation_tokens',{ p_ledger_id: ledgerId });
+26167:       if(r.error){ console.error('[CF Gate] refund failed',r.error); return { ok:false }; }
+26168:       var d=r.data||{};
+26169:       if(d.ok){
+26170:         window.__cfTokens=d.balance; renderBadge(d.balance);
+26171:         cfLogEvent('token_refunded','token',{ amount:d.refunded, balance:d.balance });
+26172:       }
+26173:       return d;
+26174:     }catch(e){ console.error('[CF Gate] refund exception',e); return { ok:false }; }
+26175:   };
+26176:   var emptyModal=el('cfTokenEmpty'), emptyClose=el('cfTokenEmptyClose');
+26177:   window.cfShowTokenEmpty=function(){ if(emptyModal) emptyModal.style.display='flex'; cfLogEvent('token_empty','token'); };
+26178:   if(emptyClose) emptyClose.addEventListener('click',function(){ if(emptyModal) emptyModal.style.display='none'; });
+26179: 
+26180:   /* ---------------- usage events（患者識別情報・画像は記録しない） ---------------- */
+26181:   function cfEnvName(){
+26182:     var h=location.hostname;
+26183:     if(h==='caseflow-studio.com'||h==='www.caseflow-studio.com'||h==='caseflow-studio.vercel.app') return 'production';
+26184:     if(/localhost|127\.0\.0\.1/.test(h)) return 'local';
+26185:     return 'preview';
+26186:   }
+26187:   function cfLogEvent(type,feature,metadata){
+26188:     if(!sb||!curSession||!curSession.user) return;
+26189:     try{
+26190:       sb.from('usage_events').insert({
+26191:         user_id:curSession.user.id, event_type:String(type||'').slice(0,80),
+26192:         feature:feature?String(feature).slice(0,60):null,
+26193:         metadata:metadata||null,
+26194:         page_path:(location.pathname+location.hash).slice(0,300),
+26195:         user_agent:String(navigator.userAgent||'').slice(0,300),
+26196:         environment:cfEnvName()
+26197:       }).then(function(r){ if(r.error&&!/does not exist|schema cache/i.test(String(r.error.message||''))) console.error('[CF Usage] insert failed',r.error); });
+26198:     }catch(e){ console.error('[CF Usage] exception',e); }
+26199:   }
+26200:   window.cfLogEvent=cfLogEvent;
+26201: 
+
+===== LINES 26274-26316 =====
+26274:     if(window.__cfAcctBtn) window.__cfAcctBtn.style.display='none';
+26275:   }
+26276:   var _exportHooked=false, _signinLogged=false;
+26277:   function hookExportLogging(){
+26278:     if(_exportHooked) return;
+26279:     var prev=window.setExportBlob;
+26280:     if(typeof prev!=='function') return;
+26281:     _exportHooked=true;
+26282:     window.setExportBlob=function(blob,name,type){
+26283:       var r=prev.apply(this,arguments);
+26284:       try{
+26285:         if(type&&String(type).indexOf('video')===0){
+26286:           cfLogEvent('morphing_video_exported','morphing-video',{ mime:String(type).slice(0,40) });
+26287:           /* Morphing Video generation: 2 tokens（成功時消費。残0でも完成済み動画は失わせない） */
+26288:           if(typeof window.cfConsumeToken==='function'){
+26289:             window.cfConsumeToken('morphing_video').then(function(tk){
+26290:               if(tk&&tk.ok===false&&tk.reason==='insufficient'&&typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+26291:             });
+26292:           }
+26293:         }
+26294:         else cfLogEvent('export_completed','export',{ mime:String(type||'').slice(0,40) });
+26295:       }catch(e){ console.error('[CF Usage] export log failed',e); }
+26296:       return r;
+26297:     };
+26298:   }
+26299:   async function persistProfessionalConfirm(){
+26300:     /* サインアップ時のチェック・職種を profile に反映（own-profile update RLSで許可） */
+26301:     if(!curSession) return;
+26302:     var upd={};
+26303:     if(lsGet('cf_prof_confirm_v1')==='1') upd.professional_confirmed=true;
+26304:     var pt=lsGet('cf_prof_type_v1'); if(pt) upd.professional_type=pt;
+26305:     if(!Object.keys(upd).length) return;
+26306:     try{
+26307:       var r=await sb.from('profiles').update(upd).eq('id',curSession.user.id);
+26308:       if(r.error){ if(!/column|does not exist|schema cache/i.test(String(r.error.message||''))) console.error('[CF Gate] prof confirm failed',r.error); }
+26309:       else{ lsSet('cf_prof_confirm_v1',null); lsSet('cf_prof_type_v1',null); }
+26310:     }catch(e){ console.error('[CF Gate] prof confirm exception',e); }
+26311:   }
+26312:   function unlockApp(){
+26313:     wrap.classList.remove('open');
+26314:     /* トップ画面のアート性を優先: 旧トークンバッジ/ログアウト/右上アイコンは非表示。
+26315:        アカウントは下部ナビ中央（旧Sim位置）に集約 */
+26316:     if(logoutBtn) logoutBtn.style.display='none';
+
+===== LINES 26880-26946 =====
+26880:           startCheckout(plan, b, priceMsg, busy);
+26881:         });
+26882:       });
+26883:     }
+26884:     async function startCheckout(plan,btn,priceMsg,busy){
+26885:       if(window.__cfCheckoutBusy) return;   /* 二重押し防止 */
+26886:       window.__cfCheckoutBusy=true;
+26887:       if(busy) busy(btn,true,'決済画面へ…');
+26888:       if(priceMsg) priceMsg('Stripeの決済画面を準備しています…','info');
+26889:       var show=function(t){ if(priceMsg) priceMsg(t,'err'); else if(typeof toast==='function') toast(t); };
+26890:       try{
+26891:         var s=await sb.auth.getSession();
+26892:         var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+26893:         if(!jwt){ show('セッションが切れています。再ログインしてください。'); window.__cfCheckoutBusy=false; if(busy) busy(btn,false); return; }
+26894:         var res=await fetch('/api/stripe/create-checkout-session',{
+26895:           method:'POST',
+26896:           headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+jwt },
+26897:           body:JSON.stringify({ plan:plan })
+26898:         });
+26899:         var j=await res.json().catch(function(){ return {}; });
+26900:         if(res.ok&&j.url){ location.href=j.url; return; } /* 遷移するので busy は解除しない */
+26901:         console.error('[CF Billing] checkout failed',res.status,j);
+26902:         if(j.error==='price_not_configured') show('このプランの価格IDが未設定です'+(j.envName?('（'+j.envName+'）'):'')+'。');
+26903:         else if(j.error==='server_not_configured') show('決済サーバー設定が未完了です。不足: '+((j.missing&&j.missing.join(', '))||'不明')+'（Vercel Production 環境変数をご確認ください）');
+26904:         else if(res.status===401) show('セッションが切れています。再ログインしてください。');
+26905:         else show('決済画面を開けませんでした（HTTP '+res.status+'）。時間をおいて再度お試しください。');
+26906:       }catch(e){ console.error('[CF Billing] checkout exception',e); show('通信エラーで決済画面を開けませんでした。'); }
+26907:       window.__cfCheckoutBusy=false;
+26908:       if(busy) busy(btn,false);
+26909:     }
+26910:     /* Stripe Customer Portal への遷移（flow 別）。secret はサーバー側のみ。
+26911:        flow: undefined/'manage' | 'change_plan' | 'payment_method' | 'cancel' */
+26912:     async function openPortalFlow(flow,opts){
+26913:       opts=opts||{};
+26914:       var notify=opts.notify||function(t){ if(typeof toast==='function') toast(t); };
+26915:       try{
+26916:         var s=await sb.auth.getSession();
+26917:         var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+26918:         if(!jwt){ notify('セッションが切れています。再ログインしてください'); if(opts.setBusy) opts.setBusy(false); return; }
+26919:         var res=await fetch('/api/stripe/create-portal-session',{
+26920:           method:'POST',
+26921:           headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+jwt },
+26922:           body:JSON.stringify(flow&&flow!=='manage'?{ flow:flow }:{})
+26923:         });
+26924:         var j=await res.json().catch(function(){ return {}; });
+26925:         if(res.ok&&j.url){ location.href=j.url; return; } /* 遷移するので busy 解除しない */
+26926:         console.error('[CF Billing] portal failed',flow,res.status,j);
+26927:         if(j.error==='no_customer'||j.error==='no_subscription'){
+26928:           notify('まだ課金プランの契約がありません。先にプランを選択してください');
+26929:           setTimeout(function(){ if(billingOv) billingOv.style.display='none'; openPricing(); },600);
+26930:         }
+26931:         else if(j.error==='server_not_configured'){ notify('決済サーバー設定が未完了です（不足: '+((j.missing&&j.missing.join(', '))||'不明')+'）'); }
+26932:         else notify('お支払い画面を開けませんでした（HTTP '+res.status+'）。時間をおいて再度お試しください。');
+26933:       }catch(e){ console.error('[CF Billing] portal exception',e); notify('通信エラーでお支払い画面を開けませんでした'); }
+26934:       if(opts.setBusy) opts.setBusy(false);
+26935:     }
+26936:     async function openPortal(){ acctOv.classList.remove('open'); openPortalFlow('manage'); }
+26937: 
+26938:     /* ---- Account / Billing 画面（お支払い管理） ---- */
+26939:     var billingOv=null;
+26940:     function cfMoneyJa(amount,currency){
+26941:       currency=String(currency||'jpy').toLowerCase();
+26942:       var n=Number(amount||0);
+26943:       if(currency==='jpy') return '¥'+n.toLocaleString('ja-JP');
+26944:       try{ return (n/100).toLocaleString('en-US',{style:'currency',currency:currency.toUpperCase()}); }
+26945:       catch(e){ return (n/100)+' '+currency.toUpperCase(); }
+26946:     }
+
+===== LINES 26961-27016 =====
+26961:       if(tone==='ok') return 'background:rgba(26,143,87,.12);color:#1a8f57';
+26962:       if(tone==='warn') return 'background:rgba(214,140,20,.14);color:#b5760a';
+26963:       if(tone==='info') return 'background:rgba(124,92,255,.14);color:#5b3fd6';
+26964:       return 'background:rgba(80,74,110,.10);color:#5a5470';
+26965:     }
+26966:     function openBilling(){
+26967:       if(acctOv) acctOv.classList.remove('open');
+26968:       if(!billingOv){
+26969:         billingOv=document.createElement('div');
+26970:         billingOv.id='cfBillingOv';
+26971:         billingOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,50,.55);overflow:auto;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Noto Sans JP",sans-serif';
+26972:         document.body.appendChild(billingOv);
+26973:         billingOv.addEventListener('click',function(e){ if(e.target===billingOv) billingOv.style.display='none'; });
+26974:       }
+26975:       var loadingHtml='<div style="width:100%;max-width:440px;background:rgba(255,255,255,.97);border-radius:20px;padding:22px;box-shadow:0 24px 70px rgba(40,20,80,.3);color:#231a3a;text-align:center">'+
+26976:         '<div style="font-weight:900;font-size:15px;color:#3d2b8f;margin-bottom:10px">お支払い管理 / Billing</div>'+
+26977:         '<div style="font-size:12.5px;color:#7a7290;padding:14px 0">読み込み中…</div>'+
+26978:         '<button type="button" data-close="1" class="cfG2BtnGhost" style="margin-top:8px">閉じる</button></div>';
+26979:       billingOv.innerHTML=loadingHtml;
+26980:       billingOv.style.display='flex';
+26981:       var lc=billingOv.querySelector('[data-close]'); if(lc) lc.addEventListener('click',function(){ billingOv.style.display='none'; });
+26982: 
+26983:       /* 表示用: 支払い方法+請求履歴（サーバー）と、canceled も含む最新 sub（表示専用） */
+26984:       var infoP=(async function(){
+26985:         try{
+26986:           var s=await sb.auth.getSession();
+26987:           var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+26988:           if(!jwt) return { paymentMethod:null, invoices:[] };
+26989:           var r=await fetch('/api/stripe/billing-info',{ method:'POST', headers:{ 'Authorization':'Bearer '+jwt } });
+26990:           return await r.json().catch(function(){ return { paymentMethod:null, invoices:[] }; });
+26991:         }catch(e){ console.error('[CF Billing] info failed',e); return { paymentMethod:null, invoices:[] }; }
+26992:       })();
+26993:       var subP=(async function(){
+26994:         if(curBilling) return null; /* active 系は curBilling を使う */
+26995:         try{
+26996:           var q=await sb.from('billing_subscriptions')
+26997:             .select('plan,status,current_period_end,cancel_at_period_end')
+26998:             .eq('user_id',curSession.user.id).order('updated_at',{ascending:false}).limit(1);
+26999:           return (!q.error&&q.data&&q.data.length)?q.data[0]:null;
+27000:         }catch(e){ return null; }
+27001:       })();
+27002: 
+27003:       Promise.all([infoP,subP]).then(function(arr){
+27004:         if(billingOv.style.display==='none') return;
+27005:         renderBilling(arr[0]||{ paymentMethod:null, invoices:[] }, arr[1]||null);
+27006:       });
+27007:     }
+27008:     function renderBilling(info,dispSub){
+27009:       var pl=cfCurrentPlan();
+27010:       var hasSub=!!curBilling;
+27011:       var state=cfBillingState(dispSub);
+27012:       var b=curBilling||dispSub||null;
+27013:       var allowance=cfPlanAllowance(pl.key);
+27014:       var bal=(window.__cfTokens==null?'…':window.__cfTokens);
+27015:       var periodEnd=b&&b.current_period_end?fmtDateJa(b.current_period_end):'—';
+27016:       var canceling=!!(b&&b.cancel_at_period_end);
+
+===== LINES 27456-27497 =====
+27456:       }catch(e){ console.error('[CF Admin] create code exception',e); msgBox('cfAdmInvMsg','通信エラーが発生しました。','err'); }
+27457:       btn.disabled=false;
+27458:     });
+27459: 
+27460:     /* --- session bootstrap --- */
+27461:     sb.auth.onAuthStateChange(function(evt,session){
+27462:       if(evt==='PASSWORD_RECOVERY'){ curSession=session||null; msgBox('cfG2NewPassMsg',''); showGate('newpass'); return; }
+27463:       evaluateSession(session).catch(function(e){ console.error('[CF Gate] evaluate failed',e); showGate('auth'); });
+27464:     });
+27465:     sb.auth.getSession().then(function(res){
+27466:       return evaluateSession(res&&res.data?res.data.session:null);
+27467:     }).catch(function(e){ console.error('[CF Gate] getSession failed',e); showGate('auth'); });
+27468:   }
+27469: 
+27470:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+27471: })();
+27472: </script>
+27473: 
+27474: <!-- ═══════════════════════════════════════════════════════════════════════
+27475:      CaseFlow Visual System v9.7
+27476:      One design language for every screen — tokens, glass, capsules, poster
+27477:      spacing — extracted from the home screen and applied app-wide, plus a
+27478:      global language switcher (EN / JA / PT / IT / AR / ZH / KO).
+27479:      Shape & motion only: colours keep riding the existing --c1/--c2 palette
+27480:      and the --cfUi* light/dark tone system, so the background-switch
+27481:      "lighting change" keeps working everywhere.
+27482:      ═══════════════════════════════════════════════════════════════════════ -->
+27483: <style id="cf-v97-visual-system">
+27484: :root{
+27485:   /* geometry */
+27486:   --cf-radius-xl:56px;
+27487:   --cf-radius-lg:36px;
+27488:   --cf-radius-md:28px;
+27489:   --cf-radius-sm:18px;
+27490:   --cf-radius-pill:999px;
+27491:   /* glass */
+27492:   --cf-glass-bg:rgba(255,255,255,.18);
+27493:   --cf-glass-bg-strong:rgba(255,255,255,.78);
+27494:   --cf-glass-border:rgba(255,255,255,.55);
+27495:   --cf-glass-shadow:0 32px 80px rgba(82,22,120,.22);
+27496:   --cf-glass-blur:blur(22px) saturate(1.4);
+27497:   /* text */
+
+===== LINES 27887-27955 =====
+27887:     pt:'Os projetos ficam na Biblioteca por 48 horas e depois são removidos automaticamente — salve o que precisar antes do prazo.',
+27888:     it:'I progetti restano in Libreria per 48 ore, poi vengono rimossi automaticamente: salva ciò che ti serve prima della scadenza.',
+27889:     ar:'تبقى المشاريع في المكتبة لمدة 48 ساعة ثم تُحذف تلقائيًا — احفظ الصور والفيديوهات المطلوبة قبل انتهاء المدة.',
+27890:     zh:'项目将在资料库中临时保存48小时，到期后自动删除，请在期限内保存所需的图像和视频。',
+27891:     ko:'프로젝트는 48시간 동안 라이브러리에 임시 저장되며 이후 자동 삭제됩니다. 필요한 이미지와 영상은 기한 내에 저장하세요.'},
+27892:   'share.subtitle':{
+27893:     ja:'招待 / Invite &amp; share', en:'Invite &amp; share',
+27894:     pt:'Convidar e compartilhar', it:'Invita e condividi',
+27895:     ar:'دعوة ومشاركة', zh:'邀请与共享', ko:'초대 및 공유'},
+27896:   'export.save':{
+27897:     ja:'動画をカメラロールに保存', en:'Save video to camera roll',
+27898:     pt:'Salvar vídeo na galeria', it:'Salva il video nel rullino',
+27899:     ar:'حفظ الفيديو في ألبوم الكاميرا', zh:'将视频保存到相册', ko:'동영상을 카메라 롤에 저장'},
+27900:   /* status vocabulary (available to other scripts via cfI18n.t) */
+27901:   'status.loading':{ja:'読み込み中', en:'Loading', pt:'Carregando', it:'Caricamento', ar:'جارٍ التحميل', zh:'加载中', ko:'불러오는 중'},
+27902:   'status.saving':{ja:'保存中', en:'Saving', pt:'Salvando', it:'Salvataggio', ar:'جارٍ الحفظ', zh:'保存中', ko:'저장 중'},
+27903:   'status.error':{ja:'エラー', en:'Error', pt:'Erro', it:'Errore', ar:'خطأ', zh:'错误', ko:'오류'},
+27904:   'status.completed':{ja:'完了', en:'Completed', pt:'Concluído', it:'Completato', ar:'اكتمل', zh:'完成', ko:'완료'}
+27905: };
+27906: /* bottom-nav labels (ja keeps the original English label look) */
+27907: var NAV={
+27908:   'Project':{ja:'Project', en:'Project', pt:'Projeto', it:'Progetto', ar:'مشروع', zh:'项目', ko:'프로젝트'},
+27909:   'Gallery':{ja:'Gallery', en:'Gallery', pt:'Galeria', it:'Galleria', ar:'المعرض', zh:'图库', ko:'갤러리'},
+27910:   'Sim':{ja:'Sim', en:'Sim', pt:'Sim', it:'Sim', ar:'محاكاة', zh:'模拟', ko:'시뮬'},
+27911:   'Account':{ja:'Account', en:'Account', pt:'Conta', it:'Account', ar:'الحساب', zh:'账户', ko:'계정'},
+27912:   'Library':{ja:'Library', en:'Library', pt:'Biblioteca', it:'Libreria', ar:'المكتبة', zh:'资料库', ko:'라이브러리'},
+27913:   'Invite':{ja:'Invite', en:'Invite', pt:'Convidar', it:'Invita', ar:'دعوة', zh:'邀请', ko:'초대'}
+27914: };
+27915: /* reverse map: any translated nav label → canonical key */
+27916: var NAV_REV={};
+27917: Object.keys(NAV).forEach(function(k){
+27918:   Object.keys(NAV[k]).forEach(function(l){ NAV_REV[NAV[k][l]]=k; });
+27919: });
+27920: /* quiet process poems shown under the wait spinner (EN + local line) */
+27921: var POEMS=[
+27922:   {en:'Analyzing facial balance', ja:'顔貌バランスを解析中', pt:'Analisando o equilíbrio facial',
+27923:    it:'Analisi dell’equilibrio del volto', ar:'تحليل توازن الوجه', zh:'正在解析面部平衡', ko:'얼굴 균형 분석 중'},
+27924:   {en:'Refining smile frame', ja:'スマイルフレームを調整中', pt:'Refinando a moldura do sorriso',
+27925:    it:'Rifinitura della cornice del sorriso', ar:'صقل إطار الابتسامة', zh:'正在调整微笑框架', ko:'스마일 프레임 조정 중'},
+27926:   {en:'Preserving identity', ja:'顔貌の同一性を保持中', pt:'Preservando a identidade',
+27927:    it:'Preservazione dell’identità', ar:'الحفاظ على ملامح الوجه', zh:'正在保持面容同一性', ko:'얼굴 동일성 유지 중'},
+27928:   {en:'Rendering visual simulation', ja:'ビジュアルシミュレーションを生成中', pt:'Renderizando a simulação visual',
+27929:    it:'Rendering della simulazione visiva', ar:'إنشاء المحاكاة البصرية', zh:'正在生成视觉模拟', ko:'비주얼 시뮬레이션 생성 중'},
+27930:   {en:'Preparing morphing sequence', ja:'モーフィングシークエンスを準備中', pt:'Preparando a sequência de morphing',
+27931:    it:'Preparazione della sequenza di morphing', ar:'تحضير تسلسل المورفينغ', zh:'正在准备渐变序列', ko:'모핑 시퀀스 준비 중'}
+27932: ];
+27933: 
+27934: function getLang(){
+27935:   var v=null;
+27936:   try{ v=localStorage.getItem(LS_KEY); }catch(e){}
+27937:   return LANGS.some(function(l){return l.code===v;}) ? v : 'ja';
+27938: }
+27939: function langMeta(code){
+27940:   for(var i=0;i<LANGS.length;i++) if(LANGS[i].code===code) return LANGS[i];
+27941:   return LANGS[1];
+27942: }
+27943: function t(key){
+27944:   var e=STR[key]; if(!e) return key;
+27945:   var v=e[getLang()];
+27946:   return v!=null ? v : (e.en!=null ? e.en : key);
+27947: }
+27948: 
+27949: function applyDataI18n(code){
+27950:   var els=document.querySelectorAll('[data-i18n]');
+27951:   for(var i=0;i<els.length;i++){
+27952:     var el=els[i], entry=STR[el.getAttribute('data-i18n')];
+27953:     if(!entry) continue;
+27954:     var v=entry[code]; if(v==null) v=entry.en; if(v==null) continue;
+27955:     if(el.innerHTML!==v) el.innerHTML=v;
+
+===== LINES 28090-28131 =====
+28090:   w.show=function(msg,delay){
+28091:     _show(msg,delay);
+28092:     if(!timer){ idx=0; tick(); timer=setInterval(tick,3400); }
+28093:   };
+28094:   w.hide=function(){ _hide(); stopIfHidden(); };
+28095:   w.hideAll=function(){ _hideAll(); stopIfHidden(); };
+28096: }
+28097: 
+28098: function boot(){
+28099:   ensureButtons();
+28100:   observeNav();
+28101:   installPoems();
+28102:   apply(getLang());
+28103: }
+28104: if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
+28105: else boot();
+28106: window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
+28107: })();
+28108: </script>
+28109: 
+28110: <!-- ============ Safe-area / PWA responsive fit (home card, landscape cards, floating controls) ============ -->
+28111: <script>
+28112: /* --real-vh = 実際に見えている高さの 1%（Safari の下部バー表示/非表示や PWA で
+28113:    一致させるため visualViewport.height を使う）。ホーム artboard の比例配置に使用。 */
+28114: (function(){
+28115:   function upd(){
+28116:     try{
+28117:       var vv=window.visualViewport;
+28118:       var h=(vv&&vv.height)?vv.height:window.innerHeight;
+28119:       if(h>0) document.documentElement.style.setProperty('--real-vh',(h*0.01)+'px');
+28120:     }catch(e){}
+28121:   }
+28122:   upd();
+28123:   addEventListener('resize',upd);
+28124:   addEventListener('orientationchange',function(){ setTimeout(upd,250); });
+28125:   if(window.visualViewport){ visualViewport.addEventListener('resize',upd); visualViewport.addEventListener('scroll',upd); }
+28126: })();
+28127: </script>
+28128: <style id="cf-safe-css">
+28129: :root{
+28130:   --safe-top:env(safe-area-inset-top,0px);
+28131:   --safe-right:env(safe-area-inset-right,0px);
+
+===== LINES 28490-28531 =====
+28490:       var A=ph[i], B=ph[i+1];
+28491:       if(A._faceMesh || B._faceMesh) continue;
+28492:       if((A._serverOutline||A._serverOutlineFail) && (B._serverOutline||B._serverOutlineFail)) continue;
+28493:       todo.push([A,B]);
+28494:     }
+28495:     if(!todo.length) return;
+28496:     serverBusy=true;
+28497:     setOutlineStatus('AIが歯牙輪郭を解析中…');
+28498:     var changed=false;
+28499:     try{
+28500:       for(var t2=0;t2<todo.length;t2++){
+28501:         var A2=todo[t2][0], B2=todo[t2][1];
+28502:         var imgs=await Promise.all([shrinkForApi(A2.dataUrl),shrinkForApi(B2.dataUrl)]);
+28503:         if(!imgs[0]||!imgs[1]){ A2._serverOutlineFail=B2._serverOutlineFail=true; continue; }
+28504:         var resp=await fetch('/api/dental_outline',{
+28505:           method:'POST',
+28506:           headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token},
+28507:           body:JSON.stringify({before:imgs[0],after:imgs[1]})
+28508:         });
+28509:         var j=await resp.json().catch(function(){ return null; });
+28510:         if(j && j.ok && j.before && j.after){
+28511:           var okA=applyServerTeeth(A2,j.before.teeth), okB=applyServerTeeth(B2,j.after.teeth);
+28512:           if(okA&&okB) changed=true; else { A2._serverOutlineFail=B2._serverOutlineFail=true; }
+28513:         } else {
+28514:           A2._serverOutlineFail=B2._serverOutlineFail=true;
+28515:           if(j && j.reason==='gemini_not_configured'){ setOutlineStatus(''); serverBusy=false; return; }
+28516:         }
+28517:       }
+28518:     }catch(e){ /* オフライン等 — ローカル検出のまま */ }
+28519:     if(changed){
+28520:       try{ window.__cfMorphGeoCache=null; }catch(e){}
+28521:       try{ if(typeof window.cfCapRender==='function') window.cfCapRender(); }catch(e){}
+28522:       var n=((ph[0]&&ph[0]._toothOutlines)||[]).length;
+28523:       setOutlineStatus('✓ AI歯牙輪郭を適用（'+n+'本検出）');
+28524:       setTimeout(function(){ setOutlineStatus(''); },6000);
+28525:       if(window.__cfShowToothOutline && window.cfDrawToothOverlay) setTimeout(window.cfDrawToothOverlay,400);
+28526:     } else {
+28527:       setOutlineStatus('');
+28528:     }
+28529:     serverBusy=false;
+28530:   }
+28531:   window.cfServerToothOutlines=serverOutlines;
+
+===== LINES 28792-28833 =====
+28792:       im.src=dataUrl;
+28793:     });
+28794:   }
+28795:   async function analyzeCase(){
+28796:     var photos=(typeof window.cfGetMorphSource==='function')?window.cfGetMorphSource():((state&&state.photos)||[]);
+28797:     if(!photos || photos.length<2){ toastFn('BeforeとAfterの2枚が必要です'); return; }
+28798:     var sb=window.cfSupabase;
+28799:     var jwt=null;
+28800:     try{ var s=await sb.auth.getSession(); jwt=s&&s.data&&s.data.session&&s.data.session.access_token; }catch(e){}
+28801:     if(!jwt){ toastFn('ログインが必要です'); return; }
+28802:     toastFn('AIが症例構造を解析中…');
+28803:     var before=await downscale(photos[0].dataUrl, 900);
+28804:     var after=await downscale(photos[photos.length-1].dataUrl, 900);
+28805:     try{
+28806:       var res=await fetch('/api/dental_event_plan',{
+28807:         method:'POST',
+28808:         headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+jwt },
+28809:         body:JSON.stringify({ before:before, after:after })
+28810:       });
+28811:       var j=await res.json();
+28812:       if(res.ok && j && j.ok){ showConfirmSheet(j); }
+28813:       else if(j && j.reason==='gemini_not_configured'){ showConfirmSheet(null, 'AI解析は未設定です（サーバーにGEMINI_API_KEYが必要）。症例タイプを手動で選択できます。'); }
+28814:       else { showConfirmSheet(null, 'AI解析に失敗しました。症例タイプを手動で選択できます。'); }
+28815:     }catch(e){ showConfirmSheet(null, '通信エラー。症例タイプを手動で選択できます。'); }
+28816:   }
+28817: 
+28818:   /* ---- manual review / confirmation sheet（AI提案は盲信せず必ず確認） ---- */
+28819:   var sheetOv=null;
+28820:   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+28821:   function showConfirmSheet(ai, note){
+28822:     if(!sheetOv){
+28823:       sheetOv=document.createElement('div');
+28824:       sheetOv.id='cfEventSheet';
+28825:       sheetOv.style.cssText='position:fixed;inset:0;z-index:2147483645;display:none;align-items:flex-end;justify-content:center;background:rgba(12,9,24,.55);backdrop-filter:blur(8px);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif';
+28826:       document.body.appendChild(sheetOv);
+28827:       sheetOv.addEventListener('click',function(e){ if(e.target===sheetOv) sheetOv.style.display='none'; });
+28828:     }
+28829:     var sel=(ai&&ai.case_type)||'unknown';
+28830:     var evHtml=(ai&&ai.detected_events&&ai.detected_events.length)
+28831:       ? ai.detected_events.map(function(ev){
+28832:           return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid rgba(124,92,255,.10);font-size:11.5px">'+
+28833:             '<span style="font-weight:800;color:#2a2350">'+esc(ev.type)+'</span>'+
+
+===== LINES 28902-28979 =====
+28902: </script>
+28903: 
+28904: <!-- ============ Library ⇄ Supabase sync (cross-context source of truth) ============ -->
+28905: <script>
+28906: /* Library persistence across Safari / standalone PWA / devices.
+28907:    Supabase (library_projects + private 'library-assets' bucket) is the source of
+28908:    truth; localStorage/IndexedDB remain a fast local cache + offline/logged-out
+28909:    fallback + pre-sync queue. Purely additive: the existing local engine is
+28910:    untouched, and every network call is failure-tolerant so the local Library
+28911:    keeps working if Supabase is unreachable or the user is logged out. */
+28912: (function(){
+28913:   var STORE_KEY='caseflow_project_library_v55';
+28914:   var PUSHED_KEY='cf_lib_pushed_v1';
+28915:   var BUCKET='library-assets';
+28916:   var loading=false, pushing=false, pulledOnce=false;
+28917: 
+28918:   function sbc(){ return window.cfSupabase || null; }
+28919:   function log(){ try{ console.log.apply(console,['[Library]'].concat([].slice.call(arguments))); }catch(e){} }
+28920:   function isStandalone(){ try{ return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches))||navigator.standalone===true; }catch(e){ return false; } }
+28921:   function getStore(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]')||[]; }catch(e){ return []; } }
+28922:   function setStore(a){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(a||[])); }catch(e){} }
+28923:   function getPushed(){ try{ return new Set(JSON.parse(localStorage.getItem(PUSHED_KEY)||'[]')); }catch(e){ return new Set(); } }
+28924:   function addPushed(id){ try{ var s=getPushed(); s.add(String(id)); localStorage.setItem(PUSHED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+28925:   function delPushed(id){ try{ var s=getPushed(); s.delete(String(id)); localStorage.setItem(PUSHED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+28926:   function hasLocalItems(){ return getStore().length>0; }
+28927:   function setLibMsg(html){ var root=document.getElementById('libraryList'); if(root) root.innerHTML=html; }
+28928: 
+28929:   async function getUser(){
+28930:     var sb=sbc(); if(!sb||!sb.auth) return null;
+28931:     /* getSession() reads the persisted session locally (no network); good for the
+28932:        frequent reconcile path. RLS still enforces ownership on every query. */
+28933:     try{ var r=await sb.auth.getSession(); return (r&&r.data&&r.data.session&&r.data.session.user)||null; }catch(e){ return null; }
+28934:   }
+28935:   function studioTypeOf(r){
+28936:     if(r.kind==='landmark-video' || (r.payload&&String((r.payload.videoMime)||'').indexOf('video')===0)) return 'morphing_video';
+28937:     if(r.kind==='simulation-image'||r.kind==='simulation'||(r.payload&&r.payload.simResult)) return 'visual_simulation';
+28938:     return 'project';
+28939:   }
+28940:   function assetTypeOf(r){
+28941:     var st=studioTypeOf(r);
+28942:     if(st==='morphing_video') return 'video';
+28943:     if(st==='visual_simulation') return (r.kind==='simulation-image'?'image':'reference');
+28944:     return 'project';
+28945:   }
+28946:   function isVideoRec(r){ return studioTypeOf(r)==='morphing_video'; }
+28947:   function expIsoOf(r){
+28948:     try{ if(typeof window.cfLibExpiresAt==='function'){ var e=window.cfLibExpiresAt(r); if(e) return new Date(e).toISOString(); } }catch(e){}
+28949:     var base=Number(String(r.id||'').replace(/\D/g,''))||Date.now();
+28950:     return new Date(base+48*3600*1000).toISOString();
+28951:   }
+28952:   async function dataUrlToBlob(u){ if(!u||String(u).indexOf('blob:')===0) return null; try{ var res=await fetch(u); return await res.blob(); }catch(e){ return null; } }
+28953:   function idbGetVideo(key){
+28954:     return new Promise(function(resolve){
+28955:       try{
+28956:         var req=indexedDB.open('CaseFlowStudioDB',1);
+28957:         req.onupgradeneeded=function(){ try{ var db=req.result; if(!db.objectStoreNames.contains('libraryBlobs')) db.createObjectStore('libraryBlobs'); }catch(e){} };
+28958:         req.onsuccess=function(){ try{ var db=req.result; if(!db.objectStoreNames.contains('libraryBlobs')){ resolve(null); return; } var tx=db.transaction('libraryBlobs','readonly'); var g=tx.objectStore('libraryBlobs').get(key); g.onsuccess=function(){ resolve(g.result||null); }; g.onerror=function(){ resolve(null); }; }catch(e){ resolve(null); } };
+28959:         req.onerror=function(){ resolve(null); };
+28960:       }catch(e){ resolve(null); }
+28961:     });
+28962:   }
+28963:   async function uploadBlob(sb, path, blob, type){
+28964:     if(!blob) return false;
+28965:     try{ var r=await sb.storage.from(BUCKET).upload(path, blob, { contentType:type||blob.type||'application/octet-stream', upsert:true }); return !r.error; }
+28966:     catch(e){ log('upload failed', path, e&&e.message); return false; }
+28967:   }
+28968:   async function pushRecord(sb, uid, r){
+28969:     if(!r||!r.id) return;
+28970:     var cid=String(r.id), base=uid+'/'+cid;
+28971:     var thumbPath=null, assetPath=null, refPath=null;
+28972:     var thumbBlob=await dataUrlToBlob(r.thumb||(r.payload&&r.payload.simResult&&r.payload.simResult.dataUrl));
+28973:     if(thumbBlob){ thumbPath=base+'/thumb.jpg'; if(!(await uploadBlob(sb,thumbPath,thumbBlob,'image/jpeg'))) thumbPath=null; }
+28974:     if(isVideoRec(r)){
+28975:       var vkey=(r.payload&&(r.payload.videoBlobKey||r.payload.blobKey))||r.id;
+28976:       var vblob=await idbGetVideo(vkey);
+28977:       if(!vblob) vblob=await dataUrlToBlob(r.payload&&(r.payload.videoUrl||r.payload.videoDataUrl));
+28978:       if(vblob){ assetPath=base+'/asset.webm'; if(!(await uploadBlob(sb,assetPath,vblob,(r.payload&&r.payload.videoMime)||'video/webm'))) assetPath=null; }
+28979:     } else {
+
+===== LINES 29051-29111 =====
+29051:       window.state=window.state||{}; state.projectLibrary=merged; setStore(merged);
+29052:       recs.forEach(function(r){ addPushed(r.id); });
+29053:       log('loaded', recs.length, 'items from Supabase');
+29054:       return { ok:true, count:recs.length };
+29055:     }catch(e){ log('pull exception', e&&e.message); return { ok:false, reason:'exception' }; }
+29056:   }
+29057:   async function deleteFromSupabase(cid){
+29058:     var sb=sbc(); if(!sb) return; var user=await getUser(); if(!user) return;
+29059:     var base=user.id+'/'+cid;
+29060:     try{ await sb.storage.from(BUCKET).remove([base+'/thumb.jpg', base+'/asset.jpg', base+'/asset.webm', base+'/reference.jpg']); }catch(e){}
+29061:     try{ await sb.from('library_projects').delete().eq('user_id',user.id).eq('client_id',String(cid)); }catch(e){}
+29062:     delPushed(cid);
+29063:   }
+29064: 
+29065:   /* Loading-state wrapper: never flash "empty" while we're still loading. */
+29066:   function installRenderWrap(){
+29067:     if(window.__cfLibRenderWrapped || typeof window.renderLibrary!=='function') return;
+29068:     window.__cfLibRenderWrapped=true;
+29069:     var orig=window.renderLibrary;
+29070:     window.renderLibrary=function(){
+29071:       if(loading && !hasLocalItems()){ setLibMsg('<div class="pmEmptyHint">Libraryを読み込み中です…</div>'); return; }
+29072:       var out=orig.apply(this, arguments);
+29073:       if(!pushing) scheduleReconcilePush();
+29074:       return out;
+29075:     };
+29076:   }
+29077: 
+29078:   async function openLibrary(){
+29079:     installRenderWrap();
+29080:     loading=true;
+29081:     if(!hasLocalItems()) setLibMsg('<div class="pmEmptyHint">Libraryを読み込み中です…</div>');
+29082:     else { try{ window.renderLibrary&&window.renderLibrary(); }catch(e){} }   /* show cache instantly */
+29083:     await pullFromSupabase();                                                  /* Supabase = source of truth */
+29084:     loading=false; pulledOnce=true;
+29085:     try{ window.renderLibrary&&window.renderLibrary(); }catch(e){}
+29086:     scheduleReconcilePush();
+29087:     try{ var sb=sbc(); var u=await getUser(); if(sb&&u) sb.rpc('cleanup_expired_library').then(function(){},function(){}); }catch(e){}
+29088:   }
+29089:   window.cfOpenLibrarySync=openLibrary;
+29090: 
+29091:   /* Background sync (does NOT require opening the Library screen): pull the
+29092:      user's cloud items into the local store, then push any local-only items.
+29093:      This is what makes "generate in Safari → see it in the PWA" work even if
+29094:      the Library screen is never opened in the pushing context. */
+29095:   var lastBgSync=0;
+29096:   async function backgroundSync(reason){
+29097:     var now=Date.now();
+29098:     if(now-lastBgSync<60000) return;          /* max once per minute */
+29099:     lastBgSync=now;
+29100:     var sb=sbc();
+29101:     if(!sb){ log('background sync skipped: no supabase client (',reason,')'); return; }
+29102:     var user=await getUser();
+29103:     if(!user){ log('background sync skipped: not signed in (',reason,')'); return; }
+29104:     log('background sync start (',reason,')');
+29105:     try{ await pullFromSupabase(); }catch(e){ log('bg pull failed', e&&e.message); }
+29106:     scheduleReconcilePush();
+29107:     /* refresh the list if the user is currently looking at it */
+29108:     try{ var scr=document.getElementById('library'); if(scr&&scr.classList.contains('active')&&typeof window.renderLibrary==='function') window.renderLibrary(); }catch(e){}
+29109:   }
+29110:   window.cfLibraryBackgroundSync=backgroundSync;
+29111: 
+
+===== LINES 29566-29607 =====
+29566:   var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v2-incisal-harmony';
+29567:   var CF_TEETH_AGES = ['〜19','20代','30代','40代','50代','60代','70代〜'];
+29568:   var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', other:'Other / 回答しない' };
+29569: 
+29570:   function defaultTeethType(){
+29571:     return { id:'auto', source:'auto', selected_at:null, optional_context:{ sex:null, age:null } };
+29572:   }
+29573:   function currentTeethType(){
+29574:     var t = state.simTeethType;
+29575:     if(!t || !CF_TEETH_TYPES[t.id]) { t = defaultTeethType(); state.simTeethType = t; }
+29576:     if(!t.optional_context) t.optional_context = { sex:null, age:null };
+29577:     return t;
+29578:   }
+29579: 
+29580:   /* Generation metadata — additive; consumed by buildSimulationPayload and
+29581:      stamped onto every result record's settings by pushSimResult. */
+29582:   function teethTypeMeta(){
+29583:     var t = currentTeethType();
+29584:     var rec = t.auto_recommendation || null;
+29585:     return {
+29586:       id: t.id,
+29587:       source: t.source || (t.id==='auto' ? 'auto' : 'manual'),
+29588:       optional_sex: t.optional_context.sex || null,
+29589:       optional_age: t.optional_context.age || null,
+29590:       auto_recommended: (t.id==='auto' && rec) ? rec.id : null,
+29591:       facial_type: (t.id==='auto' && rec) ? rec.facial : null,
+29592:       prompt_version: CF_TEETH_PROMPT_VERSION
+29593:     };
+29594:   }
+29595: 
+29596:   /* THE single prompt insertion point for the tooth-form selection.
+29597:      buildClinicalPrompt calls this once in each of its two disjoint paths.
+29598:      Returns '' when there is nothing to add — with Auto selected and no
+29599:      optional context the generated prompt is byte-identical to before this
+29600:      feature existed (production behavior preserved). */
+29601:   /* Facial-type design language (SKELETAL FACIAL PROFILE): brachy 短頭型 →
+29602:      broader/shorter crown families, mesio 中顔型 → balanced ovoid,
+29603:      dolicho 長顔型 → slender tapered. Design guidance only, never a diagnosis. */
+29604:   var CF_FACIAL_TYPES = {
+29605:     brachy: { ja:'短頭型（ブラキオフェイシャルタイプ）', en:'brachyfacial (vertically short, broad face; broader visual form without forced shortening)' },
+29606:     mesio:  { ja:'中顔型（メジオフェイシャルタイプ）',   en:'mesofacial (balanced facial proportions)' },
+29607:     dolicho:{ ja:'長顔型（ドリコフェイシャルタイプ）',   en:'dolichofacial (vertically long face; visually slender form without excessive crown length)' }
+
+===== LINES 30159-30183 =====
+30159:   }
+30160:   function shapeAt(id,t){var q=SHAPES[id]||SHAPES.auto;if(t<.5)return q.top+(q.mid-q.top)*(t*2);return q.mid+(q.bottom-q.mid)*((t-.5)*2)}
+30161:   async function renderPreview(){
+30162:     if(!overlay||!draft)return;var token=++previewToken,result=state.simResult;if(!result||!result.dataUrl)return;var img=overlay.querySelector('#cfSdPreviewImg'),canvas=overlay.querySelector('#cfSdPreviewCanvas');
+30163:     if(img.src!==result.dataUrl){img.src=result.dataUrl;await new Promise(function(res){if(img.complete)res();else{img.onload=res;img.onerror=res}})}if(token!==previewToken||!img.naturalWidth)return;
+30164:     canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;var ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);var roi=await locateRoi(img,result,token);if(token!==previewToken||!roi)return;
+30165:     var src=document.createElement('canvas');src.width=canvas.width;src.height=canvas.height;src.getContext('2d').drawImage(img,0,0);var temp=document.createElement('canvas');temp.width=canvas.width;temp.height=canvas.height;var tx=temp.getContext('2d');var x=roi.x,y=roi.y,w=roi.w,h=roi.h;var ratio=draft.ratio/100,dominance=Math.max(-.05,Math.min(.10,(.68-ratio)*.72));var centralSrc=w*.44,sideSrc=(w-centralSrc)/2,centralDst=centralSrc*(1+dominance),sideDst=(w-centralDst)/2;var bands=42;
+30166:     for(var i=0;i<bands;i++){var t=i/bands,sy=y+h*t,sh=h/bands+1,form=shapeAt(draft.type,t),rowW=w*form,rowX=x+(w-rowW)/2;var cs=centralSrc*form,ss=(rowW-cs)/2,cd=centralDst*form,sd=(rowW-cd)/2;tx.drawImage(src,x,sy,sideSrc,sh,rowX,sy,sd,sh);tx.drawImage(src,x+sideSrc,sy,centralSrc,sh,rowX+sd,sy,cd,sh);tx.drawImage(src,x+sideSrc+centralSrc,sy,sideSrc,sh,rowX+sd+cd,sy,sd,sh)}
+30167:     tx.globalCompositeOperation='destination-in';var g=tx.createRadialGradient(x+w/2,y+h*.52,w*.12,x+w/2,y+h*.52,w*.59);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.72,'rgba(0,0,0,.96)');g.addColorStop(1,'rgba(0,0,0,0)');tx.fillStyle=g;tx.fillRect(x-w*.15,y-h*.2,w*1.3,h*1.4);ctx.globalAlpha=.94;ctx.drawImage(temp,0,0);
+30168:   }
+30169:   function trap(e){if(e.key==='Escape'){e.preventDefault();close(false);return}if(e.key!=='Tab')return;var f=[].slice.call(overlay.querySelectorAll('button,input,[tabindex]:not([tabindex="-1"])')).filter(function(x){return x.offsetParent!==null});if(!f.length)return;var a=f[0],z=f[f.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}
+30170:   window.cfOpenSmileDesigner=function(){ensureOverlay();var s=stateObj(),tt=window.cfTeethTypeCurrent?window.cfTeethTypeCurrent():{id:'auto'};draft={type:s.type||tt.id||'auto',ratio:s.ratio||62,intensity:s.intensity||58};lastFocus=document.activeElement;overlay.classList.remove('closing');overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');var launch=document.getElementById('cfSdLaunch');if(launch)launch.setAttribute('aria-expanded','true');paint();setTimeout(function(){var selected=overlay.querySelector('[data-type="'+draft.type+'"]');if(selected){selected.scrollIntoView({block:'nearest',inline:'center'});selected.focus({preventScroll:true})}renderPreview()},30)};
+30171:   function close(apply){if(!overlay||!overlay.classList.contains('open'))return;overlay.setAttribute('aria-hidden','true');if(reduced())overlay.classList.remove('open');else{overlay.classList.add('closing');clearTimeout(closeTimer);closeTimer=setTimeout(function(){overlay.classList.remove('open','closing')},260)}var launch=document.getElementById('cfSdLaunch');if(launch)launch.setAttribute('aria-expanded','false');if(lastFocus&&lastFocus.focus)try{lastFocus.focus({preventScroll:true})}catch(e){}if(!apply)draft=null}
+30172:   async function applyAndRefine(){
+30173:     if(!draft)return;var result=state.simResult;if(!result||!result.dataUrl){if(typeof toast==='function')toast('生成結果が見つかりません');return}state.simSmileDesigner={type:draft.type,ratio:draft.ratio,intensity:draft.intensity,updated_at:new Date().toISOString()};var prev=window.cfTeethTypeCurrent?window.cfTeethTypeCurrent():null;state.simTeethType={id:draft.type,source:draft.type==='auto'?'auto':'secondary_manual',selected_at:new Date().toISOString(),optional_context:prev&&prev.optional_context?prev.optional_context:{sex:null,age:null}};result.settings=result.settings||{};result.settings.smileDesigner=JSON.parse(JSON.stringify(state.simSmileDesigner));result.settings.teethType=window.cfTeethTypeMeta?window.cfTeethTypeMeta():{id:draft.type,source:'secondary_manual'};result._secondaryRefined=false;close(true);mount();if(typeof toast==='function')toast('Smile Designerを二次精密生成へ反映します');if(typeof window.runSecondaryRefinement==='function')await window.runSecondaryRefinement();try{if(window.cfPersist&&cfPersist.schedule)cfPersist.schedule(700)}catch(e){}
+30174:   }
+30175:   window.cfSmileDesignerPromptFragment=function(imageType){var s=stateObj(),id=s.type||'auto',ratio=+s.ratio||62,name=(LABELS[id]||LABELS.auto)[0];return 'SMILE DESIGNER — SECONDARY CLINICIAN DESIGN REQUEST (MANDATORY): apply the '+name+' upper-central-incisor morphology selected after reviewing the primary simulation. Express the form through mesial/distal contours, cervical width, facial line angles, incisal-corner character and subtle surface anatomy; do not use crown elongation or enlargement as a shortcut. Use a visible-width progression in which each maxillary lateral incisor is approximately '+ratio+'% of the adjacent central incisor and the canine visible width steps down harmoniously; this is a soft visual design reference, not a universal biological law. Preserve the completed orthodontic alignment, dental midline, continuous incisal curve parallel to the lower lip, gingival architecture, contact points, tooth count, lips and face identity. The live optical preview is guidance only; reconstruct photorealistic enamel translucency, texture, contacts and seamless tissue integration.'+(imageType==='facial'?' Change only tooth surfaces inside the existing mouth aperture.':' Keep framing, retractors, gingiva and background unchanged.');};
+30176:   var priorField=window.cfTeethTypeFieldHTML;window.cfTeethTypeFieldHTML=function(){return ''};
+30177:   var prevRender=window.renderResult;window.renderResult=function(){var r=typeof prevRender==='function'?prevRender.apply(this,arguments):undefined;setTimeout(mount,60);return r};var prevGo=window.go;if(typeof prevGo==='function'&&!window.__cfSdGo){window.__cfSdGo=true;window.go=function(id){var r=prevGo.apply(this,arguments);setTimeout(function(){removePrimaryField();if(id==='result')mount()},70);return r}}
+30178:   var mo=new MutationObserver(function(){removePrimaryField();if(document.querySelector('#result.active'))mount()});mo.observe(document.body,{childList:true,subtree:true});window.addEventListener('resize',function(){if(overlay&&overlay.classList.contains('open'))renderPreview()});window.addEventListener('DOMContentLoaded',function(){setTimeout(function(){removePrimaryField();mount()},250)});setTimeout(function(){removePrimaryField();mount()},400);
+30179: })();
+30180: </script>
+30181: 
+30182: </body>
+30183: </html>
