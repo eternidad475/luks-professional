@@ -173,7 +173,7 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
           </div>
           <div class="grid c2">
             <div><label>max_uses</label><input id="invMax" type="number" value="1" min="1"></div>
-            <div><label>期限（任意）</label><input id="invExp" type="date"></div>
+            <div><label>期限（固定・7日間）</label><input id="invExp" type="date" disabled title="有効期限はサーバー側で発行から7日間に固定されています"><small style="display:block;font-size:10px;color:#8a82a0;margin-top:3px">発行から7日間（サーバー側で固定）</small></div>
           </div>
           <button class="btn" id="invCreate">コードを発行 / Create</button>
           <div class="msg" id="invMsg"></div>
@@ -484,9 +484,13 @@ th{color:var(--sub);font-size:10.5px;letter-spacing:.03em;text-transform:upperca
       if(r.error) throw r.error;
       if(!r.data||!r.data.length){ box.innerHTML='<div class="empty">招待コードがまだありません。<br>最初のベータユーザーを招待するには、招待コードを作成してください。</div>'; return; }
       box.innerHTML=r.data.map(function(c){
-        var dead=!!c.revoked_at||(c.expires_at&&new Date(c.expires_at)<=new Date())||c.used_count>=c.max_uses;
+        // Distinguish the four lifecycle states explicitly: revoked / redeemed / expired / active
+        var redeemed=c.used_count>=c.max_uses;
+        var expired=!!(c.expires_at&&new Date(c.expires_at)<=new Date());
+        var dead=!!c.revoked_at||expired||redeemed;
+        var stLabel=c.revoked_at?'無効化済み / Revoked':redeemed?'使用済み / Redeemed':expired?'期限切れ / Expired':'有効 / Active';
         return '<div class="item" style="'+(dead?'opacity:.55':'')+'"><b style="letter-spacing:.05em">'+esc(c.code)+'</b>'+
-          ' <span class="badge dim">'+esc(c.role)+'</span> <span class="badge '+(dead?'crit':'ok')+'">'+(c.revoked_at?'無効化済み':dead?'使用不可':'有効')+'</span>'+
+          ' <span class="badge dim">'+esc(c.role)+'</span> <span class="badge '+(dead?'crit':'ok')+'">'+stLabel+'</span>'+
           '<div class="meta">invitee +'+c.token_grant_invitee+' / inviter +'+c.token_grant_inviter+' / '+c.used_count+'/'+c.max_uses+' 使用'+
           (c.invited_email?' / '+esc(c.invited_email):'')+(c.expires_at?' / 期限 '+fmtTs(c.expires_at):'')+'</div>'+
           (dead?'':'<div class="row"><button class="btn danger small" data-rv="'+esc(c.id)+'">無効化 / Revoke</button></div>')+'</div>';
