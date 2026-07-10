@@ -20474,6 +20474,9 @@ body[data-ui-tone="dark"]{
   window.cfPersistLib=cfPersistLib;
   function pushSimResult(r){
     if(!Array.isArray(state.simResults)) state.simResults=[];
+    // Single stamping point: the tooth-form metadata rides on the same settings
+    // snapshot the local/Supabase library saves already persist untouched.
+    try{ if(r && r.settings && typeof window.cfTeethTypeMeta==='function') r.settings.teethType=window.cfTeethTypeMeta(); }catch(e){}
     state.simResults.push(r);
     while(state.simResults.length>SIM_GALLERY_MAX) state.simResults.shift();
     state.simResultIndex=state.simResults.length-1;
@@ -20488,6 +20491,16 @@ body[data-ui-tone="dark"]{
     state.simResultIndex=i;
     const r=arr[i]; state.simResult=r;
     if(r.settings) state.simV96=Object.assign({}, DEF, r.settings);
+    // teethType is not an axis: extract it back to its canonical home so simV96
+    // never becomes a second competing tooth-type location.
+    if(state.simV96 && state.simV96.teethType){
+      const tt=state.simV96.teethType; delete state.simV96.teethType;
+      if(tt && tt.id && typeof window.cfTeethTypeDefault==='function'){
+        state.simTeethType={ id:tt.id, source:tt.source||'manual', selected_at:null,
+          optional_context:{ sex:tt.optional_sex||null, age:tt.optional_age||null } };
+        if(typeof window.cfRenderTeethTypeField==='function') window.cfRenderTeethTypeField();
+      }
+    }
     if(r.srcObj) state._simSource=r.srcObj;
     renderResultImages(); buildEditGrid();
   }
@@ -22563,6 +22576,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       title:           s.title           || '',
       simV96:          s.simV96          ? JSON.parse(JSON.stringify(s.simV96)) : null,
       simV82:          s.simV82          ? JSON.parse(JSON.stringify(s.simV82)) : null,
+      simTeethType:    s.simTeethType    ? JSON.parse(JSON.stringify(s.simTeethType)) : null,
       simCustomPrompt: s.simCustomPrompt || '',
       simResultIndex:  s.simResultIndex  || 0,
       photoCount:      (s.photos||[]).length,
@@ -22627,6 +22641,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     // Merge rather than replace so module defaults are preserved for missing keys
     if(meta.simV96) s.simV96 = Object.assign(s.simV96||{}, meta.simV96);
     if(meta.simV82) s.simV82 = Object.assign(s.simV82||{}, meta.simV82);
+    if(meta.simTeethType && meta.simTeethType.id) s.simTeethType = meta.simTeethType;
 
     // Apply images
     if(photos.length)  s.photos      = photos;
