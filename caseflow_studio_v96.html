@@ -19059,6 +19059,7 @@ body[data-ui-tone="dark"]{
           : 'Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.'));
       const customI=String(state.simCustomPrompt||'').trim();
       if(customI) ip.push('Clinician note (stay strictly within the above constraints): '+customI);
+      { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf) ip.push(tf); }
       { const ib=cfComposeIntentBlock(srcP,false,true,isIntraoralDark); if(ib) ip.push(ib); }
       if(orthoGoal && !isIntraoralDark){
         ip.push('Output: the SAME photograph with the teeth re-aligned as specified (positions/axes may change for the alignment, enamel adjusted) — photorealistic, identical crop, resolution, lighting and white balance. No new smile, no added lips/face/gingiva, no text or watermark.');
@@ -19199,6 +19200,7 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
+    { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(false):''; if(tf) parts.push(tf); }
     { const ib=cfComposeIntentBlock(srcP,isFacial,isIntraoral,isIntraoralDark); if(ib) parts.push(ib); }
     // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
     // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
@@ -20117,6 +20119,7 @@ body[data-ui-tone="dark"]{
       :(source&&source.intraoral)?'intraoral_retracted_frontal'
       :(isFacialSrc?'frontal_smile':'anterior_closeup');
     if(source&&source.structuredFindings) payload.structured_findings=source.structuredFindings;
+    if(typeof window.cfTeethTypeMeta==='function') payload.teeth_type=window.cfTeethTypeMeta();
     return payload;
   }
   window.buildSimulationPayload=buildSimulationPayload;
@@ -29279,6 +29282,144 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       setTimeout(function(){ if(!isStandalone()) showIOS(); }, 3500);
     }
   }catch(e){ /* non-fatal */ }
+})();
+</script>
+
+<script id="cf-p1-teeth-type-core">
+/* ==================================================================================
+   Phase 1 — Upper Anterior Teeth Shape Gallery / 上顎前歯形態ギャラリー (core)
+   Canonical state + prompt mapping + generation metadata. UI lives in the
+   companion cf-p1-teeth-type-ui block. This selection guides the visual
+   morphology of the simulation only; it never determines the treatment plan.
+   ================================================================================== */
+(function(){
+  'use strict';
+  window.state = window.state || {};
+
+  /* Single source of truth for options: ids are stable; labels/copy are never
+     stored in state so they cannot go stale. Keep ids in sync with the backend
+     prompt_version if the wording below materially changes. */
+  var CF_TEETH_TYPES = {
+    auto: {
+      en:'Auto', ja:'自動',
+      desc_en:'Derived from visible findings, clinician intent and adjacent natural dentition.',
+      desc_ja:'所見・治療コンセプト・隣在歯から自動で形態を判断します。',
+      prompt:'Use visible clinical findings, explicit clinician intent, facial context and the adjacent natural dentition to choose a clinically plausible upper anterior tooth form. Avoid template-like uniformity.'
+    },
+    square: {
+      en:'Square', ja:'スクエア',
+      desc_en:'Broad central incisors, restrained taper, comparatively linear proximal contours.',
+      desc_ja:'幅径の広い中切歯、抑制されたテーパー、直線的な隣接面形態。',
+      prompt:'Favor broader central incisors, restrained proximal taper, comparatively linear axial contours, and clinically plausible softened corners. Do not create block-like or oversized teeth.'
+    },
+    ovoid: {
+      en:'Ovoid', ja:'オーバル',
+      desc_en:'Soft convex contours, rounded transitions, gentle cervical-to-incisal flow.',
+      desc_ja:'柔らかな凸面形態、丸みのある移行部、歯頸部から切縁への滑らかな流れ。',
+      prompt:'Favor gentle convex contours, rounded line angles, and smooth cervical-to-incisal transitions. Avoid excessively bulbous crowns.'
+    },
+    tapered: {
+      en:'Tapered', ja:'テーパード',
+      desc_en:'More pronounced cervical narrowing and a lighter incisal visual mass.',
+      desc_ja:'歯頸部の狭窄が明瞭で、切縁側の視覚的ボリュームが軽い形態。',
+      prompt:'Favor controlled cervical narrowing and lighter incisal visual mass. Avoid exaggerated triangular crowns or open gingival embrasures.'
+    },
+    rounded_square: {
+      en:'Rounded Square', ja:'ラウンドスクエア',
+      desc_en:'Structural width with softened corners and less rigid transitions.',
+      desc_ja:'構造的な幅径を保ちつつ、角を柔らげた移行部を持つ形態。',
+      prompt:'Combine structural width with softened line angles and natural corner transitions. Avoid rigid geometric symmetry.'
+    },
+    natural_asymmetry: {
+      en:'Natural Asymmetry', ja:'ナチュラル・アシンメトリー',
+      desc_en:'Controlled left-right variation and reduced template-like repetition.',
+      desc_ja:'左右のわずかな個性差を保ち、テンプレート的な均一感を抑えた形態。',
+      prompt:'Preserve subtle, controlled variation between contralateral teeth while maintaining overall smile harmony. Avoid obvious defects, random rotation, or careless asymmetry.'
+    }
+  };
+  var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v1';
+  var CF_TEETH_AGES = ['〜19','20代','30代','40代','50代','60代','70代〜'];
+  var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', other:'Other / 回答しない' };
+
+  function defaultTeethType(){
+    return { id:'auto', source:'auto', selected_at:null, optional_context:{ sex:null, age:null } };
+  }
+  function currentTeethType(){
+    var t = state.simTeethType;
+    if(!t || !CF_TEETH_TYPES[t.id]) { t = defaultTeethType(); state.simTeethType = t; }
+    if(!t.optional_context) t.optional_context = { sex:null, age:null };
+    return t;
+  }
+
+  /* Generation metadata — additive; consumed by buildSimulationPayload and
+     stamped onto every result record's settings by pushSimResult. */
+  function teethTypeMeta(){
+    var t = currentTeethType();
+    return {
+      id: t.id,
+      source: t.source || (t.id==='auto' ? 'auto' : 'manual'),
+      optional_sex: t.optional_context.sex || null,
+      optional_age: t.optional_context.age || null,
+      prompt_version: CF_TEETH_PROMPT_VERSION
+    };
+  }
+
+  /* THE single prompt insertion point for the tooth-form selection.
+     buildClinicalPrompt calls this once in each of its two disjoint paths.
+     Returns '' when there is nothing to add — with Auto selected and no
+     optional context the generated prompt is byte-identical to before this
+     feature existed (production behavior preserved). */
+  function teethTypePromptFragment(isIntraoral){
+    var t = currentTeethType();
+    var def = CF_TEETH_TYPES[t.id] || CF_TEETH_TYPES.auto;
+    var manual = t.id !== 'auto';
+    var ctx = t.optional_context || {};
+    if(!manual && !ctx.sex && !ctx.age) return '';
+    var out = [];
+    out.push('UPPER ANTERIOR TOOTH-FORM DIRECTION ('
+      + (manual ? 'clinician-selected: '+def.en : 'automatic')
+      + ' — this guides the visual crown morphology of the simulation only; it does not determine the final treatment plan): '
+      + def.prompt);
+    out.push('Scope & priority of this form direction: apply it to the upper anterior crowns visible in the '
+      + (isIntraoral ? 'photograph' : 'smile window')
+      + ' (central incisors as the key reference, laterals and canines in harmony). Any explicit clinician instruction elsewhere in this prompt OUTRANKS this direction. It must never override anatomy, periodontal context, occlusal plausibility, tooth count, '
+      + (isIntraoral ? 'the absolute framing/incisal-edge rules for this shot type, ' : 'face identity, lips, ')
+      + 'or gingival credibility. Treat ideal proportions as soft references, never rigid universal targets. Never produce artificial veneer uniformity, duplicated or fused teeth, or excessive whiteness.');
+    if(ctx.age){
+      out.push('Optional patient context — approximate age '+ctx.age+' (reference only, lower priority than the selected form and the visible findings): let age-appropriate enamel texture, incisal wear and translucency inform realism; do not exaggerate aging or rejuvenation.');
+    }
+    if(ctx.sex){
+      out.push('Optional patient context — reported sex '+(CF_TEETH_SEX[ctx.sex]||ctx.sex)+' (weak stylistic reference only): do NOT apply stereotyped "masculine/feminine" tooth-form rules, and never let this outrank the explicit tooth-form selection, the visible clinical findings, or overall naturalness.');
+    }
+    return out.join(' ');
+  }
+
+  /* New-case reset: clearPhotos is the app's "start over" primitive (same
+     wrapper pattern cfPersist uses). Session restore re-applies a saved
+     selection afterwards only when the session itself is still alive. */
+  (function hookClear(){
+    var prev = window.clearPhotos;
+    if(typeof prev !== 'function'){ document.addEventListener('DOMContentLoaded', hookClear, { once:true }); return; }
+    if(prev.__cfTeethTypeHooked) return;
+    var wrapped = function(){
+      var r = prev.apply(this, arguments);
+      state.simTeethType = defaultTeethType();
+      if(typeof window.cfRenderTeethTypeField === 'function') window.cfRenderTeethTypeField();
+      return r;
+    };
+    wrapped.__cfTeethTypeHooked = true;
+    window.clearPhotos = wrapped;
+  })();
+
+  currentTeethType(); // initialize default state eagerly
+
+  window.CF_TEETH_TYPES = CF_TEETH_TYPES;
+  window.CF_TEETH_AGES = CF_TEETH_AGES;
+  window.CF_TEETH_SEX = CF_TEETH_SEX;
+  window.cfTeethTypeMeta = teethTypeMeta;
+  window.cfTeethTypeCurrent = currentTeethType;
+  window.cfTeethTypeDefault = defaultTeethType;
+  window.cfTeethTypePromptFragment = teethTypePromptFragment;
 })();
 </script>
 
