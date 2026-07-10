@@ -22,23 +22,22 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('caseflow_studio_v96.html')
-          lines=p.read_text(encoding='utf-8').splitlines()
-          terms=['runSecondaryRefinement','cfRefineBtn','golden proportion','goldenRatio','secondary refinement','resultAfter','simResultCompare','simResultEditPanel','simV82','conceptMap','cfTeethTypeFieldHTML']
+          lines=Path('caseflow_studio_v96.html').read_text(encoding='utf-8').splitlines()
+          terms=['generateRefinedViaAI','secondaryPrompt','golden proportion','golden ratio','getLipOuterRing','_secondaryRefined','compositeRefinedSoft']
           out=[]
           for term in terms:
             hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
             out.append(f'## {term} ({len(hits)} hits)')
-            for i in hits[:80]:
-              lo=max(0,i-30); hi=min(len(lines),i+60)
+            for i in hits[:50]:
+              lo=max(0,i-45); hi=min(len(lines),i+100)
               out.append(f'\n### lines {lo+1}-{hi}\n')
               for j in range(lo,hi): out.append(f'{j+1:06d}: {lines[j]}')
-          Path('docs/smile-designer-secondary-audit.txt').write_text('\n'.join(out),encoding='utf-8')
+          Path('docs/smile-designer-refine-audit.txt').write_text('\n'.join(out),encoding='utf-8')
           PY
       - name: Commit audit context
         run: |
           git config user.name "caseflow-audit-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add docs/smile-designer-secondary-audit.txt
-          git commit -m "chore: capture secondary Smile Designer context" || exit 0
+          git add docs/smile-designer-refine-audit.txt
+          git commit -m "chore: capture secondary refinement prompt context" || exit 0
           git push
