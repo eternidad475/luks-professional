@@ -1,0 +1,44 @@
+name: Diagnose secondary refinement
+
+on:
+  push:
+    branches:
+      - chatgpt/fix-generation-freeze
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose-secondary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/fix-generation-freeze
+          fetch-depth: 0
+      - name: Extract secondary refinement context
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          src=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          lines=src.splitlines()
+          pats=[r'runSecondaryRefinement',r'Waiting',r'仕上げ処理中',r'Rendering visual simulation',r'cfRefine',r'secondaryRefin',r'golden.*proportion',r'produceImage\(']
+          hits=[]
+          for i,l in enumerate(lines):
+              if any(re.search(p,l,re.I) for p in pats): hits.append(i)
+          out=[f'line_count={len(lines)}',f'hits={hits}']
+          for i in hits:
+              a=max(0,i-35);b=min(len(lines),i+95)
+              out.append(f'\n===== TARGET {i+1} / LINES {a+1}-{b} =====')
+              for n in range(a,b):out.append(f'{n+1:05d}: {lines[n]}')
+          Path('docs/secondary-refinement-audit.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit audit output
+        run: |
+          git config user.name "caseflow-diagnostic-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/secondary-refinement-audit.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: capture secondary refinement context"
+          git push origin HEAD:chatgpt/fix-generation-freeze
