@@ -1,0 +1,37 @@
+name: Diagnose iOS generation freeze
+
+on:
+  push:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - .github/workflows/cf-diagnose-generation-freeze.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/image-morphing-video-3kujgb
+          fetch-depth: 1
+      - name: Locate generation and waiting UI code
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          terms=['Waiting','仕上げ処理中','Rendering visual simulation','showWaiting','hideWaiting','openWaiting','closeWaiting','cfSdApply','runGoldenProportion','generateRefined','AbortController','fetch(']
+          lines=s.splitlines()
+          for term in terms:
+              print('\n===== TERM:',term,'=====')
+              hits=[i for i,l in enumerate(lines) if term in l]
+              print('hits', [x+1 for x in hits[:30]])
+              for i in hits[:8]:
+                  lo=max(0,i-18); hi=min(len(lines),i+42)
+                  print(f'--- lines {lo+1}-{hi} ---')
+                  for n in range(lo,hi):
+                      print(f'{n+1:05d}: {lines[n]}')
+          PY
