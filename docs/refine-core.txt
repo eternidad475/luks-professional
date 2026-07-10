@@ -1,0 +1,1000 @@
+24081:       if(btn) btn.textContent='エンコード中…';
+24082:       toastFn('動画エンコード中…');
+24083: 
+24084:       var pausedMode=false;
+24085:       if(!_deviceFastEnough && typeof rec.pause==='function'&&typeof rec.resume==='function'){
+24086:         try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
+24087:       }
+24088:       for(var f=0;f<timeline.totalFrames;f++){
+24089:         var pos=cfGetTimelinePosition(timeline, f);
+24090:         renderExportFrame(exportCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
+24091:         drawWatermark(exportCtx, w, h);
+24092:         if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
+24093:           var fp=computeFrameFingerprint(exportCtx, w, h);
+24094:           if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+24095:           lastFp=fp;
+24096:         }
+24097:         replayCtx.drawImage(exportCanvas, 0, 0);
+24098:         if(pausedMode){
+24099:           try{ rec.resume(); }catch(eR1){}
+24100:           if(manual&&track) track.requestFrame();
+24101:           else await new Promise(requestAnimationFrame);
+24102:           await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
+24103:           try{ rec.pause(); }catch(eR2){}
+24104:         }else{
+24105:           await cfWaitUntil(recordStart+pos.timeMs);
+24106:           if(manual&&track) track.requestFrame();
+24107:           else await new Promise(requestAnimationFrame);
+24108:         }
+24109:         if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length,'| paused',pausedMode);
+24110:         if(btn) btn.textContent='エンコード '+Math.round((f+1)/timeline.totalFrames*100)+'%';
+24111:       }
+24112:       if(pausedMode){ try{ rec.resume(); }catch(eR3){} }
+24113:       await new Promise(function(r){ setTimeout(r,250); }); // flush encoder
+24114:       try{ replayCanvas.remove(); }catch(eRm){}
+24115:       if(!pausedMode){
+24116:         var _elapsed=performance.now()-recordStart;
+24117:         if(_elapsed>timeline.totalDurationMs*1.6) toastFn('端末負荷により動画が想定('+Math.round(timeline.totalDurationMs/100)/10+'s)より長くなっています');
+24118:       }
+24119: 
+24120:       var actualElapsedMs=performance.now()-recordStart;
+24121:       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
+24122:         '| durationRatio', (actualElapsedMs/timeline.totalDurationMs).toFixed(3));
+24123: 
+24124:       var result=await new Promise(function(resolve){
+24125:         rec.onstop=function(){
+24126:           var ext=mime.includes('mp4')?'mp4':'webm';
+24127:           resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph.'+ext});
+24128:         };
+24129:         rec.stop();
+24130:       });
+24131: 
+24132:       var dupRate=timeline.totalFrames>1?(dupCount/(timeline.totalFrames-1)*100).toFixed(1):'0.0';
+24133:       window._cfLastExportStats={
+24134:         totalFrames:timeline.totalFrames, dupCount:dupCount, dupRate:parseFloat(dupRate),
+24135:         maxDupRun:maxDupRun, segCount:plan.segCount,
+24136:         framesPerSegment:Math.round(timeline.totalFrames/plan.segCount),
+24137:         fps:fps, bitrateMbps:12, width:w, height:h,
+24138:         durationSec:timeline.totalDurationMs/1000,
+24139:         actualElapsedMs:Math.round(actualElapsedMs),
+24140:         durationRatio:parseFloat((actualElapsedMs/timeline.totalDurationMs).toFixed(3))
+24141:       };
+24142:       console.log('[CF Export stats]', JSON.stringify(window._cfLastExportStats));
+24143: 
+24144:       if(result){
+24145:         // Safety: reject empty blobs before any save attempt
+24146:         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+24147:         // A multi-second video that encodes to almost nothing means the canvas
+24148:         // stream produced no real frames (still-image bug) — abort loudly rather
+24149:         // than saving a static video.
+24150:         var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
+24151:         if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
+24152: 
+24153:         // Track A: Library save (mandatory — stores blob in app state, navigates to Export page)
+24154:         var libSaved=false;
+24155:         if(typeof setExportBlob==='function'){
+24156:           try{
+24157:             setExportBlob(result.blob,result.name,result.mime);
+24158:             libSaved=true;
+24159:             var exportSubEl=document.getElementById('exportSubtitle');
+24160:             if(exportSubEl) exportSubEl.textContent='Libraryに保存済み / Saved to Library';
+24161:           }catch(libErr){
+24162:             console.error('[CaseFlow Export Save Error] Library save failed',libErr);
+24163:           }
+24164:         }
+24165: 
+24166:         if(libSaved){
+24167:           toastFn('プレビュー動画を保存しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+24168:           if(typeof go==='function') go('export');
+24169:         }else{
+24170:           // Fallback: direct download (non-iOS, non-Library environments)
+24171:           try{
+24172:             var dlUrl=URL.createObjectURL(result.blob);
+24173:             var dlA=document.createElement('a'); dlA.href=dlUrl; dlA.download=result.name; dlA.click();
+24174:             setTimeout(function(){ URL.revokeObjectURL(dlUrl); },5000);
+24175:             toastFn('プレビュー動画を保存しました ✓');
+24176:           }catch(dlErr){
+24177:             console.error('[CaseFlow Export Save Error] Fallback download failed',dlErr);
+24178:             toastFn('保存に失敗しました。端末の共有メニューをご利用ください');
+24179:           }
+24180:         }
+24181:       }else{
+24182:         throw new Error('MediaRecorder produced no result');
+24183:       }
+24184: 
+24185:     }catch(err){
+24186:       console.error('[CaseFlow Export Save Error]',err);
+24187:       toastFn('プレビュー動画の保存に失敗しました: '+(err&&err.message||String(err)).slice(0,60));
+24188:     }finally{
+24189:       window._cfExportInProgress=false;
+24190:       if(window.state){ state.cfExportMode=prevExportMode; }
+24191:       if(waitEl) waitEl.classList.remove('active');
+24192:       if(btn){ btn.classList.remove('recording'); btn.innerHTML='&#9660;&nbsp; プレビュー動画を保存'; }
+24193:     }
+24194:   }
+24195: 
+24196:   function refresh(){
+24197:     var box=ensureUI(); if(!box) return;
+24198:     // Keep the ratio buttons, the stage aspect and the export size all locked to
+24199:     // state.ratio — a restored/persisted ratio must show its button as active AND
+24200:     // shape the stage (they could previously desync: markup defaults to 4:5).
+24201:     var _r=(window.state&&state.ratio)||'4:5';
+24202:     box.querySelectorAll('.cfCapRat').forEach(function(b){ b.classList.toggle('on', b.dataset.ratio===_r); });
+24203:     var st=$id('cfCapStage'); if(st) st.style.setProperty('--cfcap-ar',ratioAR());
+24204:     // Sync canvas intrinsic size to current ratio (clears canvas, re-render follows below)
+24205:     var cv=$id('cfCapCanvas');
+24206:     if(cv){ var rd=ratioWH(_r); if(cv.width!==rd.w||cv.height!==rd.h){cv.width=rd.w;cv.height=rd.h;} }
+24207:     /* Show Clinical Warp waiting overlay while canvas initialises */
+24208:     var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]));
+24209:     var wait=$id('cfCWWait');
+24210:     if(wait && ph.length>=2){
+24211:       wait.classList.add('active');
+24212:       setTimeout(function(){ if(wait) wait.classList.remove('active'); }, 1400);
+24213:     }
+24214:     try{ cfCapSyncAlignStatus(); }catch(e){}
+24215:     window.cfCapRender();
+24216:     /* Background: auto-detect face mesh so morphs WARP (not crossfade), re-render on complete */
+24217:     try{
+24218:       if(window.cfEnsureFaceMesh && ph.length>=2){
+24219:         Promise.all(ph.map(function(p){ return window.cfEnsureFaceMesh(p); }))
+24220:           .then(function(){ window.cfCapRender(); }).catch(function(){});
+24221:       }
+24222:     }catch(e){}
+24223:   }
+24224:   window.cfCapRefresh=refresh;
+24225: 
+24226:   var prevGo=window.go;
+24227:   if(typeof prevGo==='function' && !prevGo.__cfCap){
+24228:     var gw=function(id){ var r=prevGo.apply(this,arguments); if(id!=='align') stop(); if(id==='align') setTimeout(refresh,140); return r; };
+24229:     gw.__cfCap=true; window.go=gw;
+24230:   }
+24231:   var prevRA=window.renderAlign;
+24232:   if(typeof prevRA==='function' && !prevRA.__cfCap){
+24233:     var raw=function(){ var r=prevRA.apply(this,arguments); setTimeout(refresh,90); return r; };
+24234:     raw.__cfCap=true; window.renderAlign=raw;
+24235:   }
+24236: 
+24237:   // Two-phase export: precompute plan (no per-frame async IO), render deterministically,
+24238:   // replay at controlled wall-clock fps into MediaRecorder.
+24239:   async function cfCapDoExport(){
+24240:     var ph=(window.cfGetMorphSource?window.cfGetMorphSource():((window.state&&state.photos)||[]));
+24241:     if(ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+24242:     if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream){
+24243:       toastFn('この環境では動画書き出しが未対応です'); return;
+24244:     }
+24245:     var _engine2; try{ _engine2=cfValidateExportDependencies(); }catch(depErr){ console.error('[CaseFlow Export] dependency error',depErr); toastFn('書き出しエラー: '+depErr.message); return; }
+24246:     var segCount=Math.max(1,ph.length-1);
+24247:     var activeRatio2=cfGetActiveAspectRatio();
+24248:     var rDims2=cfGetOutputSizeForRatio(activeRatio2);
+24249:     var w=rDims2.w, h=rDims2.h;
+24250:     var activeSpeedMs2=cfGetActiveSpeedMs();
+24251:     var durationMs=activeSpeedMs2*segCount;
+24252:     var fps=Math.min(60,Math.max(12,Number(window.CF_EXPORT_FPS)||30)); /* CF_EXPORT_FPS overrides (quality/speed tuning) */
+24253:     var totalFrames=Math.max(2,Math.round(durationMs/1000*fps));
+24254:     var frameMs=1000/fps;
+24255:     console.log('[CaseFlow Export] active ratio', activeRatio2, 'size', w, h, 'speed ms', activeSpeedMs2, 'duration ms', durationMs, 'totalFrames', totalFrames);
+24256:     // Show waiting overlay
+24257:     var waitOvEl=$id('cfCWWait');
+24258:     if(waitOvEl){
+24259:       var _msg=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg');
+24260:       if(_msg) _msg.textContent='書き出し準備中…';
+24261:       waitOvEl.classList.add('active');
+24262:     }
+24263:     toastFn('書き出し準備中…');
+24264:     stop();
+24265:     window._cfExportInProgress=true;
+24266:     var prevMesh=(window.state&&state.trueMeshEnabled);
+24267:     var prevOverlay=(window.state&&state.meshOverlayEnabled);
+24268:     var prevExportMode=(window.state&&!!state.cfExportMode);
+24269:     if(window.state){ state.trueMeshEnabled=true; state.meshOverlayEnabled=false; state.cfExportMode=true; }
+24270:     try{
+24271:       // Phase 0: precompute mesh/image data — no async IO inside the recording loop
+24272:       var plan=await prepareMorphExportPlan(ph, w, h, fps, durationMs, _engine2);
+24273: 
+24274:       // Build canonical timeline — same definition as preview
+24275:       var timeline=cfBuildMorphTimeline(ph, activeSpeedMs2, fps);
+24276:       cfAssertExportBudget(timeline, fps);
+24277:       console.log('[CaseFlow Export] speedMs', activeSpeedMs2,
+24278:         '| segmentCount', timeline.segmentCount,
+24279:         '| expectedDurationMs', timeline.totalDurationMs,
+24280:         '| fps', fps,
+24281:         '| totalFrames', timeline.totalFrames,
+24282:         '| frameMs', timeline.frameMs.toFixed(2));
+24283: 
+24284:       // Export canvas (render) + replay canvas (captureStream)
+24285:       var expCv=document.createElement('canvas'); expCv.width=w; expCv.height=h;
+24286:       var expCtx=expCv.getContext('2d',{alpha:false});
+24287:       expCtx.imageSmoothingEnabled=true; expCtx.imageSmoothingQuality='high';
+24288:       var repCv=document.createElement('canvas'); repCv.width=w; repCv.height=h;
+24289:       var repCtx=repCv.getContext('2d');
+24290: 
+24291:       // video/mp4 tried first for iOS Safari compatibility
+24292:       var mimes=['video/mp4','video/webm;codecs=h264','video/webm;codecs=vp9','video/webm'];
+24293:       var mime=mimes.find(function(m){return MediaRecorder.isTypeSupported(m);})||'video/webm';
+24294:       console.log('[CaseFlow Export] selected mimeType:', mime);
+24295:       // Still-image export fix: a DETACHED canvas is never composited on iOS/Safari
+24296:       // (captureStream records nothing after frame 0) and WebKit's requestFrame()
+24297:       // is unreliable. Attach the replay canvas to the DOM for the export and use
+24298:       // passive fps capture on Safari; manual requestFrame only on Chromium.
+24299:       repCv.style.cssText='position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:1';
+24300:       document.body.appendChild(repCv);
+24301:       var isSafariEngine=/^((?!chrome|crios|fxios|edgios|android).)*safari/i.test(navigator.userAgent||'');
+24302:       var stream,track,manual=false;
+24303:       try{
+24304:         if(!isSafariEngine){
+24305:           stream=repCv.captureStream(0); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+24306:           if(track&&typeof track.requestFrame==='function') manual=true; else stream=repCv.captureStream(fps);
+24307:         }else{
+24308:           stream=repCv.captureStream(fps); track=stream.getVideoTracks&&stream.getVideoTracks()[0];
+24309:         }
+24310:       }catch(e){ stream=repCv.captureStream(fps); }
+24311:       if(window.CF_EXPORT_DEBUG) console.log('[CF Export debug] start | fps',fps,'| durationMs',durationMs,'| totalFrames',timeline.totalFrames,'| manualCapture',manual,'| safariEngine',isSafariEngine,'| hasRequestFrame',!!(track&&track.requestFrame));
+24312:       var rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000}),parts=[];
+24313:       rec.ondataavailable=function(e){if(e.data&&e.data.size)parts.push(e.data);};
+24314: 
+24315:       // ── Recording strategy: smooth real-time vs deterministic pause/resume ───
+24316:       // MediaRecorder timestamps in WALL-CLOCK time. Two failure modes:
+24317:       //   • pause/resume + setTimeout(frameMs) keeps duration exact but the
+24318:       //     per-frame recorder window jitters (browser timer variance) → uneven
+24319:       //     frame spacing (the "カク付き" the user reported: 33fps, jerky).
+24320:       //   • plain real-time recording is perfectly even BUT stretches the clip
+24321:       //     if a frame renders slower than frameMs (the old 2:36 export).
+24322:       // Resolution: probe render speed FIRST (before recording, so the probe
+24323:       // frames aren't captured; it also warms JIT + decode caches). When the
+24324:       // device renders well under frameMs (true since the geometry cache —
+24325:       // ~3ms/frame), record in real time on an ABSOLUTE per-frame schedule
+24326:       // (even frames, exact duration). Fall back to pause/resume only if slow.
+24327:       var _probeMedianMs=await cfProbeRenderSpeed(function(lt){
+24328:         var pp=cfGetTimelinePosition(timeline, Math.round(lt*(timeline.totalFrames-1)));
+24329:         renderExportFrame(expCtx, plan, plan.pairPlans[pp.pairIndex], pp.localT);
+24330:       }, 5);
+24331:       var _deviceFastEnough=_probeMedianMs < timeline.frameMs*0.85;
+24332:       console.log('[CaseFlow Export] render probe median', Math.round(_probeMedianMs*100)/100, 'ms | frameMs', timeline.frameMs.toFixed(2), '| realtimePacing', _deviceFastEnough);
+24333: 
+24334:       // Pre-render frame 0 before rec.start() — prevents leading black frame
+24335:       var p0=cfGetTimelinePosition(timeline,0);
+24336:       renderExportFrame(expCtx, plan, plan.pairPlans[p0.pairIndex], p0.localT);
+24337:       drawWatermark(expCtx, w, h);
+24338:       repCtx.drawImage(expCv, 0, 0);
+24339:       await new Promise(requestAnimationFrame);
+24340: 
+24341:       rec.start(500); /* timeslice: periodic chunks prove capture progresses */
+24342:       var recordStart=performance.now();
+24343:       var dupCount=0, maxDupRun=0, curDupRun=0, lastFp=null;
+24344:       toastFn('動画エンコード中…');
+24345:       if(waitOvEl){ var _msg2=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msg2) _msg2.textContent='録画中 ('+timeline.totalFrames+'フレーム)…'; }
+24346: 
+24347:       var pausedMode=false;
+24348:       if(!_deviceFastEnough && typeof rec.pause==='function'&&typeof rec.resume==='function'){
+24349:         try{ rec.pause(); pausedMode=(rec.state==='paused'); }catch(ePau){ pausedMode=false; }
+24350:       }
+24351:       for(var f=0;f<timeline.totalFrames;f++){
+24352:         var pos=cfGetTimelinePosition(timeline, f);
+24353:         renderExportFrame(expCtx, plan, plan.pairPlans[pos.pairIndex], pos.localT);
+24354:         drawWatermark(expCtx, w, h);
+24355:         if(window.CF_EXPORT_DEBUG){ /* full-canvas getImageData is expensive — debug only */
+24356:           var fp=computeFrameFingerprint(expCtx, w, h);
+24357:           if(lastFp!==null&&fp===lastFp){ dupCount++; curDupRun++; if(curDupRun>maxDupRun) maxDupRun=curDupRun; }else{ curDupRun=0; }
+24358:           lastFp=fp;
+24359:         }
+24360:         repCtx.drawImage(expCv, 0, 0);
+24361:         if(pausedMode){
+24362:           try{ rec.resume(); }catch(eR1){}
+24363:           if(manual&&track) track.requestFrame();
+24364:           else await new Promise(requestAnimationFrame);
+24365:           await new Promise(function(r){ setTimeout(r, timeline.frameMs); });
+24366:           try{ rec.pause(); }catch(eR2){}
+24367:         }else{
+24368:           // Real-time pacing: render is already done — present the finished
+24369:           // frame at its EXACT absolute schedule time so MediaRecorder stamps
+24370:           // frames at even frameMs intervals (no jitter, exact duration).
+24371:           await cfWaitUntil(recordStart+pos.timeMs);
+24372:           if(manual&&track) track.requestFrame();
+24373:           else await new Promise(requestAnimationFrame);
+24374:         }
+24375:         if(window.CF_EXPORT_DEBUG && (f%15===0||f===timeline.totalFrames-1)) console.log('[CF Export debug] frame',f+1,'/',timeline.totalFrames,'| t',pos.localT.toFixed(3),'| seg',pos.pairIndex,'| rec',rec.state,'| chunks',parts.length,'| paused',pausedMode);
+24376:         if(waitOvEl && (f%10===0)){ var _msgP=waitOvEl.querySelector&&waitOvEl.querySelector('.cfCWMsg'); if(_msgP) _msgP.textContent='録画中 '+Math.round((f+1)/timeline.totalFrames*100)+'%…'; }
+24377:       }
+24378:       if(pausedMode){ try{ rec.resume(); }catch(eR3){} }
+24379:       await new Promise(function(r){setTimeout(r,250);});
+24380:       try{ repCv.remove(); }catch(eRm){}
+24381:       // Legacy path (no pause support): warn when the clip stretched noticeably.
+24382:       if(!pausedMode){
+24383:         var _elapsed=performance.now()-recordStart;
+24384:         if(_elapsed>timeline.totalDurationMs*1.6) toastFn('端末負荷により動画が想定('+Math.round(timeline.totalDurationMs/100)/10+'s)より長くなっています');
+24385:       }
+24386: 
+24387:       var actualElapsedMs=performance.now()-recordStart;
+24388:       console.log('[CaseFlow Export] actualElapsedMs', Math.round(actualElapsedMs),
+24389:         '| durationRatio', (actualElapsedMs/timeline.totalDurationMs).toFixed(3));
+24390: 
+24391:       var dupRate=timeline.totalFrames>1?(dupCount/(timeline.totalFrames-1)*100).toFixed(1):'0.0';
+24392:       window._cfLastExportStats={totalFrames:timeline.totalFrames,dupCount:dupCount,dupRate:parseFloat(dupRate),maxDupRun:maxDupRun,segCount:plan.segCount,framesPerSegment:Math.round(timeline.totalFrames/plan.segCount),fps:fps,bitrateMbps:12,width:w,height:h,durationSec:timeline.totalDurationMs/1000,actualElapsedMs:Math.round(actualElapsedMs),durationRatio:parseFloat((actualElapsedMs/timeline.totalDurationMs).toFixed(3))};
+24393:       console.log('[CF Export stats]', JSON.stringify(window._cfLastExportStats));
+24394: 
+24395:       var result=await new Promise(function(resolve){
+24396:         rec.onstop=function(){ resolve({blob:new Blob(parts,{type:mime}),mime:mime,name:'caseflow_morph'+(mime==='video/mp4'?'.mp4':'.webm')}); };
+24397:         rec.stop();
+24398:       });
+24399:       if(waitOvEl) waitOvEl.classList.remove('active');
+24400:       if(result){
+24401:         // Safety: reject empty blobs before any save attempt
+24402:         if(!result.blob||!result.blob.size){ throw new Error('Preview video blob is empty'); }
+24403:         // A multi-second video that encodes to almost nothing means the canvas
+24404:         // stream produced no real frames (still-image bug) — abort loudly rather
+24405:         // than saving a static video.
+24406:         var _minBytes=Math.max(30000, timeline.totalDurationMs*3);
+24407:         if(result.blob.size<_minBytes){ throw new Error('録画フレームが取得できませんでした（'+result.blob.size+'B）。ブラウザのcanvas録画制限の可能性があります'); }
+24408:         // Track A: Library save (mandatory)
+24409:         var libSaved2=false;
+24410:         if(typeof setExportBlob==='function'){
+24411:           try{
+24412:             setExportBlob(result.blob,result.name,result.mime);
+24413:             libSaved2=true;
+24414:             var exportSubEl2=document.getElementById('exportSubtitle');
+24415:             if(exportSubEl2) exportSubEl2.textContent='Libraryに保存済み / Saved to Library';
+24416:           }catch(libErr2){
+24417:             console.error('[CaseFlow Export Save Error] Library save failed',libErr2);
+24418:           }
+24419:         }
+24420:         if(libSaved2){
+24421:           toastFn('プレビュー動画を保存しました ✓ ('+Math.round(timeline.totalDurationMs/100)/10+'s / '+fps+'fps / '+w+'×'+h+')');
+24422:         }else{
+24423:           console.error('[CaseFlow Export Save Error] No Library save method available');
+24424:           toastFn('端末への保存は共有メニューからご利用ください');
+24425:         }
+24426:       }else{
+24427:         throw new Error('MediaRecorder produced no result');
+24428:       }
+24429:     }catch(err2){
+24430:       console.error('[CaseFlow Export Save Error]',err2);
+24431:       if(waitOvEl) waitOvEl.classList.remove('active');
+24432:       toastFn('プレビュー動画の保存に失敗しました: '+(err2&&err2.message||String(err2)).slice(0,60));
+24433:     }finally{
+24434:       if(window.state){ state.trueMeshEnabled=prevMesh; state.meshOverlayEnabled=prevOverlay; state.cfExportMode=prevExportMode; }
+24435:       window._cfExportInProgress=false;
+24436:     }
+24437:   }
+24438: 
+24439:   // ── Source image management: Prev / Next / Undo / Delete ──────────────────
+24440:   window._cfCapUndoStack = window._cfCapUndoStack || [];
+24441:   function cfCapPushUndo(){
+24442:     var ph=(window.state&&state.photos)||[];
+24443:     window._cfCapUndoStack.push(JSON.stringify(ph.map(function(p){ return {dataUrl:p.dataUrl,label:p.label,name:p.name,category:p.category}; })));
+24444:     if(window._cfCapUndoStack.length>6) window._cfCapUndoStack.shift();
+24445:   }
+24446:   window.cfCapPrevImage=function(){
+24447:     var ph=(window.state&&state.photos)||[];
+24448:     var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+24449:     if(ph.length<2||i<=0){ toastFn('これ以上前に移動できません'); return; }
+24450:     cfCapPushUndo();
+24451:     var tmp=ph[i]; ph[i]=ph[i-1]; ph[i-1]=tmp;
+24452:     state.v75ActiveIndex=i-1;
+24453:     if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24454:     else refresh();
+24455:   };
+24456:   window.cfCapNextImage=function(){
+24457:     var ph=(window.state&&state.photos)||[];
+24458:     var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+24459:     if(ph.length<2||i>=ph.length-1){ toastFn('これ以上後ろに移動できません'); return; }
+24460:     cfCapPushUndo();
+24461:     var tmp=ph[i]; ph[i]=ph[i+1]; ph[i+1]=tmp;
+24462:     state.v75ActiveIndex=i+1;
+24463:     if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24464:     else refresh();
+24465:   };
+24466:   window.cfCapUndoImage=function(){
+24467:     if(!window._cfCapUndoStack||!window._cfCapUndoStack.length){ toastFn('取り消す操作がありません'); return; }
+24468:     try{
+24469:       var saved=JSON.parse(window._cfCapUndoStack.pop());
+24470:       if(window.state) state.photos=saved;
+24471:       state.v75ActiveIndex=Math.min(state.v75ActiveIndex||0,Math.max(0,saved.length-1));
+24472:       if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24473:       if(typeof window.renderUpload==='function') window.renderUpload();
+24474:       refresh();
+24475:       toastFn('取り消しました');
+24476:     }catch(e){ toastFn('取り消しに失敗しました'); }
+24477:   };
+24478:   window.cfCapDeleteImage=function(){
+24479:     var ph=(window.state&&state.photos)||[];
+24480:     var i=typeof state.v75ActiveIndex==='number'?state.v75ActiveIndex:0;
+24481:     if(!ph[i]){ toastFn('削除する画像がありません'); return; }
+24482:     var label=ph[i].label||ph[i].name||('Image '+(i+1));
+24483:     if(!window.confirm('「'+label+'」を削除しますか？\nこの操作は取り消せます（Undoボタン）。')) return;
+24484:     cfCapPushUndo();
+24485:     ph.splice(i,1);
+24486:     state.v75ActiveIndex=Math.min(i,Math.max(0,ph.length-1));
+24487:     if(typeof window.caseflowV75Refresh==='function') window.caseflowV75Refresh();
+24488:     if(typeof window.renderUpload==='function') window.renderUpload();
+24489:     if(typeof window.renderSimulator==='function') window.renderSimulator();
+24490:     refresh();
+24491:     toastFn('画像を削除しました');
+24492:   };
+24493: 
+24494:   // header / step-3 "書き出し"
+24495:   window.cfMorphExport=function(){
+24496:     var p=pair(); if(!p.ph||p.ph.length<2){ toastFn('写真を2枚以上追加してください'); return; }
+24497:     stop();
+24498:     cfCapDoExport().catch(function(e){ toastFn('書き出しエラー: '+(e&&e.message||String(e)).slice(0,80)); });
+24499:   };
+24500: 
+24501:   if(document.readyState!=='loading') setTimeout(refresh,400);
+24502:   else document.addEventListener('DOMContentLoaded',function(){ setTimeout(refresh,400); });
+24503: })();
+24504: </script>
+24505: 
+24506: 
+24507: 
+24508: <script>
+24509: /* ── Secondary Refinement (二次生成) — Golden Proportion Upper Anterior Teeth ── */
+24510: (function(){
+24511:   'use strict';
+24512:   if(window.__cfSecondaryRefinement) return;
+24513:   window.__cfSecondaryRefinement = true;
+24514: 
+24515:   function toast(m){ if(typeof window.toast==='function') window.toast(m); }
+24516: 
+24517:   function loadImg(src){
+24518:     return new Promise(function(res,rej){
+24519:       var im=new Image(); im.crossOrigin='anonymous';
+24520:       im.onload=function(){res(im);}; im.onerror=rej; im.src=src;
+24521:     });
+24522:   }
+24523: 
+24524:   function getAiEndpoint(){
+24525:     try{
+24526:       return window.CASEFLOW_AI_ENDPOINT ||
+24527:              localStorage.getItem('caseflow_ai_endpoint') ||
+24528:              'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
+24529:     }catch(e){ return window.CASEFLOW_AI_ENDPOINT || ''; }
+24530:   }
+24531: 
+24532:   async function fetchWithRetry(ep, body, maxAttempts){
+24533:     maxAttempts = maxAttempts||4;
+24534:     var delay = 1200;
+24535:     for(var attempt=1; attempt<=maxAttempts; attempt++){
+24536:       try{
+24537:         var r = await fetch(ep, {
+24538:           method:'POST',
+24539:           headers:{'Content-Type':'application/json','Accept':'application/json'},
+24540:           body: body
+24541:         });
+24542:         if(r.ok || !(r.status in {408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1})) return r;
+24543:       }catch(e){ if(attempt>=maxAttempts) throw e; }
+24544:       await new Promise(function(r){ setTimeout(r, delay); });
+24545:       delay = Math.min(delay*2, 10000);
+24546:     }
+24547:     throw new Error('AIバックエンドに接続できませんでした');
+24548:   }
+24549: 
+24550:   // CLAMPED, conservative golden-balance prompt. The goal is NOT to force the ideal
+24551:   // 1.618 ratio — it is a small, clinically-plausible tidy-up of the SAME teeth. Facial
+24552:   // gets the most conservative wording (full-frame, identity-preserving); focus may
+24553:   // refine crown form a little more but still gently.
+24554:   function buildGoldenProportionPrompt(imageType){
+24555:     if(imageType==='facial'){
+24556:       return [
+24557:         'Edit ONLY the visible upper anterior teeth in THIS exact portrait (image-to-image);',
+24558:         'keep it the SAME person — face, eyes, nose, skin, lips, expression, framing and background pixel-identical.',
+24559:         'Apply a SUBTLE, conservative balancing of the existing teeth: very slightly even the incisal edge line and',
+24560:         'soften obvious width asymmetries toward (not all the way to) natural proportions; keep the patient\'s own tooth',
+24561:         'shape, length, shade and individual character. Do NOT whiten to pure white, do NOT flatten or fuse teeth,',
+24562:         'do NOT create generic veneers, do NOT move the gingival margin or the lips. The change must be barely',
+24563:         'perceptible and look like the patient\'s real teeth, gently tidied. Return the FULL image at the same crop',
+24564:         'and head position so it overlays the original exactly.'
+24565:       ].join(' ');
+24566:     }
+24567:     // focus (intraoral / close-up): dental-specific refinement allowed a little more
+24568:     return [
+24569:       'close-up dental photograph: gently refine the upper anterior crown forms toward natural, balanced proportions',
+24570:       '(centrals slightly dominant, soft step-down to laterals and canines) WITHOUT forcing a perfect golden ratio.',
+24571:       'Keep the patient\'s own tooth type, length, surface texture and shade; natural A1-A2 enamel, subtle incisal',
+24572:       'translucency, no staining, scalloped natural gingiva. Do NOT whiten to pure white, do NOT flatten or fuse teeth,',
+24573:       'do NOT create generic veneers, do NOT change lips, gingiva beyond the gingival margin, skin or background.',
+24574:       'Photorealistic, conservative, believable.'
+24575:     ].join(' ');
+24576:   }
+24577: 
+24578:   async function getLipInnerRing(img, w, h){
+24579:     try{
+24580:       var initFn = window.initMediaPipeLocalML;
+24581:       var ok = (typeof initFn==='function') ? await initFn() : false;
+24582:       if(!ok || !window.CaseFlowLocalML || !window.CaseFlowLocalML.faceLandmarker) return null;
+24583:       var res = window.CaseFlowLocalML.faceLandmarker.detect(img);
+24584:       if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+24585:       var L = res.faceLandmarks[0];
+24586:       var ring = [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95];
+24587:       var pts = ring.map(function(i){ return L[i]; }).filter(Boolean).map(function(p){ return {x:p.x*w, y:p.y*h}; });
+24588:       return pts.length>=10 ? pts : null;
+24589:     }catch(e){ return null; }
+24590:   }
+24591: 
+24592:   // OUTER lip ring — used to build the support/context blend region (teeth + lip surface),
+24593:   // reusing the same MediaPipe faceLandmarker the Morphing Video Studio relies on.
+24594:   async function getLipOuterRing(img, w, h){
+24595:     try{
+24596:       var initFn = window.initMediaPipeLocalML;
+24597:       var ok = (typeof initFn==='function') ? await initFn() : false;
+24598:       if(!ok || !window.CaseFlowLocalML || !window.CaseFlowLocalML.faceLandmarker) return null;
+24599:       var res = window.CaseFlowLocalML.faceLandmarker.detect(img);
+24600:       if(!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+24601:       var L = res.faceLandmarks[0];
+24602:       var ring = [61,185,40,39,37,0,267,269,270,409,291,375,321,405,314,17,84,181,91,146];
+24603:       var pts = ring.map(function(i){ return L[i]; }).filter(Boolean).map(function(p){ return {x:p.x*w, y:p.y*h}; });
+24604:       return pts.length>=10 ? pts : null;
+24605:     }catch(e){ return null; }
+24606:   }
+24607: 
+24608:   async function cropUpperAnteriorTeeth(primaryDataUrl){
+24609:     var img = await loadImg(primaryDataUrl);
+24610:     var w = img.naturalWidth||img.width, h = img.naturalHeight||img.height;
+24611:     var cropRect = null;
+24612: 
+24613:     // Try MediaPipe inner lip ring for a precise crop
+24614:     var pts = await getLipInnerRing(img, w, h);
+24615:     if(pts){
+24616:       var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+24617:       pts.forEach(function(p){ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+24618:       var bW = maxX-minX, bH = maxY-minY;
+24619:       // Extend up 80% of ring height for crowns + gingival tissue; stop ~10% below center for lower-lip clearance
+24620:       var cx = minX - bW*0.18;
+24621:       var cy = minY - bH*0.85;
+24622:       var cw = bW * 1.36;
+24623:       var ch = ((minY+maxY)/2 + bH*0.12) - cy;
+24624:       cropRect = {
+24625:         x: Math.max(0, Math.round(cx)),
+24626:         y: Math.max(0, Math.round(cy)),
+24627:         w: Math.min(w-Math.max(0,Math.round(cx)), Math.round(cw)),
+24628:         h: Math.min(h-Math.max(0,Math.round(cy)), Math.round(ch))
+24629:       };
+24630:     }
+24631: 
+24632:     // Fallback: centre-upper quarter of frame where anterior teeth typically appear
+24633:     if(!cropRect || cropRect.w < 20 || cropRect.h < 20){
+24634:       cropRect = {
+24635:         x: Math.round(w*0.15),
+24636:         y: Math.round(h*0.38),
+24637:         w: Math.round(w*0.70),
+24638:         h: Math.round(h*0.24)
+24639:       };
+24640:     }
+24641: 
+24642:     var c = document.createElement('canvas');
+24643:     c.width = cropRect.w; c.height = cropRect.h;
+24644:     var ctx = c.getContext('2d');
+24645:     ctx.drawImage(img, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, cropRect.w, cropRect.h);
+24646:     return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };
+24647:   }
+24648:   window.cfCropUpperAnteriorTeeth = cropUpperAnteriorTeeth;
+24649: 
+24650:   // Generate the refined image. FACIAL: full-frame, identity-preserving, LOW denoising
+24651:   // (a gentle balance pass — never an intraoral close-up). FOCUS: dental crop, intraoral,
+24652:   // a little more latitude. Golden-proportion change is clamped via low denoising_strength.
+24653:   async function generateRefinedViaAI(imageDataUrl, imageType){
+24654:     var epRaw = getAiEndpoint();
+24655:     if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
+24656:     var _refineLedgerId=null;
+24657:     if(typeof window.cfConsumeToken==='function'){
+24658:       var tk = await window.cfConsumeToken('generation');
+24659:       if(tk && tk.ok===false){
+24660:         if(tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+24661:         var err = new Error(tk.reason==='insufficient' ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
+24662:         err.cfNoTokens = true; throw err;
+24663:       }
+24664:       _refineLedgerId=(tk&&tk.ledgerId)||null;
+24665:     }
+24666:     var ep = epRaw.replace(/\/+$/,'');
+24667:     if(!/\/simulate$/.test(ep)) ep += '/simulate';
+24668:     var basePayload = {};
+24669:     if(typeof window.buildSimulationPayload==='function' && window.state && window.state.simResult && window.state.simResult.srcObj){
+24670:       try{ basePayload = window.buildSimulationPayload(window.state.simResult.srcObj); }catch(e){}
+24671:     }
+24672:     var facial = (imageType==='facial');
+24673:     var payload = Object.assign({}, basePayload, {
+24674:       image: imageDataUrl,
+24675:       prompt: buildGoldenProportionPrompt(imageType) + (typeof window.cfSmileDesignerPromptFragment==='function' ? ' ' + window.cfSmileDesignerPromptFragment(imageType) : ''),
+24676:       concept: 'prosthetic',
+24677:       // CLAMP: facial gets a much smaller denoise so the pass stays a gentle balance,
+24678:       // not a re-generation that can drift identity / over-whiten.
+24679:       denoising_strength: facial ? 0.26 : 0.42,
+24680:       control_weight: facial ? 0.85 : 0.72,
+24681:       // FACIAL is NEVER intraoral and keeps the lips — that focus-mode flag is exactly
+24682:       // what produced the "focus-style local replacement on a facial photo" breakage.
+24683:       intraoral: !facial,
+24684:       lips: facial,
+24685:       extraction_mode: false,
+24686:       hybrid_mode: false,
+24687:       negative_prompt: [
+24688:         'blurry, low quality, artifacts, watermark, text, oversaturated,',
+24689:         'pure white teeth, flat teeth, fused teeth, generic veneers, denture look,',
+24690:         'unnatural color, brackets, braces, wires, metal, discoloration, stains,',
+24691:         'uneven gingiva, misaligned gingival zenith, gaps, crowding, dark shadows,',
+24692:         'changed face, changed lips, changed skin, deformed teeth, cartoon, painting, sketch, anime'
+24693:       ].join(' ')
+24694:     });
+24695:     try{
+24696:       var res = await fetchWithRetry(ep, JSON.stringify(payload));
+24697:       var j = await res.json();
+24698:       if(j && j.error) throw new Error(String(j.error).slice(0,300));
+24699:       var out = j.image || j.dataUrl || j.output || (Array.isArray(j.images) ? j.images[0] : null) || null;
+24700:       if(!out) throw new Error('二次生成で画像が返りませんでした');
+24701:       return out;
+24702:     }catch(refErr){
+24703:       // 生成失敗 → トークン返却
+24704:       if(_refineLedgerId!=null && typeof window.cfRefundGeneration==='function'){
+24705:         try{ window.cfRefundGeneration(_refineLedgerId); }catch(e){ console.error('[CF Gate] refine refund failed',e); }
+24706:       }
+24707:       throw refErr;
+24708:     }
+24709:   }
+24710: 
+24711:   function toneMatchSimple(refCtx, srcCtx, w, h, str){
+24712:     // Fast global mean-channel shift: match refinedCrop colour to primary at crop region
+24713:     try{
+24714:       var rd = refCtx.getImageData(0,0,w,h).data;
+24715:       var sd = srcCtx.getImageData(0,0,w,h).data;
+24716:       var rR=0,rG=0,rB=0, sR=0,sG=0,sB=0, n=0;
+24717:       for(var i=3; i<rd.length; i+=4){
+24718:         if(rd[i]>20 && sd[i]>20){
+24719:           rR+=rd[i-3]; rG+=rd[i-2]; rB+=rd[i-1];
+24720:           sR+=sd[i-3]; sG+=sd[i-2]; sB+=sd[i-1];
+24721:           n++;
+24722:         }
+24723:       }
+24724:       if(!n) return;
+24725:       var dR=(sR-rR)/n*str, dG=(sG-rG)/n*str, dB=(sB-rB)/n*str;
+24726:       var id=refCtx.getImageData(0,0,w,h);
+24727:       var d=id.data;
+24728:       for(var i=3; i<d.length; i+=4){
+24729:         if(d[i]>20){
+24730:           d[i-3]=Math.max(0,Math.min(255,(d[i-3]+dR)|0));
+24731:           d[i-2]=Math.max(0,Math.min(255,(d[i-2]+dG)|0));
+24732:           d[i-1]=Math.max(0,Math.min(255,(d[i-1]+dB)|0));
+24733:         }
+24734:       }
+24735:       refCtx.putImageData(id,0,0);
+24736:     }catch(e){}
+24737:   }
+24738: 
+24739:   // Local fallback matte builder (convex-ish feathered polygon) if the shared engine matte
+24740:   // isn't available. NEVER a rectangle — always the lip/region contour, heavily feathered.
+24741:   function buildPolygonMatteFallback(poly, w, h, expand, featherPx){
+24742:     var cx=0,cy=0; poly.forEach(function(p){cx+=p.x;cy+=p.y;}); cx/=poly.length; cy/=poly.length;
+24743:     var m1=document.createElement('canvas'); m1.width=w; m1.height=h;
+24744:     var m1x=m1.getContext('2d'); m1x.fillStyle='#fff'; m1x.beginPath();
+24745:     poly.forEach(function(p,i){ var x=cx+(p.x-cx)*expand, y=cy+(p.y-cy)*expand; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
+24746:     m1x.closePath(); m1x.fill();
+24747:     var mk=document.createElement('canvas'); mk.width=w; mk.height=h;
+24748:     var mx=mk.getContext('2d'); mx.filter='blur('+Math.max(6,Math.round(featherPx))+'px)'; mx.drawImage(m1,0,0); mx.filter='none';
+24749:     return mk;
+24750:   }
+24751: 
+24752:   // Luminance stats over pixels whose matte alpha is within [aLo,aHi] (0..255).
+24753:   function regionLumStats(px, ma, aLo, aHi){
+24754:     var sum=0, sum2=0, n=0;
+24755:     for(var i=0;i<px.length;i+=4){
+24756:       var a=ma[i+3]!==undefined?ma[i+3]:ma[i]; // matte drawn white→ use any channel
+24757:       if(a<aLo||a>aHi) continue;
+24758:       var l=(px[i]*0.299+px[i+1]*0.587+px[i+2]*0.114);
+24759:       sum+=l; sum2+=l*l; n++;
+24760:     }
+24761:     if(!n) return {mean:0,variance:0,n:0};
+24762:     var mean=sum/n; return {mean:mean, variance:Math.max(0,sum2/n-mean*mean), n:n};
+24763:   }
+24764: 
+24765:   // Composite the refined FULL image over the primary using a soft, contour-based matte.
+24766:   // Returns { dataUrl, metrics }. metrics drives accept/reject (no rectangle anywhere).
+24767:   async function compositeRefinedSoft(primaryDataUrl, refinedFullUrl, imageType, poly){
+24768:     var base = await loadImg(primaryDataUrl);
+24769:     var refined = await loadImg(refinedFullUrl);
+24770:     var w = base.naturalWidth||base.width, h = base.naturalHeight||base.height;
+24771:     var facial = (imageType==='facial');
+24772: 
+24773:     // ── Build the soft matte (Core/Support/Context) — contour-based, never a box ──
+24774:     var scales = facial
+24775:       ? {core:1.0, support:1.70, context:2.40, biasX:1.12, biasUp:0.10, biasDown:0.14}
+24776:       : {core:1.0, support:1.50, context:2.10, biasX:1.0,  biasUp:0.08, biasDown:0.12};
+24777:     var cx, cy, rx, ry, blendMode;
+24778:     if(facial && poly && poly.length>=6){
+24779:       var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+24780:       poly.forEach(function(p){ minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y); });
+24781:       cx=(minX+maxX)/2; cy=(minY+maxY)/2; rx=Math.max(20,(maxX-minX)*0.56); ry=Math.max(14,(maxY-minY)*0.62);
+24782:       blendMode='polygon-softmatte';
+24783:     } else {
+24784:       // focus / no landmarks: teeth-centred ellipse (rectangle-free)
+24785:       cx=w*0.5; cy=h*0.5; rx=w*0.42; ry=h*0.34; blendMode='ellipse-softmatte';
+24786:     }
+24787:     var featherPx = Math.max(8, Math.round(Math.min(w,h)*(facial?0.030:0.024)));
+24788:     var eng = window.CaseFlowMorphEngine;
+24789:     var matte;
+24790:     if(eng && typeof eng.cfBuildSoftMatte==='function'){
+24791:       matte = eng.cfBuildSoftMatte(w, h, cx, cy, rx, ry, scales, featherPx, (facial?poly:null));
+24792:     } else if(facial && poly){
+24793:       matte = buildPolygonMatteFallback(poly, w, h, 1.9, featherPx*1.6);
+24794:     } else {
+24795:       // ellipse fallback
+24796:       var ec=document.createElement('canvas'); ec.width=w; ec.height=h;
+24797:       var ex=ec.getContext('2d'); ex.fillStyle='#fff'; ex.beginPath();
+24798:       ex.ellipse(cx,cy,rx*scales.context,ry*scales.context,0,0,Math.PI*2); ex.fill();
+24799:       var eb=document.createElement('canvas'); eb.width=w; eb.height=h;
+24800:       var ebx=eb.getContext('2d'); ebx.filter='blur('+featherPx*2+'px)'; ebx.drawImage(ec,0,0); ebx.filter='none';
+24801:       matte=eb;
+24802:     }
+24803: 
+24804:     // ── Base + tone-matched refined layer ──
+24805:     var c=document.createElement('canvas'); c.width=w; c.height=h;
+24806:     var ctx=c.getContext('2d',{willReadFrequently:true}); ctx.imageSmoothingQuality='high';
+24807:     ctx.drawImage(base,0,0,w,h);
+24808: 
+24809:     var refC=document.createElement('canvas'); refC.width=w; refC.height=h;
+24810:     var refX=refC.getContext('2d',{willReadFrequently:true}); refX.imageSmoothingQuality='high';
+24811:     refX.drawImage(refined,0,0,w,h);
+24812:     // colour/exposure match the refined layer to the primary (low-frequency naturalisation)
+24813:     var primC=document.createElement('canvas'); primC.width=w; primC.height=h;
+24814:     var primX=primC.getContext('2d',{willReadFrequently:true}); primX.drawImage(base,0,0,w,h);
+24815:     toneMatchSimple(refX, primX, w, h, 0.70);
+24816:     if(eng && typeof eng.cfRingToneMatch==='function'){ try{ eng.cfRingToneMatch(refX, primX, matte, w, h, 0.10, 0.55); }catch(e){} }
+24817: 
+24818:     // mask refined by the soft matte, lay over primary
+24819:     var masked=document.createElement('canvas'); masked.width=w; masked.height=h;
+24820:     var mkx=masked.getContext('2d'); mkx.drawImage(refC,0,0);
+24821:     mkx.globalCompositeOperation='destination-in'; mkx.drawImage(matte,0,0); mkx.globalCompositeOperation='source-over';
+24822:     ctx.drawImage(masked,0,0);
+24823: 
+24824:     // ── Quality metrics (all rectangle-free; outside-change is ~0 by construction) ──
+24825:     var metrics={ blendMode:blendMode, roiCore:Math.round(rx*scales.core)+'x'+Math.round(ry*scales.core),
+24826:       roiSupport:Math.round(rx*scales.support)+'x'+Math.round(ry*scales.support),
+24827:       roiContext:Math.round(rx*scales.context)+'x'+Math.round(ry*scales.context) };
+24828:     try{
+24829:       var maD=matte.getContext('2d').getImageData(0,0,w,h).data;
+24830:       var baD=primX.getImageData(0,0,w,h).data;
+24831:       var reD=refX.getImageData(0,0,w,h).data;   // tone-matched refined
+24832:       var rsD=ctx.getImageData(0,0,w,h).data;    // final result
+24833:       // outsideRegionChangeScore: mean |Δlum| where matte≈0 (should be ~0)
+24834:       var oS=0,oN=0, sS=0,sN=0;
+24835:       for(var i=0;i<maD.length;i+=4){
+24836:         var a=maD[i+3]; // matte weight is the ALPHA channel (RGB stays 255)
+24837:         var lb=(baD[i]*0.299+baD[i+1]*0.587+baD[i+2]*0.114);
+24838:         var lr=(rsD[i]*0.299+rsD[i+1]*0.587+rsD[i+2]*0.114);
+24839:         if(a<8){ oS+=Math.abs(lb-lr); oN++; }
+24840:         else if(a>=40 && a<=150){ // support ring: refined vs primary discontinuity
+24841:           var lref=(reD[i]*0.299+reD[i+1]*0.587+reD[i+2]*0.114);
+24842:           sS+=Math.abs(lref-lb); sN++;
+24843:         }
+24844:       }
+24845:       metrics.outsideRegionChangeScore = oN? +(oS/oN).toFixed(2) : 0;
+24846:       metrics.seamScore = sN? +(sS/sN).toFixed(2) : 0;
+24847:       // whiteness / flatness of the refined teeth in the CORE (alpha>170)
+24848:       var core=regionLumStats(reD, maD, 170, 255);
+24849:       metrics.coreMeanLum=+core.mean.toFixed(1); metrics.coreVariance=+core.variance.toFixed(1);
+24850:       var whiteMeanThr = facial?224:236, whiteVarThr = facial?110:70;
+24851:       var whiteFlat = core.n>50 && core.mean>whiteMeanThr && core.variance<whiteVarThr;
+24852:       var outThr = facial?7:15, seamThr = facial?26:42;
+24853:       metrics.artifactReject = !!(whiteFlat || metrics.outsideRegionChangeScore>outThr || metrics.seamScore>seamThr);
+24854:       metrics.rejectCause = whiteFlat?'white-flat-teeth':(metrics.outsideRegionChangeScore>outThr?'outside-change':(metrics.seamScore>seamThr?'seam':''));
+24855:     }catch(e){ metrics.artifactReject=false; metrics.metricError=String(e&&e.message||e); }
+24856: 
+24857:     return { dataUrl: c.toDataURL('image/jpeg',0.93), metrics: metrics };
+24858:   }
+24859: 
+24860:   function updateRefineBtn(){
+24861:     var btn = document.getElementById('cfRefineBtn');
+24862:     if(!btn) return;
+24863:     var result = window.state && window.state.simResult;
+24864:     var isFacial = result && result.sourceKind === 'Facial';
+24865:     if(isFacial && !result._secondaryRefined){
+24866:       btn.style.display = '';
+24867:       btn.disabled = false;
+24868:       btn.style.opacity = '';
+24869:       btn.innerHTML = '✦ Refine<br>精密生成';
+24870:     } else {
+24871:       btn.style.display = 'none';
+24872:     }
+24873:   }
+24874: 
+24875:   // Gated refinement: 1) evaluate ROI/landmarks/imageType → 2) decide if a refine is safe →
+24876:   // 3) run a CLAMPED full-frame pass → 4) soft-matte composite (no rectangle) →
+24877:   // 5) quality check → 6) reject & keep the first-pass on any artifact, else adopt.
+24878:   window.runSecondaryRefinement = async function(){
+24879:     var btn = document.getElementById('cfRefineBtn');
+24880:     var result = window.state && window.state.simResult;
+24881:     var dbg = { imageType:null, secondaryRefineEnabled:false, secondaryRefineSkippedReason:null,
+24882:       roiCore:null, roiSupport:null, roiContext:null, blendMode:null, seamScore:null,
+24883:       outsideRegionChangeScore:null, artifactReject:null, finalSource:'first-pass' };
+24884: 
+24885:     if(!result || !result.dataUrl){ toast('生成結果が見つかりません'); return; }
+24886:     if(!getAiEndpoint()){ toast('AI バックエンドが設定されていません'); return; }
+24887: 
+24888:     var imageType = (result.sourceKind==='Facial') ? 'facial' : 'focus';
+24889:     dbg.imageType = imageType;
+24890: 
+24891:     if(btn){ btn.disabled=true; btn.innerHTML='…<br>処理中'; }
+24892:     try{
+24893:       var primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+24894:       var primImg = await loadImg(primaryDataUrl);
+24895:       var w = primImg.naturalWidth||primImg.width, h = primImg.naturalHeight||primImg.height;
+24896: 
+24897:       // ── GATE: facial needs reliable mouth landmarks; without them, a safe local refine
+24898:       //    is impossible → SKIP and keep the first-pass (never force a blind patch). ──
+24899:       var poly = null;
+24900:       if(imageType==='facial'){
+24901:         poly = await getLipOuterRing(primImg, w, h);
+24902:         if(!poly){
+24903:           dbg.secondaryRefineSkippedReason='no_facial_landmarks';
+24904:           console.log('[CaseFlow Refine]', dbg);
+24905:           if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+24906:           toast('顔のランドマークが安定しないため二次生成をスキップしました（一次結果を維持）');
+24907:           return;
+24908:         }
+24909:       }
+24910:       dbg.secondaryRefineEnabled = true;
+24911: 
+24912:       // ── CLAMPED full-frame refine pass (facial = identity-preserving, low denoise) ──
+24913:       toast(imageType==='facial' ? 'スマイルバランスを control 補正中…' : 'ゴールデンプロポーション二次生成中…');
+24914:       var refinedFull = await generateRefinedViaAI(primaryDataUrl, imageType);
+24915: 
+24916:       // ── Soft-matte composite (polygon/ellipse, never a rectangle) + quality metrics ──
+24917:       toast('一次結果へなじませ中…');
+24918:       var comp = await compositeRefinedSoft(primaryDataUrl, refinedFull, imageType, poly);
+24919:       var m = comp.metrics||{};
+24920:       dbg.roiCore=m.roiCore; dbg.roiSupport=m.roiSupport; dbg.roiContext=m.roiContext;
+24921:       dbg.blendMode=m.blendMode; dbg.seamScore=m.seamScore;
+24922:       dbg.outsideRegionChangeScore=m.outsideRegionChangeScore; dbg.artifactReject=!!m.artifactReject;
+24923: 
+24924:       if(m.artifactReject){
+24925:         // ── FALLBACK: a worse/patchy result is never adopted — keep the first-pass. ──
+24926:         dbg.finalSource='first-pass';
+24927:         dbg.secondaryRefineSkippedReason='artifact_reject:'+(m.rejectCause||'unknown');
+24928:         console.log('[CaseFlow Refine]', dbg, m);
+24929:         if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+24930:         toast('二次生成が不自然なため一次結果を維持しました');
+24931:         return;
+24932:       }
+24933: 
+24934:       // ── ADOPT the second-pass ──
+24935:       dbg.finalSource='second-pass';
+24936:       result._primaryDataUrl = result._primaryDataUrl || result.dataUrl;
+24937:       result._secondaryRefined = true;
+24938:       result.dataUrl = comp.dataUrl;
+24939:       if(Array.isArray(window.state.simResults) && typeof window.state.simResultIndex==='number'){
+24940:         var idx = window.state.simResultIndex;
+24941:         if(window.state.simResults[idx]) window.state.simResults[idx] = result;
+24942:       }
+24943:       console.log('[CaseFlow Refine]', dbg, m);
+24944:       if(typeof window.renderResult==='function') window.renderResult();
+24945:       if(btn){ btn.disabled=true; btn.innerHTML='✦ Refined<br>精密済み'; btn.style.opacity='0.65'; btn.title='二次生成完了 — 精密済み'; }
+24946:       toast('✦ 二次生成完了 — バランス補正を適用');
+24947:     }catch(e){
+24948:       console.error('[CaseFlow Refine] Secondary refinement failed', e, dbg);
+24949:       if(btn){ btn.disabled=false; btn.innerHTML='✦ Refine<br>精密生成'; btn.style.opacity=''; }
+24950:       var msg = e.cfNoTokens ? e.message : ('二次生成エラー: '+(e.message||String(e)).slice(0,120));
+24951:       toast(msg);
+24952:     }
+24953:   };
+24954: 
+24955:   // Show/hide Refine button when result page is rendered or screen changes
+24956:   var _origGo = window.go;
+24957:   if(typeof _origGo==='function' && !window.__cfRefineGoWrapped){
+24958:     window.__cfRefineGoWrapped = true;
+24959:     window.go = function(id){
+24960:       var r = _origGo.apply(this, arguments);
+24961:       if(id==='result') setTimeout(updateRefineBtn, 100);
+24962:       return r;
+24963:     };
+24964:   }
+24965:   var _origRR = window.renderResult;
+24966:   if(typeof _origRR==='function' && !window.__cfRefineRRWrapped){
+24967:     window.__cfRefineRRWrapped = true;
+24968:     window.renderResult = function(){
+24969:       var r = _origRR.apply(this, arguments);
+24970:       setTimeout(updateRefineBtn, 100);
+24971:       return r;
+24972:     };
+24973:   }
+24974:   setTimeout(updateRefineBtn, 400);
+24975: })();
+24976: </script>
+24977: 
+24978: <script>
+24979: /* ===================================================================================
+24980:    CaseFlow Morphing Video Studio — Edit / Align (Morph Prep)  [MVP, self-contained]
+24981:    - Optional pre-processing step between Photo and Preview.
+24982:    - Produces "morph-ready" aligned + commonly-cropped images consumed by the
+24983:      morph preview/export ONLY when the user completes an align session.
+24984:    - Zero impact on other studios: when no align session is active, the source
+24985:      resolver returns state.photos unchanged (existing behaviour byte-for-byte).
+24986:    =================================================================================== */
+24987: (function(){
+24988:   'use strict';
+24989:   if(window.__cfMorphAlignInit) return; window.__cfMorphAlignInit=true;
+24990: 
+24991:   function $id(x){ return document.getElementById(x); }
+24992:   function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+24993:   function toastFn(m){ if(typeof window.toast==='function'){ try{ window.toast(m); return; }catch(e){} } }
+24994:   function loadImg(src){
+24995:     if(window.cfLoadImageForExport) return window.cfLoadImageForExport(src);
+24996:     return new Promise(function(res,rej){ var im=new Image(); im.onload=function(){res(im);}; im.onerror=function(){rej(new Error('img load failed'));}; im.src=src; });
+24997:   }
+24998: 
+24999:   /* ---- Morph-ready source resolver (used by preview render AND export) ----------- */
+25000:   function srcSig(photos){
+25001:     try{ return (photos||[]).map(function(p){ var d=(p&&p.dataUrl)||''; return d.length+':'+d.slice(-20); }).join('|'); }catch(e){ return ''; }
+25002:   }
+25003:   window.cfMorphSourceSig=srcSig;
+25004:   // Returns aligned morph-ready photos if a completed, still-valid session exists;
+25005:   // otherwise the original state.photos. Invalidated automatically if the source
+25006:   // photo set changes (add/remove/edit) so stale alignments are never used.
+25007:   window.cfGetMorphSource=function(){
+25008:     try{
+25009:       var base=(window.state&&state.photos)||[];
+25010:       var mr=window.state&&state.morphReady;
+25011:       if(mr&&mr.active&&Array.isArray(mr.photos)&&mr.photos.length>=2&&mr.sig===srcSig(base)){
+25012:         return mr.photos;
+25013:       }
+25014:     }catch(e){}
+25015:     return (window.state&&state.photos)||[];
+25016:   };
+25017:   window.cfHasMorphReady=function(){
+25018:     try{ var s=window.cfGetMorphSource(); return !!(window.state&&state.morphReady&&state.morphReady.active&&s===state.morphReady.photos); }catch(e){ return false; }
+25019:   };
+25020: 
+25021:   /* ---- Session model ------------------------------------------------------------- */
+25022:   // state.morphEdit = { baseIndex, mode, viewMode, showLandmarks, showGuides, index,
+25023:   //                     stageW, stageH, imgs:[HTMLImageElement], fits:[{w,h}],
+25024:   //                     anchors:[null|{eyeL,eyeR,nose,mouthC,chin}],
+25025:   //                     tf:[{scale,rot,tx,ty}] }
+25026:   function S(){ return window.state&&state.morphEdit; }
+25027:   function center(s){ return {x:s.stageW/2, y:s.stageH/2}; }
+25028: 
+25029:   /* ---- Face anchor detection (reuses MediaPipe faceLandmarker) -------------------- */
+25030:   async function detectAnchors(dataUrl){
+25031:     try{
+25032:       var ok=window.initMediaPipeLocalML ? await window.initMediaPipeLocalML() : false;
+25033:       if(!ok||!window.CaseFlowLocalML||!window.CaseFlowLocalML.faceLandmarker) return null;
+25034:       var img=await loadImg(dataUrl);
+25035:       var res=window.CaseFlowLocalML.faceLandmarker.detect(img);
+25036:       if(!res||!res.faceLandmarks||!res.faceLandmarks.length) return null;
+25037:       var L=res.faceLandmarks[0];
+25038:       function p(i){ return L[i]?{x:L[i].x,y:L[i].y}:null; }
+25039:       function avg(){ var xs=0,ys=0,n=0; for(var i=0;i<arguments.length;i++){ var q=arguments[i]; if(q){xs+=q.x;ys+=q.y;n++;} } return n?{x:xs/n,y:ys/n}:null; }
+25040:       var eyeL=avg(p(33),p(133),p(159),p(145));
+25041:       var eyeR=avg(p(263),p(362),p(386),p(374));
+25042:       var nose=p(1);
+25043:       var mouthL=p(61), mouthR=p(291);
+25044:       var mouthC=avg(p(13),p(14),p(61),p(291));
+25045:       var chin=p(152);
+25046:       if(eyeL&&eyeR&&nose&&mouthC&&chin) return {eyeL:eyeL,eyeR:eyeR,nose:nose,mouthL:mouthL,mouthR:mouthR,mouthC:mouthC,chin:chin};
+25047:       return null;
+25048:     }catch(e){ return null; }
+25049:   }
+25050: 
+25051:   // Reject implausible detections (hair/background false positives): eyes must sit above
+25052:   // mouth above chin, all points in-frame, eyes horizontally separated.
+25053:   function validAnchors(a){
+25054:     if(!a||!a.eyeL||!a.eyeR||!a.nose||!a.mouthC||!a.chin) return false;
+25055:     var ps=[a.eyeL,a.eyeR,a.nose,a.mouthC,a.chin];
+25056:     for(var i=0;i<ps.length;i++){ if(ps[i].x<-0.05||ps[i].x>1.05||ps[i].y<-0.05||ps[i].y>1.05) return false; }
+25057:     var eyeY=(a.eyeL.y+a.eyeR.y)/2;
+25058:     if(!(eyeY<a.mouthC.y-0.01 && a.mouthC.y<a.chin.y+0.03)) return false;
+25059:     if(Math.abs(a.eyeR.x-a.eyeL.x)<0.04) return false;
+25060:     return true;
+25061:   }
+25062: 
+25063:   // Content descriptor for non-face (e.g. intra-oral) images: brightness-weighted
+25064:   // centroid + axis spreads. Used to align by the bright teeth mass when no face exists.
+25065:   function contentMoments(img){
+25066:     try{
+25067:       var W=100, iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+25068:       var H=Math.max(8,Math.round(W*ih/iw));
+25069:       var c=document.createElement('canvas'); c.width=W; c.height=H;
+25070:       var x=c.getContext('2d'); x.drawImage(img,0,0,W,H);
+25071:       var d; try{ d=x.getImageData(0,0,W,H).data; }catch(e){ return null; }
+25072:       var n=W*H, lum=new Float32Array(n), k, mean=0;
+25073:       for(k=0;k<n;k++){ var o=k*4; var L=0.299*d[o]+0.587*d[o+1]+0.114*d[o+2]; lum[k]=L; mean+=L; }
+25074:       mean/=n; var vr=0; for(k=0;k<n;k++){ var dd=lum[k]-mean; vr+=dd*dd; } var sd=Math.sqrt(vr/n);
+25075:       var th=mean+0.30*sd;
+25076:       var sum=0,sx=0,sy=0,j,ii;
+25077:       for(j=0;j<H;j++)for(ii=0;ii<W;ii++){ var w=lum[j*W+ii]-th; if(w>0){ sum+=w; sx+=w*ii; sy+=w*j; } }
+25078:       if(sum<1e-3) return null;
+25079:       var cx=sx/sum, cy=sy/sum, cxx=0,cyy=0;
+25080:       for(j=0;j<H;j++)for(ii=0;ii<W;ii++){ var w2=lum[j*W+ii]-th; if(w2>0){ var ax=ii-cx, ay=j-cy; cxx+=w2*ax*ax; cyy+=w2*ay*ay; } }
