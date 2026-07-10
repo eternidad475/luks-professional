@@ -19044,7 +19044,7 @@ body[data-ui-tone="dark"]{
         if(extraction) ag+='. EXTRACTION ORTHODONTICS (severe crowding): remove one tooth per quadrant (typically the first premolars), then RETRACT and align the remaining teeth and CLOSE every extraction space so the final arch is completely gap-free and ideally aligned — the anterior teeth may be retracted into a flatter, well-aligned arch. The result must show a fully resolved, textbook arch with no residual crowding and no open spaces';
         rq.push(ag+' (strength '+a+'%) — re-position the teeth AS MUCH AS NEEDED to achieve this; keep them photorealistic ('+countRule+'), and do NOT widen into a smile, add lips or change the framing');
       }
-      { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf){ ip.push(tf); if(!rq.length) rq.push('apply the UPPER ANTERIOR TOOTH FORM direction stated above'); } }
+      { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf){ ip.push(tf); rq.unshift('UPPER CENTRAL INCISOR FORM — apply the selected or Auto-resolved form as a visible crown-outline and line-angle change; preserve proportional crown height and a continuous incisal curve, and do NOT elongate the central incisors'); } }
       if(rq.length) ip.push('Refinements to the existing teeth only: '+rq.join('; ')+'.');
       else ip.push('Return the teeth essentially unchanged — only very slightly cleaned up.');
       if(orthoGoal && !isIntraoralDark){
@@ -19153,7 +19153,7 @@ body[data-ui-tone="dark"]{
     else if(tsMag>=15 && tsSigned>0) reqs.push('Tooth Shape — SQUARE / edged (strength '+tsMag+'%): reshape the crown OUTLINE toward an angular SQUARE form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it FLAT and near-horizontal with sharp, well-defined mesio-/disto-incisal corners (line angles approaching right angles); (2) SECONDARY — the proximal (mesial/distal) outlines: make them more vertical/parallel; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
     if(L.scallop)    reqs.push('Scallop ('+L.scallop+', strength '+Math.round(s.scallop)+'%): harmonise gingival zeniths (laterals slightly coronal to centrals/canines) and interdental papillae with a natural scalloped gingival line and emergence; reduce black triangles by lowering the contact point, not by fusing teeth');
     if(L.smileFrame) reqs.push('Smile Frame ('+L.smileFrame+', strength '+Math.round(s.smileFrame)+'%): bring the incisal and smile arc parallel to the lower lip, refine the buccal corridor without eliminating it, balance lip-to-tooth display and gentle corner support — subtle and natural');
-    { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(false):''; if(tf){ parts.push(tf); if(!reqs.length) reqs.push('apply the UPPER ANTERIOR TOOTH FORM direction stated above'); } }
+    { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(false):''; if(tf){ parts.push(tf); reqs.unshift('UPPER CENTRAL INCISOR FORM — apply the selected or Auto-resolved form as a visible crown-outline and line-angle change; preserve proportional crown height and a continuous incisal curve, and do NOT elongate the central incisors'); } }
     if(reqs.length) parts.push('Requested changes (apply each at the stated strength, no more): '+reqs.join('; ')+'.');
     else parts.push('No changes requested: return the teeth essentially unchanged, only cleaned up very slightly.');
     // Bio-Blend / 生体調和 — BIDIRECTIONAL around the 50 centre.
@@ -29428,14 +29428,30 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 }
 .cfTtCard.justSelected .cfTtSpecimen::after{content:"";position:absolute;inset:0;border-radius:16px;animation:cfTtRefract .5s ease-out 1}
 .cfTtSpecimen{
-  /* dental-lab presentation: white crowns on a dark clinical panel */
-  position:relative;flex:0 0 auto;width:96px;height:76px;border-radius:16px;display:grid;place-items:center;
+  /* Original opaline ceramic specimens on palette-linked smoked clinical glass.
+     Light appears held inside the material rather than pasted on the surface. */
+  position:relative;isolation:isolate;overflow:hidden;
+  flex:0 0 auto;width:104px;height:82px;border-radius:18px;display:grid;place-items:center;
   background:
-    radial-gradient(120% 90% at 50% -18%, color-mix(in srgb, var(--c1) 22%, transparent) 0%, transparent 62%),
-    linear-gradient(180deg,#1a1824,#0c0a14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.09), inset 0 -10px 18px rgba(0,0,0,.5);
+    radial-gradient(105% 90% at 34% 4%, color-mix(in srgb, var(--c1) 24%, transparent) 0%, transparent 56%),
+    radial-gradient(100% 100% at 92% 110%, color-mix(in srgb, var(--c2) 18%, transparent) 0%, transparent 62%),
+    linear-gradient(150deg, color-mix(in srgb, #171824 90%, var(--c1) 10%), color-mix(in srgb, #080910 92%, var(--c2) 8%));
+  border:1px solid color-mix(in srgb, var(--c2) 16%, rgba(255,255,255,.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.13),
+    inset 0 -18px 28px rgba(0,0,0,.46),
+    0 10px 24px rgba(10,8,24,.18);
 }
-.cfTtSpecimen svg{width:88px;height:70px;display:block}
+.cfTtSpecimen::before{
+  content:"";position:absolute;inset:1px;border-radius:17px;pointer-events:none;z-index:0;
+  background:linear-gradient(118deg,rgba(255,255,255,.13),transparent 27%,transparent 69%,color-mix(in srgb,var(--c2) 10%,transparent));
+  opacity:.78;
+}
+.cfTtSpecimen svg{position:relative;z-index:1;width:100px;height:76px;display:block;overflow:visible}
+@media (max-width:370px){
+  .cfTtSpecimen{width:94px;height:76px}
+  .cfTtSpecimen svg{width:91px;height:70px}
+}
 .cfTtInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .cfTtInfo b{font-size:14.5px;font-weight:950;letter-spacing:-.01em;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
 .cfTtInfo b i{font-style:normal;font-size:11.5px;font-weight:800;color:rgba(32,27,53,.55)}
@@ -29518,34 +29534,34 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       en:'Square', ja:'スクエア',
       desc_en:'Broad central incisors, restrained taper, comparatively linear proximal contours.',
       desc_ja:'幅径の広い中切歯、抑制されたテーパー、直線的な隣接面形態。',
-      prompt:'Favor broader central incisors, restrained proximal taper, comparatively linear axial contours, and clinically plausible softened corners. Do not create block-like or oversized teeth.'
+      prompt:'Apply a visibly SQUARE maxillary central-incisor form through comparatively straight mesial and distal contours, a broad but proportionate cervical third, defined facial line angles, and clear yet clinically softened incisal corners. Preserve proportional crown height and the existing smile arc. Do not create block-like, oversized, shortened, or elongated teeth.'
     },
     ovoid: {
       en:'Ovoid', ja:'オーバル',
       desc_en:'Soft convex contours, rounded transitions, gentle cervical-to-incisal flow.',
       desc_ja:'柔らかな凸面形態、丸みのある移行部、歯頸部から切縁への滑らかな流れ。',
-      prompt:'Favor gentle convex contours, rounded line angles, and smooth cervical-to-incisal transitions. Avoid excessively bulbous crowns.'
+      prompt:'Apply a visibly OVOID maxillary central-incisor form through softly convex mesial and distal contours, rounded facial line angles, gently rounded incisal corners, balanced cervical width, and a smooth cervical-to-incisal flow. Express the form through outline and line-angle character rather than crown length. Avoid excessively bulbous crowns and do not lengthen the central incisors to signal an ovoid form.'
     },
     tapered: {
       en:'Tapered', ja:'テーパード',
       desc_en:'More pronounced cervical narrowing and a lighter incisal visual mass.',
       desc_ja:'歯頸部の狭窄が明瞭で、切縁側の視覚的ボリュームが軽い形態。',
-      prompt:'Favor controlled cervical narrowing and lighter incisal visual mass. Avoid exaggerated triangular crowns or open gingival embrasures.'
+      prompt:'Apply a visibly TAPERED maxillary central-incisor form through controlled cervical narrowing, gently diverging proximal contours toward the incisal third, refined line angles, and a lighter incisal visual mass. Preserve proportional crown height and contact relationships. Avoid exaggerated triangular crowns, excessive length, or open gingival embrasures.'
     },
     rounded_square: {
       en:'Rounded Square', ja:'ラウンドスクエア',
       desc_en:'Structural width with softened corners and less rigid transitions.',
       desc_ja:'構造的な幅径を保ちつつ、角を柔らげた移行部を持つ形態。',
-      prompt:'Combine structural width with softened line angles and natural corner transitions. Avoid rigid geometric symmetry.'
+      prompt:'Combine structural width with softened facial line angles, rounded incisal corners, and natural proximal transitions. Keep the central-incisor height proportionate and maintain a continuous smile arc. Avoid rigid geometric symmetry, excessive width, or compensatory elongation.'
     },
     natural_asymmetry: {
       en:'Natural Asymmetry', ja:'ナチュラル・アシンメトリー',
       desc_en:'Controlled left-right variation and reduced template-like repetition.',
       desc_ja:'左右のわずかな個性差を保ち、テンプレート的な均一感を抑えた形態。',
-      prompt:'Preserve subtle, controlled variation between contralateral teeth while maintaining overall smile harmony. Avoid obvious defects, random rotation, or careless asymmetry.'
+      prompt:'Preserve subtle, controlled bilateral variation in outline, incisal contour, line-angle prominence, and surface anatomy while maintaining a coherent incisal curve and overall smile harmony. Avoid obvious defects, random rotation, unequal crown length, or careless asymmetry.'
     }
   };
-  var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v1';
+  var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v2-incisal-harmony';
   var CF_TEETH_AGES = ['〜19','20代','30代','40代','50代','60代','70代〜'];
   var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', other:'Other / 回答しない' };
 
@@ -29584,11 +29600,18 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
      broader/shorter crown families, mesio 中顔型 → balanced ovoid,
      dolicho 長顔型 → slender tapered. Design guidance only, never a diagnosis. */
   var CF_FACIAL_TYPES = {
-    brachy: { ja:'短頭型（ブラキオフェイシャルタイプ）', en:'brachyfacial (vertically short, broad face; clinically shorter crowns)' },
+    brachy: { ja:'短頭型（ブラキオフェイシャルタイプ）', en:'brachyfacial (vertically short, broad face; broader visual form without forced shortening)' },
     mesio:  { ja:'中顔型（メジオフェイシャルタイプ）',   en:'mesofacial (balanced facial proportions)' },
-    dolicho:{ ja:'長顔型（ドリコフェイシャルタイプ）',   en:'dolichofacial (vertically long face; clinically longer crowns)' }
+    dolicho:{ ja:'長顔型（ドリコフェイシャルタイプ）',   en:'dolichofacial (vertically long face; visually slender form without excessive crown length)' }
   };
   window.CF_FACIAL_TYPES = CF_FACIAL_TYPES;
+
+  /* One shared quality gate for manual and Auto form directions. The selected
+     family must be legible in outline, but crown length may not be used as a
+     shortcut. This also prevents the conspicuous two-central-incisor step seen
+     in real output review. */
+  var CF_TEETH_FORM_GUARD = 'MORPHOLOGY QUALITY GATE (MANDATORY): make the selected form recognizable primarily through crown outline, mesial and distal contour, cervical width, incisal width, facial line angles, incisal-corner character, and subtle surface anatomy — NOT by increasing crown length. Do not lengthen or enlarge the maxillary central incisors merely to make the morphology visible. Preserve proportional central-incisor height and create a continuous, harmonious maxillary incisal curve consonant with the lower lip; the central incisors may be only subtly longer than the lateral incisors, never a conspicuous two-tooth downward step. If the two central incisors project markedly below the neighboring incisal line, correct their length and restore the continuous smile arc. Preserve the dental midline, tooth count, gingival margins, contact relationships, lateral-incisor harmony, lips, and face identity. Before finalizing, verify all three conditions: (1) the selected outline is visibly recognizable, (2) central-incisor length remains proportionate, and (3) the incisal line is continuous and harmonious.';
+  window.CF_TEETH_FORM_GUARD = CF_TEETH_FORM_GUARD;
 
   function teethTypePromptFragment(isIntraoral){
     var t = currentTeethType();
@@ -29601,11 +29624,10 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(!manual && !rec && !facialSource && !ctx.sex && !ctx.age) return '';
     var out = [];
     if(manual){
-      out.push('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM (clinician-selected: '+def.en+' / '+def.ja+', MANDATORY, apply at full strength): '
+      out.push('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM (clinician-selected: '+def.en+' / '+def.ja+', MANDATORY, clinically restrained but CLEARLY VISIBLE): '
         + 'reshape the crown OUTLINES of the upper anterior teeth — the CENTRAL INCISORS first and foremost, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' '
-        + 'This explicit selection SUPERSEDES any earlier or later guidance to "keep the patient\'s own tooth form / form type" or to merely refine within the existing type: the target form family is '+def.en.toUpperCase()+', chosen by the clinician. '
-        + 'The change in crown outline must be CLEARLY VISIBLE versus the input photograph — an output whose upper central incisor outlines look unchanged is an INCORRECT result. '
-        + 'Keep crown length within the golden proportion (central incisor width-to-height ≈ 75–85%), keep per-tooth individuality and natural micro-variation, and keep the gingival line credible.');
+        + 'This explicit selection SUPERSEDES any earlier or later guidance to "keep the patient\'s own tooth form / form type" or to merely refine within the existing type: the target form family is '+def.en.toUpperCase()+', chosen by the clinician. If a generic Tooth Shape slider points toward another family, treat that slider only as secondary edge and line-angle intensity within the clinician-selected family; it must not replace the selected family. '
+        + 'The change in crown outline must be CLEARLY VISIBLE versus the input photograph — an output whose upper central-incisor outlines look unchanged is an INCORRECT result. Express the difference through contour and line angles, not by making the central incisors longer or larger. Keep per-tooth individuality, natural micro-variation, and a credible gingival line.');
     } else if(rec){
       out.push('AUTO TOOTH-FORM (facial-type matched design guidance, not a diagnosis): the patient\'s facial proportions read as '+ (CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].en:rec.facial) +' — '+(CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].ja:'')+'. '
         + 'Take the '+CF_TEETH_TYPES[rec.id].en.toUpperCase()+' family as the STARTING direction for the upper anterior crown forms ('+CF_TEETH_TYPES[rec.id].prompt+'), then refine it with the visible clinical findings, the adjacent natural dentition and overall smile harmony. Avoid template-like uniformity.');
@@ -29614,6 +29636,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
         + 'a vertically SHORT, broad face (短頭型 brachyfacial) suggests broader, comparatively shorter SQUARE / ROUNDED-SQUARE crowns; balanced proportions (中顔型 mesofacial) suggest OVOID crowns; a vertically LONG face (長顔型 dolichofacial) suggests more slender TAPERED crowns with lighter incisal visual mass. '
         + 'Use this only as the starting direction, refined by visible findings and the adjacent natural dentition; avoid template-like uniformity.');
     }
+    if(manual || rec || facialSource) out.push(CF_TEETH_FORM_GUARD);
     out.push('Priority & limits of this form direction: any explicit clinician instruction elsewhere in this prompt OUTRANKS it. It must never override tooth count, anatomy, periodontal context, occlusal plausibility, '
       + (isIntraoral ? 'the absolute framing/incisal-edge rules for this shot type, ' : 'face identity, lips, ')
       + 'or gingival credibility. Never produce artificial veneer uniformity, duplicated or fused teeth, or excessive whiteness. This guides the visual morphology of the simulation only; it does not determine the final treatment plan.');
@@ -29675,53 +29698,69 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
      presented on a dark clinical panel. Original artwork; a morphology
      direction, not a promised outcome. ---- */
   var TOOTH_PATHS = {
-    square:           'M13 20 Q13 8 29 8 Q45 8 45 20 L45 58 Q45 66 40 66 L18 66 Q13 66 13 58 Z',
-    ovoid:            'M15 22 Q15 8 29 8 Q43 8 43 22 Q45 34 43 46 Q41 62 29 66 Q17 62 15 46 Q13 34 15 22 Z',
-    tapered:          'M18 18 Q18 8 29 8 Q40 8 40 18 L44 54 Q45 65 37 66 L21 66 Q13 65 14 54 Z',
-    rounded_square:   'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z',
-    natural_asymmetry:'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z'
+    /* cervical at top, incisal at bottom; each outline is deliberately distinct */
+    square:           'M18 18 C18 10 22 7 29 7 C36 7 40 10 40 18 L44 56 C44 64 40 68 34 68 L24 68 C18 68 14 64 14 56 Z',
+    ovoid:            'M20 18 C20 10 23 7 29 7 C35 7 38 10 38 18 C42 29 44 43 43 56 C42 64 37 68 29 69 C21 68 16 64 15 56 C14 43 16 29 20 18 Z',
+    tapered:          'M22 17 C22 10 24 7 29 7 C34 7 36 10 36 17 C38 29 42 43 44 57 C45 64 40 68 34 68 L24 68 C18 68 13 64 14 57 C16 43 20 29 22 17 Z',
+    rounded_square:   'M19 18 C19 10 22 7 29 7 C36 7 39 10 39 18 L43 55 C44 63 39 68 33 69 L25 69 C19 68 14 63 15 55 Z',
+    natural_asymmetry:'M18 18 C18 10 22 7 29 7 C36 7 40 10 40 18 C42 31 43 45 42 57 C41 64 37 68 31 69 L25 68 C19 67 15 63 15 56 C14 43 16 30 18 18 Z'
   };
-  /* the contralateral tooth of the asymmetry specimen differs slightly (length, incisal run) */
-  var ASYM_RIGHT =    'M13 20 Q13 8 29 8 Q45 8 45 20 L44 50 Q44 63 34 64 L23 63 Q13 62 13 52 Z';
+  /* contralateral natural variant: minute outline and incisal-corner difference,
+     never a visible crown-length mismatch */
+  var ASYM_RIGHT =    'M19 18 C19 10 22 7 29 7 C36 7 39 10 39 18 C42 30 44 44 43 56 C42 63 38 67 32 68 L24 68 C18 67 14 63 15 56 C15 43 17 30 19 18 Z';
 
-  function crownSVG(d){
-    return '<path d="'+d+'" fill="url(#cfTtEnamelBody)"/>'
-      + '<path d="'+d+'" fill="url(#cfTtSheen)"/>'
-      + '<path d="M23 15 Q22 37 23 59" fill="none" stroke="#c9ccd4" stroke-opacity=".45" stroke-width=".9"/>'
-      + '<path d="M35 15 Q36 37 35 59" fill="none" stroke="#c9ccd4" stroke-opacity=".38" stroke-width=".8"/>'
-      + '<path d="'+d+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>';
+  function crownSVG(d, side){
+    var hi = side==='right' ? 'M35 14 C39 28 39 47 35 61' : 'M23 14 C19 28 19 47 23 61';
+    return '<g filter="url(#cfTtCrownDepth)">'
+      + '<path data-crown-outline="'+side+'" d="'+d+'" fill="url(#cfTtEnamelBody)" stroke="url(#cfTtEnamelRim)" stroke-width=".8"/>'
+      + '<path d="'+d+'" fill="url(#cfTtCervicalWarmth)" opacity=".78"/>'
+      + '<path d="'+d+'" fill="url(#cfTtIncisalOpal)" opacity=".86"/>'
+      + '<path d="'+d+'" fill="#fff" opacity=".13" filter="url(#cfTtEnamelGrain)"/>'
+      + '<path d="'+hi+'" fill="none" stroke="#fff" stroke-opacity=".54" stroke-width="1.35" stroke-linecap="round"/>'
+      + '<path d="M27 13 C24 27 24 43 27 56" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1" stroke-linecap="round"/>'
+      + '<path d="M31 15 C34 31 34 47 31 60" fill="none" stroke="#b9dbe4" stroke-opacity=".20" stroke-width=".8" stroke-linecap="round"/>'
+      + '<path d="M19 59 C23 66 35 67 40 59" fill="none" stroke="#d8f6ff" stroke-opacity=".44" stroke-width="1.1" stroke-linecap="round"/>'
+      + '<path d="'+d+'" fill="none" stroke="#fff" stroke-opacity=".34" stroke-width=".65"/>'
+      + '</g>';
   }
   function specimenSVG(id){
     if(id==='auto'){
       return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-        + '<ellipse cx="48" cy="66" rx="26" ry="3.5" fill="rgba(0,0,0,.45)"/>'
+        + '<ellipse cx="48" cy="68" rx="25" ry="3" fill="#000" fill-opacity=".42"/>'
         + '<path d="M48 12 C49.8 29 57.5 36.4 74 38 C57.5 39.6 49.8 47 48 64 C46.2 47 38.5 39.6 22 38 C38.5 36.4 46.2 29 48 12 Z" fill="url(#cfTtSpark)"/>'
+        + '<circle cx="48" cy="38" r="13" fill="none" stroke="url(#cfTtAutoHalo)" stroke-width=".9" opacity=".8"/>'
         + '</svg>';
     }
     var left = TOOTH_PATHS[id], right = (id==='natural_asymmetry') ? ASYM_RIGHT : left;
-    return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-      + '<ellipse cx="48" cy="69" rx="34" ry="3.5" fill="rgba(0,0,0,.45)"/>'
-      + '<g transform="translate(-10,2)">'+crownSVG(left)+'</g>'
-      + '<g transform="translate(106,2) scale(-1,1)">'+crownSVG(right)+'</g>'
+    return '<svg viewBox="0 0 96 76" aria-hidden="true" data-specimen-material="opaline-ceramic-v2">'
+      + '<ellipse cx="48" cy="70" rx="34" ry="3.4" fill="#000" fill-opacity=".5" filter="url(#cfTtSoftShadow)"/>'
+      + '<g transform="translate(2,0)">'+crownSVG(left,'left')+'</g>'
+      + '<g transform="translate(94,0) scale(-1,1)">'+crownSVG(right,'right')+'</g>'
       + '</svg>';
   }
-  /* shared gradient defs (one hidden svg; same-document url() references) */
+  /* Shared, original material definitions. They remain document-level so the
+     compact field icon is correct before the dialog is opened. */
   var DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>'
     + '<linearGradient id="cfTtEnamelBody" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="#e9e9ec"/>'
-    + '<stop offset=".16" stop-color="#fbfbfa"/>'
-    + '<stop offset=".6" stop-color="#f3f3f1"/>'
-    + '<stop offset="1" stop-color="#dcdde1"/>'
+    + '<stop offset="0" stop-color="#d8c8b2"/><stop offset=".16" stop-color="#eee5d8"/>'
+    + '<stop offset=".48" stop-color="#f7f4ed"/><stop offset=".78" stop-color="#eef2ef"/><stop offset="1" stop-color="#c6d9db"/>'
     + '</linearGradient>'
-    + '<radialGradient id="cfTtSheen" cx=".38" cy=".22" r=".75">'
-    + '<stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>'
-    + '<stop offset=".45" stop-color="#ffffff" stop-opacity=".18"/>'
-    + '<stop offset="1" stop-color="#ffffff" stop-opacity="0"/>'
+    + '<linearGradient id="cfTtEnamelRim" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="#fff" stop-opacity=".72"/><stop offset=".48" stop-color="#9b8e83" stop-opacity=".38"/><stop offset="1" stop-color="#d9f4f6" stop-opacity=".52"/>'
+    + '</linearGradient>'
+    + '<radialGradient id="cfTtCervicalWarmth" cx="50%" cy="4%" r="73%">'
+    + '<stop offset="0" stop-color="#b78e68" stop-opacity=".56"/><stop offset=".32" stop-color="#d8b995" stop-opacity=".22"/><stop offset=".72" stop-color="#fff" stop-opacity="0"/>'
     + '</radialGradient>'
-    + '<linearGradient id="cfTtSpark" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="#ffffff"/>'
-    + '<stop offset="1" stop-color="#cfd0da"/>'
+    + '<linearGradient id="cfTtIncisalOpal" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".58" stop-color="#fff" stop-opacity="0"/><stop offset=".82" stop-color="#b9e4e8" stop-opacity=".16"/><stop offset="1" stop-color="#dffaff" stop-opacity=".48"/>'
     + '</linearGradient>'
+    + '<linearGradient id="cfTtSpark" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="#fff"/><stop offset=".52" stop-color="#d9f7f2"/><stop offset="1" stop-color="#d9c9ff"/>'
+    + '</linearGradient>'
+    + '<linearGradient id="cfTtAutoHalo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#c7fff0"/><stop offset="1" stop-color="#e1c9ff"/></linearGradient>'
+    + '<filter id="cfTtCrownDepth" x="-25%" y="-20%" width="150%" height="160%"><feDropShadow dx="0" dy="2.2" stdDeviation="1.8" flood-color="#000" flood-opacity=".48"/><feDropShadow dx="-.7" dy="-.5" stdDeviation=".7" flood-color="#fff" flood-opacity=".24"/></filter>'
+    + '<filter id="cfTtSoftShadow" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="1.4"/></filter>'
+    + '<filter id="cfTtEnamelGrain" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".022 .28" numOctaves="2" seed="17" result="n"/><feColorMatrix in="n" type="saturate" values="0" result="mono"/><feComponentTransfer in="mono" result="fine"><feFuncA type="table" tableValues="0 .35"/></feComponentTransfer><feComposite in="fine" in2="SourceGraphic" operator="in"/></filter>'
     + '</defs></svg>';
   /* The defs must exist at document level BEFORE the panel field first renders
      (the dialog is created lazily, but the field icon references url(#...)). */
