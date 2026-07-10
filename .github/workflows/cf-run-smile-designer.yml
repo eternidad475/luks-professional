@@ -1,0 +1,51 @@
+name: Run Smile Designer branch patch
+
+on:
+  push:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - .github/workflows/cf-run-smile-designer.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/smile-designer-secondary-stage
+          fetch-depth: 0
+      - name: Execute branch patcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+          wf=Path('.github/workflows/cf-smile-designer-implement.yml').read_text(encoding='utf-8')
+          marker="python3 - <<'PY'\n"
+          start=wf.index(marker)+len(marker)
+          end=wf.index("\n          PY", start)
+          code=textwrap.dedent(wf[start:end])
+          ns={'__name__':'__main__'}
+          exec(compile(code,'cf-smile-designer-implement','exec'),ns,ns)
+          PY
+      - name: Validate syntax and anchors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          required=['cfSmileDesignerHost','cfOpenSmileDesigner','cfSmileDesignerPrompt','Smile Designer','Golden Proportion']
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('missing: '+', '.join(missing))
+          if "cfTeethTypeFieldHTML()" in s: raise SystemExit('first-stage teeth type field still present')
+          print('Smile Designer anchors OK')
+          PY
+      - name: Commit feature branch
+        run: |
+          git config user.name "caseflow-smile-designer-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add caseflow_studio_v96.html docs/smile-designer-implementation.md
+          git commit -m "feat(simulation): move tooth-form design to secondary Smile Designer" || exit 0
+          git push origin HEAD:chatgpt/smile-designer-secondary-stage
