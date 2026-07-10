@@ -5,7 +5,8 @@
 -- Safety:
 --   * No table or column is dropped.
 --   * Existing redeemed/revoked rows are not changed.
---   * Existing active rows with no expiry receive created_at + 7 days.
+--   * Existing active rows with no expiry receive a seven-day grace period
+--     starting when this migration is applied.
 --   * All future inserts are normalized by a BEFORE INSERT trigger, so a client
 --     cannot create a non-expiring or arbitrarily long-lived code.
 
@@ -36,11 +37,12 @@ before insert on public.invite_codes
 for each row
 execute function public.cf_set_invite_code_expiry();
 
--- Normalize only active, unused, non-revoked legacy codes that previously had
--- no expiration. A code older than seven days becomes expired immediately,
--- which matches the new product rule; history rows remain intact.
+-- Product decision B: preserve every currently active, unused, non-revoked
+-- legacy code for a fresh seven-day grace period from migration time. This
+-- avoids invalidating older outstanding invitations immediately when the new
+-- fixed-expiry rule is introduced. Redeemed/revoked history remains untouched.
 update public.invite_codes
-set expires_at = created_at + interval '7 days'
+set expires_at = now() + interval '7 days'
 where expires_at is null
   and revoked_at is null
   and coalesce(used_count, 0) < coalesce(max_uses, 1);
