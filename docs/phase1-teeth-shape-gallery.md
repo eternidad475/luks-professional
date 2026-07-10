@@ -33,7 +33,7 @@ Branch: `chatgpt/phase1-invite-teeth-type` (Draft PR #6). Base: `claude/image-mo
 ### Known Unknowns (resolved conservatively, or documented)
 
 1. **Are migrations 13–18 already applied to production?** Their presence on the production branch strongly suggests yes. PR #6's migration (`20260710000100`) sorts *before* them, which Supabase CLI treats as an out-of-order migration on an up-to-date database. → Resolved conservatively: renamed to `20260717000019_…` (content byte-identical); see §6.
-2. **Is backfilling legacy no-expiry active codes to `created_at + 7 days` the intended policy?** Cannot be resolved from code — this is a business decision. The backfill is retained as PR #6 wrote it, and flagged in the PR for explicit sign-off before production apply.
+2. **Is backfilling legacy no-expiry active codes to `created_at + 7 days` the intended policy?** → **Resolved by the owner (2026-07-10, commit `dc75eb4`): Decision B** — legacy active codes receive a fresh seven-day grace period from migration-apply time (`now() + 7 days`), so outstanding invitations are not invalidated immediately.
 3. **Does the admin UI need to distinguish expired vs redeemed?** It collapsed both into 使用不可. → Resolved additively: the badge now distinguishes 期限切れ / 使用済み / 無効化済み / 有効.
 4. **Supabase environment access.** The Supabase MCP connection is not authorized in this session, so the migration could not be applied to a preview database from here. Validation of the SQL is static (syntax + logic review). Flagged in the PR checklist.
 5. **The uploaded screen recording** (`ScreenRecording_07082026…​.mov`) could not be played in this environment; flow understanding is based on code reading and the provided static mockup screenshot.
@@ -128,8 +128,8 @@ Sex/age are contextual hints only; the fragment states they must never override 
 | Error copy tells the user the code expired | ✅ studio: 「この招待コードは有効期限切れです。管理者に再発行をご依頼ください。」 |
 | Redeemed/revoked history preserved | ✅ backfill `UPDATE` filters `revoked_at is null and used_count < max_uses`; no deletes |
 | No duplicate trigger / conflicting migration | ✅ `drop trigger if exists` + unique function name; no other trigger on the table |
-| Migration order | ⚠️ fixed conservatively: file renamed after `…000018` so it applies after all existing migrations on an up-to-date database; content unchanged |
-| Legacy-code backfill policy | ⚠️ business decision — retained as authored, requires explicit sign-off before production apply (a code created >7 days ago becomes expired immediately) |
+| Migration order | ✅ fixed conservatively: file renamed after `…000018` so it applies after all existing migrations on an up-to-date database |
+| Legacy-code backfill policy | ✅ decided by the owner (commit `dc75eb4`): grace period `now() + 7 days` for active legacy codes (Decision B) |
 
 ## 7. Validation performed
 
@@ -148,6 +148,17 @@ Screenshots captured from the headless runs: gallery open (Auto centered), card 
 - [ ] installed PWA + Safari browser mode + Chrome desktop
 - [ ] Functional paths 1–22 of the task's validation matrix (open case → … → VoiceOver)
 - [ ] Regression list (auth, consent, home, library, invite, upload, sliders, generation, token debit/refund, save/share, Morphing entry/preview, billing, admin, PWA update)
+
+## 7.5 Feedback round (2026-07-10)
+
+Clinician feedback applied and deployed:
+
+1. **Sex/age moved out of the gallery** to the simulator panel as "Patient context / 患者情報（任意）" — after the treatment concept, **before the chief complaint cards** (two compact selects). Canonical storage unchanged (`simTeethType.optional_context`); the dialog's Auto-reset now resets the form only and no longer clears panel-owned context.
+2. **Generated crowns did not reflect the selected form.** Root cause: the standing esthetic criteria instruct the model to "refine within the patient's own type (square/ovoid/triangular)" and rule (3) of the orthodontic knowledge base says to keep each tooth's individual form — both outranked the gentle fragment. The fragment is now an explicit **REQUESTED CHANGE … MANDATORY** block placed with the requested-changes assembly in both prompt paths, states that the clinician's selection **SUPERSEDES** any keep-own-form guidance, targets the central incisors first, and declares an unchanged outline an incorrect result. When only the form is selected (all axes neutral), the "No changes requested" sentence no longer fires.
+3. **Specimens redrawn** in dental-lab presentation style (reference: Dentiqra card): glossy white crown pairs with sheen and faint vertical texture on dark clinical panels; the SVG gradient defs are injected at document level so the panel field icon renders before the dialog is ever opened (bug found in review screenshots).
+4. **Auto = facial-type matched** (design language, not a diagnosis; reference: SKELETAL FACIAL PROFILE II): when a facial image is present and Auto is selected, MediaPipe face landmarks (already bundled for lip masks) classify 短頭型 brachy / 中顔型 mesio / 長顔型 dolicho from the facial index (`h(10→152)/w(234→454)`, jaw ratio `w(172→397)/w(234→454)`); mapping brachy→square (angular jaw) or rounded_square, mesio→ovoid, dolicho→tapered. The recommendation is computed before prompt build (bounded at 2.5 s so generation is never blocked), shown in the field ("Auto / 自動 ・推奨 …") and the Auto card, sent as `teeth_type.auto_recommended` + `facial_type`, and injected into the prompt as the starting direction. **Fallback:** if landmarks are unavailable, the prompt instructs the generator itself to read the facial type and apply the same mapping. ⚠️ The landmark thresholds (fi ≤1.26 / ≥1.42, ji ≥0.86) are initial values and should be calibrated against real clinical portraits.
+
+Validation after this round: 40 headless checks, 0 failures (suite updated accordingly).
 
 ## 8. Open questions / known risks
 

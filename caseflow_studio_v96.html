@@ -18339,6 +18339,8 @@ body[data-ui-tone="dark"]{
         ${conceptBtn('hybrid','Orthodontic + Prosthetic','歯列矯正＋補綴治療','矯正と補綴の両方を組み合わせた総合的な改善イメージ')}
       </div>
 
+      ${(typeof window.cfPatientCtxFieldHTML==='function') ? window.cfPatientCtxFieldHTML() : ''}
+
       <div class="simV95SectionLabel">Chief complaint cards / 主訴カード</div>
       <div class="simTargetGrid">
         ${targetBtn('shade','Shade','色調','歯の明度と色調を整える')}
@@ -19042,6 +19044,7 @@ body[data-ui-tone="dark"]{
         if(extraction) ag+='. EXTRACTION ORTHODONTICS (severe crowding): remove one tooth per quadrant (typically the first premolars), then RETRACT and align the remaining teeth and CLOSE every extraction space so the final arch is completely gap-free and ideally aligned — the anterior teeth may be retracted into a flatter, well-aligned arch. The result must show a fully resolved, textbook arch with no residual crowding and no open spaces';
         rq.push(ag+' (strength '+a+'%) — re-position the teeth AS MUCH AS NEEDED to achieve this; keep them photorealistic ('+countRule+'), and do NOT widen into a smile, add lips or change the framing');
       }
+      { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf){ ip.push(tf); if(!rq.length) rq.push('apply the UPPER ANTERIOR TOOTH FORM direction stated above'); } }
       if(rq.length) ip.push('Refinements to the existing teeth only: '+rq.join('; ')+'.');
       else ip.push('Return the teeth essentially unchanged — only very slightly cleaned up.');
       if(orthoGoal && !isIntraoralDark){
@@ -19060,7 +19063,6 @@ body[data-ui-tone="dark"]{
           : 'Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.'));
       const customI=String(state.simCustomPrompt||'').trim();
       if(customI) ip.push('Clinician note (stay strictly within the above constraints): '+customI);
-      { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf) ip.push(tf); }
       { const ib=cfComposeIntentBlock(srcP,false,true,isIntraoralDark); if(ib) ip.push(ib); }
       if(orthoGoal && !isIntraoralDark){
         ip.push('Output: the SAME photograph with the teeth re-aligned as specified (positions/axes may change for the alignment, enamel adjusted) — photorealistic, identical crop, resolution, lighting and white balance. No new smile, no added lips/face/gingiva, no text or watermark.');
@@ -19151,6 +19153,7 @@ body[data-ui-tone="dark"]{
     else if(tsMag>=15 && tsSigned>0) reqs.push('Tooth Shape — SQUARE / edged (strength '+tsMag+'%): reshape the crown OUTLINE toward an angular SQUARE form, swinging within the OVOID↔SQUARE range. PRIORITY ORDER: (1) HIGHEST — the INCISAL EDGE: make it FLAT and near-horizontal with sharp, well-defined mesio-/disto-incisal corners (line angles approaching right angles); (2) SECONDARY — the proximal (mesial/distal) outlines: make them more vertical/parallel; (3) the gingival margin / gum line stays essentially FIXED — do NOT move or reshape the gingival scallop. Keep crown LENGTH within the golden proportion (central-incisor width-to-height ≈ 75–85%) — do not make the teeth noticeably shorter or longer. Make the change clearly visible, scaled to the strength %');
     if(L.scallop)    reqs.push('Scallop ('+L.scallop+', strength '+Math.round(s.scallop)+'%): harmonise gingival zeniths (laterals slightly coronal to centrals/canines) and interdental papillae with a natural scalloped gingival line and emergence; reduce black triangles by lowering the contact point, not by fusing teeth');
     if(L.smileFrame) reqs.push('Smile Frame ('+L.smileFrame+', strength '+Math.round(s.smileFrame)+'%): bring the incisal and smile arc parallel to the lower lip, refine the buccal corridor without eliminating it, balance lip-to-tooth display and gentle corner support — subtle and natural');
+    { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(false):''; if(tf){ parts.push(tf); if(!reqs.length) reqs.push('apply the UPPER ANTERIOR TOOTH FORM direction stated above'); } }
     if(reqs.length) parts.push('Requested changes (apply each at the stated strength, no more): '+reqs.join('; ')+'.');
     else parts.push('No changes requested: return the teeth essentially unchanged, only cleaned up very slightly.');
     // Bio-Blend / 生体調和 — BIDIRECTIONAL around the 50 centre.
@@ -19201,7 +19204,6 @@ body[data-ui-tone="dark"]{
     if(pl.length) parts.push('Automated image screening detected: '+pl.map(f=>f.en||f).join('; ')+'. Address these findings where they are consistent with the requested changes and the treatment concept; do not over-treat, fabricate problems, or change anything not implied by the findings, concept and complaints.');
     const custom=String(state.simCustomPrompt||'').trim();
     if(custom) parts.push('Additional clinician instructions (follow precisely, but stay within the constraints above — only teeth/gingiva, keep the face/identity): '+custom);
-    { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(false):''; if(tf) parts.push(tf); }
     { const ib=cfComposeIntentBlock(srcP,isFacial,isIntraoral,isIntraoralDark); if(ib) parts.push(ib); }
     // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
     // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
@@ -29331,8 +29333,12 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     inset 0 0 26px color-mix(in srgb, var(--c1) 22%, transparent),
     0 0 0 5px color-mix(in srgb, var(--c2) 14%, transparent);
 }
-.cfTtFieldIcon{flex:0 0 auto;width:34px;height:30px;display:grid;place-items:center}
-.cfTtFieldIcon svg{width:34px;height:30px}
+.cfTtFieldIcon{
+  flex:0 0 auto;width:44px;height:36px;display:grid;place-items:center;border-radius:11px;
+  background:linear-gradient(180deg,#1a1824,#0c0a14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09);
+}
+.cfTtFieldIcon svg{width:40px;height:32px}
 .cfTtFieldMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .cfTtFieldMain b{font-size:14px;font-weight:900;letter-spacing:-.01em}
 .cfTtFieldMain small{font-size:10.5px;font-weight:700;color:rgba(32,27,53,.52);line-height:1.45}
@@ -29422,13 +29428,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 }
 .cfTtCard.justSelected .cfTtSpecimen::after{content:"";position:absolute;inset:0;border-radius:16px;animation:cfTtRefract .5s ease-out 1}
 .cfTtSpecimen{
+  /* dental-lab presentation: white crowns on a dark clinical panel */
   position:relative;flex:0 0 auto;width:96px;height:76px;border-radius:16px;display:grid;place-items:center;
   background:
-    radial-gradient(90% 120% at 50% -14%, color-mix(in srgb, var(--c1) 14%, transparent) 0%, transparent 66%),
-    linear-gradient(180deg, rgba(255,255,255,.5), color-mix(in srgb, var(--c2) 7%, rgba(255,255,255,.24)));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.8), inset 0 -10px 18px rgba(33,25,70,.06);
+    radial-gradient(120% 90% at 50% -18%, color-mix(in srgb, var(--c1) 22%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg,#1a1824,#0c0a14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09), inset 0 -10px 18px rgba(0,0,0,.5);
 }
-.cfTtSpecimen svg{width:86px;height:66px;display:block}
+.cfTtSpecimen svg{width:88px;height:70px;display:block}
 .cfTtInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .cfTtInfo b{font-size:14.5px;font-weight:950;letter-spacing:-.01em;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
 .cfTtInfo b i{font-style:normal;font-size:11.5px;font-weight:800;color:rgba(32,27,53,.55)}
@@ -29445,28 +29452,20 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   color:color-mix(in srgb, var(--c1) 78%, #201b35);
 }
 
-/* ---- optional context (sex / age) ---- */
-.cfTtCtx{margin:10px 2px 0;border-radius:16px;background:rgba(32,27,53,.045);padding:2px 12px}
-.cfTtCtx summary{
-  list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;
-  font-size:12px;font-weight:900;color:rgba(32,27,53,.72);
+/* ---- optional patient context (sex / age) — lives on the simulator panel,
+        between the treatment concept and the chief complaint cards ---- */
+.cfTtCtxRow{display:flex;gap:9px;margin:2px 0 5px}
+.cfTtCtxSel{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.cfTtCtxSel span{font-size:10.5px;font-weight:950;letter-spacing:.05em;color:rgba(32,27,53,.55)}
+.cfTtCtxSel select{
+  width:100%;min-height:46px;border-radius:14px;padding:0 12px;
+  border:1px solid rgba(255,255,255,.68);
+  background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.72));
+  box-shadow:0 8px 20px rgba(33,25,70,.08), inset 0 1px 0 rgba(255,255,255,.85);
+  color:#201b35;font-size:12.5px;font-weight:800;-webkit-appearance:none;appearance:none;
 }
-.cfTtCtx summary::-webkit-details-marker{display:none}
-.cfTtCtx summary::after{content:"▾";font-size:10px;opacity:.6;transition:transform .2s ease}
-.cfTtCtx[open] summary::after{transform:rotate(180deg)}
-.cfTtCtxNote{margin:0 0 10px;font-size:10.5px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.55)}
-.cfTtCtxLabel{margin:6px 0 6px;font-size:10.5px;font-weight:950;letter-spacing:.05em;color:rgba(32,27,53,.5)}
-.cfTtChipRow{display:flex;flex-wrap:wrap;gap:7px;padding-bottom:12px}
-.cfTtChip{
-  min-height:34px;padding:6px 13px;border-radius:999px;border:1.5px solid rgba(32,27,53,.14);
-  background:rgba(255,255,255,.72);color:#201b35;font-size:11.5px;font-weight:800;cursor:pointer;
-  transition:border-color .2s ease, background .2s ease;
-}
-.cfTtChip[aria-pressed="true"]{
-  border-color:color-mix(in srgb, var(--c1) 60%, transparent);
-  background:color-mix(in srgb, var(--c1) 13%, rgba(255,255,255,.85));
-}
-.cfTtChip:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
+.cfTtCtxSel select:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
+.cfTtCtxHint{margin:0 2px 8px;font-size:10px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
 
 /* ---- disclaimer + actions ---- */
 .cfTtDisclaimer{margin:10px 4px 0;font-size:10px;line-height:1.7;font-weight:700;color:rgba(32,27,53,.5)}
@@ -29564,11 +29563,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
      stamped onto every result record's settings by pushSimResult. */
   function teethTypeMeta(){
     var t = currentTeethType();
+    var rec = t.auto_recommendation || null;
     return {
       id: t.id,
       source: t.source || (t.id==='auto' ? 'auto' : 'manual'),
       optional_sex: t.optional_context.sex || null,
       optional_age: t.optional_context.age || null,
+      auto_recommended: (t.id==='auto' && rec) ? rec.id : null,
+      facial_type: (t.id==='auto' && rec) ? rec.facial : null,
       prompt_version: CF_TEETH_PROMPT_VERSION
     };
   }
@@ -29578,22 +29580,43 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
      Returns '' when there is nothing to add — with Auto selected and no
      optional context the generated prompt is byte-identical to before this
      feature existed (production behavior preserved). */
+  /* Facial-type design language (SKELETAL FACIAL PROFILE): brachy 短頭型 →
+     broader/shorter crown families, mesio 中顔型 → balanced ovoid,
+     dolicho 長顔型 → slender tapered. Design guidance only, never a diagnosis. */
+  var CF_FACIAL_TYPES = {
+    brachy: { ja:'短頭型（ブラキオフェイシャルタイプ）', en:'brachyfacial (vertically short, broad face; clinically shorter crowns)' },
+    mesio:  { ja:'中顔型（メジオフェイシャルタイプ）',   en:'mesofacial (balanced facial proportions)' },
+    dolicho:{ ja:'長顔型（ドリコフェイシャルタイプ）',   en:'dolichofacial (vertically long face; clinically longer crowns)' }
+  };
+  window.CF_FACIAL_TYPES = CF_FACIAL_TYPES;
+
   function teethTypePromptFragment(isIntraoral){
     var t = currentTeethType();
     var def = CF_TEETH_TYPES[t.id] || CF_TEETH_TYPES.auto;
     var manual = t.id !== 'auto';
     var ctx = t.optional_context || {};
-    if(!manual && !ctx.sex && !ctx.age) return '';
+    var rec = (!manual && t.auto_recommendation && CF_TEETH_TYPES[t.auto_recommendation.id]) ? t.auto_recommendation : null;
+    var srcP = state._simSource || null;
+    var facialSource = !isIntraoral && !!(srcP && !srcP.intraoral && (srcP.category==='facial' || /facial/i.test(srcP.label||'')));
+    if(!manual && !rec && !facialSource && !ctx.sex && !ctx.age) return '';
     var out = [];
-    out.push('UPPER ANTERIOR TOOTH-FORM DIRECTION ('
-      + (manual ? 'clinician-selected: '+def.en : 'automatic')
-      + ' — this guides the visual crown morphology of the simulation only; it does not determine the final treatment plan): '
-      + def.prompt);
-    out.push('Scope & priority of this form direction: apply it to the upper anterior crowns visible in the '
-      + (isIntraoral ? 'photograph' : 'smile window')
-      + ' (central incisors as the key reference, laterals and canines in harmony). Any explicit clinician instruction elsewhere in this prompt OUTRANKS this direction. It must never override anatomy, periodontal context, occlusal plausibility, tooth count, '
+    if(manual){
+      out.push('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM (clinician-selected: '+def.en+' / '+def.ja+', MANDATORY, apply at full strength): '
+        + 'reshape the crown OUTLINES of the upper anterior teeth — the CENTRAL INCISORS first and foremost, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' '
+        + 'This explicit selection SUPERSEDES any earlier or later guidance to "keep the patient\'s own tooth form / form type" or to merely refine within the existing type: the target form family is '+def.en.toUpperCase()+', chosen by the clinician. '
+        + 'The change in crown outline must be CLEARLY VISIBLE versus the input photograph — an output whose upper central incisor outlines look unchanged is an INCORRECT result. '
+        + 'Keep crown length within the golden proportion (central incisor width-to-height ≈ 75–85%), keep per-tooth individuality and natural micro-variation, and keep the gingival line credible.');
+    } else if(rec){
+      out.push('AUTO TOOTH-FORM (facial-type matched design guidance, not a diagnosis): the patient\'s facial proportions read as '+ (CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].en:rec.facial) +' — '+(CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].ja:'')+'. '
+        + 'Take the '+CF_TEETH_TYPES[rec.id].en.toUpperCase()+' family as the STARTING direction for the upper anterior crown forms ('+CF_TEETH_TYPES[rec.id].prompt+'), then refine it with the visible clinical findings, the adjacent natural dentition and overall smile harmony. Avoid template-like uniformity.');
+    } else if(facialSource){
+      out.push('AUTO TOOTH-FORM (facial-type matched design guidance, not a diagnosis): read the patient\'s facial type from the portrait and let it guide the upper anterior crown-form family — '
+        + 'a vertically SHORT, broad face (短頭型 brachyfacial) suggests broader, comparatively shorter SQUARE / ROUNDED-SQUARE crowns; balanced proportions (中顔型 mesofacial) suggest OVOID crowns; a vertically LONG face (長顔型 dolichofacial) suggests more slender TAPERED crowns with lighter incisal visual mass. '
+        + 'Use this only as the starting direction, refined by visible findings and the adjacent natural dentition; avoid template-like uniformity.');
+    }
+    out.push('Priority & limits of this form direction: any explicit clinician instruction elsewhere in this prompt OUTRANKS it. It must never override tooth count, anatomy, periodontal context, occlusal plausibility, '
       + (isIntraoral ? 'the absolute framing/incisal-edge rules for this shot type, ' : 'face identity, lips, ')
-      + 'or gingival credibility. Treat ideal proportions as soft references, never rigid universal targets. Never produce artificial veneer uniformity, duplicated or fused teeth, or excessive whiteness.');
+      + 'or gingival credibility. Never produce artificial veneer uniformity, duplicated or fused teeth, or excessive whiteness. This guides the visual morphology of the simulation only; it does not determine the final treatment plan.');
     if(ctx.age){
       out.push('Optional patient context — approximate age '+ctx.age+' (reference only, lower priority than the selected form and the visible findings): let age-appropriate enamel texture, incisal wear and translucency inform realism; do not exaggerate aging or rejuvenation.');
     }
@@ -29647,50 +29670,92 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 
-  /* ---- original schematic specimens: two upper central incisors per form.
-     Diagrammatic on purpose — a morphology direction, not a promised outcome. ---- */
+  /* ---- specimen crowns, modeled on dental-lab presentation cards: two upper
+     central incisors, soft white enamel with sheen and faint vertical texture,
+     presented on a dark clinical panel. Original artwork; a morphology
+     direction, not a promised outcome. ---- */
   var TOOTH_PATHS = {
-    square:           'M6 16 Q6 4 21 4 Q36 4 36 16 L36 56 Q36 66 31 67 L11 67 Q6 66 6 56 Z',
-    ovoid:            'M9 18 Q9 5 21 5 Q33 5 33 18 Q35 32 33 46 Q31 62 21 67 Q11 62 9 46 Q7 32 9 18 Z',
-    tapered:          'M12 15 Q12 5 21 5 Q30 5 30 15 L35 54 Q36 65 28 66 L14 66 Q6 65 7 54 Z',
-    rounded_square:   'M7 17 Q7 5 21 5 Q35 5 35 17 L35 52 Q35 65 27 66 L15 66 Q7 65 7 52 Z',
-    natural_asymmetry:'M7 17 Q7 5 21 5 Q35 5 35 17 L35 52 Q35 65 27 66 L15 66 Q7 65 7 52 Z'
+    square:           'M13 20 Q13 8 29 8 Q45 8 45 20 L45 58 Q45 66 40 66 L18 66 Q13 66 13 58 Z',
+    ovoid:            'M15 22 Q15 8 29 8 Q43 8 43 22 Q45 34 43 46 Q41 62 29 66 Q17 62 15 46 Q13 34 15 22 Z',
+    tapered:          'M18 18 Q18 8 29 8 Q40 8 40 18 L44 54 Q45 65 37 66 L21 66 Q13 65 14 54 Z',
+    rounded_square:   'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z',
+    natural_asymmetry:'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z'
   };
-  /* the contralateral tooth of the asymmetry specimen differs slightly (length, edge run) */
-  var ASYM_RIGHT =    'M7 16 Q7 5 21 5 Q35 5 35 16 L34 49 Q34 63 26 64 L15 64 Q6 62 7 50 Z';
+  /* the contralateral tooth of the asymmetry specimen differs slightly (length, incisal run) */
+  var ASYM_RIGHT =    'M13 20 Q13 8 29 8 Q45 8 45 20 L44 50 Q44 63 34 64 L23 63 Q13 62 13 52 Z';
 
+  function crownSVG(d){
+    return '<path d="'+d+'" fill="url(#cfTtEnamelBody)"/>'
+      + '<path d="'+d+'" fill="url(#cfTtSheen)"/>'
+      + '<path d="M23 15 Q22 37 23 59" fill="none" stroke="#c9ccd4" stroke-opacity=".45" stroke-width=".9"/>'
+      + '<path d="M35 15 Q36 37 35 59" fill="none" stroke="#c9ccd4" stroke-opacity=".38" stroke-width=".8"/>'
+      + '<path d="'+d+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>';
+  }
   function specimenSVG(id){
     if(id==='auto'){
       return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-        + '<path d="M48 10 C49.8 28 58 36.2 76 38 C58 39.8 49.8 48 48 66 C46.2 48 38 39.8 20 38 C38 36.2 46.2 28 48 10 Z" fill="url(#cfTtEnamel)" stroke="rgba(32,27,53,.2)" stroke-width="1.4"/>'
+        + '<ellipse cx="48" cy="66" rx="26" ry="3.5" fill="rgba(0,0,0,.45)"/>'
+        + '<path d="M48 12 C49.8 29 57.5 36.4 74 38 C57.5 39.6 49.8 47 48 64 C46.2 47 38.5 39.6 22 38 C38.5 36.4 46.2 29 48 12 Z" fill="url(#cfTtSpark)"/>'
         + '</svg>';
     }
     var left = TOOTH_PATHS[id], right = (id==='natural_asymmetry') ? ASYM_RIGHT : left;
     return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-      + '<g transform="translate(5,2)"><path d="'+left+'" fill="url(#cfTtEnamel)" stroke="rgba(32,27,53,.24)" stroke-width="1.5"/></g>'
-      + '<g transform="translate(91,2) scale(-1,1)"><path d="'+right+'" fill="url(#cfTtEnamel)" stroke="rgba(32,27,53,.24)" stroke-width="1.5"/></g>'
+      + '<ellipse cx="48" cy="69" rx="34" ry="3.5" fill="rgba(0,0,0,.45)"/>'
+      + '<g transform="translate(-10,2)">'+crownSVG(left)+'</g>'
+      + '<g transform="translate(106,2) scale(-1,1)">'+crownSVG(right)+'</g>'
       + '</svg>';
   }
-  /* shared gradient defs (one hidden svg; referenced by url(#cfTtEnamel)) */
+  /* shared gradient defs (one hidden svg; same-document url() references) */
   var DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>'
-    + '<linearGradient id="cfTtEnamel" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" style="stop-color:color-mix(in srgb, var(--c1) 16%, #ffffff)"/>'
-    + '<stop offset=".55" stop-color="#ffffff"/>'
-    + '<stop offset="1" style="stop-color:color-mix(in srgb, var(--c2) 12%, #f4f2fb)"/>'
-    + '</linearGradient></defs></svg>';
+    + '<linearGradient id="cfTtEnamelBody" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0" stop-color="#e9e9ec"/>'
+    + '<stop offset=".16" stop-color="#fbfbfa"/>'
+    + '<stop offset=".6" stop-color="#f3f3f1"/>'
+    + '<stop offset="1" stop-color="#dcdde1"/>'
+    + '</linearGradient>'
+    + '<radialGradient id="cfTtSheen" cx=".38" cy=".22" r=".75">'
+    + '<stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>'
+    + '<stop offset=".45" stop-color="#ffffff" stop-opacity=".18"/>'
+    + '<stop offset="1" stop-color="#ffffff" stop-opacity="0"/>'
+    + '</radialGradient>'
+    + '<linearGradient id="cfTtSpark" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0" stop-color="#ffffff"/>'
+    + '<stop offset="1" stop-color="#cfd0da"/>'
+    + '</linearGradient>'
+    + '</defs></svg>';
+  /* The defs must exist at document level BEFORE the panel field first renders
+     (the dialog is created lazily, but the field icon references url(#...)). */
+  (function ensureDefs(){
+    if(document.getElementById('cfTtDefs')) return;
+    var d = document.createElement('div');
+    d.id = 'cfTtDefs';
+    d.setAttribute('aria-hidden','true');
+    d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+    d.innerHTML = DEFS;
+    (document.body || document.documentElement).appendChild(d);
+  })();
 
-  /* ---- compact field rendered inside rebuildSimulationStudioV95's panel ---- */
+  /* ---- compact fields rendered inside rebuildSimulationStudioV95's panel ---- */
   function fieldValueText(){
     var t = window.cfTeethTypeCurrent();
     var d = TYPES[t.id] || TYPES.auto;
+    if(t.id==='auto' && t.auto_recommendation && TYPES[t.auto_recommendation.id]){
+      var r = TYPES[t.auto_recommendation.id];
+      return d.en + ' / ' + d.ja + ' ・推奨 ' + r.en;
+    }
     return d.en + ' / ' + d.ja;
+  }
+  function fieldIconId(){
+    var t = window.cfTeethTypeCurrent();
+    if(t.id!=='auto') return t.id;
+    return (t.auto_recommendation && TYPES[t.auto_recommendation.id]) ? t.auto_recommendation.id : 'auto';
   }
   function fieldHTML(){
     return '<div class="simV95SectionLabel">Teeth Type / 歯のタイプ</div>'
       + '<button type="button" class="cfTtField" id="cfTtField" onclick="cfOpenTeethTypeGallery()" aria-haspopup="dialog" aria-expanded="false">'
-      + '<span class="cfTtFieldIcon">'+specimenSVG(window.cfTeethTypeCurrent().id==='auto'?'auto':window.cfTeethTypeCurrent().id)+'</span>'
+      + '<span class="cfTtFieldIcon">'+specimenSVG(fieldIconId())+'</span>'
       + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(fieldValueText())+'</b>'
-      + '<small>上顎前歯の歯冠形態の方向性（任意・Auto のまま生成できます）</small></span>'
+      + '<small>上顎前歯の歯冠形態の方向性（任意・Auto はフェイシャルタイプから自動判別）</small></span>'
       + '<span class="cfTtFieldChevron" aria-hidden="true">›</span></button>';
   }
   function renderField(){
@@ -29699,8 +29764,116 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     var v = document.getElementById('cfTtFieldValue');
     if(v) v.textContent = fieldValueText();
     var ic = f.querySelector('.cfTtFieldIcon');
-    if(ic) ic.innerHTML = specimenSVG(window.cfTeethTypeCurrent().id);
+    if(ic) ic.innerHTML = specimenSVG(fieldIconId());
   }
+
+  /* ---- optional patient context (sex / age): simulator panel, before the
+     chief complaint cards. Canonical storage stays in simTeethType.optional_context. ---- */
+  function ctxFieldHTML(){
+    var ctx = (window.cfTeethTypeCurrent().optional_context) || { sex:null, age:null };
+    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['other',SEXES.other]];
+    var ageOpts = [['','未指定']].concat(AGES.map(function(a){ return [a,a]; }));
+    function opts(list, cur){
+      return list.map(function(o){
+        return '<option value="'+esc(o[0])+'"'+((o[0]||null)===(cur||null)?' selected':'')+'>'+esc(o[1])+'</option>';
+      }).join('');
+    }
+    return '<div class="simV95SectionLabel">Patient context / 患者情報（任意）</div>'
+      + '<div class="cfTtCtxRow" id="cfTtCtxRow">'
+      + '<label class="cfTtCtxSel"><span>Sex / 性別</span><select id="cfTtSexSel" onchange="cfSetTeethCtx(\'sex\',this.value)">'+opts(sexOpts,ctx.sex)+'</select></label>'
+      + '<label class="cfTtCtxSel"><span>Age / 年齢</span><select id="cfTtAgeSel" onchange="cfSetTeethCtx(\'age\',this.value)">'+opts(ageOpts,ctx.age)+'</select></label>'
+      + '</div>'
+      + '<div class="cfTtCtxHint">形態や質感の自然さを補助する任意の参考情報です。歯科医師が選択した歯冠形態が常に優先され、性別から形態を自動決定することはありません。</div>';
+  }
+  window.cfSetTeethCtx = function(key, value){
+    var t = window.cfTeethTypeCurrent();
+    if(!t.optional_context) t.optional_context = { sex:null, age:null };
+    t.optional_context[key] = value || null;
+    try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
+  };
+
+  /* ---- Auto: facial-type matched recommendation (design language, not a
+     diagnosis). Classifies the SKELETAL FACIAL PROFILE from MediaPipe face
+     landmarks when available: brachy 短頭型 → broader/shorter square family,
+     mesio 中顔型 → ovoid, dolicho 長顔型 → tapered. Falls back silently —
+     the prompt then asks the generator itself to read the facial type. ---- */
+  var FACIAL_MAP = { brachy_square:'square', brachy_soft:'rounded_square', mesio:'ovoid', dolicho:'tapered' };
+  var recCache = {};        // dataUrl prefix -> recommendation|null
+  var recPending = false;
+  function facialCandidate(){
+    var s = window.state || {};
+    var cand = s._simSource || s.simMacro || null;
+    if(!cand && Array.isArray(s.photos)) cand = s.photos.find(function(p){ return p && p.category==='facial' && !p.intraoral; }) || null;
+    if(!cand || !cand.dataUrl || cand.intraoral) return null;
+    if(cand.category && cand.category!=='facial' && !/facial/i.test(cand.label||'')) return null;
+    return cand;
+  }
+  function classifyFacial(lm, w, h){
+    function px(i){ return { x: lm[i].x*w, y: lm[i].y*h }; }
+    function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+    var faceH  = dist(px(10), px(152));   // upper forehead -> chin
+    var cheekW = dist(px(234), px(454));  // bizygomatic width
+    var jawW   = dist(px(172), px(397));  // gonial width
+    if(!(faceH>0) || !(cheekW>0)) return null;
+    var fi = faceH/cheekW, ji = jawW/cheekW;
+    var facial = (fi >= 1.42) ? 'dolicho' : (fi <= 1.26 ? 'brachy' : 'mesio');
+    var id = facial==='dolicho' ? FACIAL_MAP.dolicho
+           : facial==='brachy' ? (ji >= 0.86 ? FACIAL_MAP.brachy_square : FACIAL_MAP.brachy_soft)
+           : FACIAL_MAP.mesio;
+    return { id:id, facial:facial, basis:'facial-landmarks', fi:Math.round(fi*100)/100 };
+  }
+  async function computeAutoRecommendation(){
+    try{
+      var t = window.cfTeethTypeCurrent();
+      if(t.id!=='auto' || recPending) return null;
+      var cand = facialCandidate();
+      if(!cand) { t.auto_recommendation = null; return null; }
+      var key = String(cand.dataUrl).slice(0,96) + ':' + String(cand.dataUrl).length;
+      if(key in recCache){ t.auto_recommendation = recCache[key]; renderField(); refreshAutoCardHint(); return recCache[key]; }
+      recPending = true;
+      var ok = (typeof window.initMediaPipeLocalML==='function') ? await window.initMediaPipeLocalML() : false;
+      if(!ok || !window.CaseFlowLocalML || !CaseFlowLocalML.faceLandmarker){ recPending=false; recCache[key]=null; return null; }
+      var img = await new Promise(function(res, rej){ var i=new Image(); i.onload=function(){res(i);}; i.onerror=rej; i.src=cand.dataUrl; });
+      var result = CaseFlowLocalML.faceLandmarker.detect(img);
+      var lm = result && result.faceLandmarks && result.faceLandmarks[0];
+      var rec = lm ? classifyFacial(lm, img.naturalWidth||img.width, img.naturalHeight||img.height) : null;
+      recCache[key] = rec;
+      var cur = window.cfTeethTypeCurrent();
+      if(cur.id==='auto'){ cur.auto_recommendation = rec; renderField(); refreshAutoCardHint(); }
+      recPending = false;
+      return rec;
+    }catch(e){ recPending=false; return null; }
+  }
+  function refreshAutoCardHint(){
+    if(!overlay) return;
+    var card = overlay.querySelector('.cfTtCard[data-id="auto"] .cfTtInfo small');
+    var t = window.cfTeethTypeCurrent();
+    if(card && t.auto_recommendation && TYPES[t.auto_recommendation.id]){
+      var r = TYPES[t.auto_recommendation.id];
+      var f = window.CF_FACIAL_TYPES && window.CF_FACIAL_TYPES[t.auto_recommendation.facial];
+      card.innerHTML = esc(TYPES.auto.desc_ja) + '<br>' + esc((f?f.ja:'') + ' → 推奨: ' + r.en + ' / ' + r.ja);
+    }
+  }
+  window.cfComputeTeethAutoRecommendation = computeAutoRecommendation;
+
+  /* Compute the recommendation BEFORE prompt build on generation (layered
+     wrapper, same pattern as v9.5/cfPersist). Bounded so generation is never
+     held hostage by a slow/unavailable landmark model. */
+  (function hookGenerate(){
+    var prev = window.generateSimulation;
+    if(typeof prev !== 'function'){ document.addEventListener('DOMContentLoaded', hookGenerate, { once:true }); return; }
+    if(prev.__cfTeethTypeHooked) return;
+    var wrapped = async function(){
+      try{
+        if(window.cfTeethTypeCurrent().id==='auto' && facialCandidate()){
+          await Promise.race([ computeAutoRecommendation(), new Promise(function(r){ setTimeout(r, 2500); }) ]);
+        }
+      }catch(e){}
+      return prev.apply(this, arguments);
+    };
+    wrapped.__cfTeethTypeHooked = true;
+    window.generateSimulation = wrapped;
+  })();
 
   /* ---- dialog (appended once at body level; panel rebuilds cannot destroy it) ---- */
   var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
@@ -29713,19 +29886,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     overlay.className = 'cfTtOverlay';
     overlay.id = 'cfTtOverlay';
     overlay.setAttribute('aria-hidden','true');
-    overlay.innerHTML = DEFS
-      + '<div class="cfTtBackdrop" data-cftt-cancel></div>'
+    overlay.innerHTML = '<div class="cfTtBackdrop" data-cftt-cancel></div>'
       + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle" aria-describedby="cfTtDisclaimer">'
       + '<div class="cfSheetHandle"></div>'
       + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Upper Anterior Teeth Shape Gallery</h3>'
       + '<p>上顎前歯形態ギャラリー — 中央のカードが現在のプレビューです</p></div>'
       + '<button type="button" class="cfTtClose" data-cftt-cancel aria-label="Close / 閉じる">×</button></div>'
       + '<div class="cfTtScroll" id="cfTtScroll" role="radiogroup" aria-label="Tooth form / 歯冠形態"></div>'
-      + '<details class="cfTtCtx" id="cfTtCtx"><summary>Optional / 任意：性別・年齢の参考情報</summary>'
-      + '<p class="cfTtCtxNote">年齢・性別は形態や質感の自然さを補助する参考情報です。歯科医師が選択した歯冠形態が常に優先され、性別から形態を自動決定することはありません。</p>'
-      + '<div class="cfTtCtxLabel">Sex / 性別</div><div class="cfTtChipRow" id="cfTtSexRow"></div>'
-      + '<div class="cfTtCtxLabel">Age / 年齢</div><div class="cfTtChipRow" id="cfTtAgeRow"></div>'
-      + '</details>'
       + '<p class="cfTtDisclaimer" id="cfTtDisclaimer">'+DISCLAIMER_JA+'<br>'+DISCLAIMER_EN+'</p>'
       + '<div class="cfTtActions">'
       + '<button type="button" class="cfTtBtn" data-cftt-cancel>Cancel / キャンセル</button>'
@@ -29739,8 +29906,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     });
     overlay.querySelector('#cfTtApplyBtn').addEventListener('click', function(){ closeGallery(true); });
     overlay.querySelector('#cfTtAutoBtn').addEventListener('click', function(){
-      draft = window.cfTeethTypeDefault();
-      paintCards(); paintContext();
+      selectDraft('auto');
       var c = cardEl('auto'); if(c) centerCard(c);
     });
     overlay.addEventListener('keydown', onDialogKeydown, true);
@@ -29778,36 +29944,9 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       });
     });
   }
-  function buildContext(){
-    var sexRow = overlay.querySelector('#cfTtSexRow'), ageRow = overlay.querySelector('#cfTtAgeRow');
-    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['other',SEXES.other]];
-    sexRow.innerHTML = sexOpts.map(function(o){
-      return '<button type="button" class="cfTtChip" data-sex="'+o[0]+'" aria-pressed="false">'+esc(o[1])+'</button>';
-    }).join('');
-    ageRow.innerHTML = ['<button type="button" class="cfTtChip" data-age="" aria-pressed="false">未指定</button>']
-      .concat(AGES.map(function(a){ return '<button type="button" class="cfTtChip" data-age="'+esc(a)+'" aria-pressed="false">'+esc(a)+'</button>'; }))
-      .join('');
-    sexRow.addEventListener('click', function(e){
-      var b = e.target.closest('[data-sex]'); if(!b) return;
-      draft.optional_context.sex = b.getAttribute('data-sex') || null; paintContext();
-    });
-    ageRow.addEventListener('click', function(e){
-      var b = e.target.closest('[data-age]'); if(!b) return;
-      draft.optional_context.age = b.getAttribute('data-age') || null; paintContext();
-    });
-  }
   function paintCards(){
     Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtCard'), function(card){
       card.setAttribute('aria-checked', card.getAttribute('data-id')===draft.id ? 'true' : 'false');
-    });
-  }
-  function paintContext(){
-    var ctx = draft.optional_context || {};
-    Array.prototype.forEach.call(overlay.querySelectorAll('[data-sex]'), function(b){
-      b.setAttribute('aria-pressed', (b.getAttribute('data-sex')||null)===(ctx.sex||null) ? 'true' : 'false');
-    });
-    Array.prototype.forEach.call(overlay.querySelectorAll('[data-age]'), function(b){
-      b.setAttribute('aria-pressed', (b.getAttribute('data-age')||null)===(ctx.age||null) ? 'true' : 'false');
     });
   }
   function selectDraft(id){
@@ -29852,11 +29991,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
   window.cfOpenTeethTypeGallery = function(){
     ensureOverlay();
-    if(!overlay.querySelector('.cfTtCard')){ buildCards(); buildContext(); }
+    if(!overlay.querySelector('.cfTtCard')) buildCards();
     var cur = window.cfTeethTypeCurrent();
     draft = JSON.parse(JSON.stringify(cur));
-    if(!draft.optional_context) draft.optional_context = { sex:null, age:null };
-    paintCards(); paintContext();
+    paintCards();
+    computeAutoRecommendation(); // async; refreshes the Auto card hint + field when done
     opener = document.getElementById('cfTtField');
     if(opener){
       opener.setAttribute('aria-expanded','true');
@@ -29878,14 +30017,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(!overlay || !overlay.classList.contains('open')) return;
     if(apply && draft){
       var prev = window.cfTeethTypeCurrent();
-      var changed = prev.id!==draft.id
-        || (prev.optional_context&&prev.optional_context.sex)!==(draft.optional_context.sex||null)
-        || (prev.optional_context&&prev.optional_context.age)!==(draft.optional_context.age||null);
+      var changed = prev.id!==draft.id;
+      // sex/age live on the simulator panel (not in this dialog); keep them as-is
       window.state.simTeethType = {
         id: draft.id,
         source: draft.id==='auto' ? 'auto' : 'manual',
         selected_at: changed ? new Date().toISOString() : (prev.selected_at||null),
-        optional_context: { sex: draft.optional_context.sex||null, age: draft.optional_context.age||null }
+        optional_context: prev.optional_context || { sex:null, age:null },
+        auto_recommendation: prev.auto_recommendation || null
       };
       renderField();
       try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
@@ -29908,6 +30047,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   }
   window.cfCloseTeethTypeGallery = closeGallery;
   window.cfTeethTypeFieldHTML = fieldHTML;
+  window.cfPatientCtxFieldHTML = ctxFieldHTML;
   window.cfRenderTeethTypeField = renderField;
 })();
 </script>
