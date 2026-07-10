@@ -1,4 +1,4 @@
-name: Run Smile Designer branch patch
+name: Smile Designer quality gate
 
 on:
   push:
@@ -12,45 +12,42 @@ on:
       - claude/image-morphing-video-3kujgb
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
+  smoke:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'chatgpt/smile-designer-secondary-stage'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/smile-designer-secondary-stage
-          fetch-depth: 0
-      - name: Execute branch patcher and capture diagnostics
-        shell: bash
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright Chromium
         run: |
-          set +e
-          python3 - <<'PY' > docs/smile-designer-run.log 2>&1
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Parse inline scripts
+        run: |
+          python3 - <<'PY'
           from pathlib import Path
-          import traceback
-          try:
-              wf=Path('.github/workflows/cf-smile-designer-implement.yml').read_text(encoding='utf-8')
-              marker="python3 - <<'PY'\n"
-              start=wf.index(marker)+len(marker)
-              end=wf.index("\n          PY", start)
-              raw=wf[start:end].splitlines()
-              code='\n'.join(line[10:] if line.startswith('          ') else line for line in raw)
-              ns={'__name__':'__main__'}
-              exec(compile(code,'cf-smile-designer-implement','exec'),ns,ns)
-              print('PATCH_OK')
-          except Exception:
-              traceback.print_exc()
-              print('PATCH_FAILED')
+          import re, subprocess, tempfile
+          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          failures=[]
+          for i,code in enumerate(scripts):
+              if not code.strip() or 'src=' in code[:100]: continue
+              p=Path(tempfile.gettempdir())/f'cf-script-{i}.js'
+              p.write_text(code,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(p)],capture_output=True,text=True)
+              if r.returncode: failures.append((i,r.stderr[-500:]))
+          if failures:
+              print(failures)
+              raise SystemExit(1)
+          print(f'{len(scripts)} inline scripts parsed')
           PY
-          cat docs/smile-designer-run.log
-      - name: Commit diagnostics and implementation when present
-        run: |
-          git config user.name "caseflow-smile-designer-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add docs/smile-designer-run.log
-          test -f docs/smile-designer-implementation.md && git add docs/smile-designer-implementation.md || true
-          git add caseflow_studio_v96.html
-          git commit -m "chore(simulation): run Smile Designer patcher" || exit 0
-          git push origin HEAD:chatgpt/smile-designer-secondary-stage
+      - name: Run real-app Smile Designer smoke suite
+        run: node docs/smile-designer-smoke.js caseflow_studio_v96.html
