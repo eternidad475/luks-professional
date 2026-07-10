@@ -1,6 +1,1 @@
-Traceback (most recent call last):
-  File "<stdin>", line 10, in <module>
-  File "cf-smile-designer-implement", line 1
-    from pathlib import Path
-IndentationError: unexpected indent
-PATCH_FAILED
+PATCH_OK
