@@ -1,0 +1,32 @@
+name: Run iOS generation hotfix
+
+on:
+  push:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - .github/workflows/cf-run-generation-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/image-morphing-video-3kujgb
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply and validate hotfix
+        run: python3 scripts/cf_generation_hotfix.py
+      - name: Commit result
+        run: |
+          git config user.name "caseflow-hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add caseflow_studio_v96.html docs/generation-hotfix-result.txt
+          git commit -m "fix(simulation): prevent iOS generation freeze and blank recovery" || exit 0
+          git push origin HEAD:claude/image-morphing-video-3kujgb
