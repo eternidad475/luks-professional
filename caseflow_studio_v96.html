@@ -29365,6 +29365,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtOverlay.open .cfTtSheet{opacity:1;transform:none}
 .cfTtOverlay.closing .cfTtSheet{opacity:0;transform:translateY(30px) scale(.955);pointer-events:none}
 .cfTtHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 2px 10px}
+.cfTtHead,.cfTtCtx,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
 .cfTtHead h3{margin:0;font-size:17px;letter-spacing:-.03em}
 .cfTtHead p{margin:3px 0 0;font-size:11px;color:rgba(32,27,53,.5);font-weight:800}
 .cfTtClose{
@@ -29375,9 +29376,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
 /* ---- vertical snap gallery: specimens moving through a narrow light field ---- */
 .cfTtScroll{
-  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  /* flexes between min-height and max-height so the sheet always fits the
+     viewport (landscape included); siblings below are flex:0 0 auto */
+  flex:1 1 auto;min-height:118px;max-height:min(46dvh,420px);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
   scroll-snap-type:y mandatory;
-  height:min(46dvh,420px);
   padding:56px 4px;
   display:flex;flex-direction:column;gap:14px;
   mask-image:linear-gradient(180deg, transparent 0%, #000 13%, #000 87%, transparent 100%);
@@ -29700,7 +29703,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   }
 
   /* ---- dialog (appended once at body level; panel rebuilds cannot destroy it) ---- */
-  var overlay=null, opener=null, draft=null, scrollRaf=0;
+  var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
   var DISCLAIMER_JA='この選択はシミュレーション上の歯冠形態の方向性を調整するものです。最終的な治療計画を決定するものではありません。';
   var DISCLAIMER_EN='This selection guides the visual morphology of the simulation. It does not determine the final treatment plan.';
 
@@ -29859,6 +29862,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       opener.setAttribute('aria-expanded','true');
       if(!reduced()){ opener.classList.add('cfTtGlow'); setTimeout(function(){ opener && opener.classList.remove('cfTtGlow'); }, 620); }
     }
+    if(closeTimer){ clearTimeout(closeTimer); closeTimer=0; }
     overlay.classList.remove('closing');
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden','false');
@@ -29894,7 +29898,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       overlay.classList.remove('open');
     } else {
       overlay.classList.add('closing');
-      setTimeout(function(){ overlay.classList.remove('open','closing'); }, 300);
+      closeTimer = setTimeout(function(){ closeTimer=0; overlay.classList.remove('open','closing'); }, 300);
     }
     if(opener){
       opener.setAttribute('aria-expanded','false');

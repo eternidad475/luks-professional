@@ -136,9 +136,12 @@ Sex/age are contextual hints only; the fragment states they must never override 
 Recorded truthfully; this environment is headless (no iOS device, no browser session with the deployed backend).
 
 **Static / automated (run here):**
-- `node --check` parse gate over every tracked `.js`; the modified HTML's inline scripts extracted and syntax-checked with Node (see PR body for the exact method and output).
-- JSON validity of manifests unchanged.
+- All 80 inline `<script>` blocks of the modified `caseflow_studio_v96.html` (and `caseflow_admin.html`) extracted and parsed with `node --check`: 0 failures.
 - Grep-audits: exactly one `teeth_type` payload writer, one settings stamper, one prompt-fragment builder; no `localStorage` writes from the new module; no service-worker changes.
+
+**Headless functional smoke test (run here, real app in Chromium via Playwright — `docs/phase1-teeth-gallery-smoke.js`): 33 checks, 0 failures.** Covered: field renders on the simulator panel with Auto default; Auto + no context emits an *empty* prompt fragment (existing production prompts byte-identical); dialog semantics (`role=dialog`, `aria-modal`, labelled), six radios, focus moves in and returns to the opener; select→Apply commits the canonical state and updates the field summary; facial *and* intraoral `buildClinicalPrompt` paths carry the fragment with the subordination clauses; `buildSimulationPayload.teeth_type` additive with existing fields intact; Escape/backdrop cancel restore the prior selection; Auto reset clears context; `selectSimResult` restores a variation's tooth form without leaking a `teethType` key into `simV96`; `clearPhotos` resets to Auto; nothing teeth-related in `localStorage`; `cfPersist` session meta round-trips the selection; reduced-motion open/close; live palette swap restyles the open dialog; landscape sheet fits the viewport; 12 rapid open/close cycles cause zero DOM growth (this test caught and fixed a reopen-within-300 ms close-timer race and a landscape overflow).
+
+Screenshots captured from the headless runs: gallery open (Auto centered), card selected, optional context, applied field state with toast, alternate green/gold palette, landscape.
 
 **Manual matrix (requires a reviewer with a device — unchecked items are NOT claimed):**
 - [ ] iPhone portrait / landscape, iPad portrait / landscape, desktop narrow / wide
