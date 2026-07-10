@@ -1,0 +1,60 @@
+name: Diagnose generation freeze
+
+on:
+  push:
+    branches:
+      - chatgpt/fix-generation-freeze
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/fix-generation-freeze
+          fetch-depth: 0
+      - name: Extract relevant implementation context
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          src = Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          lines = src.splitlines()
+          patterns = [
+              r'runSecondaryRefinement', r'Waiting', r'仕上げ処理中',
+              r'Rendering visual simulation', r'showLoading', r'hideLoading',
+              r'loading', r'produceImage', r'consume', r'refund',
+              r'AbortController', r'fetch\(', r'finally\s*\{'
+          ]
+          hits=[]
+          for i,line in enumerate(lines):
+              if any(re.search(p,line,re.I) for p in patterns):
+                  hits.append(i)
+          merged=[]
+          for i in hits:
+              a=max(0,i-14); b=min(len(lines),i+28)
+              if merged and a<=merged[-1][1]+3:
+                  merged[-1]=(merged[-1][0],max(merged[-1][1],b))
+              else:
+                  merged.append((a,b))
+          out=[]
+          out.append(f'line_count={len(lines)}')
+          out.append(f'hit_count={len(hits)}')
+          for a,b in merged:
+              out.append(f'\n===== LINES {a+1}-{b} =====')
+              for n in range(a,b):
+                  out.append(f'{n+1:05d}: {lines[n]}')
+          Path('docs/generation-freeze-audit.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit audit output
+        run: |
+          git config user.name "caseflow-diagnostic-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/generation-freeze-audit.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: capture generation freeze audit context"
+          git push origin HEAD:chatgpt/fix-generation-freeze
