@@ -1,0 +1,2 @@
+SUCCESS
+inline_scripts=83

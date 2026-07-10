@@ -19995,39 +19995,53 @@ body[data-ui-tone="dark"]{
   // "Overloaded"; 429 = rate limit; 5xx = gateway/server hiccups.
   const RETRY_STATUS={408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1};
   function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+  /* CF_IOS_GENERATION_HARDENING_V1 */
+  async function cfPrepareGenerationImage(dataUrl,maxEdge,quality){
+    maxEdge=maxEdge||1800; quality=quality||0.88;
+    if(!dataUrl || typeof dataUrl!=='string' || !dataUrl.startsWith('data:image/')) return dataUrl;
+    try{
+      const img=await loadImage(dataUrl);
+      const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+      const longest=Math.max(iw,ih);
+      if(longest<=maxEdge && dataUrl.length<5500000) return dataUrl;
+      const scale=Math.min(1,maxEdge/longest);
+      const w=Math.max(1,Math.round(iw*scale)), h=Math.max(1,Math.round(ih*scale));
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const x=c.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+      x.drawImage(img,0,0,w,h);
+      const out=c.toDataURL('image/jpeg',quality);
+      c.width=1; c.height=1;
+      return out;
+    }catch(e){ console.warn('[CaseFlow] generation image optimization skipped',e); return dataUrl; }
+  }
+  window.cfPrepareGenerationImage=cfPrepareGenerationImage;
+
   async function fetchSimWithRetry(ep, body, maxAttempts){
-    maxAttempts=maxAttempts||4;
+    maxAttempts=maxAttempts||2;
     let lastErr=null;
     for(let attempt=1; attempt<=maxAttempts; attempt++){
+      let ctrl=null, tid=null;
       try{
-        const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body});
+        ctrl=new AbortController();
+        window.__cfGenerationAbort=function(){ try{ ctrl.abort(); }catch(e){} };
+        tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },60000);
+        const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body,signal:ctrl.signal});
+        clearTimeout(tid); tid=null; window.__cfGenerationAbort=null;
         if(res.ok) return res;
-        // Retry transient statuses; surface anything else immediately.
-        if(RETRY_STATUS[res.status] && attempt<maxAttempts){
-          let t=''; try{ t=await res.text(); }catch(e){}
-          lastErr=new Error('HTTP '+res.status+' '+t.slice(0,400));
-        }else{
-          let t=''; try{ t=await res.text(); }catch(e){}
-          throw new Error('HTTP '+res.status+' '+t.slice(0,400));
-        }
+        let t=''; try{ t=await res.text(); }catch(e){}
+        const err=new Error('HTTP '+res.status+' '+t.slice(0,400));
+        if(RETRY_STATUS[res.status] && attempt<maxAttempts) lastErr=err; else throw err;
       }catch(e){
-        // Network/abort errors are retryable too; rethrow non-retryable HTTP errors.
+        if(tid) clearTimeout(tid); window.__cfGenerationAbort=null;
+        if(e && e.name==='AbortError') e=new Error('生成処理がタイムアウトしました。通信状態を確認して再試行してください。');
         if(/^HTTP \d/.test(e&&e.message||'') && !RETRY_STATUS[parseInt((e.message.match(/HTTP (\d+)/)||[])[1],10)]) throw e;
-        lastErr=e;
-        if(attempt>=maxAttempts) break;
+        lastErr=e; if(attempt>=maxAttempts) break;
       }
-      // Exponential backoff with jitter: ~1s, 2s, 4s (+0-400ms).
-      const wait=Math.pow(2,attempt-1)*1000 + Math.floor(Math.random()*400);
-      const msg='サーバー混雑のため再試行中… ('+attempt+'/'+(maxAttempts-1)+')';
-      try{
-        const subEl=document.querySelector('.cfWaitOverlay .cfWaitSub');
-        if(subEl) subEl.textContent=msg;
-        else if(typeof toastFn==='function') toastFn(msg);
-        else if(typeof toast==='function') toast(msg);
-      }catch(e){}
+      const wait=Math.pow(2,attempt-1)*900 + Math.floor(Math.random()*300);
+      try{ const q=document.querySelector('.cfWaitOverlay .cfWaitSub'); if(q) q.textContent='サーバー応答を待っています… 再試行 '+attempt+'/'+(maxAttempts-1); }catch(e){}
       await sleep(wait);
     }
-    throw lastErr || new Error('リクエストに失敗しました');
+    throw lastErr || new Error('生成リクエストに失敗しました');
   }
 
   // ── buildSimulationPayload ────────────────────────────────────────────────────
@@ -20143,14 +20157,16 @@ body[data-ui-tone="dark"]{
     }
     try{
       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
-      const res=await fetchSimWithRetry(ep, JSON.stringify(buildSimulationPayload(source)));
+      const _payload=buildSimulationPayload(source);
+      _payload.image=await cfPrepareGenerationImage(_payload.image,1800,0.88);
+      const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),2);
       const j=await res.json();
       if(j && j.error) throw new Error(String(j.error).slice(0,400));
       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
       if(!out) throw new Error('画像が返りませんでした (no image in response)');
       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
-      try{ return await finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}); }
-      catch(e){ console.warn('finalize failed, using raw AI image', e); return out; }
+      try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),28000))]); }
+      catch(e){ console.warn('finalize failed or timed out, using raw AI image', e); return out; }
     }catch(genErr){
       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
       if(_ledgerId!=null && typeof window.cfRefundGeneration==='function'){
@@ -21681,7 +21697,7 @@ window.cfShowExtractionWarning = function(){
 };
 
 window.cfWait = (function(){
-  var el, sub, showTimer, depth=0;
+  var el, sub, showTimer, watchdogTimer, depth=0;
   function ensure(){
     if(el) return el;
     el=document.createElement('div');
@@ -21692,9 +21708,11 @@ window.cfWait = (function(){
       '<div class="cfWaitSpinner"></div>'+
       '<div class="cfWaitText"><span>Waiting</span>'+
       '<span class="cfWaitDots"><span>•</span><span>•</span><span>•</span></span></div>'+
-      '<div class="cfWaitSub"></div></div>';
+      '<div class="cfWaitSub"></div><button type="button" class="cfWaitCancel" style="margin-top:14px;min-width:112px;min-height:40px;border:1px solid rgba(32,27,53,.14);border-radius:999px;background:rgba(255,255,255,.72);color:#201b35;font-weight:850;font-size:12px">処理を中止</button></div>';
     document.body.appendChild(el);
     sub=el.querySelector('.cfWaitSub');
+    var cancel=el.querySelector('.cfWaitCancel');
+    if(cancel) cancel.addEventListener('click',function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理を中止しました'); }catch(e){} });
     return el;
   }
   function show(msg, delay){
@@ -21703,14 +21721,16 @@ window.cfWait = (function(){
     if(sub) sub.textContent = msg || '';
     clearTimeout(showTimer);
     showTimer=setTimeout(function(){ if(el) el.classList.add('show'); }, delay==null?0:delay);
+    clearTimeout(watchdogTimer);
+    watchdogTimer=setTimeout(function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理が長時間応答しなかったため停止しました。再試行してください。'); }catch(e){} },125000);
   }
   function hide(){
     depth=Math.max(0, depth-1);
     if(depth>0) return;
-    clearTimeout(showTimer);
+    clearTimeout(showTimer); clearTimeout(watchdogTimer);
     if(el) el.classList.remove('show');
   }
-  function hideAll(){ depth=0; clearTimeout(showTimer); if(el) el.classList.remove('show'); }
+  function hideAll(){ depth=0; clearTimeout(showTimer); clearTimeout(watchdogTimer); if(el) el.classList.remove('show'); }
   return { show:show, hide:hide, hideAll:hideAll };
 })();
 
@@ -30179,5 +30199,9 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 })();
 </script>
 
+
+<script id="cf-ios-recovery-v1">
+(function(){function recover(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{document.documentElement.style.removeProperty('overflow');document.body.style.removeProperty('overflow');}catch(e){}try{var a=document.querySelector('.app');if(a){a.style.visibility='visible';a.style.opacity='1';}}catch(e){}}window.addEventListener('pageshow',function(e){if(e.persisted)setTimeout(recover,40);});window.addEventListener('unhandledrejection',function(){setTimeout(function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}},0);});window.addEventListener('error',function(){setTimeout(function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}},0);});})();
+</script>
 </body>
 </html>
