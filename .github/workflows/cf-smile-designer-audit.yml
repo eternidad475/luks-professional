@@ -1,0 +1,48 @@
+name: CaseFlow Smile Designer Audit
+
+on:
+  push:
+    branches:
+      - chatgpt/smile-designer-secondary-stage
+    paths:
+      - .github/workflows/cf-smile-designer-audit.yml
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/smile-designer-secondary-stage
+          fetch-depth: 0
+      - name: Extract implementation context
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('caseflow_studio_v96.html')
+          lines=p.read_text(encoding='utf-8').splitlines()
+          terms=[
+            'Simulation Compare','Image edit controls','renderResultImages','buildEditGrid',
+            'simFinishPanel','cfTtField','cfOpenTeethTypeGallery','simConcept',
+            'Orthodontic','Prosthetic','generateSimulation','simResult','Before / After'
+          ]
+          out=[]
+          for term in terms:
+            hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+            out.append(f'## {term} ({len(hits)} hits)')
+            for i in hits[:20]:
+              lo=max(0,i-8); hi=min(len(lines),i+13)
+              out.append(f'\n### lines {lo+1}-{hi}\n')
+              for j in range(lo,hi): out.append(f'{j+1:06d}: {lines[j]}')
+          Path('docs/smile-designer-audit.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit audit context
+        run: |
+          git config user.name "caseflow-audit-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/smile-designer-audit.txt
+          git commit -m "chore: capture Smile Designer implementation context" || exit 0
+          git push
