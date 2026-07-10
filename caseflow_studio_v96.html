@@ -19996,14 +19996,15 @@ body[data-ui-tone="dark"]{
   const RETRY_STATUS={408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1};
   function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
   /* CF_IOS_GENERATION_HARDENING_V1 */
+  /* CF_GENERATION_SPEED_V2 */
   async function cfPrepareGenerationImage(dataUrl,maxEdge,quality){
-    maxEdge=maxEdge||1800; quality=quality||0.88;
+    maxEdge=maxEdge||1280; quality=quality||0.84;
     if(!dataUrl || typeof dataUrl!=='string' || !dataUrl.startsWith('data:image/')) return dataUrl;
     try{
       const img=await loadImage(dataUrl);
       const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
       const longest=Math.max(iw,ih);
-      if(longest<=maxEdge && dataUrl.length<5500000) return dataUrl;
+      if(longest<=maxEdge && dataUrl.length<2800000) return dataUrl;
       const scale=Math.min(1,maxEdge/longest);
       const w=Math.max(1,Math.round(iw*scale)), h=Math.max(1,Math.round(ih*scale));
       const c=document.createElement('canvas'); c.width=w; c.height=h;
@@ -20017,14 +20018,14 @@ body[data-ui-tone="dark"]{
   window.cfPrepareGenerationImage=cfPrepareGenerationImage;
 
   async function fetchSimWithRetry(ep, body, maxAttempts){
-    maxAttempts=maxAttempts||2;
+    maxAttempts=maxAttempts||1;
     let lastErr=null;
     for(let attempt=1; attempt<=maxAttempts; attempt++){
       let ctrl=null, tid=null;
       try{
         ctrl=new AbortController();
         window.__cfGenerationAbort=function(){ try{ ctrl.abort(); }catch(e){} };
-        tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },60000);
+        tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },20000);
         const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body,signal:ctrl.signal});
         clearTimeout(tid); tid=null; window.__cfGenerationAbort=null;
         if(res.ok) return res;
@@ -20158,14 +20159,19 @@ body[data-ui-tone="dark"]{
     try{
       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
       const _payload=buildSimulationPayload(source);
-      _payload.image=await cfPrepareGenerationImage(_payload.image,1800,0.88);
-      const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),2);
+      const _cfImageEdge=(source&&source.intraoral)?1536:1280;
+      const _cfPrepStart=performance.now();
+      _payload.image=await cfPrepareGenerationImage(_payload.image,_cfImageEdge,0.84);
+      const _cfPayloadBytes=JSON.stringify(_payload).length;
+      const _cfRequestStart=performance.now();
+      const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),1);
+      window.__caseflowLastRequestTiming={prepare_ms:Math.round(_cfRequestStart-_cfPrepStart),request_ms:Math.round(performance.now()-_cfRequestStart),payload_bytes:_cfPayloadBytes};
       const j=await res.json();
       if(j && j.error) throw new Error(String(j.error).slice(0,400));
       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
       if(!out) throw new Error('画像が返りませんでした (no image in response)');
       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
-      try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),28000))]); }
+      try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),5000))]); }
       catch(e){ console.warn('finalize failed or timed out, using raw AI image', e); return out; }
     }catch(genErr){
       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
@@ -20653,8 +20659,14 @@ body[data-ui-tone="dark"]{
   async function produceImage(src){
     // Shot type (リップの有無・コントラスター) is chosen in the Micro/Focus upload card; here we
     // only make sure the flags are resolved (no popup at generation time).
-    try{ await ensureIntraoralFlag(src); }catch(e){}
-    try{ await ensureProblemList(src); }catch(e){}
+    const _cfPreflightStart=performance.now();
+    try{
+      await Promise.allSettled([
+        ensureIntraoralFlag(src),
+        Promise.race([ensureProblemList(src),new Promise(function(resolve){setTimeout(resolve,1500);})])
+      ]);
+    }catch(e){}
+    const _cfPreflightMs=Math.round(performance.now()-_cfPreflightStart);
     const _aiOn=aiEnabled();
     try{ if(window.cfWait) cfWait.show(_aiOn?'AIシミュレーション中':'画像を処理中', _aiOn?0:220); }catch(e){}
     // Progressive sub-messages for AI path
@@ -20667,6 +20679,7 @@ body[data-ui-tone="dark"]{
       _tick();
       _progressTimer=setInterval(_tick, 2400);
     }
+    const _cfGenerationStart=performance.now();
     try{
       if(_aiOn){
         try{ const u=await generateViaAI(src); if(u) return u; }
@@ -20678,7 +20691,11 @@ body[data-ui-tone="dark"]{
       return await createSimulationImageV96(src, state.simV96);
     } finally {
       clearInterval(_progressTimer);
-      try{ if(window.cfWait) cfWait.hide(); }catch(e){}
+      const _cfTotalMs=Math.round(performance.now()-_cfGenerationStart);
+      window.__caseflowGenerationTiming={preflight_ms:_cfPreflightMs,total_ms:_cfTotalMs,completed_at:new Date().toISOString()};
+      try{ if(typeof window.cfLogEvent==='function') window.cfLogEvent('generation_timing','visual-simulation',window.__caseflowGenerationTiming); }catch(e){}
+      console.log('[CaseFlow Generation Timing]',window.__caseflowGenerationTiming);
+      try{ if(window.cfWait) cfWait.hideAll(); }catch(e){}
     }
   }
   window.caseflowProduceSimImage=produceImage;
@@ -21722,7 +21739,7 @@ window.cfWait = (function(){
     clearTimeout(showTimer);
     showTimer=setTimeout(function(){ if(el) el.classList.add('show'); }, delay==null?0:delay);
     clearTimeout(watchdogTimer);
-    watchdogTimer=setTimeout(function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理が長時間応答しなかったため停止しました。再試行してください。'); }catch(e){} },125000);
+    watchdogTimer=setTimeout(function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理が長時間応答しなかったため停止しました。再試行してください。'); }catch(e){} },32000);
   }
   function hide(){
     depth=Math.max(0, depth-1);
