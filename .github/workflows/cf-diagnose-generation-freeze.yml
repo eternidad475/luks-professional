@@ -18,19 +18,19 @@ jobs:
         with:
           ref: claude/image-morphing-video-3kujgb
           fetch-depth: 1
-      - name: Persist generation and waiting UI diagnostics
+      - name: Persist generation lifecycle diagnostics
         run: |
           python3 - <<'PY'
           from pathlib import Path
           s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
-          terms=['Waiting','仕上げ処理中','Rendering visual simulation','showWaiting','hideWaiting','openWaiting','closeWaiting','cfSdApply','runGoldenProportion','generateRefined','AbortController','fetch(']
+          terms=['async function generateViaAI','function generateViaAI','generateViaAI(src)','JSON.stringify(payload)','caseflowProduceSimImage','window.cfWait =','window.cfRunSecondaryRefine','generateRefinedViaAI','cfSdApply.addEventListener']
           lines=s.splitlines(); out=[]
           for term in terms:
               out += ['', '===== TERM: '+term+' =====']
               hits=[i for i,l in enumerate(lines) if term in l]
               out.append('hits '+repr([x+1 for x in hits[:30]]))
-              for i in hits[:8]:
-                  lo=max(0,i-18); hi=min(len(lines),i+42)
+              for i in hits[:12]:
+                  lo=max(0,i-35); hi=min(len(lines),i+110)
                   out.append(f'--- lines {lo+1}-{hi} ---')
                   out += [f'{n+1:05d}: {lines[n]}' for n in range(lo,hi)]
           Path('docs/generation-freeze-diagnostic.txt').write_text('\n'.join(out),encoding='utf-8')
@@ -38,5 +38,5 @@ jobs:
           git config user.name "caseflow-diagnostics"
           git config user.email "actions@users.noreply.github.com"
           git add docs/generation-freeze-diagnostic.txt
-          git commit -m "chore: persist generation freeze diagnostics" || exit 0
+          git commit -m "chore: update generation lifecycle diagnostics" || exit 0
           git push origin HEAD:claude/image-morphing-video-3kujgb
