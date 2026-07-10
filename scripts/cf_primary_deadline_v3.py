@@ -1,6 +1,7 @@
 from pathlib import Path
 import re, subprocess, tempfile, traceback
 
+# Workflow trigger: primary hard-deadline v3
 HTML = Path('caseflow_studio_v96.html')
 SW = Path('sw.js')
 LOG = Path('docs/primary-generation-v3-result.txt')
@@ -9,7 +10,6 @@ try:
     s = HTML.read_text(encoding='utf-8')
     marker = '/* CF_PRIMARY_HARD_DEADLINE_V3 */'
     if marker not in s:
-        # 1) Bound upload classification. This function previously awaited MediaPipe/local analysis forever.
         start = s.find('  async function ensureIntraoralFlag(src){')
         end_marker = '\n  window.caseflowEnsureIntraoral=ensureIntraoralFlag;'
         end = s.find(end_marker, start)
@@ -36,7 +36,6 @@ try:
         }
       }
     }catch(e){}
-    // Generation may never wait for analysis. Category and upload controls are the safe default.
     if(typeof src.intraoral!=='boolean') src.intraoral=((src.category||'').toLowerCase()==='intraoral');
     if(typeof src.intraoralDark!=='boolean') src.intraoralDark=false;
     resolveLips(); return src.intraoral;
@@ -44,8 +43,6 @@ try:
   window.caseflowEnsureIntraoral=ensureIntraoralFlag;'''
         s = s[:start] + bounded_flag + s[end:]
 
-        # 2) Replace the orchestration with an absolute result deadline. Heavy local pixel processing
-        # is no longer used after an AI timeout on the primary path.
         pstart = s.find('  async function produceImage(src){')
         pend_marker = '\n  window.caseflowProduceSimImage=produceImage;'
         pend = s.find(pend_marker, pstart)
@@ -67,7 +64,6 @@ try:
       const w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
       const c=document.createElement('canvas');c.width=w;c.height=h;
       const x=c.getContext('2d',{alpha:false});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
-      // A deliberately conservative, GPU-light optical preview. It never claims structural AI accuracy.
       const facial=((src.category||'').toLowerCase()==='facial')||(!src.intraoral&&src.lips!==false);
       const rx=facial?w*.31:w*.12, ry=facial?h*.50:h*.18, rw=facial?w*.38:w*.76, rh=facial?h*.23:h*.55;
       const tmp=document.createElement('canvas');tmp.width=w;tmp.height=h;
@@ -113,8 +109,6 @@ try:
         if(result&&result.kind==='deadline'){try{if(window.__cfGenerationAbort)window.__cfGenerationAbort();}catch(e){}}
         if(result&&result.kind==='error') window.__caseflowLastAIError=String((result.err&&result.err.message)||result.err||'AI error');
       }
-      // Absolute contract: always resolve the first result screen without invoking the heavy
-      // full-frame local pixel/MediaPipe fallback after an AI stall.
       let quick=null;
       try{quick=await Promise.race([quickTask,new Promise(resolve=>setTimeout(()=>resolve(src&&src.dataUrl||null),1200))]);}catch(e){quick=src&&src.dataUrl||null;}
       if(!quick) throw new Error('一次プレビューを作成できませんでした');
@@ -132,12 +126,7 @@ try:
   }
   window.caseflowProduceSimImage=produceImage;'''
         s = s[:pstart] + orchestration + s[pend:]
-
-        # 3) The visual watchdog is a second independent safety net.
         s = s.replace("},32000);", "},24000);", 1)
-
-        # 4) Recover a usable screen after WebKit restores a killed tab. The previous recovery
-        # only made .app visible, leaving every .screen display:none if the process died mid-nav.
         recovery = r'''
 <script id="cf-primary-recovery-v3">
 (function(){
@@ -167,12 +156,9 @@ try:
         if '</body>' not in s: raise RuntimeError('body end missing')
         s=s.replace('</body>',recovery+'</body>',1)
         HTML.write_text(s,encoding='utf-8')
-
-    # Service worker cache version bump so every Safari session receives this contract.
     sw=SW.read_text(encoding='utf-8')
     sw=sw.replace("var VERSION = 'cfsw-v1';","var VERSION = 'cfsw-v3-primary-deadline';")
     SW.write_text(sw,encoding='utf-8')
-
     s=HTML.read_text(encoding='utf-8')
     required=['CF_PRIMARY_HARD_DEADLINE_V3','CF_PRIMARY_RESULT_DEADLINE_MS=18000','cfFastPrimaryPreview','cf-primary-recovery-v3','window.__caseflowQuickPreviewUsed']
     if not all(k in s for k in required): raise RuntimeError('required V3 markers missing')
