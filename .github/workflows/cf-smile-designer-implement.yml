@@ -1,0 +1,186 @@
+name: Implement CaseFlow Smile Designer
+
+on:
+  push:
+    branches:
+      - chatgpt/smile-designer-secondary-stage
+    paths:
+      - .github/workflows/cf-smile-designer-implement.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/smile-designer-secondary-stage
+          fetch-depth: 0
+
+      - name: Patch production HTML
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('caseflow_studio_v96.html')
+          s=p.read_text(encoding='utf-8')
+
+          # 1) Remove the first-generation Teeth Type field. State/prompt code remains
+          # available for the secondary designer and generation metadata.
+          old="      ${(typeof window.cfTeethTypeFieldHTML==='function') ? window.cfTeethTypeFieldHTML() : ''}\n"
+          if old not in s:
+              raise SystemExit('missing first-stage teeth field anchor')
+          s=s.replace(old,"      <!-- Teeth Type is intentionally selected after primary generation in Smile Designer. -->\n",1)
+
+          # 2) Result-stage host between the comparison image and generic edit controls.
+          old='  </div>\n  <div class="card simEditPanel" id="simResultEditPanel">'
+          new='  </div>\n  <div id="cfSmileDesignerHost"></div>\n  <div class="card simEditPanel" id="simResultEditPanel">'
+          if old not in s:
+              raise SystemExit('missing result host anchor')
+          s=s.replace(old,new,1)
+
+          # 3) Reuse the existing MediaPipe upper-anterior cropper for a reliable live preview ROI.
+          old="    return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };\n  }\n\n  // Generate the refined image."
+          new="    return { dataUrl: c.toDataURL('image/jpeg', 0.93), cropRect: cropRect, imgW:w, imgH:h };\n  }\n  window.cfCropUpperAnteriorTeeth = cropUpperAnteriorTeeth;\n\n  // Generate the refined image."
+          if old not in s:
+              raise SystemExit('missing crop exposure anchor')
+          s=s.replace(old,new,1)
+
+          # 4) Add the clinician-selected Smile Designer direction to the existing safe
+          # golden-proportion secondary pass; token, ROI, identity and artifact gates stay intact.
+          old='      prompt: buildGoldenProportionPrompt(imageType),'
+          new="      prompt: buildGoldenProportionPrompt(imageType) + (typeof window.cfSmileDesignerPromptFragment==='function' ? ' ' + window.cfSmileDesignerPromptFragment(imageType) : ''),"
+          if old not in s:
+              raise SystemExit('missing secondary prompt anchor')
+          s=s.replace(old,new,1)
+
+          block=r'''
+<style id="cf-smile-designer-v1-style">
+/* Secondary-stage Smile Designer — clinical instruments made from living glass. */
+#cfSmileDesignerHost{margin:14px 0}
+.cfSdLaunch{width:100%;border:1px solid color-mix(in srgb,var(--c1) 24%,rgba(255,255,255,.66));border-radius:25px;padding:15px 16px;display:flex;align-items:center;gap:13px;text-align:left;color:var(--cfUiText,#201b35);cursor:pointer;background:radial-gradient(120% 170% at 6% -20%,color-mix(in srgb,var(--c1) 17%,transparent),transparent 58%),radial-gradient(130% 160% at 100% 120%,color-mix(in srgb,var(--c2) 14%,transparent),transparent 61%),linear-gradient(155deg,var(--cfUiPanelStrong,rgba(255,255,255,.88)),var(--cfUiPanel,rgba(255,255,255,.62)));box-shadow:0 18px 40px rgba(26,18,64,.13),inset 0 1px 0 rgba(255,255,255,.82);transition:transform .24s ease,box-shadow .3s ease}
+.cfSdLaunch:active{transform:scale(.987)}.cfSdLaunch:focus-visible{outline:2px solid color-mix(in srgb,var(--c1) 70%,#201b35);outline-offset:3px}
+.cfSdOrb{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:radial-gradient(circle at 34% 24%,rgba(255,255,255,.92),color-mix(in srgb,var(--c1) 26%,transparent) 38%,color-mix(in srgb,var(--c2) 44%,#181428) 100%);box-shadow:inset 0 1px 8px rgba(255,255,255,.54),0 9px 24px color-mix(in srgb,var(--c1) 25%,transparent);color:#fff;font-size:21px}
+.cfSdLaunchText{min-width:0;flex:1}.cfSdLaunchText b{display:block;font-size:16px;font-weight:950;letter-spacing:-.025em}.cfSdLaunchText span{display:block;margin-top:3px;font-size:10.5px;line-height:1.48;font-weight:750;color:var(--cfUiSub,rgba(32,27,53,.58))}.cfSdLaunchMeta{font-size:10px;font-weight:950;padding:7px 9px;border-radius:999px;background:color-mix(in srgb,var(--c1) 11%,rgba(255,255,255,.74));white-space:nowrap}
+.cfSdOverlay{position:fixed;inset:0;z-index:10055;display:none;align-items:flex-end;justify-content:center;background:rgba(8,8,18,.38);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px)}.cfSdOverlay.open{display:flex}.cfSdBackdrop{position:absolute;inset:0;border:0;background:transparent}.cfSdSheet{position:relative;width:min(500px,100%);max-height:calc(100dvh - 22px);display:flex;flex-direction:column;overflow:hidden;border-radius:32px 32px 0 0;padding:10px 15px calc(14px + env(safe-area-inset-bottom,0px));color:var(--cfUiText,#201b35);background:radial-gradient(150% 100% at 4% -5%,color-mix(in srgb,var(--c1) 17%,transparent),transparent 57%),radial-gradient(150% 120% at 100% 110%,color-mix(in srgb,var(--c2) 14%,transparent),transparent 58%),linear-gradient(180deg,var(--cfUiPanelStrong,rgba(255,255,255,.96)),var(--cfUiPanel,rgba(255,255,255,.82)));border:1px solid rgba(255,255,255,.72);box-shadow:0 32px 90px rgba(14,10,48,.38),inset 0 1px 0 rgba(255,255,255,.92);opacity:0;transform:translateY(28px) scale(.975);transform-origin:50% 100%;transition:opacity .28s ease,transform .38s cubic-bezier(.22,.9,.24,1)}.cfSdOverlay.open .cfSdSheet{opacity:1;transform:none}.cfSdOverlay.closing .cfSdSheet{opacity:0;transform:translateY(24px) scale(.98)}
+.cfSdHandle{width:44px;height:4px;border-radius:99px;background:color-mix(in srgb,var(--cfUiText,#201b35) 18%,transparent);margin:1px auto 9px}.cfSdHead{display:flex;gap:12px;align-items:flex-start;margin:0 2px 10px}.cfSdHead>div{flex:1}.cfSdHead h3{margin:0;font-size:18px;letter-spacing:-.035em}.cfSdHead p{margin:4px 0 0;font-size:10.5px;line-height:1.45;font-weight:750;color:var(--cfUiSub,rgba(32,27,53,.58))}.cfSdClose{width:44px;height:44px;border:0;border-radius:50%;background:color-mix(in srgb,var(--cfUiText,#201b35) 7%,transparent);color:inherit;font-size:22px;cursor:pointer}
+.cfSdBody{overflow-y:auto;overscroll-behavior:contain;padding:0 2px 4px}.cfSdPreview{position:relative;overflow:hidden;border-radius:22px;min-height:168px;aspect-ratio:4/3;background:#111;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 14px 32px rgba(15,10,46,.16)}.cfSdPreview img,.cfSdPreview canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}.cfSdPreview canvas{pointer-events:none}.cfSdPreviewBadge{position:absolute;left:10px;top:10px;z-index:3;padding:6px 9px;border-radius:999px;color:#fff;font-size:9px;font-weight:900;background:rgba(15,12,27,.64);backdrop-filter:blur(8px)}
+.cfSdSection{margin:12px 0 0}.cfSdLabel{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 2px 7px}.cfSdLabel b{font-size:12px;font-weight:950}.cfSdLabel span{font-size:10px;font-weight:850;color:var(--cfUiSub,rgba(32,27,53,.55))}.cfSdCarousel{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:3px 2px 9px;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}.cfSdCard{scroll-snap-align:center;flex:0 0 136px;min-height:116px;border-radius:20px;border:1.5px solid color-mix(in srgb,var(--cfUiText,#201b35) 10%,rgba(255,255,255,.5));padding:9px;background:linear-gradient(150deg,color-mix(in srgb,var(--c1) 8%,rgba(255,255,255,.82)),color-mix(in srgb,var(--c2) 7%,rgba(255,255,255,.66)));color:inherit;text-align:left;cursor:pointer;opacity:.72;transition:opacity .22s,transform .25s,box-shadow .25s}.cfSdCard[aria-checked="true"]{opacity:1;transform:translateY(-2px);border-color:color-mix(in srgb,var(--c1) 56%,rgba(255,255,255,.55));box-shadow:0 12px 26px color-mix(in srgb,var(--c1) 18%,transparent),inset 0 0 18px color-mix(in srgb,var(--c2) 8%,transparent)}.cfSdSpec{height:62px;border-radius:14px;display:grid;place-items:center;overflow:hidden;background:radial-gradient(90% 100% at 50% 0,color-mix(in srgb,var(--c1) 20%,transparent),transparent 64%),linear-gradient(155deg,#161724,#080910);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}.cfSdSpec svg{width:104px;height:58px}.cfSdCard b{display:block;margin-top:7px;font-size:11.5px;line-height:1.15}.cfSdCard small{display:block;margin-top:3px;font-size:8.8px;line-height:1.3;color:var(--cfUiSub,rgba(32,27,53,.58))}
+.cfSdRatioBox{border-radius:19px;padding:11px 12px;background:color-mix(in srgb,var(--cfUiText,#201b35) 4%,transparent);border:1px solid color-mix(in srgb,var(--cfUiText,#201b35) 8%,transparent)}.cfSdRatioTop{display:flex;justify-content:space-between;align-items:center}.cfSdRatioTop b{font-size:12px}.cfSdRatioVal{font-size:19px;font-weight:950;color:color-mix(in srgb,var(--c1) 76%,var(--cfUiText,#201b35))}.cfSdRatioBox input[type=range]{width:100%;margin:9px 0 4px;accent-color:var(--c1)}.cfSdScale{display:flex;justify-content:space-between;font-size:8.5px;font-weight:800;color:var(--cfUiSub,rgba(32,27,53,.5))}.cfSdPresets{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}.cfSdPreset{min-height:34px;padding:6px 11px;border-radius:999px;border:1px solid color-mix(in srgb,var(--cfUiText,#201b35) 12%,transparent);background:rgba(255,255,255,.55);color:inherit;font-size:10px;font-weight:900;cursor:pointer}.cfSdPreset.on{border-color:color-mix(in srgb,var(--c1) 60%,transparent);background:color-mix(in srgb,var(--c1) 12%,rgba(255,255,255,.72))}
+.cfSdNote{margin:11px 3px 0;font-size:9.5px;line-height:1.55;font-weight:700;color:var(--cfUiSub,rgba(32,27,53,.54))}.cfSdActions{display:flex;gap:9px;flex:0 0 auto;margin-top:10px}.cfSdBtn{flex:1;min-height:50px;border-radius:17px;border:1px solid color-mix(in srgb,var(--cfUiText,#201b35) 12%,transparent);background:rgba(255,255,255,.62);color:inherit;font-size:12px;font-weight:950;cursor:pointer}.cfSdApply{border:0;color:#fff;background:linear-gradient(145deg,var(--c1),color-mix(in srgb,var(--c1) 38%,var(--c2)));box-shadow:0 12px 28px color-mix(in srgb,var(--c1) 25%,transparent)}
+@media (orientation:landscape) and (max-height:500px){.cfSdSheet{width:min(760px,100%);border-radius:25px 25px 0 0}.cfSdBody{display:grid;grid-template-columns:minmax(230px,.9fr) minmax(300px,1.1fr);gap:12px}.cfSdPreview{margin-top:4px}.cfSdControls{min-width:0}.cfSdCarousel{padding-bottom:5px}.cfSdCard{flex-basis:122px;min-height:105px}.cfSdNote{display:none}}
+@media (prefers-reduced-motion:reduce){.cfSdSheet,.cfSdCard,.cfSdLaunch{transition:none!important;transform:none!important}}
+</style>
+<script id="cf-smile-designer-v1">
+(function(){
+  'use strict';
+  if(window.__cfSmileDesignerV1) return; window.__cfSmileDesignerV1=true;
+  window.state=window.state||{};
+  var ORDER=['auto','square','ovoid','tapered','rounded_square','natural_asymmetry'];
+  var LABELS={auto:['Auto','自動'],square:['Square','スクエア'],ovoid:['Ovoid','オーバル'],tapered:['Tapered','テーパード'],rounded_square:['Rounded Square','ラウンドスクエア'],natural_asymmetry:['Natural Asymmetry','ナチュラル・アシンメトリー']};
+  var DESCS={auto:'現在の歯列・顔貌との調和',square:'直線的な隣接面と明瞭な隅角',ovoid:'柔らかな凸面と丸いラインアングル',tapered:'歯頸部を絞った軽い形態',rounded_square:'構造的な幅と柔らかな隅角',natural_asymmetry:'左右の微細な個性差'};
+  var SHAPES={square:{top:1.01,mid:1.02,bottom:1.02},ovoid:{top:.96,mid:1.025,bottom:.97},tapered:{top:.90,mid:.98,bottom:1.06},rounded_square:{top:.99,mid:1.025,bottom:1.01},natural_asymmetry:{top:.98,mid:1.015,bottom:1.0},auto:{top:1,mid:1,bottom:1}};
+  var overlay=null,draft=null,lastFocus=null,closeTimer=0,previewToken=0;
+  function reduced(){try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}}
+  function stateObj(){var s=state.simSmileDesigner;if(!s){s={type:'auto',ratio:62,intensity:58,updated_at:null};state.simSmileDesigner=s}return s}
+  function concept(){return (state.simV82&&state.simV82.concept)||'ortho'}
+  function esc(x){return String(x).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
+  function specimen(id){
+    var paths={square:'M17 9 Q17 4 27 4 Q37 4 37 9 L37 48 Q37 55 32 56 H22 Q17 55 17 48 Z',ovoid:'M18 10 Q18 4 27 4 Q36 4 36 10 Q38 28 34 46 Q32 56 27 57 Q22 56 20 46 Q16 28 18 10 Z',tapered:'M21 9 Q21 4 27 4 Q33 4 33 9 L38 47 Q39 55 33 56 H21 Q15 55 16 47 Z',rounded_square:'M18 10 Q18 4 27 4 Q36 4 36 10 L36 46 Q36 56 30 57 H24 Q18 56 18 46 Z',natural_asymmetry:'M18 10 Q18 4 27 4 Q36 4 36 10 L36 46 Q36 56 30 57 H24 Q18 56 18 46 Z'};
+    if(id==='auto') return '<svg viewBox="0 0 110 62" aria-hidden="true"><path d="M55 7C57 24 65 29 83 31C65 33 57 39 55 55C53 39 45 33 27 31C45 29 53 24 55 7Z" fill="url(#cfSdEn)"/></svg>';
+    var p=paths[id],p2=id==='natural_asymmetry'?'M18 9 Q18 4 27 4 Q36 4 36 9 L35 44 Q35 54 29 55 H24 Q18 54 18 44 Z':p;
+    return '<svg viewBox="0 0 110 62" aria-hidden="true"><defs><linearGradient id="cfSdEn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8f7f1"/><stop offset=".5" stop-color="#fff"/><stop offset=".82" stop-color="#e9f2f2"/><stop offset="1" stop-color="#dbe8e8"/></linearGradient><filter id="cfSdGlow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#b5e7ea" flood-opacity=".35"/></filter></defs><g filter="url(#cfSdGlow)"><path d="'+p+'" transform="translate(1,1)" fill="url(#cfSdEn)" stroke="rgba(210,225,225,.85)"/><path d="'+p2+'" transform="translate(109,1) scale(-1,1)" fill="url(#cfSdEn)" stroke="rgba(210,225,225,.85)"/></g></svg>';
+  }
+  function mount(){
+    var host=document.getElementById('cfSmileDesignerHost');if(!host)return;
+    var s=stateObj(),c=concept(),tt=window.cfTeethTypeCurrent?window.cfTeethTypeCurrent():{id:s.type};var id=s.type!=='auto'?s.type:(tt.id||'auto');
+    host.innerHTML='<button type="button" class="cfSdLaunch" id="cfSdLaunch" onclick="cfOpenSmileDesigner()" aria-haspopup="dialog" aria-expanded="false"><span class="cfSdOrb">✦</span><span class="cfSdLaunchText"><b>Smile Designer / スマイルデザイナー</b><span>'+(c==='ortho'?'矯正後の歯冠形態を任意で仕上げる二次デザイン':'上顎前歯の形態と見かけ幅を二次デザイン')+'。一次結果は保持されます。</span></span><span class="cfSdLaunchMeta">'+esc(LABELS[id][1])+' · '+s.ratio+'%</span></button>';
+    removePrimaryField();
+  }
+  function removePrimaryField(){
+    var f=document.getElementById('cfTtField');if(f){var lab=f.previousElementSibling;if(lab&&/Teeth Type/.test(lab.textContent||''))lab.remove();f.remove()}
+  }
+  function ensureOverlay(){
+    if(overlay)return overlay;overlay=document.createElement('div');overlay.className='cfSdOverlay';overlay.id='cfSdOverlay';overlay.setAttribute('aria-hidden','true');
+    overlay.innerHTML='<button class="cfSdBackdrop" data-sd-close aria-label="Close"></button><div class="cfSdSheet" role="dialog" aria-modal="true" aria-labelledby="cfSdTitle"><div class="cfSdHandle"></div><div class="cfSdHead"><div><h3 id="cfSdTitle">Smile Designer</h3><p>一次生成後の上顎前歯を、形態と見かけのゴールデン比率で検討します。</p></div><button class="cfSdClose" data-sd-close aria-label="閉じる">×</button></div><div class="cfSdBody"><div class="cfSdPreview"><img id="cfSdPreviewImg" alt="Live design preview"><canvas id="cfSdPreviewCanvas"></canvas><span class="cfSdPreviewBadge">LIVE OPTICAL PREVIEW / 光学プレビュー</span></div><div class="cfSdControls"><div class="cfSdSection"><div class="cfSdLabel"><b>Tooth form / 歯冠形態</b><span>swipe</span></div><div class="cfSdCarousel" id="cfSdCarousel" role="radiogroup"></div></div><div class="cfSdSection cfSdRatioBox"><div class="cfSdRatioTop"><b>Golden proportion / 見かけ幅比率</b><span class="cfSdRatioVal" id="cfSdRatioVal">62%</span></div><input id="cfSdRatio" type="range" min="55" max="78" value="62" step="1" aria-label="Lateral incisor visible width relative to central incisor"><div class="cfSdScale"><span>Central dominant</span><span>Golden 62%</span><span>Natural soft</span></div><div class="cfSdPresets"><button class="cfSdPreset" data-ratio="62">Golden 62</button><button class="cfSdPreset" data-ratio="68">Natural 68</button><button class="cfSdPreset" data-ratio="74">Soft 74</button></div></div><p class="cfSdNote">プレビューは患者画像上の局所的な光学ワープです。Apply後、既存の顔貌保持・口唇マスク・アーティファクト拒否を備えたAI二次精密生成で自然なエナメル、接触点、歯肉との調和を再構築します。比率は絶対的な理想値ではなく、臨床家が比較するための参考です。</p></div></div><div class="cfSdActions"><button class="cfSdBtn" data-sd-close>Cancel</button><button class="cfSdBtn cfSdApply" id="cfSdApply">Apply & Final Refine / 適用・精密生成</button></div></div>';
+    document.body.appendChild(overlay);
+    var car=overlay.querySelector('#cfSdCarousel');car.innerHTML=ORDER.map(function(id){return '<button type="button" class="cfSdCard" role="radio" aria-checked="false" data-type="'+id+'"><span class="cfSdSpec">'+specimen(id)+'</span><b>'+esc(LABELS[id][0])+'<br>'+esc(LABELS[id][1])+'</b><small>'+esc(DESCS[id])+'</small></button>'}).join('');
+    car.addEventListener('click',function(e){var b=e.target.closest('[data-type]');if(!b)return;draft.type=b.dataset.type;paint();renderPreview()});
+    overlay.querySelector('#cfSdRatio').addEventListener('input',function(e){draft.ratio=+e.target.value;paint();renderPreview()});
+    overlay.addEventListener('click',function(e){var r=e.target.closest('[data-ratio]');if(r){draft.ratio=+r.dataset.ratio;paint();renderPreview();return}if(e.target.closest('[data-sd-close]'))close(false)});
+    overlay.querySelector('#cfSdApply').addEventListener('click',applyAndRefine);overlay.addEventListener('keydown',trap,true);return overlay;
+  }
+  function paint(){
+    if(!overlay||!draft)return;overlay.querySelector('#cfSdRatio').value=draft.ratio;overlay.querySelector('#cfSdRatioVal').textContent=draft.ratio+'%';overlay.querySelectorAll('[data-type]').forEach(function(b){b.setAttribute('aria-checked',b.dataset.type===draft.type?'true':'false')});overlay.querySelectorAll('[data-ratio]').forEach(function(b){b.classList.toggle('on',+b.dataset.ratio===draft.ratio)});
+  }
+  function fallbackRoi(img,result){var facial=result&&result.sourceKind==='Facial';return facial?{x:img.naturalWidth*.34,y:img.naturalHeight*.55,w:img.naturalWidth*.32,h:img.naturalHeight*.18}:{x:img.naturalWidth*.18,y:img.naturalHeight*.25,w:img.naturalWidth*.64,h:img.naturalHeight*.42}}
+  async function locateRoi(img,result,token){
+    if(typeof window.cfCropUpperAnteriorTeeth==='function')try{var r=await Promise.race([window.cfCropUpperAnteriorTeeth(result.dataUrl),new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},1800)})]);if(token===previewToken&&r&&r.cropRect)return r.cropRect}catch(e){}
+    return fallbackRoi(img,result)
+  }
+  function shapeAt(id,t){var q=SHAPES[id]||SHAPES.auto;if(t<.5)return q.top+(q.mid-q.top)*(t*2);return q.mid+(q.bottom-q.mid)*((t-.5)*2)}
+  async function renderPreview(){
+    if(!overlay||!draft)return;var token=++previewToken,result=state.simResult;if(!result||!result.dataUrl)return;var img=overlay.querySelector('#cfSdPreviewImg'),canvas=overlay.querySelector('#cfSdPreviewCanvas');
+    if(img.src!==result.dataUrl){img.src=result.dataUrl;await new Promise(function(res){if(img.complete)res();else{img.onload=res;img.onerror=res}})}if(token!==previewToken||!img.naturalWidth)return;
+    canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;var ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);var roi=await locateRoi(img,result,token);if(token!==previewToken||!roi)return;
+    var src=document.createElement('canvas');src.width=canvas.width;src.height=canvas.height;src.getContext('2d').drawImage(img,0,0);var temp=document.createElement('canvas');temp.width=canvas.width;temp.height=canvas.height;var tx=temp.getContext('2d');var x=roi.x,y=roi.y,w=roi.w,h=roi.h;var ratio=draft.ratio/100,dominance=Math.max(-.05,Math.min(.10,(.68-ratio)*.72));var centralSrc=w*.44,sideSrc=(w-centralSrc)/2,centralDst=centralSrc*(1+dominance),sideDst=(w-centralDst)/2;var bands=42;
+    for(var i=0;i<bands;i++){var t=i/bands,sy=y+h*t,sh=h/bands+1,form=shapeAt(draft.type,t),rowW=w*form,rowX=x+(w-rowW)/2;var cs=centralSrc*form,ss=(rowW-cs)/2,cd=centralDst*form,sd=(rowW-cd)/2;tx.drawImage(src,x,sy,sideSrc,sh,rowX,sy,sd,sh);tx.drawImage(src,x+sideSrc,sy,centralSrc,sh,rowX+sd,sy,cd,sh);tx.drawImage(src,x+sideSrc+centralSrc,sy,sideSrc,sh,rowX+sd+cd,sy,sd,sh)}
+    tx.globalCompositeOperation='destination-in';var g=tx.createRadialGradient(x+w/2,y+h*.52,w*.12,x+w/2,y+h*.52,w*.59);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.72,'rgba(0,0,0,.96)');g.addColorStop(1,'rgba(0,0,0,0)');tx.fillStyle=g;tx.fillRect(x-w*.15,y-h*.2,w*1.3,h*1.4);ctx.globalAlpha=.94;ctx.drawImage(temp,0,0);
+  }
+  function trap(e){if(e.key==='Escape'){e.preventDefault();close(false);return}if(e.key!=='Tab')return;var f=[].slice.call(overlay.querySelectorAll('button,input,[tabindex]:not([tabindex="-1"])')).filter(function(x){return x.offsetParent!==null});if(!f.length)return;var a=f[0],z=f[f.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}
+  window.cfOpenSmileDesigner=function(){ensureOverlay();var s=stateObj(),tt=window.cfTeethTypeCurrent?window.cfTeethTypeCurrent():{id:'auto'};draft={type:s.type||tt.id||'auto',ratio:s.ratio||62,intensity:s.intensity||58};lastFocus=document.activeElement;overlay.classList.remove('closing');overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');var launch=document.getElementById('cfSdLaunch');if(launch)launch.setAttribute('aria-expanded','true');paint();setTimeout(function(){var selected=overlay.querySelector('[data-type="'+draft.type+'"]');if(selected){selected.scrollIntoView({block:'nearest',inline:'center'});selected.focus({preventScroll:true})}renderPreview()},30)};
+  function close(apply){if(!overlay||!overlay.classList.contains('open'))return;overlay.setAttribute('aria-hidden','true');if(reduced())overlay.classList.remove('open');else{overlay.classList.add('closing');clearTimeout(closeTimer);closeTimer=setTimeout(function(){overlay.classList.remove('open','closing')},260)}var launch=document.getElementById('cfSdLaunch');if(launch)launch.setAttribute('aria-expanded','false');if(lastFocus&&lastFocus.focus)try{lastFocus.focus({preventScroll:true})}catch(e){}if(!apply)draft=null}
+  async function applyAndRefine(){
+    if(!draft)return;var result=state.simResult;if(!result||!result.dataUrl){if(typeof toast==='function')toast('生成結果が見つかりません');return}state.simSmileDesigner={type:draft.type,ratio:draft.ratio,intensity:draft.intensity,updated_at:new Date().toISOString()};var prev=window.cfTeethTypeCurrent?window.cfTeethTypeCurrent():null;state.simTeethType={id:draft.type,source:draft.type==='auto'?'auto':'secondary_manual',selected_at:new Date().toISOString(),optional_context:prev&&prev.optional_context?prev.optional_context:{sex:null,age:null}};result.settings=result.settings||{};result.settings.smileDesigner=JSON.parse(JSON.stringify(state.simSmileDesigner));result.settings.teethType=window.cfTeethTypeMeta?window.cfTeethTypeMeta():{id:draft.type,source:'secondary_manual'};result._secondaryRefined=false;close(true);mount();if(typeof toast==='function')toast('Smile Designerを二次精密生成へ反映します');if(typeof window.runSecondaryRefinement==='function')await window.runSecondaryRefinement();try{if(window.cfPersist&&cfPersist.schedule)cfPersist.schedule(700)}catch(e){}
+  }
+  window.cfSmileDesignerPromptFragment=function(imageType){var s=stateObj(),id=s.type||'auto',ratio=+s.ratio||62,name=(LABELS[id]||LABELS.auto)[0];return 'SMILE DESIGNER — SECONDARY CLINICIAN DESIGN REQUEST (MANDATORY): apply the '+name+' upper-central-incisor morphology selected after reviewing the primary simulation. Express the form through mesial/distal contours, cervical width, facial line angles, incisal-corner character and subtle surface anatomy; do not use crown elongation or enlargement as a shortcut. Use a visible-width progression in which each maxillary lateral incisor is approximately '+ratio+'% of the adjacent central incisor and the canine visible width steps down harmoniously; this is a soft visual design reference, not a universal biological law. Preserve the completed orthodontic alignment, dental midline, continuous incisal curve parallel to the lower lip, gingival architecture, contact points, tooth count, lips and face identity. The live optical preview is guidance only; reconstruct photorealistic enamel translucency, texture, contacts and seamless tissue integration.'+(imageType==='facial'?' Change only tooth surfaces inside the existing mouth aperture.':' Keep framing, retractors, gingiva and background unchanged.');};
+  var priorField=window.cfTeethTypeFieldHTML;window.cfTeethTypeFieldHTML=function(){return ''};
+  var prevRender=window.renderResult;window.renderResult=function(){var r=typeof prevRender==='function'?prevRender.apply(this,arguments):undefined;setTimeout(mount,60);return r};var prevGo=window.go;if(typeof prevGo==='function'&&!window.__cfSdGo){window.__cfSdGo=true;window.go=function(id){var r=prevGo.apply(this,arguments);setTimeout(function(){removePrimaryField();if(id==='result')mount()},70);return r}}
+  var mo=new MutationObserver(function(){removePrimaryField();if(document.querySelector('#result.active'))mount()});mo.observe(document.body,{childList:true,subtree:true});window.addEventListener('resize',function(){if(overlay&&overlay.classList.contains('open'))renderPreview()});window.addEventListener('DOMContentLoaded',function(){setTimeout(function(){removePrimaryField();mount()},250)});setTimeout(function(){removePrimaryField();mount()},400);
+})();
+</script>
+'''
+          if 'id="cf-smile-designer-v1"' in s:
+              raise SystemExit('Smile Designer block already exists')
+          if '</body>' not in s:
+              raise SystemExit('missing body close')
+          s=s.replace('</body>',block+'\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+
+          # Smoke test committed with the feature.
+          Path('docs/smile-designer-secondary-smoke.js').write_text(r'''const { chromium } = require('playwright');
+const path=require('path');
+const checks=[];function ok(n,v){checks.push([n,!!v]);console.log((v?'PASS':'FAIL')+' '+n)}
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:390,height:844}});await p.addInitScript(()=>{try{localStorage.setItem('caseflow_consent_v96','1')}catch(e){}});await p.goto('file://'+path.resolve(process.argv[2]||'caseflow_studio_v96.html'),{waitUntil:'load'});await p.waitForTimeout(1400);await p.evaluate(()=>{var g=document.getElementById('cfGateV2');if(g){g.classList.remove('open');g.style.display='none'};state.simV82=state.simV82||{};state.simV82.concept='ortho';state.simResult={dataUrl:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="800" height="1000" fill="#665"/><ellipse cx="400" cy="650" rx="150" ry="65" fill="#211"/><rect x="300" y="600" width="200" height="80" rx="20" fill="#eee"/></svg>'),sourceKind:'Facial',settings:{}};state.simResults=[state.simResult];state.simResultIndex=0;window.runSecondaryRefinement=async()=>{window.__sdRefined=true};go('simulator')});await p.waitForTimeout(300);ok('primary Teeth Type field removed',await p.evaluate(()=>!document.getElementById('cfTtField')));await p.evaluate(()=>go('result'));await p.waitForTimeout(500);ok('secondary host mounted',await p.evaluate(()=>!!document.getElementById('cfSdLaunch')));ok('orthodontic copy is optional final form',await p.evaluate(()=>document.getElementById('cfSdLaunch').textContent.includes('矯正後')));await p.evaluate(()=>cfOpenSmileDesigner());await p.waitForTimeout(250);ok('dialog semantics',await p.evaluate(()=>{var d=document.querySelector('#cfSdOverlay [role=dialog]');return d&&d.getAttribute('aria-modal')==='true'}));ok('six morphology cards',await p.evaluate(()=>document.querySelectorAll('#cfSdCarousel [role=radio]').length===6));await p.click('[data-type="ovoid"]');await p.fill('#cfSdRatio','68');await p.dispatchEvent('#cfSdRatio','input');ok('live preview canvas has pixels',await p.evaluate(()=>document.getElementById('cfSdPreviewCanvas').width>0));ok('prompt contains selected type and ratio',await p.evaluate(()=>{state.simSmileDesigner={type:'ovoid',ratio:68};var x=cfSmileDesignerPromptFragment('facial');return /Ovoid/.test(x)&&/68%/.test(x)&&/not a universal/.test(x)}));await p.click('#cfSdApply');await p.waitForTimeout(250);ok('apply calls secondary refinement',await p.evaluate(()=>window.__sdRefined===true));ok('canonical type updated',await p.evaluate(()=>state.simTeethType.id==='ovoid'&&state.simTeethType.source==='secondary_manual'));ok('metadata stored',await p.evaluate(()=>state.simResult.settings.smileDesigner.ratio===68));await p.emulateMedia({reducedMotion:'reduce'});await p.evaluate(()=>cfOpenSmileDesigner());await p.waitForTimeout(80);ok('reduced motion opens',await p.evaluate(()=>document.getElementById('cfSdOverlay').classList.contains('open')));await p.keyboard.press('Escape');const fails=checks.filter(x=>!x[1]);console.log(checks.length+' checks, '+fails.length+' failures');await b.close();process.exit(fails.length?1:0)})().catch(e=>{console.error(e);process.exit(2)});
+''',encoding='utf-8')
+          PY
+
+      - name: Parse all inline scripts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile, sys
+          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          for i,code in enumerate(scripts):
+            f=Path('/tmp')/f'cf-script-{i}.js';f.write_text(code,encoding='utf-8')
+            r=subprocess.run(['node','--check',str(f)],capture_output=True,text=True)
+            if r.returncode:
+              print(i,r.stderr);sys.exit(1)
+          print('parsed',len(scripts),'inline scripts')
+          PY
+
+      - name: Run real-app Playwright smoke
+        run: |
+          npm install playwright@1.52.0 --no-save
+          npx playwright install chromium
+          node docs/smile-designer-secondary-smoke.js caseflow_studio_v96.html
+
+      - name: Commit implementation
+        run: |
+          git config user.name "caseflow-implementation-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add caseflow_studio_v96.html docs/smile-designer-secondary-smoke.js
+          git commit -m "feat(simulation): move tooth-form design to secondary Smile Designer" || exit 0
+          git push
