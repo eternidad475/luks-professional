@@ -1,0 +1,33 @@
+name: Extract refinement core
+
+on:
+  push:
+    branches:
+      - chatgpt/fix-generation-freeze
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/fix-generation-freeze
+          fetch-depth: 0
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          lines=Path('caseflow_studio_v96.html').read_text(encoding='utf-8').splitlines()
+          a,b=24080,25080
+          out=[f'{i+1:05d}: {lines[i]}' for i in range(a,min(b,len(lines)))]
+          Path('docs/refine-core.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - run: |
+          git config user.name "caseflow-diagnostic-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/refine-core.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: capture refinement core"
+          git push origin HEAD:chatgpt/fix-generation-freeze
