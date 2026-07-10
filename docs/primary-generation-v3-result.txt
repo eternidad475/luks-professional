@@ -1,0 +1,4 @@
+SUCCESS_V3
+inline_scripts=84
+hard_deadline_ms=18000
+service_worker=cfsw-v3-primary-deadline

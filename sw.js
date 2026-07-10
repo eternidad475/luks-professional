@@ -16,7 +16,7 @@
  * from cache.
  */
 
-var VERSION = 'cfsw-v1';
+var VERSION = 'cfsw-v3-primary-deadline';
 var SHELL_CACHE = 'caseflow-shell-' + VERSION;
 
 /* App shell only. No patient data, no API responses, no user images. */
