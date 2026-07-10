@@ -1,8 +1,8 @@
+// Run: npm i playwright --no-save && node docs/phase1-teeth-gallery-smoke.js caseflow_studio_v96.html <shot-dir>
+// (set CHROMIUM_PATH if your Playwright build does not bundle a browser)
 /* Headless smoke test for the Upper Anterior Teeth Shape Gallery.
    Drives the real caseflow_studio_v96.html in Chromium. Network calls to
    Supabase/backends fail silently offline; we exercise local UI + state. */
-// Run: npm i playwright --no-save && node docs/phase1-teeth-gallery-smoke.js caseflow_studio_v96.html <shot-dir>
-// (set CHROMIUM_PATH if your Playwright build does not bundle a browser)
 const { chromium } = require('playwright');
 const path = require('path');
 
@@ -33,6 +33,18 @@ function check(name, ok, extra) {
   await page.waitForTimeout(500);
   check('entry field present on simulator panel', await page.evaluate(() =>
     !!document.querySelector('#simFinishPanel #cfTtField')));
+  check('patient context (sex/age) on panel BEFORE chief complaint cards', await page.evaluate(() => {
+    const sex = document.querySelector('#simFinishPanel #cfTtSexSel');
+    const complaints = document.querySelector('#simFinishPanel .simTargetGrid');
+    return !!sex && !!complaints &&
+      !!(sex.compareDocumentPosition(complaints) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }));
+  check('context controls no longer inside the dialog', await page.evaluate(() => {
+    window.cfOpenTeethTypeGallery();
+    const inDialog = !!document.querySelector('#cfTtOverlay select, #cfTtOverlay [data-sex]');
+    window.cfCloseTeethTypeGallery(false);
+    return !inDialog;
+  }));
   check('default field value is Auto', await page.evaluate(() =>
     document.getElementById('cfTtFieldValue').textContent.includes('Auto')));
   check('default state is auto', await page.evaluate(() =>
@@ -63,10 +75,13 @@ function check(name, ok, extra) {
   check('card aria-checked updates', await page.evaluate(() =>
     document.querySelector('.cfTtCard[data-id="rounded_square"]').getAttribute('aria-checked') === 'true'));
   await page.screenshot({ path: process.argv[3] + '/gallery-selected.png' });
-  await page.click('#cfTtCtx summary');
-  await page.click('[data-sex="female"]');
-  await page.click('[data-age="40代"]');
-  await page.screenshot({ path: process.argv[3] + '/gallery-context.png' });
+  await page.click('#cfTtApplyBtn');
+  await page.waitForTimeout(350);
+  await page.selectOption('#cfTtSexSel', 'female');
+  await page.selectOption('#cfTtAgeSel', '40代');
+  await page.screenshot({ path: process.argv[3] + '/panel-context.png' });
+  await page.evaluate(() => window.cfOpenTeethTypeGallery());
+  await page.waitForTimeout(250);
   await page.click('#cfTtApplyBtn');
   await page.waitForTimeout(400);
   check('apply commits canonical state', await page.evaluate(() => {
@@ -84,23 +99,48 @@ function check(name, ok, extra) {
 
   // 5. prompt integration — standard and intraoral paths
   const frag = await page.evaluate(() => window.cfTeethTypePromptFragment(false));
-  check('fragment carries modifier', frag.includes('structural width with softened line angles')
-    || frag.includes('Combine structural width'));
-  check('fragment states subordination to clinician instruction',
-    frag.includes('OUTRANKS this direction'));
+  check('fragment is a MANDATORY requested change', frag.includes('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM')
+    && frag.includes('MANDATORY') && frag.includes('CENTRAL INCISORS first and foremost'));
+  check('fragment supersedes keep-own-form guidance', frag.includes('SUPERSEDES'));
+  check('fragment demands a visible outline change', frag.includes('CLEARLY VISIBLE'));
+  check('fragment carries modifier', frag.includes('Combine structural width'));
+  check('fragment states subordination to clinician instruction', frag.includes('OUTRANKS'));
   check('fragment forbids stereotyped sex mapping', frag.includes('masculine/feminine'));
+  const autoFacialFrag = await page.evaluate(() => {
+    const saved = JSON.parse(JSON.stringify(window.state.simTeethType));
+    window.state.simTeethType = { id:'auto', source:'auto', selected_at:null, optional_context:{sex:null,age:null} };
+    window.state._simSource = { dataUrl:'data:image/png;base64,iVBORw0KGgo=', category:'facial', lips:true };
+    const f = window.cfTeethTypePromptFragment(false);
+    window.state.simTeethType = saved; window.state._simSource = null;
+    return f;
+  });
+  check('Auto + facial source: generator-side facial-type guidance (fallback)',
+    autoFacialFrag.includes('facial-type matched') && autoFacialFrag.includes('brachyfacial')
+    && autoFacialFrag.includes('dolichofacial') && autoFacialFrag.includes('not a diagnosis'));
+  const autoRecFrag = await page.evaluate(() => {
+    const saved = JSON.parse(JSON.stringify(window.state.simTeethType));
+    window.state.simTeethType = { id:'auto', source:'auto', selected_at:null,
+      optional_context:{sex:null,age:null}, auto_recommendation:{ id:'tapered', facial:'dolicho', basis:'facial-landmarks' } };
+    const f = window.cfTeethTypePromptFragment(false);
+    const label = document.getElementById('cfTtFieldValue') ? (window.cfRenderTeethTypeField(), document.getElementById('cfTtFieldValue').textContent) : '';
+    window.state.simTeethType = saved; window.cfRenderTeethTypeField();
+    return { f, label };
+  });
+  check('Auto + landmark recommendation reaches prompt and field label',
+    autoRecFrag.f.includes('TAPERED') && autoRecFrag.f.includes('長顔型')
+    && autoRecFrag.label.includes('推奨 Tapered'));
   const fullPrompt = await page.evaluate(() => {
     window.state._simSource = { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', category: 'facial', lips: true };
     return window.caseflowBuildSimPrompt();
   });
   check('buildClinicalPrompt (facial path) includes fragment',
-    fullPrompt.includes('UPPER ANTERIOR TOOTH-FORM DIRECTION'));
+    fullPrompt.includes('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM'));
   const intraPrompt = await page.evaluate(() => {
     window.state._simSource = { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', category: 'focus', intraoral: true };
     return window.caseflowBuildSimPrompt();
   });
   check('buildClinicalPrompt (intraoral path) includes fragment',
-    intraPrompt.includes('UPPER ANTERIOR TOOTH-FORM DIRECTION'));
+    intraPrompt.includes('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM'));
   check('intraoral fragment defers to absolute shot rules',
     intraPrompt.includes('absolute framing/incisal-edge rules'));
 
@@ -138,9 +178,9 @@ function check(name, ok, extra) {
   await page.click('#cfTtAutoBtn');
   await page.click('#cfTtApplyBtn');
   await page.waitForTimeout(300);
-  check('Auto reset applies default (context cleared)', await page.evaluate(() => {
+  check('Auto reset restores Auto but preserves panel-owned sex/age', await page.evaluate(() => {
     const t = window.state.simTeethType;
-    return t.id === 'auto' && t.optional_context.sex === null && t.optional_context.age === null;
+    return t.id === 'auto' && t.optional_context.sex === 'female' && t.optional_context.age === '40代';
   }));
 
   // 10. settings snapshot stamping via pushSimResult path (simulated result record)
