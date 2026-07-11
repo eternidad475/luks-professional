@@ -6,6 +6,11 @@ on:
       - chatgpt/primary-routing-v4-final
     paths:
       - .github/workflows/cf-build-primary-routing-v4-final.yml
+  pull_request:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - .github/workflows/cf-build-primary-routing-v4-final.yml
 
 permissions:
   contents: write
@@ -43,9 +48,6 @@ jobs:
               raise SystemExit('undefined runCtx screening insertion not found')
           html=html.replace(bad,good,1)
 
-          # Keep cached/previously completed findings in the prompt without starting heavy
-          # MediaPipe/pixel analysis on the first-result critical path. Full screening can
-          # complete before the button is pressed or be used by subsequent refinement.
           marker="""    const quickTask=cfFastPrimaryPreview(src,state.simV96||{}),aiOn=aiEnabled();"""
           replacement="""    // Reuse only findings that are already available. Do not launch a new heavy
     // screening task on the first-result critical path; this preserves prompt quality
