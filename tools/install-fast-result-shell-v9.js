@@ -30,7 +30,7 @@ const block=String.raw`
   var rawGo=window.go, shell=null, seq=0;
   function record(){var arr=Array.isArray(window.state&&state.simResults)?state.simResults:[];return (window.state&&state.simResult)||arr[(window.state&&state.simResultIndex)||0]||null;}
   function sourceFor(r){return (window.state&&state._simSource)||(r&&r.srcObj)||((window.state&&Array.isArray(state.photos))?state.photos[0]:null);}
-  function hideWait(){try{document.querySelectorAll('.cfWaitOverlay.show,.cfWaitOverlay.active').forEach(function(el){el.classList.remove('show','active');el.setAttribute('aria-hidden','true');});}catch(e){}}
+  function hideWait(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{document.querySelectorAll('.cfWaitOverlay.show,.cfWaitOverlay.active').forEach(function(el){el.classList.remove('show','active');el.setAttribute('aria-hidden','true');});}catch(e){}}
   function ensure(){
     if(shell&&shell.isConnected)return shell;
     shell=document.createElement('section');shell.id='cfFastResultShell';shell.className='cfFastResultShell';shell.setAttribute('aria-hidden','true');
@@ -49,22 +49,17 @@ const block=String.raw`
     return shell;
   }
   function close(){if(!shell)return;shell.classList.remove('open');shell.setAttribute('aria-hidden','true');}
-  function openLegacy(){
-    close();
-    setTimeout(function(){try{document.querySelectorAll('.screen.active').forEach(function(el){el.classList.remove('active');});var r=document.getElementById('result');if(r)r.classList.add('active');if(typeof window.renderResultImages==='function')window.renderResultImages();}catch(e){console.error('[CaseFlow advanced result]',e);}},0);
-  }
+  function openLegacy(){close();setTimeout(function(){try{document.querySelectorAll('.screen.active').forEach(function(el){el.classList.remove('active');});var r=document.getElementById('result');if(r)r.classList.add('active');if(typeof window.renderResultImages==='function')window.renderResultImages();}catch(e){console.error('[CaseFlow advanced result]',e);}},0);}
   function paint(){
     var r=record(),src=sourceFor(r);if(!r||!src)return typeof rawGo==='function'?rawGo('simulator'):false;
-    var token=++seq,el=ensure();
-    hideWait();el.classList.add('open');el.setAttribute('aria-hidden','false');
-    window.__cfFastResultOpenedAt=performance.now();
+    var token=++seq,el=ensure();hideWait();el.classList.add('open');el.setAttribute('aria-hidden','false');window.__cfFastResultOpenedAt=performance.now();
     var refine=el.querySelector('[data-cf-fast="refine"]');if(refine)refine.disabled=typeof window.runSecondaryRefinement!=='function';
-    setTimeout(function(){if(token!==seq)return;try{var before=el.querySelector('#cfFastBefore'),after=el.querySelector('#cfFastAfter');var beforeSrc=r.source||(r.srcObj&&r.srcObj.dataUrl)||src.dataUrl;before.decoding='async';after.decoding='async';before.src=beforeSrc;after.src=r.dataUrl;var meta=el.querySelector('#cfFastMeta');var kind=(r.sourceKind||src.label||src.category||(src.intraoral?'Intraoral':'Facial'));if(meta)meta.textContent=kind+' image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。';window.__cfFastResultPaintedAt=performance.now();}catch(e){console.error('[CaseFlow fast result paint]',e);}},0);
-    setTimeout(function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{if(typeof window.pausePreview==='function')window.pausePreview();}catch(e){}},900);
+    setTimeout(function(){if(token!==seq)return;try{var before=el.querySelector('#cfFastBefore'),after=el.querySelector('#cfFastAfter');var beforeSrc=r.source||(r.srcObj&&r.srcObj.dataUrl)||src.dataUrl;before.decoding='async';after.decoding='async';before.src=beforeSrc;after.src=r.dataUrl;var meta=el.querySelector('#cfFastMeta');var kind=(r.sourceKind||src.label||src.category||(src.intraoral?'Intraoral':'Facial'));if(meta)meta.textContent=kind+' image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。';window.__cfFastResultPaintedAt=performance.now();hideWait();}catch(e){console.error('[CaseFlow fast result paint]',e);}},0);
+    setTimeout(function(){hideWait();try{if(typeof window.pausePreview==='function')window.pausePreview();}catch(e){}},180);
     return true;
   }
   function guarded(id){if(id==='result')return paint();if(id!=='result')close();return typeof rawGo==='function'?rawGo.apply(this,arguments):false;}
-  guarded.__cfFastResultV9=true;guarded.__cfRaw=rawGo;
+  guarded.__cfFastResultV9=true;guarded.__cfRaw=rawGo;window.__cfFastResultV9=true;
   window.cfCloseFastResult=close;window.cfOpenLegacyResultV9=openLegacy;window.cfOpenResultScreen=paint;window.cfPaintPrimaryResult=paint;window.go=guarded;
 })();
 </script>`;
