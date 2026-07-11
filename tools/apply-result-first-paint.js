@@ -36,7 +36,7 @@ replaceOnce('result renderer',
     if(before) before.src=beforeSrc;
     if(after)  after.src=r.dataUrl;
     const cap=$id('resultCaption');
-    if(cap) cap.textContent=\`${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。\`;
+    if(cap) cap.textContent=\`\${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。\`;
     if(typeof setupCompareSlider==='function'){ const el=$id('simulationCompareSlider'); if(el) setupCompareSlider(el); }
     renderSimGallery();
   }`,
