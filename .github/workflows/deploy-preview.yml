@@ -1,0 +1,31 @@
+name: Deploy Preview (branches)
+
+on:
+  push:
+    branches: ['caseflow/**', 'chatgpt/**']
+    paths: ['**.html', 'sw.js', 'manifest*', 'media/**', 'vercel.json', '.github/workflows/deploy-preview.yml']
+  workflow_dispatch:
+
+jobs:
+  preview:
+    name: Deploy Vercel Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy Preview (non-production)
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          URL=$(vercel deploy --token "$VERCEL_TOKEN" --yes 2>vercel.log | tail -1)
+          echo "### Preview URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "PREVIEW_URL=$URL"
+          cat vercel.log | tail -5
