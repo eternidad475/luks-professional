@@ -1,0 +1,8 @@
+<script id="cf-primary-routing-isolation-v4">
+(function(){
+  function guardAsync(name){var raw=window[name];if(typeof raw!=='function'||raw.__cfPrimaryIsolated)return;var wrapped=function(){if(window.__cfPrimaryGenerationActive)return Promise.resolve(null);return raw.apply(this,arguments);};wrapped.__cfPrimaryIsolated=true;wrapped.__cfRaw=raw;window[name]=wrapped;}
+  function guardSync(name){var raw=window[name];if(typeof raw!=='function'||raw.__cfPrimaryIsolated)return;var wrapped=function(){if(window.__cfPrimaryGenerationActive)return;return raw.apply(this,arguments);};wrapped.__cfPrimaryIsolated=true;wrapped.__cfRaw=raw;window[name]=wrapped;}
+  guardAsync('caseflowLocalAnalyze');guardAsync('cfEnsureFaceMesh');guardSync('cfCapRefresh');
+  window.addEventListener('pageshow',function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}});
+})();
+</script>
