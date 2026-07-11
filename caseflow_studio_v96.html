@@ -4930,6 +4930,8 @@ button[id="localMLDetectButton"]{
     </div>
     <!-- v9.6 aesthetic correction axes. Built/bound by the v9.6 script (cf-v96-simulation-studio). -->
     <div class="simSliderGrid" id="simV96EditGrid"></div>
+    <!-- Phase 1: secondary Teeth Design launcher (static host; populated by cf-p1-teeth-type-ui) -->
+    <div id="cfTtSecondaryHost"></div>
   </div>
   <div class="toolbar cfResultActions">
     <button class="tool" data-i18n="result.regenerate" onclick="generateSimulation()">再生成<br>Again</button>
@@ -18350,8 +18352,7 @@ body[data-ui-tone="dark"]{
         ${targetBtn('missing','Missing','欠損','欠損部や補綴イメージの補助')}
         ${targetBtn('harmony','Harmony','全体調和','スマイル全体の調和を整える')}
       </div>
-      ${(typeof window.cfTeethTypeFieldHTML==='function') ? window.cfTeethTypeFieldHTML() : ''}
-      <div class="simFinishNote">初期状態では主訴カードは未選択です。必要な主訴カードを選んでから Reference Image を作成してください。</div>
+      <div class="simFinishNote">初期状態では主訴カードは未選択です。必要な主訴カードを選んでから Reference Image を作成してください。歯冠形態のデザインは一次生成後の結果画面（Teeth Design）で行えます。</div>
     `;
 
     const primary = document.querySelector('#simulator button.primary[onclick*="generateSimulation"]');
@@ -24551,6 +24552,30 @@ body.cfPresent .cfPresentExit{display:flex!important}
   // gets the most conservative wording (full-frame, identity-preserving); focus may
   // refine crown form a little more but still gently.
   function buildGoldenProportionPrompt(imageType){
+    // Designer-directed variant: when the clinician chose a tooth form and/or a
+    // visible-width ratio in the secondary Teeth Design dialog, this pass must
+    // APPLY that design (clearly visible), still inside the identity constraints.
+    try{
+      var tt = (typeof window.cfTeethTypeCurrent==='function') ? window.cfTeethTypeCurrent() : null;
+      var types = window.CF_TEETH_TYPES || {};
+      var hasForm = tt && tt.id && tt.id!=='auto' && types[tt.id];
+      var ratio = tt && tt.golden_ratio ? Math.max(50, Math.min(85, Math.round(tt.golden_ratio))) : null;
+      if(hasForm || ratio){
+        var d = [];
+        d.push(imageType==='facial'
+          ? 'Edit ONLY the visible upper anterior teeth in THIS exact portrait (image-to-image); keep it the SAME person — face, eyes, nose, skin, lips, expression, framing and background pixel-identical.'
+          : 'Close-up dental photograph (image-to-image): edit ONLY the upper anterior crowns; keep framing, retractors, gingiva beyond the margins, and background unchanged.');
+        if(hasForm){
+          var def = types[tt.id];
+          d.push('SECONDARY CLINICIAN DESIGN REQUEST (MANDATORY, clearly visible): reshape the upper anterior crown OUTLINES — central incisors first, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' This explicit selection supersedes any guidance to keep the existing form family.');
+        }
+        if(ratio){
+          d.push('VISIBLE-WIDTH PROGRESSION (golden-proportion design reference): make each upper LATERAL incisor\'s apparent frontal width approximately '+ratio+'% of the adjacent CENTRAL incisor, with the canines stepping down harmoniously. Achieve this through crown contour, line angles and rotation illusion — never by unnatural enlargement, crown lengthening or fusing. This ratio is a soft visual design reference chosen by the clinician for comparison, not a universal biological law.');
+        }
+        d.push('Keep the completed alignment, dental midline, incisal curve, gingival architecture, contact points, tooth count and natural per-tooth individuality. Natural enamel shade with realistic translucency and texture — never flat opaque white, never generic veneers. Photorealistic; return the FULL image at the same crop so it overlays the input exactly.');
+        return d.join(' ');
+      }
+    }catch(e){}
     if(imageType==='facial'){
       return [
         'Edit ONLY the visible upper anterior teeth in THIS exact portrait (image-to-image);',
@@ -24873,6 +24898,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   // Gated refinement: 1) evaluate ROI/landmarks/imageType → 2) decide if a refine is safe →
   // 3) run a CLAMPED full-frame pass → 4) soft-matte composite (no rectangle) →
   // 5) quality check → 6) reject & keep the first-pass on any artifact, else adopt.
+  window.cfBuildGoldenProportionPrompt = buildGoldenProportionPrompt;
   window.runSecondaryRefinement = async function(){
     var btn = document.getElementById('cfRefineBtn');
     var result = window.state && window.state.simResult;
@@ -29305,16 +29331,16 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
 <style id="cf-p1-teeth-type-style">
 /* ==================================================================================
-   Phase 1 — Upper Anterior Teeth Shape Gallery (UI)
-   Clinical instruments made from living glass: layered translucency from the
-   Dynamic Gradient System (--c1/--c2 via color-mix), no new permanent palette,
-   transforms/opacity only, a single backdrop-filter layer (the overlay).
+   Phase 1 — Teeth Design (secondary) / 歯冠形態デザイナー
+   Post-primary popup: photoreal form carousel + golden-proportion live preview.
+   Living-glass material from the Dynamic Gradient System (--c1/--c2, color-mix);
+   one backdrop-filter layer; transforms/opacity only; reduced-motion aware.
    ================================================================================== */
 
-/* ---- compact entry field on the simulator panel ---- */
+/* ---- launcher on the result screen (static host #cfTtSecondaryHost) ---- */
 .cfTtField{
   width:100%;display:flex;align-items:center;gap:12px;text-align:left;
-  min-height:56px;margin:2px 0 6px;padding:10px 14px;border-radius:18px;border:0;
+  min-height:58px;margin:10px 0 2px;padding:10px 14px;border-radius:18px;
   background:
     radial-gradient(120% 150% at 12% 0%, color-mix(in srgb, var(--c1) 13%, transparent) 0%, transparent 62%),
     radial-gradient(130% 160% at 92% 110%, color-mix(in srgb, var(--c2) 11%, transparent) 0%, transparent 60%),
@@ -29326,7 +29352,6 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 }
 .cfTtField:active{transform:scale(.985)}
 .cfTtField:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
-/* palette-linked internal glow while the gallery material develops from the field */
 .cfTtField.cfTtGlow{
   box-shadow:0 10px 26px rgba(33,25,70,.10),
     inset 0 0 0 1px color-mix(in srgb, var(--c1) 34%, transparent),
@@ -29334,11 +29359,10 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     0 0 0 5px color-mix(in srgb, var(--c2) 14%, transparent);
 }
 .cfTtFieldIcon{
-  flex:0 0 auto;width:44px;height:36px;display:grid;place-items:center;border-radius:11px;
-  background:linear-gradient(180deg,#1a1824,#0c0a14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.09);
+  flex:0 0 auto;width:52px;height:39px;border-radius:11px;overflow:hidden;
+  background:#14121c;box-shadow:inset 0 1px 0 rgba(255,255,255,.09);
 }
-.cfTtFieldIcon svg{width:40px;height:32px}
+.cfTtFieldIcon img{width:100%;height:100%;object-fit:cover;display:block}
 .cfTtFieldMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .cfTtFieldMain b{font-size:14px;font-weight:900;letter-spacing:-.01em}
 .cfTtFieldMain small{font-size:10.5px;font-weight:700;color:rgba(32,27,53,.52);line-height:1.45}
@@ -29353,14 +29377,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtBackdrop{position:absolute;inset:0;border:0;background:transparent}
 .cfTtSheet{
   position:relative;width:min(480px,100%);
-  max-height:calc(100dvh - 34px);
+  max-height:calc(100dvh - 30px);
   display:flex;flex-direction:column;
   border-radius:30px 30px 0 0;
   padding:11px 16px calc(14px + env(safe-area-inset-bottom,0px));
   background:
     radial-gradient(140% 90% at 8% -6%, color-mix(in srgb, var(--c1) 16%, transparent) 0%, transparent 58%),
     radial-gradient(150% 110% at 100% 112%, color-mix(in srgb, var(--c2) 13%, transparent) 0%, transparent 56%),
-    linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.82));
+    linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.84));
   border:1px solid rgba(255,255,255,.72);
   box-shadow:0 26px 80px rgba(20,16,60,.30), inset 0 1px 0 rgba(255,255,255,.9);
   color:#201b35;
@@ -29371,7 +29395,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtOverlay.open .cfTtSheet{opacity:1;transform:none}
 .cfTtOverlay.closing .cfTtSheet{opacity:0;transform:translateY(30px) scale(.955);pointer-events:none}
 .cfTtHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 2px 10px}
-.cfTtHead,.cfTtCtx,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
+.cfTtHead,.cfTtRatioBox,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
 .cfTtHead h3{margin:0;font-size:17px;letter-spacing:-.03em}
 .cfTtHead p{margin:3px 0 0;font-size:11px;color:rgba(32,27,53,.5);font-weight:800}
 .cfTtClose{
@@ -29380,80 +29404,109 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 }
 .cfTtClose:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
 
-/* ---- vertical snap gallery: specimens moving through a narrow light field ---- */
+/* ---- live optical preview ---- */
+.cfTtPrev{
+  position:relative;flex:0 1 auto;min-height:120px;max-height:34dvh;border-radius:20px;overflow:hidden;
+  background:#0d0b15;box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 34px rgba(20,16,60,.22);
+}
+.cfTtPrev img,.cfTtPrev canvas{display:block;width:100%;height:100%;object-fit:contain}
+.cfTtPrev canvas{position:absolute;inset:0}
+.cfTtPrevBadge{
+  position:absolute;left:10px;bottom:9px;padding:4px 10px;border-radius:999px;
+  font-size:9px;font-weight:950;letter-spacing:.08em;color:#fff;
+  background:color-mix(in srgb, var(--c1) 55%, rgba(10,8,18,.55));
+  backdrop-filter:none;
+}
+
+/* ---- horizontal photoreal specimen carousel ---- */
 .cfTtScroll{
-  /* flexes between min-height and max-height so the sheet always fits the
-     viewport (landscape included); siblings below are flex:0 0 auto */
-  flex:1 1 auto;min-height:118px;max-height:min(46dvh,420px);
-  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
-  scroll-snap-type:y mandatory;
-  padding:56px 4px;
-  display:flex;flex-direction:column;gap:14px;
-  mask-image:linear-gradient(180deg, transparent 0%, #000 13%, #000 87%, transparent 100%);
-  -webkit-mask-image:linear-gradient(180deg, transparent 0%, #000 13%, #000 87%, transparent 100%);
+  flex:0 0 auto;display:flex;flex-direction:row;gap:11px;
+  margin-top:11px;padding:4px 34%;
+  overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x mandatory;
+  mask-image:linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-image:linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
 }
 .cfTtCard{
-  scroll-snap-align:center;flex:0 0 auto;
-  display:flex;align-items:center;gap:14px;text-align:left;width:100%;
-  min-height:118px;padding:14px 16px;border-radius:24px;cursor:pointer;
-  background:
-    radial-gradient(120% 170% at 14% -8%, color-mix(in srgb, var(--c1) 10%, transparent) 0%, transparent 60%),
-    radial-gradient(130% 170% at 96% 116%, color-mix(in srgb, var(--c2) 9%, transparent) 0%, transparent 58%),
-    linear-gradient(168deg, rgba(255,255,255,.9), rgba(255,255,255,.62));
+  scroll-snap-align:center;flex:0 0 auto;width:132px;
+  display:flex;flex-direction:column;gap:7px;align-items:stretch;text-align:left;
+  padding:8px;border-radius:20px;cursor:pointer;
+  background:linear-gradient(168deg, rgba(255,255,255,.9), rgba(255,255,255,.62));
   border:1.5px solid rgba(255,255,255,.66);
-  box-shadow:0 12px 30px rgba(33,25,70,.10), inset 0 1px 0 rgba(255,255,255,.85);
+  box-shadow:0 10px 24px rgba(33,25,70,.10), inset 0 1px 0 rgba(255,255,255,.85);
   color:#201b35;
-  opacity:.56;transform:scale(.945);
+  opacity:.58;transform:scale(.95);
   transition:opacity .3s ease, transform .34s cubic-bezier(.22,.9,.24,1),
-             box-shadow .34s ease, border-color .3s ease, background-position .5s ease;
+             box-shadow .34s ease, border-color .3s ease;
 }
-/* the centered specimen rises in depth and clarity; neighbours recede but stay legible */
 .cfTtCard.isCenter{
   opacity:1;transform:scale(1);
-  box-shadow:0 20px 46px rgba(33,25,70,.17), inset 0 1px 0 rgba(255,255,255,.95),
+  box-shadow:0 16px 38px rgba(33,25,70,.17), inset 0 1px 0 rgba(255,255,255,.95),
              0 0 0 1px color-mix(in srgb, var(--c1) 16%, transparent);
 }
 .cfTtCard:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:3px}
 .cfTtCard[aria-checked="true"]{
   border-color:color-mix(in srgb, var(--c1) 55%, rgba(255,255,255,.6));
-  box-shadow:0 20px 46px rgba(33,25,70,.17),
-             inset 0 0 22px color-mix(in srgb, var(--c1) 10%, transparent),
+  box-shadow:0 16px 38px rgba(33,25,70,.17),
+             inset 0 0 18px color-mix(in srgb, var(--c1) 10%, transparent),
              0 0 0 1.5px color-mix(in srgb, var(--c1) 45%, transparent);
 }
-/* quiet internal refraction on selection — one pass, no loops, no confetti */
+.cfTtSpecimen{
+  position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#14121c;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+}
+.cfTtSpecimen img{width:100%;height:100%;object-fit:cover;display:block}
 @keyframes cfTtRefract{
   0%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c1) 60%, transparent), inset 0 0 8px color-mix(in srgb, var(--c2) 34%, transparent)}
   55%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c2) 44%, transparent), inset -18px 0 30px color-mix(in srgb, var(--c1) 22%, transparent)}
   100%{box-shadow:inset 0 0 0 0 transparent}
 }
-.cfTtCard.justSelected .cfTtSpecimen::after{content:"";position:absolute;inset:0;border-radius:16px;animation:cfTtRefract .5s ease-out 1}
-.cfTtSpecimen{
-  /* dental-lab presentation: white crowns on a dark clinical panel */
-  position:relative;flex:0 0 auto;width:96px;height:76px;border-radius:16px;display:grid;place-items:center;
-  background:
-    radial-gradient(120% 90% at 50% -18%, color-mix(in srgb, var(--c1) 22%, transparent) 0%, transparent 62%),
-    linear-gradient(180deg,#1a1824,#0c0a14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.09), inset 0 -10px 18px rgba(0,0,0,.5);
-}
-.cfTtSpecimen svg{width:88px;height:70px;display:block}
-.cfTtInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.cfTtInfo b{font-size:14.5px;font-weight:950;letter-spacing:-.01em;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
-.cfTtInfo b i{font-style:normal;font-size:11.5px;font-weight:800;color:rgba(32,27,53,.55)}
-.cfTtInfo small{font-size:10.6px;line-height:1.5;font-weight:700;color:rgba(32,27,53,.6)}
+.cfTtCard.justSelected .cfTtSpecimen::after{content:"";position:absolute;inset:0;border-radius:14px;animation:cfTtRefract .5s ease-out 1}
+.cfTtInfo{display:flex;flex-direction:column;gap:2px;min-height:44px}
+.cfTtInfo b{font-size:12px;font-weight:950;letter-spacing:-.01em;line-height:1.25}
+.cfTtInfo i{font-style:normal;font-size:10px;font-weight:800;color:rgba(32,27,53,.55)}
 .cfTtCheck{
-  flex:0 0 auto;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
-  font-size:14px;font-weight:900;color:#fff;opacity:0;transform:scale(.6);
+  position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:900;color:#fff;opacity:0;transform:scale(.6);
   background:linear-gradient(150deg, var(--c1), color-mix(in srgb, var(--c1) 45%, var(--c2)));
   transition:opacity .22s ease, transform .26s cubic-bezier(.3,1.3,.4,1);
 }
 .cfTtCard[aria-checked="true"] .cfTtCheck{opacity:1;transform:scale(1)}
-.cfTtCard[aria-checked="true"] .cfTtInfo b::after{
-  content:"選択中 / Selected";flex-basis:100%;font-size:9.5px;font-weight:900;letter-spacing:.06em;
-  color:color-mix(in srgb, var(--c1) 78%, #201b35);
+
+/* ---- golden proportion controls ---- */
+.cfTtRatioBox{margin-top:10px;padding:11px 13px;border-radius:18px;background:rgba(32,27,53,.05)}
+.cfTtRatioTop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cfTtRatioTop b{font-size:12px;font-weight:950}
+.cfTtRatioVal{font-size:15px;font-weight:950;color:color-mix(in srgb, var(--c1) 78%, #201b35)}
+.cfTtRatioBox input[type=range]{width:100%;margin:9px 0 4px;accent-color:var(--c1)}
+.cfTtScale{display:flex;justify-content:space-between;font-size:9px;font-weight:800;color:rgba(32,27,53,.45)}
+.cfTtPresets{display:flex;gap:7px;margin-top:8px}
+.cfTtPreset{
+  flex:1;min-height:36px;border-radius:12px;border:1.5px solid rgba(32,27,53,.13);
+  background:rgba(255,255,255,.75);color:#201b35;font-size:11px;font-weight:900;cursor:pointer;
+}
+.cfTtPreset[aria-pressed="true"]{
+  border-color:color-mix(in srgb, var(--c1) 60%, transparent);
+  background:color-mix(in srgb, var(--c1) 13%, rgba(255,255,255,.85));
+}
+.cfTtPreset:focus-visible,.cfTtRatioBox input:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
+
+/* ---- disclaimer + actions ---- */
+.cfTtDisclaimer{margin:9px 4px 0;font-size:9.5px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
+.cfTtActions{display:flex;gap:9px;margin-top:10px}
+.cfTtBtn{
+  flex:1;min-height:48px;border-radius:16px;border:1.5px solid rgba(32,27,53,.13);
+  background:rgba(255,255,255,.75);color:#201b35;font-size:12px;font-weight:900;cursor:pointer;
+}
+.cfTtBtn:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
+.cfTtApply{
+  border:0;color:#fff;
+  background:linear-gradient(150deg, var(--c1), color-mix(in srgb, var(--c1) 40%, var(--c2)));
+  box-shadow:0 12px 26px var(--primaryBtnShadow, rgba(124,92,255,.34));
 }
 
-/* ---- optional patient context (sex / age) — lives on the simulator panel,
-        between the treatment concept and the chief complaint cards ---- */
+
+/* ---- optional patient context (sex / age) on the simulator panel ---- */
 .cfTtCtxRow{display:flex;gap:9px;margin:2px 0 5px}
 .cfTtCtxSel{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
 .cfTtCtxSel span{font-size:10.5px;font-weight:950;letter-spacing:.05em;color:rgba(32,27,53,.55)}
@@ -29467,21 +29520,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtCtxSel select:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
 .cfTtCtxHint{margin:0 2px 8px;font-size:10px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
 
-/* ---- disclaimer + actions ---- */
-.cfTtDisclaimer{margin:10px 4px 0;font-size:10px;line-height:1.7;font-weight:700;color:rgba(32,27,53,.5)}
-.cfTtActions{display:flex;gap:9px;margin-top:11px}
-.cfTtBtn{
-  flex:1;min-height:48px;border-radius:16px;border:1.5px solid rgba(32,27,53,.13);
-  background:rgba(255,255,255,.75);color:#201b35;font-size:12.5px;font-weight:900;cursor:pointer;
-}
-.cfTtBtn:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
-.cfTtApply{
-  border:0;color:#fff;
-  background:linear-gradient(150deg, var(--c1), color-mix(in srgb, var(--c1) 40%, var(--c2)));
-  box-shadow:0 12px 26px var(--primaryBtnShadow, rgba(124,92,255,.34));
-}
-
-/* ---- reduced motion: near-instant fades, no travel, no refraction sweep ---- */
+/* ---- reduced motion ---- */
 @media (prefers-reduced-motion: reduce){
   .cfTtSheet{transition:opacity .12s linear;transform:none}
   .cfTtOverlay.closing .cfTtSheet{transform:none}
@@ -29547,15 +29586,17 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   };
   var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v1';
   var CF_TEETH_AGES = ['〜19','20代','30代','40代','50代','60代','70代〜'];
-  var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', other:'Other / 回答しない' };
+  var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', nonbinary:'Non-binary / ノンバイナリー' };
 
   function defaultTeethType(){
-    return { id:'auto', source:'auto', selected_at:null, optional_context:{ sex:null, age:null } };
+    return { id:'auto', source:'auto', selected_at:null, golden_ratio:null, optional_context:{ sex:null, age:null } };
   }
   function currentTeethType(){
     var t = state.simTeethType;
     if(!t || !CF_TEETH_TYPES[t.id]) { t = defaultTeethType(); state.simTeethType = t; }
     if(!t.optional_context) t.optional_context = { sex:null, age:null };
+    // legacy sessions stored 'other'; the option is now Non-binary
+    if(t.optional_context.sex === 'other') t.optional_context.sex = 'nonbinary';
     return t;
   }
 
@@ -29569,6 +29610,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       source: t.source || (t.id==='auto' ? 'auto' : 'manual'),
       optional_sex: t.optional_context.sex || null,
       optional_age: t.optional_context.age || null,
+      golden_ratio: t.golden_ratio || null,
       auto_recommended: (t.id==='auto' && rec) ? rec.id : null,
       facial_type: (t.id==='auto' && rec) ? rec.facial : null,
       prompt_version: CF_TEETH_PROMPT_VERSION
@@ -29621,7 +29663,28 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       out.push('Optional patient context — approximate age '+ctx.age+' (reference only, lower priority than the selected form and the visible findings): let age-appropriate enamel texture, incisal wear and translucency inform realism; do not exaggerate aging or rejuvenation.');
     }
     if(ctx.sex){
-      out.push('Optional patient context — reported sex '+(CF_TEETH_SEX[ctx.sex]||ctx.sex)+' (weak stylistic reference only): do NOT apply stereotyped "masculine/feminine" tooth-form rules, and never let this outrank the explicit tooth-form selection, the visible clinical findings, or overall naturalness.');
+      // Sex is ONE soft crown-form criterion for crown-form-correcting concepts
+      // (prosthetic / hybrid) in primary generation. Perception basis: broader,
+      // flatter-edged anteriors read masculine; rounded, softer contours read
+      // feminine. Non-binary deliberately blends both into a neutral character.
+      var sexKey = ctx.sex==='other' ? 'nonbinary' : ctx.sex;
+      var sexLabel = CF_TEETH_SEX[sexKey]||sexKey;
+      var conceptNow = ((state.simV82||{}).concept)||'ortho';
+      var crownConcept = (conceptNow==='prosthetic'||conceptNow==='hybrid');
+      if(crownConcept){
+        var lean = sexKey==='male'
+          ? 'lean the upper anterior crown character slightly toward a SQUARE tendency — flatter incisal edges, more defined line angles and mesio-/disto-incisal corners'
+          : sexKey==='female'
+          ? 'lean the upper anterior crown character slightly toward an OVOID tendency — rounded line angles, softly curved incisal edges and smooth cervical-to-incisal transitions'
+          : 'BLEND the square and ovoid tendencies into a deliberately neutral, androgynous crown character — balanced crown width, softly defined (neither sharp nor fully rounded) corners, and a gently curved, near-straight incisal edge sitting midway between the square and ovoid forms; avoid a clearly masculine-square or clearly feminine-ovoid look';
+        out.push('Optional patient context — reported sex '+sexLabel+' (one soft crown-form criterion for this crown-form-correcting treatment concept): '+lean+'. Scale it as a subtle tendency, never a template. '
+          + (manual
+            ? 'Because the clinician explicitly selected the '+def.en+' form, express this tendency ONLY as micro-character within that selected family — the explicit selection always wins on overall form.'
+            : 'Blend it with the facial-type direction and the visible clinical findings above; explicit clinician instructions and clinical findings always outrank it.')
+          + ' Keep the result photorealistic and natural.');
+      } else {
+        out.push('Optional patient context — reported sex '+sexLabel+' (in this orthodontic-only concept: a reference for enamel texture and naturalness only — do not change crown form based on sex here, and never let it outrank the explicit tooth-form selection or the clinical findings).');
+      }
     }
     return out.join(' ');
   }
@@ -29657,121 +29720,358 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
 <script id="cf-p1-teeth-type-ui">
 /* ==================================================================================
-   Phase 1 — Upper Anterior Teeth Shape Gallery (UI)
-   Entry field on the simulator panel + vertical snap gallery dialog.
-   No animation library, no continuous JS loops (rAF only while scrolling),
-   focus-trapped dialog, Escape/backdrop/Cancel close, reduced-motion aware.
+   Phase 1 — Teeth Design (secondary) / 歯冠形態デザイナー (UI)
+   Result-screen launcher + popup: photoreal form carousel and a golden-proportion
+   live optical preview over the current result. Apply hands the design to the
+   existing gated secondary refinement (runSecondaryRefinement), which always
+   re-refines from the preserved primary image.
+   Safety: static host + function-wrapper hooks only — NO MutationObserver;
+   no continuous animation loops (rAF only per input change).
    ================================================================================== */
 (function(){
   'use strict';
-  var TYPES = window.CF_TEETH_TYPES, AGES = window.CF_TEETH_AGES, SEXES = window.CF_TEETH_SEX;
+  var TYPES = window.CF_TEETH_TYPES;
   if(!TYPES) return;
   var ORDER = ['auto','square','ovoid','tapered','rounded_square','natural_asymmetry'];
+  var IMG_BASE = 'media/teeth/';
+  /* frontal half-width profile per form (t: 0 cervical -> 1 incisal); preview only */
+  var PROF = {
+    auto:              function(t){ return 1; },
+    square:            function(t){ return .90 + .10*t; },
+    ovoid:             function(t){ return .70 + .30*Math.sin(Math.PI*Math.min(1,(t*.70+.16))); },
+    tapered:           function(t){ return .64 + .36*Math.pow(t,.85); },
+    rounded_square:    function(t){ return .87 + .13*t; },
+    natural_asymmetry: function(t){ return .87 + .13*t; }
+  };
+  var RATIO_DEFAULT = 62, RATIO_BASELINE = 70; // assumed natural lateral/central visible ratio
   function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 
-  /* ---- specimen crowns, modeled on dental-lab presentation cards: two upper
-     central incisors, soft white enamel with sheen and faint vertical texture,
-     presented on a dark clinical panel. Original artwork; a morphology
-     direction, not a promised outcome. ---- */
-  var TOOTH_PATHS = {
-    square:           'M13 20 Q13 8 29 8 Q45 8 45 20 L45 58 Q45 66 40 66 L18 66 Q13 66 13 58 Z',
-    ovoid:            'M15 22 Q15 8 29 8 Q43 8 43 22 Q45 34 43 46 Q41 62 29 66 Q17 62 15 46 Q13 34 15 22 Z',
-    tapered:          'M18 18 Q18 8 29 8 Q40 8 40 18 L44 54 Q45 65 37 66 L21 66 Q13 65 14 54 Z',
-    rounded_square:   'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z',
-    natural_asymmetry:'M13 20 Q13 8 29 8 Q45 8 45 20 L45 54 Q45 66 34 66 L24 66 Q13 66 13 54 Z'
-  };
-  /* the contralateral tooth of the asymmetry specimen differs slightly (length, incisal run) */
-  var ASYM_RIGHT =    'M13 20 Q13 8 29 8 Q45 8 45 20 L44 50 Q44 63 34 64 L23 63 Q13 62 13 52 Z';
-
-  function crownSVG(d){
-    return '<path d="'+d+'" fill="url(#cfTtEnamelBody)"/>'
-      + '<path d="'+d+'" fill="url(#cfTtSheen)"/>'
-      + '<path d="M23 15 Q22 37 23 59" fill="none" stroke="#c9ccd4" stroke-opacity=".45" stroke-width=".9"/>'
-      + '<path d="M35 15 Q36 37 35 59" fill="none" stroke="#c9ccd4" stroke-opacity=".38" stroke-width=".8"/>'
-      + '<path d="'+d+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>';
-  }
-  function specimenSVG(id){
-    if(id==='auto'){
-      return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-        + '<ellipse cx="48" cy="66" rx="26" ry="3.5" fill="rgba(0,0,0,.45)"/>'
-        + '<path d="M48 12 C49.8 29 57.5 36.4 74 38 C57.5 39.6 49.8 47 48 64 C46.2 47 38.5 39.6 22 38 C38.5 36.4 46.2 29 48 12 Z" fill="url(#cfTtSpark)"/>'
-        + '</svg>';
-    }
-    var left = TOOTH_PATHS[id], right = (id==='natural_asymmetry') ? ASYM_RIGHT : left;
-    return '<svg viewBox="0 0 96 76" aria-hidden="true">'
-      + '<ellipse cx="48" cy="69" rx="34" ry="3.5" fill="rgba(0,0,0,.45)"/>'
-      + '<g transform="translate(-10,2)">'+crownSVG(left)+'</g>'
-      + '<g transform="translate(106,2) scale(-1,1)">'+crownSVG(right)+'</g>'
-      + '</svg>';
-  }
-  /* shared gradient defs (one hidden svg; same-document url() references) */
-  var DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>'
-    + '<linearGradient id="cfTtEnamelBody" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="#e9e9ec"/>'
-    + '<stop offset=".16" stop-color="#fbfbfa"/>'
-    + '<stop offset=".6" stop-color="#f3f3f1"/>'
-    + '<stop offset="1" stop-color="#dcdde1"/>'
-    + '</linearGradient>'
-    + '<radialGradient id="cfTtSheen" cx=".38" cy=".22" r=".75">'
-    + '<stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>'
-    + '<stop offset=".45" stop-color="#ffffff" stop-opacity=".18"/>'
-    + '<stop offset="1" stop-color="#ffffff" stop-opacity="0"/>'
-    + '</radialGradient>'
-    + '<linearGradient id="cfTtSpark" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="#ffffff"/>'
-    + '<stop offset="1" stop-color="#cfd0da"/>'
-    + '</linearGradient>'
-    + '</defs></svg>';
-  /* The defs must exist at document level BEFORE the panel field first renders
-     (the dialog is created lazily, but the field icon references url(#...)). */
-  (function ensureDefs(){
-    if(document.getElementById('cfTtDefs')) return;
-    var d = document.createElement('div');
-    d.id = 'cfTtDefs';
-    d.setAttribute('aria-hidden','true');
-    d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-    d.innerHTML = DEFS;
-    (document.body || document.documentElement).appendChild(d);
-  })();
-
-  /* ---- compact fields rendered inside rebuildSimulationStudioV95's panel ---- */
+  /* ---- launcher on the result screen ---- */
   function fieldValueText(){
     var t = window.cfTeethTypeCurrent();
     var d = TYPES[t.id] || TYPES.auto;
+    var base = d.en + ' / ' + d.ja;
     if(t.id==='auto' && t.auto_recommendation && TYPES[t.auto_recommendation.id]){
-      var r = TYPES[t.auto_recommendation.id];
-      return d.en + ' / ' + d.ja + ' ・推奨 ' + r.en;
+      base += ' ・推奨 ' + TYPES[t.auto_recommendation.id].en;
     }
-    return d.en + ' / ' + d.ja;
+    return base + (t.golden_ratio ? ' ・' + t.golden_ratio + '%' : '');
   }
   function fieldIconId(){
     var t = window.cfTeethTypeCurrent();
     if(t.id!=='auto') return t.id;
     return (t.auto_recommendation && TYPES[t.auto_recommendation.id]) ? t.auto_recommendation.id : 'auto';
   }
-  function fieldHTML(){
-    return '<div class="simV95SectionLabel">Teeth Type / 歯のタイプ</div>'
+  function mountSecondary(){
+    var host = document.getElementById('cfTtSecondaryHost');
+    if(!host) return;
+    var hasResult = !!(window.state && state.simResult && state.simResult.dataUrl);
+    if(!hasResult){ if(host.innerHTML!=='') host.innerHTML=''; return; }
+    var sig = fieldValueText();
+    if(host.getAttribute('data-cftt-sig')===sig && host.querySelector('#cfTtField')) return; // idempotent
+    host.setAttribute('data-cftt-sig', sig);
+    host.innerHTML = '<div class="simV95SectionLabel">Teeth Design / 歯冠形態デザイン</div>'
       + '<button type="button" class="cfTtField" id="cfTtField" onclick="cfOpenTeethTypeGallery()" aria-haspopup="dialog" aria-expanded="false">'
-      + '<span class="cfTtFieldIcon">'+specimenSVG(fieldIconId())+'</span>'
-      + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(fieldValueText())+'</b>'
-      + '<small>上顎前歯の歯冠形態の方向性（任意・Auto はフェイシャルタイプから自動判別）</small></span>'
+      + '<span class="cfTtFieldIcon"><img src="'+IMG_BASE+esc(fieldIconId())+'.webp" alt=""></span>'
+      + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(sig)+'</b>'
+      + '<small>前歯の形態と見かけ幅比率（ゴールデンプロポーション）を二次生成でデザイン</small></span>'
       + '<span class="cfTtFieldChevron" aria-hidden="true">›</span></button>';
   }
-  function renderField(){
-    var f = document.getElementById('cfTtField');
-    if(!f) return;
-    var v = document.getElementById('cfTtFieldValue');
-    if(v) v.textContent = fieldValueText();
-    var ic = f.querySelector('.cfTtFieldIcon');
-    if(ic) ic.innerHTML = specimenSVG(fieldIconId());
+  window.cfRenderTeethTypeField = mountSecondary;
+
+  /* ---- dialog ---- */
+  var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
+  var prevImg=null, prevImgUrl=null, roiCache={}, drawRaf=0, drawToken=0;
+  var DISCLAIMER_JA='この選択はシミュレーション上の歯冠形態の方向性を調整するものです。最終的な治療計画を決定するものではありません。プレビューは局所的な光学ワープによる参考表示です。';
+  var DISCLAIMER_EN='This selection guides the visual morphology of the simulation. It does not determine the final treatment plan.';
+
+  function ensureOverlay(){
+    if(overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.className = 'cfTtOverlay';
+    overlay.id = 'cfTtOverlay';
+    overlay.setAttribute('aria-hidden','true');
+    overlay.innerHTML = '<div class="cfTtBackdrop" data-cftt-cancel></div>'
+      + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle" aria-describedby="cfTtDisclaimer">'
+      + '<div class="cfSheetHandle"></div>'
+      + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Teeth Design — Golden Proportion</h3>'
+      + '<p>歯冠形態デザイナー — 形態と見かけ幅比率をリアルタイムに検討できます</p></div>'
+      + '<button type="button" class="cfTtClose" data-cftt-cancel aria-label="Close / 閉じる">×</button></div>'
+      + '<div class="cfTtPrev"><img id="cfTtPrevImg" alt="Current result"><canvas id="cfTtPrevCanvas"></canvas>'
+      + '<span class="cfTtPrevBadge">LIVE PREVIEW / 光学プレビュー（参考）</span></div>'
+      + '<div class="cfTtScroll" id="cfTtScroll" role="radiogroup" aria-label="Tooth form / 歯冠形態"></div>'
+      + '<div class="cfTtRatioBox"><div class="cfTtRatioTop"><b>Golden proportion / 側切歯の見かけ幅</b>'
+      + '<span class="cfTtRatioVal" id="cfTtRatioVal">62%</span></div>'
+      + '<input id="cfTtRatio" type="range" min="55" max="78" step="1" value="62" aria-label="Lateral incisor visible width relative to the central incisor">'
+      + '<div class="cfTtScale"><span>Central dominant</span><span>Golden 62%</span><span>Natural soft</span></div>'
+      + '<div class="cfTtPresets">'
+      + '<button type="button" class="cfTtPreset" data-ratio="62">Golden 62</button>'
+      + '<button type="button" class="cfTtPreset" data-ratio="68">Natural 68</button>'
+      + '<button type="button" class="cfTtPreset" data-ratio="74">Soft 74</button>'
+      + '</div></div>'
+      + '<p class="cfTtDisclaimer" id="cfTtDisclaimer">'+DISCLAIMER_JA+'<br>'+DISCLAIMER_EN+'</p>'
+      + '<div class="cfTtActions">'
+      + '<button type="button" class="cfTtBtn" data-cftt-cancel>Cancel / キャンセル</button>'
+      + '<button type="button" class="cfTtBtn" id="cfTtAutoBtn">Auto / 自動に戻す</button>'
+      + '<button type="button" class="cfTtBtn cfTtApply" id="cfTtApplyBtn">Apply・精密生成</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', function(e){
+      if(e.target && e.target.closest('[data-cftt-cancel]')) closeGallery(false);
+    });
+    overlay.querySelector('#cfTtApplyBtn').addEventListener('click', function(){ closeGallery(true); });
+    overlay.querySelector('#cfTtAutoBtn').addEventListener('click', function(){
+      selectDraft('auto'); setRatio(RATIO_DEFAULT);
+      var c = cardEl('auto'); if(c) centerCard(c);
+    });
+    overlay.querySelector('#cfTtRatio').addEventListener('input', function(){ setRatio(parseInt(this.value,10)||RATIO_DEFAULT, true); });
+    overlay.querySelector('.cfTtPresets').addEventListener('click', function(e){
+      var b = e.target.closest('[data-ratio]'); if(!b) return;
+      setRatio(parseInt(b.getAttribute('data-ratio'),10));
+    });
+    overlay.addEventListener('keydown', onDialogKeydown, true);
+    var sc = overlay.querySelector('#cfTtScroll');
+    sc.addEventListener('scroll', function(){
+      if(scrollRaf) return;
+      scrollRaf = requestAnimationFrame(function(){ scrollRaf = 0; markCenterCard(); });
+    }, { passive:true });
+    buildCards();
+    return overlay;
   }
 
-  /* ---- optional patient context (sex / age): simulator panel, before the
-     chief complaint cards. Canonical storage stays in simTeethType.optional_context. ---- */
+  function cardEl(id){ return overlay ? overlay.querySelector('.cfTtCard[data-id="'+id+'"]') : null; }
+  function focusables(){
+    return Array.prototype.filter.call(
+      overlay.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'),
+      function(el){ return el.offsetParent !== null; });
+  }
+  function buildCards(){
+    var sc = overlay.querySelector('#cfTtScroll');
+    sc.innerHTML = ORDER.map(function(id){
+      var d = TYPES[id];
+      return '<button type="button" class="cfTtCard" role="radio" aria-checked="false" data-id="'+id+'">'
+        + '<span class="cfTtSpecimen"><img src="'+IMG_BASE+id+'.webp" alt="" loading="lazy">'
+        + '<span class="cfTtCheck" aria-hidden="true">✓</span></span>'
+        + '<span class="cfTtInfo"><b>'+esc(d.en)+'</b><i>'+esc(d.ja)+'</i></span></button>';
+    }).join('');
+    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
+      card.addEventListener('click', function(){
+        selectDraft(card.getAttribute('data-id'));
+        card.classList.remove('justSelected');
+        if(!reduced()){ void card.offsetWidth; card.classList.add('justSelected'); }
+        centerCard(card);
+      });
+    });
+  }
+  function paintCards(){
+    Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtCard'), function(card){
+      card.setAttribute('aria-checked', card.getAttribute('data-id')===draft.id ? 'true' : 'false');
+    });
+  }
+  function paintRatio(){
+    overlay.querySelector('#cfTtRatioVal').textContent = draft.ratio + '%';
+    overlay.querySelector('#cfTtRatio').value = draft.ratio;
+    Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtPreset'), function(b){
+      b.setAttribute('aria-pressed', parseInt(b.getAttribute('data-ratio'),10)===draft.ratio ? 'true' : 'false');
+    });
+  }
+  function selectDraft(id){ if(!TYPES[id]) return; draft.id = id; paintCards(); schedulePreview(); }
+  function setRatio(v, fromSlider){ draft.ratio = Math.max(55, Math.min(78, v||RATIO_DEFAULT)); if(!fromSlider) paintRatio(); else { overlay.querySelector('#cfTtRatioVal').textContent = draft.ratio+'%'; Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtPreset'), function(b){ b.setAttribute('aria-pressed','false'); }); } schedulePreview(); }
+  function centerCard(card){
+    try{ card.scrollIntoView({ block:'nearest', inline:'center', behavior: reduced() ? 'auto' : 'smooth' }); }catch(e){ card.scrollIntoView(); }
+  }
+  function markCenterCard(){
+    var sc = overlay.querySelector('#cfTtScroll');
+    var mid = sc.getBoundingClientRect().left + sc.clientWidth/2;
+    var best=null, bestDist=1e9;
+    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
+      var r = card.getBoundingClientRect();
+      var d = Math.abs((r.left + r.width/2) - mid);
+      if(d < bestDist){ bestDist=d; best=card; }
+    });
+    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
+      card.classList.toggle('isCenter', card===best);
+    });
+  }
+  function onDialogKeydown(e){
+    if(e.key==='Escape'){ e.preventDefault(); closeGallery(false); return; }
+    if(e.key==='Tab'){
+      var f = focusables(); if(!f.length) return;
+      var first=f[0], last=f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+      return;
+    }
+    if((e.key==='ArrowRight'||e.key==='ArrowLeft') && e.target && e.target.closest('#cfTtScroll')){
+      e.preventDefault();
+      var i = ORDER.indexOf(draft.id);
+      i = e.key==='ArrowRight' ? Math.min(ORDER.length-1, i+1) : Math.max(0, i-1);
+      selectDraft(ORDER[i]);
+      var c = cardEl(ORDER[i]); if(c){ centerCard(c); c.focus({ preventScroll:true }); }
+    }
+  }
+
+  /* ---- live optical preview (local, no AI calls) ---- */
+  function loadPrevImage(url){
+    return new Promise(function(res, rej){
+      if(prevImg && prevImgUrl===url) return res(prevImg);
+      var i = new Image();
+      i.onload = function(){ prevImg=i; prevImgUrl=url; res(i); };
+      i.onerror = rej; i.src = url;
+    });
+  }
+  /* teeth ROI: brightest low-saturation cluster in the expected zone; cached per image */
+  function computeRoi(img, facial){
+    var key = prevImgUrl ? prevImgUrl.slice(0,80)+':'+prevImgUrl.length : 'x';
+    if(roiCache[key]) return roiCache[key];
+    var W = img.naturalWidth||img.width, H = img.naturalHeight||img.height;
+    var dw = 180, dh = Math.max(1, Math.round(H*dw/W));
+    var c = document.createElement('canvas'); c.width=dw; c.height=dh;
+    var x = c.getContext('2d', { willReadFrequently:true }); x.drawImage(img, 0, 0, dw, dh);
+    var d; try{ d = x.getImageData(0,0,dw,dh).data; }catch(e){ d=null; }
+    var zone = facial ? { x0:.22, x1:.78, y0:.42, y1:.88 } : { x0:.06, x1:.94, y0:.10, y1:.92 };
+    var best=null;
+    if(d){
+      var minX=dw, maxX=0, minY=dh, maxY=0, n=0;
+      for(var yy=Math.floor(dh*zone.y0); yy<dh*zone.y1; yy++){
+        for(var xx=Math.floor(dw*zone.x0); xx<dw*zone.x1; xx++){
+          var p=(yy*dw+xx)*4, r=d[p], g=d[p+1], b=d[p+2];
+          var mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+          if(mx>150 && (mx-mn)<Math.max(26, mx*.16)){ // bright & low-chroma = enamel-like
+            if(xx<minX)minX=xx; if(xx>maxX)maxX=xx; if(yy<minY)minY=yy; if(yy>maxY)maxY=yy; n++;
+          }
+        }
+      }
+      if(n>24 && maxX>minX+6 && maxY>minY+3){
+        var padX=(maxX-minX)*.10, padY=(maxY-minY)*.22;
+        best={ x:(minX-padX)/dw, y:(minY-padY)/dh, w:(maxX-minX+padX*2)/dw, h:(maxY-minY+padY*2)/dh };
+      }
+    }
+    if(!best) best = facial ? { x:.33, y:.55, w:.34, h:.16 } : { x:.14, y:.22, w:.72, h:.5 };
+    best = { x:Math.max(0,best.x)*W, y:Math.max(0,best.y)*H,
+             w:Math.min(1,best.w)*W, h:Math.min(1,best.h)*H };
+    roiCache[key]=best;
+    return best;
+  }
+  function schedulePreview(){
+    if(drawRaf) return;
+    drawRaf = requestAnimationFrame(function(){ drawRaf=0; drawPreview(); });
+  }
+  async function drawPreview(){
+    if(!overlay || !overlay.classList.contains('open') || !draft) return;
+    var result = window.state && state.simResult;
+    var canvas = overlay.querySelector('#cfTtPrevCanvas');
+    if(!result || !result.dataUrl || !canvas) return;
+    var token = ++drawToken;
+    var img; try{ img = await loadPrevImage(result.dataUrl); }catch(e){ return; }
+    if(token!==drawToken) return;
+    var W = img.naturalWidth||img.width, H = img.naturalHeight||img.height;
+    if(canvas.width!==W || canvas.height!==H){ canvas.width=W; canvas.height=H; }
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    if(draft.id==='auto' && draft.ratio===RATIO_BASELINE) return; // nothing to preview
+    var facial = (result.sourceKind==='Facial');
+    var roi = computeRoi(img, facial);
+    var rx=roi.x, ry=roi.y, rw=roi.w, rh=roi.h;
+    // width split: [lateral | central pair | lateral]; visible ratio R = lateral/central
+    var srcCen = rw/(1+RATIO_BASELINE/100), srcLat=(rw-srcCen)/2;
+    var dstCen = rw/(1+draft.ratio/100),    dstLat=(rw-dstCen)/2;
+    var prof = PROF[draft.id]||PROF.auto;
+    var tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
+    var tx = tmp.getContext('2d');
+    var bands = 40;
+    for(var i=0;i<bands;i++){
+      var t=i/bands, sy=ry+rh*t, sh=rh/bands+1;
+      var f=prof(t), rowW=rw*f, rowX=rx+(rw-rowW)/2;
+      var cS=srcCen, lS=srcLat, cD=dstCen*f*(rowW/rw)/f, lD=(rowW-dstCen*(rowW/rw))/2;
+      // sample the full-width source row, place into the form-scaled destination row
+      tx.drawImage(img, rx, sy, lS, sh, rowX, sy, lD, sh);
+      tx.drawImage(img, rx+lS, sy, cS, sh, rowX+lD, sy, rowW-lD*2, sh);
+      tx.drawImage(img, rx+lS+cS, sy, lS, sh, rowX+rowW-lD, sy, lD, sh);
+    }
+    // feathered ellipse so the warp melts into the untouched photo
+    tx.globalCompositeOperation='destination-in';
+    var g=tx.createRadialGradient(rx+rw/2, ry+rh*.5, Math.min(rw,rh)*.18, rx+rw/2, ry+rh*.5, Math.max(rw,rh)*.62);
+    g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.7,'rgba(0,0,0,.96)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    tx.fillStyle=g; tx.fillRect(rx-rw*.2, ry-rh*.3, rw*1.4, rh*1.6);
+    if(token!==drawToken) return;
+    ctx.globalAlpha=.94; ctx.drawImage(tmp,0,0); ctx.globalAlpha=1;
+    tmp.width=tmp.height=1;
+  }
+
+  /* ---- open / close / apply ---- */
+  window.cfOpenTeethTypeGallery = function(){
+    var result = window.state && state.simResult;
+    if(!result || !result.dataUrl){ if(typeof toast==='function') toast('先に一次生成を実行してください'); return; }
+    ensureOverlay();
+    var cur = window.cfTeethTypeCurrent();
+    draft = { id: cur.id, ratio: cur.golden_ratio || RATIO_DEFAULT };
+    paintCards(); paintRatio();
+    var pi = overlay.querySelector('#cfTtPrevImg');
+    if(pi && pi.getAttribute('src')!==result.dataUrl) pi.src = result.dataUrl;
+    if(typeof window.cfComputeTeethAutoRecommendation==='function') window.cfComputeTeethAutoRecommendation();
+    opener = document.getElementById('cfTtField');
+    if(opener){
+      opener.setAttribute('aria-expanded','true');
+      if(!reduced()){ opener.classList.add('cfTtGlow'); setTimeout(function(){ opener && opener.classList.remove('cfTtGlow'); }, 620); }
+    }
+    if(closeTimer){ clearTimeout(closeTimer); closeTimer=0; }
+    overlay.classList.remove('closing');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden','false');
+    var selCard = cardEl(draft.id);
+    if(selCard){
+      try{ selCard.scrollIntoView({ block:'nearest', inline:'center', behavior:'auto' }); }catch(e){}
+      markCenterCard();
+      selCard.focus({ preventScroll:true });
+    }
+    schedulePreview();
+  };
+
+  function closeGallery(apply){
+    if(!overlay || !overlay.classList.contains('open')) return;
+    var applied=false;
+    if(apply && draft){
+      var prev = window.cfTeethTypeCurrent();
+      window.state.simTeethType = {
+        id: draft.id,
+        source: draft.id==='auto' ? 'auto' : 'secondary_manual',
+        selected_at: new Date().toISOString(),
+        golden_ratio: draft.ratio,
+        optional_context: prev.optional_context || { sex:null, age:null },
+        auto_recommendation: prev.auto_recommendation || null
+      };
+      applied=true;
+      mountSecondary();
+      try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
+    }
+    overlay.setAttribute('aria-hidden','true');
+    if(reduced()){
+      overlay.classList.remove('open');
+    } else {
+      overlay.classList.add('closing');
+      closeTimer = setTimeout(function(){ closeTimer=0; overlay.classList.remove('open','closing'); }, 300);
+    }
+    var f = document.getElementById('cfTtField');
+    if(f){ f.setAttribute('aria-expanded','false'); try{ f.focus({ preventScroll:true }); }catch(e){} }
+    draft = null;
+    if(applied){
+      if(typeof toast==='function') toast('歯冠形態デザインを二次精密生成へ反映します');
+      // hand the committed design to the gated secondary refinement pipeline
+      if(typeof window.runSecondaryRefinement==='function'){
+        try{ var p=window.runSecondaryRefinement(); if(p&&p.then) p.then(function(){ mountSecondary(); }); }catch(e){}
+      }
+    }
+  }
+  window.cfCloseTeethTypeGallery = closeGallery;
+
+
+  /* ---- optional patient context (sex / age): simulator panel — unchanged ---- */
+  var AGES = window.CF_TEETH_AGES, SEXES = window.CF_TEETH_SEX;
   function ctxFieldHTML(){
     var ctx = (window.cfTeethTypeCurrent().optional_context) || { sex:null, age:null };
-    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['other',SEXES.other]];
+    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['nonbinary',SEXES.nonbinary]];
     var ageOpts = [['','未指定']].concat(AGES.map(function(a){ return [a,a]; }));
     function opts(list, cur){
       return list.map(function(o){
@@ -29783,7 +30083,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       + '<label class="cfTtCtxSel"><span>Sex / 性別</span><select id="cfTtSexSel" onchange="cfSetTeethCtx(\'sex\',this.value)">'+opts(sexOpts,ctx.sex)+'</select></label>'
       + '<label class="cfTtCtxSel"><span>Age / 年齢</span><select id="cfTtAgeSel" onchange="cfSetTeethCtx(\'age\',this.value)">'+opts(ageOpts,ctx.age)+'</select></label>'
       + '</div>'
-      + '<div class="cfTtCtxHint">形態や質感の自然さを補助する任意の参考情報です。歯科医師が選択した歯冠形態が常に優先され、性別から形態を自動決定することはありません。</div>';
+      + '<div class="cfTtCtxHint">補綴・ハイブリッド治療では歯冠形態補正の参考基準のひとつになります（男性=スクエア傾向・女性=オーバル傾向・ノンバイナリー=中間の中性的形態）。歯科医師が選択した歯冠形態と臨床所見が常に優先されます。</div>';
   }
   window.cfSetTeethCtx = function(key, value){
     var t = window.cfTeethTypeCurrent();
@@ -29791,14 +30091,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     t.optional_context[key] = value || null;
     try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
   };
+  window.cfPatientCtxFieldHTML = ctxFieldHTML;
 
-  /* ---- Auto: facial-type matched recommendation (design language, not a
-     diagnosis). Classifies the SKELETAL FACIAL PROFILE from MediaPipe face
-     landmarks when available: brachy 短頭型 → broader/shorter square family,
-     mesio 中顔型 → ovoid, dolicho 長顔型 → tapered. Falls back silently —
-     the prompt then asks the generator itself to read the facial type. ---- */
+  /* ---- Auto: facial-type matched recommendation (unchanged mechanics) ---- */
   var FACIAL_MAP = { brachy_square:'square', brachy_soft:'rounded_square', mesio:'ovoid', dolicho:'tapered' };
-  var recCache = {};        // dataUrl prefix -> recommendation|null
+  var recCache = {};
   var recPending = false;
   function facialCandidate(){
     var s = window.state || {};
@@ -29811,9 +30108,9 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   function classifyFacial(lm, w, h){
     function px(i){ return { x: lm[i].x*w, y: lm[i].y*h }; }
     function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-    var faceH  = dist(px(10), px(152));   // upper forehead -> chin
-    var cheekW = dist(px(234), px(454));  // bizygomatic width
-    var jawW   = dist(px(172), px(397));  // gonial width
+    var faceH  = dist(px(10), px(152));
+    var cheekW = dist(px(234), px(454));
+    var jawW   = dist(px(172), px(397));
     if(!(faceH>0) || !(cheekW>0)) return null;
     var fi = faceH/cheekW, ji = jawW/cheekW;
     var facial = (fi >= 1.42) ? 'dolicho' : (fi <= 1.26 ? 'brachy' : 'mesio');
@@ -29829,7 +30126,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       var cand = facialCandidate();
       if(!cand) { t.auto_recommendation = null; return null; }
       var key = String(cand.dataUrl).slice(0,96) + ':' + String(cand.dataUrl).length;
-      if(key in recCache){ t.auto_recommendation = recCache[key]; renderField(); refreshAutoCardHint(); return recCache[key]; }
+      if(key in recCache){ t.auto_recommendation = recCache[key]; mountSecondary(); return recCache[key]; }
       recPending = true;
       var ok = (typeof window.initMediaPipeLocalML==='function') ? await window.initMediaPipeLocalML() : false;
       if(!ok || !window.CaseFlowLocalML || !CaseFlowLocalML.faceLandmarker){ recPending=false; recCache[key]=null; return null; }
@@ -29839,26 +30136,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       var rec = lm ? classifyFacial(lm, img.naturalWidth||img.width, img.naturalHeight||img.height) : null;
       recCache[key] = rec;
       var cur = window.cfTeethTypeCurrent();
-      if(cur.id==='auto'){ cur.auto_recommendation = rec; renderField(); refreshAutoCardHint(); }
+      if(cur.id==='auto'){ cur.auto_recommendation = rec; mountSecondary(); }
       recPending = false;
       return rec;
     }catch(e){ recPending=false; return null; }
   }
-  function refreshAutoCardHint(){
-    if(!overlay) return;
-    var card = overlay.querySelector('.cfTtCard[data-id="auto"] .cfTtInfo small');
-    var t = window.cfTeethTypeCurrent();
-    if(card && t.auto_recommendation && TYPES[t.auto_recommendation.id]){
-      var r = TYPES[t.auto_recommendation.id];
-      var f = window.CF_FACIAL_TYPES && window.CF_FACIAL_TYPES[t.auto_recommendation.facial];
-      card.innerHTML = esc(TYPES.auto.desc_ja) + '<br>' + esc((f?f.ja:'') + ' → 推奨: ' + r.en + ' / ' + r.ja);
-    }
-  }
   window.cfComputeTeethAutoRecommendation = computeAutoRecommendation;
 
-  /* Compute the recommendation BEFORE prompt build on generation (layered
-     wrapper, same pattern as v9.5/cfPersist). Bounded so generation is never
-     held hostage by a slow/unavailable landmark model. */
   (function hookGenerate(){
     var prev = window.generateSimulation;
     if(typeof prev !== 'function'){ document.addEventListener('DOMContentLoaded', hookGenerate, { once:true }); return; }
@@ -29875,180 +30159,20 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     window.generateSimulation = wrapped;
   })();
 
-  /* ---- dialog (appended once at body level; panel rebuilds cannot destroy it) ---- */
-  var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
-  var DISCLAIMER_JA='この選択はシミュレーション上の歯冠形態の方向性を調整するものです。最終的な治療計画を決定するものではありません。';
-  var DISCLAIMER_EN='This selection guides the visual morphology of the simulation. It does not determine the final treatment plan.';
-
-  function ensureOverlay(){
-    if(overlay) return overlay;
-    overlay = document.createElement('div');
-    overlay.className = 'cfTtOverlay';
-    overlay.id = 'cfTtOverlay';
-    overlay.setAttribute('aria-hidden','true');
-    overlay.innerHTML = '<div class="cfTtBackdrop" data-cftt-cancel></div>'
-      + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle" aria-describedby="cfTtDisclaimer">'
-      + '<div class="cfSheetHandle"></div>'
-      + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Upper Anterior Teeth Shape Gallery</h3>'
-      + '<p>上顎前歯形態ギャラリー — 中央のカードが現在のプレビューです</p></div>'
-      + '<button type="button" class="cfTtClose" data-cftt-cancel aria-label="Close / 閉じる">×</button></div>'
-      + '<div class="cfTtScroll" id="cfTtScroll" role="radiogroup" aria-label="Tooth form / 歯冠形態"></div>'
-      + '<p class="cfTtDisclaimer" id="cfTtDisclaimer">'+DISCLAIMER_JA+'<br>'+DISCLAIMER_EN+'</p>'
-      + '<div class="cfTtActions">'
-      + '<button type="button" class="cfTtBtn" data-cftt-cancel>Cancel / キャンセル</button>'
-      + '<button type="button" class="cfTtBtn" id="cfTtAutoBtn">Auto / 自動に戻す</button>'
-      + '<button type="button" class="cfTtBtn cfTtApply" id="cfTtApplyBtn">Apply / 適用</button>'
-      + '</div></div>';
-    document.body.appendChild(overlay);
-
-    overlay.addEventListener('click', function(e){
-      if(e.target && e.target.closest('[data-cftt-cancel]')) closeGallery(false);
-    });
-    overlay.querySelector('#cfTtApplyBtn').addEventListener('click', function(){ closeGallery(true); });
-    overlay.querySelector('#cfTtAutoBtn').addEventListener('click', function(){
-      selectDraft('auto');
-      var c = cardEl('auto'); if(c) centerCard(c);
-    });
-    overlay.addEventListener('keydown', onDialogKeydown, true);
-    var sc = overlay.querySelector('#cfTtScroll');
-    sc.addEventListener('scroll', function(){
-      if(scrollRaf) return;
-      scrollRaf = requestAnimationFrame(function(){ scrollRaf = 0; markCenterCard(); });
-    }, { passive:true });
-    return overlay;
-  }
-
-  function cardEl(id){ return overlay ? overlay.querySelector('.cfTtCard[data-id="'+id+'"]') : null; }
-  function focusables(){
-    return Array.prototype.filter.call(
-      overlay.querySelectorAll('button,[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])'),
-      function(el){ return el.offsetParent !== null; });
-  }
-
-  function buildCards(){
-    var sc = overlay.querySelector('#cfTtScroll');
-    sc.innerHTML = ORDER.map(function(id){
-      var d = TYPES[id];
-      return '<button type="button" class="cfTtCard" role="radio" aria-checked="false" data-id="'+id+'">'
-        + '<span class="cfTtSpecimen">'+specimenSVG(id)+'</span>'
-        + '<span class="cfTtInfo"><b>'+esc(d.en)+'<i>'+esc(d.ja)+'</i></b>'
-        + '<small>'+esc(d.desc_ja)+'<br>'+esc(d.desc_en)+'</small></span>'
-        + '<span class="cfTtCheck" aria-hidden="true">✓</span></button>';
-    }).join('');
-    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
-      card.addEventListener('click', function(){
-        selectDraft(card.getAttribute('data-id'));
-        card.classList.remove('justSelected');
-        if(!reduced()){ void card.offsetWidth; card.classList.add('justSelected'); }
-        centerCard(card);
-      });
-    });
-  }
-  function paintCards(){
-    Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtCard'), function(card){
-      card.setAttribute('aria-checked', card.getAttribute('data-id')===draft.id ? 'true' : 'false');
-    });
-  }
-  function selectDraft(id){
-    if(!TYPES[id]) return;
-    draft.id = id;
-    draft.source = id==='auto' ? 'auto' : 'manual';
-    paintCards();
-  }
-  function centerCard(card){
-    try{ card.scrollIntoView({ block:'center', behavior: reduced() ? 'auto' : 'smooth' }); }catch(e){ card.scrollIntoView(); }
-  }
-  function markCenterCard(){
-    var sc = overlay.querySelector('#cfTtScroll');
-    var mid = sc.getBoundingClientRect().top + sc.clientHeight/2;
-    var best=null, bestDist=1e9;
-    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
-      var r = card.getBoundingClientRect();
-      var d = Math.abs((r.top + r.height/2) - mid);
-      if(d < bestDist){ bestDist=d; best=card; }
-    });
-    Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
-      card.classList.toggle('isCenter', card===best);
-    });
-  }
-  function onDialogKeydown(e){
-    if(e.key==='Escape'){ e.preventDefault(); closeGallery(false); return; }
-    if(e.key==='Tab'){
-      var f = focusables(); if(!f.length) return;
-      var first=f[0], last=f[f.length-1];
-      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
-      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
-      return;
-    }
-    if((e.key==='ArrowDown'||e.key==='ArrowUp') && e.target && e.target.closest('#cfTtScroll')){
-      e.preventDefault();
-      var i = ORDER.indexOf(draft.id);
-      i = e.key==='ArrowDown' ? Math.min(ORDER.length-1, i+1) : Math.max(0, i-1);
-      selectDraft(ORDER[i]);
-      var c = cardEl(ORDER[i]); if(c){ centerCard(c); c.focus({ preventScroll:true }); }
-    }
-  }
-
-  window.cfOpenTeethTypeGallery = function(){
-    ensureOverlay();
-    if(!overlay.querySelector('.cfTtCard')) buildCards();
-    var cur = window.cfTeethTypeCurrent();
-    draft = JSON.parse(JSON.stringify(cur));
-    paintCards();
-    computeAutoRecommendation(); // async; refreshes the Auto card hint + field when done
-    opener = document.getElementById('cfTtField');
-    if(opener){
-      opener.setAttribute('aria-expanded','true');
-      if(!reduced()){ opener.classList.add('cfTtGlow'); setTimeout(function(){ opener && opener.classList.remove('cfTtGlow'); }, 620); }
-    }
-    if(closeTimer){ clearTimeout(closeTimer); closeTimer=0; }
-    overlay.classList.remove('closing');
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden','false');
-    var selCard = cardEl(draft.id);
-    if(selCard){
-      try{ selCard.scrollIntoView({ block:'center', behavior:'auto' }); }catch(e){}
-      markCenterCard();
-      selCard.focus({ preventScroll:true });
-    }
-  };
-
-  function closeGallery(apply){
-    if(!overlay || !overlay.classList.contains('open')) return;
-    if(apply && draft){
-      var prev = window.cfTeethTypeCurrent();
-      var changed = prev.id!==draft.id;
-      // sex/age live on the simulator panel (not in this dialog); keep them as-is
-      window.state.simTeethType = {
-        id: draft.id,
-        source: draft.id==='auto' ? 'auto' : 'manual',
-        selected_at: changed ? new Date().toISOString() : (prev.selected_at||null),
-        optional_context: prev.optional_context || { sex:null, age:null },
-        auto_recommendation: prev.auto_recommendation || null
-      };
-      renderField();
-      try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
-      if(typeof toast==='function' && changed) toast('歯のタイプ: '+fieldValueText());
-    }
-    /* Non-blocking close: interaction is released immediately, the material
-       collapses back toward the source field behind the user's next action. */
-    overlay.setAttribute('aria-hidden','true');
-    if(reduced()){
-      overlay.classList.remove('open');
-    } else {
-      overlay.classList.add('closing');
-      closeTimer = setTimeout(function(){ closeTimer=0; overlay.classList.remove('open','closing'); }, 300);
-    }
-    if(opener){
-      opener.setAttribute('aria-expanded','false');
-      try{ opener.focus({ preventScroll:true }); }catch(e){}
-    }
-    draft = null;
-  }
-  window.cfCloseTeethTypeGallery = closeGallery;
-  window.cfTeethTypeFieldHTML = fieldHTML;
-  window.cfPatientCtxFieldHTML = ctxFieldHTML;
-  window.cfRenderTeethTypeField = renderField;
+  /* ---- hooks: layered function wrappers only (no observers) ---- */
+  (function hookRenderResult(){
+    var prev = window.renderResult;
+    if(typeof prev!=='function'){ document.addEventListener('DOMContentLoaded', hookRenderResult, { once:true }); return; }
+    if(prev.__cfTtSecondaryHooked) return;
+    var wrapped = function(){
+      var r = prev.apply(this, arguments);
+      setTimeout(mountSecondary, 60);
+      return r;
+    };
+    wrapped.__cfTtSecondaryHooked = true;
+    window.renderResult = wrapped;
+  })();
+  window.addEventListener('DOMContentLoaded', function(){ setTimeout(mountSecondary, 300); });
 })();
 </script>
 
