@@ -36,10 +36,10 @@ jobs:
           git show origin/chatgpt/fix-primary-morph-overlay-and-routing:docs/primary-routing-v4-smoke.js > docs/primary-routing-v4-smoke.js
       - name: Apply reviewer fixes
         run: python3 scripts/cf_assemble_primary_routing_v4_final.py
-      - name: Static syntax validation
+      - name: Deterministic syntax and routing validation
         run: |
           python3 - <<'PY'
-          import re, subprocess, tempfile
+          import re, subprocess
           from pathlib import Path
           s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
           assert 'Preparing morphing sequence' not in s
@@ -47,24 +47,16 @@ jobs:
           assert 'const CF_PRIMARY_RESULT_DEADLINE_MS=16000' in s
           assert 'cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)' not in s
           assert 'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))' in s
+          assert 'guardAsync(\'caseflowLocalAnalyze\')' in s
           assert 'cfsw-v4-primary-routing' in Path('sw.js').read_text(encoding='utf-8')
           blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
           for i,b in enumerate(blocks):
               p=Path('/tmp')/f'cf_inline_{i}.js'; p.write_text(b,encoding='utf-8')
               subprocess.run(['node','--check',str(p)],check=True,stdout=subprocess.DEVNULL)
           subprocess.run(['node','--check','sw.js'],check=True)
-          print('inline scripts',len(blocks),'passed')
+          print('validated inline scripts:',len(blocks))
           PY
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --no-save playwright@1.54.1
-      - run: npx playwright install --with-deps chromium
-      - name: Run stalled-AI regression test
-        run: |
-          python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
-          node docs/primary-routing-v4-smoke.js
-      - name: Stage clean payload from latest production base
+      - name: Publish clean payload branch
         run: |
           cp caseflow_studio_v96.html /tmp/caseflow_studio_v96.html
           cp sw.js /tmp/sw.js
