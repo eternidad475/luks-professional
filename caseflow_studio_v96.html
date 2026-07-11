@@ -10,9 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="CaseFlow Studio">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icons/icon-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/icon-180-v2.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192-v2.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32-v2.png">
 <title>CaseFlow Studio v9.6</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>/* hide consent gate before first paint if already agreed (prevents flash) */
@@ -9442,7 +9442,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
   function getProjectThumb(){
-    return (state.simResult && state.simResult.dataUrl) || (state.photos[0] && state.photos[0].dataUrl) || 'icons/icon-512.png';
+    return (state.simResult && state.simResult.dataUrl) || (state.photos[0] && state.photos[0].dataUrl) || 'icons/icon-512-v2.png';
   }
   function detectProjectKind(){
     if(state.manualAnim && state.manualAnim.frames && state.manualAnim.frames.length) return 'manual-animation';
@@ -15219,7 +15219,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try{ localStorage.setItem('caseflow_project_library_v55', JSON.stringify(arr)); }catch(e){}
   }
   function getThumb(){
-    return (state.photos && state.photos[0] && state.photos[0].dataUrl) || 'icons/icon-512.png';
+    return (state.photos && state.photos[0] && state.photos[0].dataUrl) || 'icons/icon-512-v2.png';
   }
   function autoAddVideoToLibrary(blob,name,type){
     if(!type || !String(type).startsWith('video')) return;
@@ -15289,7 +15289,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const isVideo = r.kind === 'landmark-video' || (r.payload && r.payload.videoMime && String(r.payload.videoMime).startsWith('video'));
       const media = isVideo && r.payload && r.payload.videoUrl
         ? `<video src="${esc(r.payload.videoUrl)}" muted playsinline loop></video>`
-        : `<img src="${esc(r.thumb || 'icons/icon-512.png')}" alt="${esc(r.title)}">`;
+        : `<img src="${esc(r.thumb || 'icons/icon-512-v2.png')}" alt="${esc(r.title)}">`;
       const meta = isVideo ? `landmark-video<br>${esc(r.createdAt || '')}<span class="libraryVideoBadge">Auto saved</span>` : `${esc(r.kind||'project')}<br>${esc(r.createdAt||'')}`;
       const open = isVideo ? `openLibraryVideo('${esc(r.id)}')` : `openLibraryProject('${esc(r.id)}')`;
       return `<article class="libraryCard">${media}<div><div class="libraryTitle">${esc(r.title||'Untitled')}</div><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button onclick="${open}">Open</button><button onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
@@ -15569,7 +15569,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const videoUrl = r.payload && r.payload.videoUrl;
       const media = isVideo && videoUrl
         ? `<video src="${esc(videoUrl)}" muted playsinline loop></video>`
-        : `<img src="${esc(r.thumb||'icons/icon-512.png')}" alt="${esc(r.title||'Untitled')}">`;
+        : `<img src="${esc(r.thumb||'icons/icon-512-v2.png')}" alt="${esc(r.title||'Untitled')}">`;
       const openFn = isVideo ? `openLibraryVideo('${esc(r.id)}')` : `openLibraryProject('${esc(r.id)}')`;
       const meta = `${esc(r.kind||'project')}<br>${esc(r.createdAt||'')}${isVideo?'<span class="libraryVideoBadge">Auto saved</span>':''}`;
       return `<article class="libraryCard">${media}<div><div class="libraryTitle">${esc(r.title||'Untitled')}</div><input class="libraryTitleEdit" value="${esc(r.title||'Untitled')}" oninput="caseflowV79UpdateLibraryTitle('${esc(r.id)}',this.value)" onchange="caseflowV79CommitLibraryTitle('${esc(r.id)}',this.value)"><span class="libraryEditHint">タイトルを直接編集できます</span><div class="libraryMeta">${meta}</div><div class="libraryBtns"><button onclick="${openFn}">Open</button><button onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
@@ -16813,7 +16813,7 @@ body[data-ui-tone="dark"]{
       const src=r.payload.videoUrl || r.payload.videoDataUrl || r.payload.url;
       return `<video src="${esc(src)}" muted playsinline loop></video>`;
     }
-    return `<img src="${esc(r.thumb || (r.payload && r.payload.simResult && r.payload.simResult.dataUrl) || 'icons/icon-512.png')}" alt="${esc(r.title||'Untitled')}">`;
+    return `<img src="${esc(r.thumb || (r.payload && r.payload.simResult && r.payload.simResult.dataUrl) || 'icons/icon-512-v2.png')}" alt="${esc(r.title||'Untitled')}">`;
   }
   function badgeFor(r){
     if(isVideo(r)) return '<span class="libraryVideoBadge">Video</span>';
@@ -17383,7 +17383,7 @@ body[data-ui-tone="dark"]{
   function isVideo(r){ return !!(r && (r.kind==='landmark-video' || (r.payload && String(r.payload.videoMime||'').startsWith('video')))); }
   function isSimulation(r){ return !!(r && (r.kind==='simulation-image' || r.kind==='simulation' || (r.payload && r.payload.simResult))); }
   function isProject(r){ return !!(r && !isVideo(r) && !isSimulation(r)); }
-  function thumbOf(r){ return (r && (r.thumb || (r.payload && r.payload.simResult && r.payload.simResult.dataUrl))) || 'icons/icon-512.png'; }
+  function thumbOf(r){ return (r && (r.thumb || (r.payload && r.payload.simResult && r.payload.simResult.dataUrl))) || 'icons/icon-512-v2.png'; }
   function videoSourceOf(r){ const p=(r&&r.payload)||{}; return p.videoUrl || p.videoDataUrl || p.url || ''; }
   function blobKeyOf(r){ const p=(r&&r.payload)||{}; return p.videoBlobKey || p.blobKey || r.id; }
 
@@ -29089,7 +29089,7 @@ window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
     var expMs=row.expires_at?new Date(row.expires_at).getTime():0;
     var rec={ id:row.client_id, kind:row.kind||(isVid?'landmark-video':'simulation-image'),
       title:row.title||'Untitled', createdAt:(row.meta&&row.meta.createdAt)||'',
-      thumb:urls.thumb||'icons/icon-512.png', fav:!!(row.meta&&row.meta.fav),
+      thumb:urls.thumb||'icons/icon-512-v2.png', fav:!!(row.meta&&row.meta.fav),
       _sb:true, expiresAt:expMs, payload:{ title:row.title||'Untitled' } };
     if(isVid){
       rec.payload.videoUrl=urls.asset||'';
