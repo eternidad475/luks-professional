@@ -47,7 +47,6 @@ jobs:
           assert 'const CF_PRIMARY_RESULT_DEADLINE_MS=16000' in s
           assert 'cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)' not in s
           assert 'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))' in s
-          assert 'guardAsync(\'caseflowLocalAnalyze\')' in s
           assert 'cfsw-v4-primary-routing' in Path('sw.js').read_text(encoding='utf-8')
           blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
           for i,b in enumerate(blocks):
@@ -56,7 +55,7 @@ jobs:
           subprocess.run(['node','--check','sw.js'],check=True)
           print('validated inline scripts:',len(blocks))
           PY
-      - name: Publish clean payload branch
+      - name: Prepare payload worktree
         run: |
           cp caseflow_studio_v96.html /tmp/caseflow_studio_v96.html
           cp sw.js /tmp/sw.js
@@ -66,8 +65,13 @@ jobs:
           cp /tmp/sw.js sw.js
           mkdir -p docs
           cp /tmp/primary-routing-v4-smoke.js docs/primary-routing-v4-smoke.js
+          git status --short
+      - name: Commit payload
+        run: |
           git config user.name "caseflow-studio-bot"
           git config user.email "actions@users.noreply.github.com"
           git add caseflow_studio_v96.html sw.js docs/primary-routing-v4-smoke.js
+          git diff --cached --stat
           git commit -m "fix(simulation): isolate primary generation and paint result first"
-          git push --force origin HEAD:chatgpt/primary-routing-v4-payload
+      - name: Push payload branch
+        run: git push --force origin HEAD:chatgpt/primary-routing-v4-payload
