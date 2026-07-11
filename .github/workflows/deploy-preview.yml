@@ -24,8 +24,9 @@ jobs:
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          URL=$(vercel deploy --token "$VERCEL_TOKEN" --yes 2>vercel.log | tail -1)
+          vercel deploy --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" --yes 2>&1 | tee /tmp/v.log
+          URL=$(grep -oP "https://[^\\s]+vercel\\.app[^\\s]*" /tmp/v.log | tail -1)
           echo "### Preview URL" >> "$GITHUB_STEP_SUMMARY"
           echo "$URL" >> "$GITHUB_STEP_SUMMARY"
           echo "PREVIEW_URL=$URL"
-          cat vercel.log | tail -5
+          
