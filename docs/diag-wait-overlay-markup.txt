@@ -1,0 +1,261 @@
+19962:           if(usedSoftMatte) cfRingToneMatch(aix, ox, mask, w, h, 0.10, 0.55);
+19963:           // Composite the AI through the matte: Core→full edit, Support→partial, Context→light touch
+19964:           const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
+19965:           const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
+19966:           mkx.globalCompositeOperation='destination-in'; mkx.drawImage(mask,0,0); mkx.globalCompositeOperation='source-over';
+19967:           ctx.globalAlpha=1; ctx.drawImage(masked,0,0); ctx.globalAlpha=1;
+19968:         } else {
+19969:           // Plain focus close-up: the whole frame is the treatment area; show the coherent AI
+19970:           // result at full opacity (a partial blend would double-expose => ghost).
+19971:           ctx.globalAlpha=1; ctx.drawImage(aic,0,0); ctx.globalAlpha=1;
+19972:         }
+19973:       }
+19974:     }
+19975:     // Intraoral Bio-Blend pass — naturalization (右) or realistic aging (左)
+19976:     if(opts && opts.intraoral){
+19977:       const bb = (clamp(((state.simV96||{}).bioBlend ?? 50), 0, 100) - 50) / 50;
+19978:       applyIntraoralBioBlend(ctx, ox, w, h, bb);
+19979:     }
+19980:     // DETERMINISTIC midline-diastema closure on the AI result too. The AI backend is on by
+19981:     // default and frequently leaves the すきっ歯 open, so close it here as a guaranteed
+19982:     // post-process (no-op when no distinct gap remains → an already-closed smile is untouched).
+19983:     try{
+19984:       const _cc=((state.simV82||{}).concept)||'ortho';
+19985:       if(facial && (_cc==='ortho'||_cc==='hybrid'||_cc==='prosthetic') && typeof closeMidlineGapFacial==='function'){
+19986:         const _al=clamp((((state.simV96||{}).alignment)==null?50:state.simV96.alignment),0,100)/100;
+19987:         await closeMidlineGapFacial(ctx, o, w, h, clamp(0.84+_al*0.16,0,1));
+19988:       }
+19989:     }catch(e){}
+19990:     drawBadge(ctx,w,h);
+19991:     return c.toDataURL('image/jpeg',0.94);
+19992:   }
+19993: 
+19994:   // Transient backend/upstream conditions worth retrying. 529 = upstream model
+19995:   // "Overloaded"; 429 = rate limit; 5xx = gateway/server hiccups.
+19996:   const RETRY_STATUS={408:1,429:1,500:1,502:1,503:1,504:1,522:1,524:1,529:1};
+19997:   function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+19998:   /* CF_IOS_GENERATION_HARDENING_V1 */
+19999:   /* CF_GENERATION_SPEED_V2 */
+20000:   async function cfPrepareGenerationImage(dataUrl,maxEdge,quality){
+20001:     maxEdge=maxEdge||1280; quality=quality||0.84;
+20002:     if(!dataUrl || typeof dataUrl!=='string' || !dataUrl.startsWith('data:image/')) return dataUrl;
+20003:     try{
+20004:       const img=await loadImage(dataUrl);
+20005:       const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+20006:       const longest=Math.max(iw,ih);
+20007:       if(longest<=maxEdge && dataUrl.length<2800000) return dataUrl;
+20008:       const scale=Math.min(1,maxEdge/longest);
+20009:       const w=Math.max(1,Math.round(iw*scale)), h=Math.max(1,Math.round(ih*scale));
+20010:       const c=document.createElement('canvas'); c.width=w; c.height=h;
+20011:       const x=c.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+20012:       x.drawImage(img,0,0,w,h);
+20013:       const out=c.toDataURL('image/jpeg',quality);
+20014:       c.width=1; c.height=1;
+20015:       return out;
+20016:     }catch(e){ console.warn('[CaseFlow] generation image optimization skipped',e); return dataUrl; }
+20017:   }
+20018:   window.cfPrepareGenerationImage=cfPrepareGenerationImage;
+20019: 
+20020:   async function fetchSimWithRetry(ep, body, maxAttempts){
+20021:     maxAttempts=maxAttempts||1;
+20022:     let lastErr=null;
+20023:     for(let attempt=1; attempt<=maxAttempts; attempt++){
+20024:       let ctrl=null, tid=null;
+20025:       try{
+20026:         ctrl=new AbortController();
+20027:         window.__cfGenerationAbort=function(){ try{ ctrl.abort(); }catch(e){} };
+20028:         tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },20000);
+20029:         const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body,signal:ctrl.signal});
+20030:         clearTimeout(tid); tid=null; window.__cfGenerationAbort=null;
+20031:         if(res.ok) return res;
+20032:         let t=''; try{ t=await res.text(); }catch(e){}
+20033:         const err=new Error('HTTP '+res.status+' '+t.slice(0,400));
+20034:         if(RETRY_STATUS[res.status] && attempt<maxAttempts) lastErr=err; else throw err;
+20035:       }catch(e){
+20036:         if(tid) clearTimeout(tid); window.__cfGenerationAbort=null;
+20037:         if(e && e.name==='AbortError') e=new Error('生成処理がタイムアウトしました。通信状態を確認して再試行してください。');
+20038:         if(/^HTTP \d/.test(e&&e.message||'') && !RETRY_STATUS[parseInt((e.message.match(/HTTP (\d+)/)||[])[1],10)]) throw e;
+20039:         lastErr=e; if(attempt>=maxAttempts) break;
+20040:       }
+20041:       const wait=Math.pow(2,attempt-1)*900 + Math.floor(Math.random()*300);
+20042:       try{ const q=document.querySelector('.cfWaitOverlay .cfWaitSub'); if(q) q.textContent='サーバー応答を待っています… 再試行 '+attempt+'/'+(maxAttempts-1); }catch(e){}
+20043:       await sleep(wait);
+20044:     }
+20045:     throw lastErr || new Error('生成リクエストに失敗しました');
+20046:   }
+20047: 
+20048:   // ── buildSimulationPayload ────────────────────────────────────────────────────
+20049:   // Unified payload builder. Centralises all AI generation parameters so that
+20050:   // extraction mode, hybrid priority weighting, and denoising_strength are all
+20051:   // computed from the same source of truth. generateViaAI() calls this instead
+20052:   // of assembling the payload inline.
+20053:   function buildSimulationPayload(source){
+20054:     const s=state.simV96||{}, v=state.simV82||{};
+20055:     const concept=v.concept||'ortho';
+20056:     const align=Math.round(s.alignment||0);
+20057:     const isOrtho=(concept==='ortho'||concept==='hybrid');
+20058:     const isHybrid=(concept==='hybrid');
+20059:     const isExtraction=isOrtho && align>=80;
+20060:     // denoising_strength: controls how aggressively the AI departs from the source.
+20061:     // Extraction cases need high values (0.85+) to achieve anterior retraction and
+20062:     // arch shortening — previous 0.68/0.78 was insufficient for visible arch change.
+20063:     // Hybrid mode uses an elevated value to allow arch reconstruction before
+20064:     // surface refinement. Normal/prosthetic stays conservative.
+20065:     let denoising_strength;
+20066:     if(isExtraction){ denoising_strength=align>=90?0.90:0.86; }
+20067:     else if(isHybrid){ denoising_strength=0.74; }
+20068:     else { denoising_strength=0.48; }
+20069:     // control_weight: relaxes ControlNet conditioning for extraction cases so the AI
+20070:     // has enough freedom to reconstruct the anterior arch in a retracted position.
+20071:     const control_weight=isExtraction?0.45:undefined;
+20072:     // prompt_weights: passed to backends that support multi-priority or ControlNet
+20073:     // weight scheduling (alignment phase first, prosthetic surface phase second).
+20074:     const prompt_weights=isHybrid?{alignment:isExtraction?1.8:1.5,prosthetic:1.1,shade:1.0}:null;
+20075:     // Clinician-confirmed bracket state drives inpainting mode and negative prompting.
+20076:     // Source-aware: Macro/Facial uses macroHasBrackets, Micro/Focus uses hasBrackets.
+20077:     const isFacialSrc=(typeof sourceKind==='function' ? sourceKind(source)==='Facial' : !!(source&&source.category==='facial'));
+20078:     const hasBracketsFlag=isFacialSrc ? !!(source&&source.macroHasBrackets) : !!(source&&source.hasBrackets);
+20079:     // Bracket removal needs more aggressive denoising to fully erase metal hardware
+20080:     // and reconstruct underlying enamel — floor raised to 0.72.
+20081:     if(hasBracketsFlag) denoising_strength=Math.max(denoising_strength,0.72);
+20082:     // Facial source: the result is composited back ONLY inside the lip aperture (teeth/gingiva),
+20083:     // so the AI may change the dentition strongly without any identity/skin risk. Raise the
+20084:     // floor for facial ortho/hybrid so the smile correction is clearly visible (matches the
+20085:     // "補正が弱い" feedback) — the face stays the patient's own pixels regardless.
+20086:     // Facial floor: enough to clearly idealise the dentition, but NOT so high that the model
+20087:     // regenerates a generic (often gummy) smile instead of editing this patient's teeth.
+20088:     if(isFacialSrc && isOrtho && !isExtraction) denoising_strength=Math.max(denoising_strength, isHybrid?0.74:0.70);
+20089:     const payload={
+20090:       image:source.dataUrl,
+20091:       prompt:buildClinicalPrompt(),
+20092:       params:s,
+20093:       concept:concept,
+20094:       targets:v.targets,
+20095:       intraoral:!!(source&&source.intraoral),
+20096:       lips:!!(source&&source.lips),
+20097:       denoising_strength:denoising_strength,
+20098:       extraction_mode:isExtraction,
+20099:       hybrid_mode:isHybrid,
+20100:       has_brackets:hasBracketsFlag,
+20101:       facial_source:isFacialSrc,
+20102:       // Prosthetic + facial → backend should process the mouth with close-up (focus) restorative
+20103:       // precision while the facial lip-mask blend preserves the surrounding face.
+20104:       prosthetic_focus:(concept==='prosthetic' && isFacialSrc)
+20105:     };
+20106:     if(!hasBracketsFlag){
+20107:       // Hard negative prompt when no brackets: blocks the AI from hallucinating appliances.
+20108:       // Facial photos additionally guard against lip/smile distortion artefacts.
+20109:       payload.negative_prompt=isFacialSrc
+20110:         ? 'braces, brackets, wires, distorted lips, unnatural smile line, metallic dental appliances, orthodontic attachments, warped mouth, '
+20111:           + 'different face, different person, age change, older appearance, younger appearance, adult face for child patient, '
+20112:           + 'altered jaw, different chin shape, changed facial contour, reshaped nose, different ethnic features, '
+20113:           + 'changed commissure angle, upturned corners, lifted mouth corners, changed lower face, facial reconstruction, '
+20114:           + 'beautified skin, slimmed face, different facial proportions, changed expression'
+20115:         : 'braces, brackets, wires, archwires, metallic dental appliances, orthodontic attachments, bracket slots, metal clips, ligatures, bonded attachments';
+20116:     } else {
+20117:       // Signal to the backend that this is an inpainting/removal task.
+20118:       payload.inpaint_brackets=true;
+20119:     }
+20120:     if(control_weight!==undefined) payload.control_weight=control_weight;
+20121:     if(prompt_weights) payload.prompt_weights=prompt_weights;
+20122:     // ── v9.7 intent-first modulation ──────────────────────────────────────────
+20123:     // Minimal-Change ON: 未指定領域の過剰変化を抑えるため denoising に上限を掛ける。
+20124:     // 抜歯矯正・ブラケット除去は必要変化量が大きいので対象外（プロンプト側ガードのみ）。
+20125:     const intentMode=state.simIntentMode||'balanced';
+20126:     const minimalChange=!!state.simMinimalChange;
+20127:     if(minimalChange && !isExtraction && !hasBracketsFlag){
+20128:       payload.denoising_strength=Math.min(payload.denoising_strength,0.60);
+20129:     }
+20130:     if(minimalChange){
+20131:       payload.negative_prompt=(payload.negative_prompt?payload.negative_prompt+', ':'')+
+20132:         'over-whitened teeth, uniform veneer-perfect teeth, plastic denture look, over-beautified smile, excessive symmetry';
+20133:     }
+20134:     payload.intent_mode=intentMode;
+20135:     payload.minimal_change=minimalChange;
+20136:     payload.correction_scope=state.simCorrectionScope||'combined';
+20137:     payload.image_role=(source&&source.intraoralDark)?'contrastor_anterior_closeup'
+20138:       :(source&&source.intraoral)?'intraoral_retracted_frontal'
+20139:       :(isFacialSrc?'frontal_smile':'anterior_closeup');
+20140:     if(source&&source.structuredFindings) payload.structured_findings=source.structuredFindings;
+20141:     if(typeof window.cfTeethTypeMeta==='function') payload.teeth_type=window.cfTeethTypeMeta();
+20142:     return payload;
+20143:   }
+20144:   window.buildSimulationPayload=buildSimulationPayload;
+20145: 
+20146:   async function generateViaAI(source){
+20147:     const epRaw=aiEndpoint(); if(!epRaw) return null;
+20148:     // Token gate: 1回作成 = 2 tokens。失敗時は refund_generation_tokens で返却。
+20149:     let _ledgerId=null;
+20150:     if(typeof window.cfConsumeToken==='function'){
+20151:       const _tk = await window.cfConsumeToken('generation');
+20152:       if(_tk && _tk.ok===false){
+20153:         if(_tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function'){ window.cfShowTokenEmpty(); }
+20154:         const _e=new Error(_tk.reason==='insufficient'?'トークンが不足しています':'トークンの確認に失敗しました');
+20155:         _e.cfNoTokens=true; throw _e;
+20156:       }
+20157:       _ledgerId=(_tk&&_tk.ledgerId)||null;
+20158:     }
+20159:     try{
+20160:       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
+20161:       const _payload=buildSimulationPayload(source);
+20162:       const _cfImageEdge=(source&&source.intraoral)?1536:1280;
+20163:       const _cfPrepStart=performance.now();
+20164:       _payload.image=await cfPrepareGenerationImage(_payload.image,_cfImageEdge,0.84);
+20165:       const _cfPayloadBytes=JSON.stringify(_payload).length;
+20166:       const _cfRequestStart=performance.now();
+20167:       const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),1);
+20168:       window.__caseflowLastRequestTiming={prepare_ms:Math.round(_cfRequestStart-_cfPrepStart),request_ms:Math.round(performance.now()-_cfRequestStart),payload_bytes:_cfPayloadBytes};
+20169:       const j=await res.json();
+20170:       if(j && j.error) throw new Error(String(j.error).slice(0,400));
+20171:       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
+20172:       if(!out) throw new Error('画像が返りませんでした (no image in response)');
+20173:       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
+20174:       try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),5000))]); }
+20175:       catch(e){ console.warn('finalize failed or timed out, using raw AI image', e); return out; }
+20176:     }catch(genErr){
+20177:       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
+20178:       if(_ledgerId!=null && typeof window.cfRefundGeneration==='function'){
+20179:         try{ window.cfRefundGeneration(_ledgerId); }catch(e){ console.error('[CF Gate] refund call failed',e); }
+20180:       }
+20181:       if(typeof window.cfLogEvent==='function') window.cfLogEvent('generation_failed','visual-simulation',{ message:String((genErr&&genErr.message)||'').slice(0,120) });
+20182:       throw genErr;
+20183:     }
+20184:   }
+20185:   // AI is used whenever a backend endpoint is configured (the legacy #aiMode toggle is
+20186:   // hidden in the rebuilt studio, so configuring an endpoint is what turns AI on).
+20187:   function aiEnabled(){ return !!aiEndpoint(); }
+20188:   window.caseflowSimAIEnabled=aiEnabled;
+20189: 
+20190:   async function createSimulationImageV96(source, raw){
+20191:     // Shade is BIDIRECTIONAL around the 50 centre: >50 whitens, <50 ages
+20192:     // (aging = LOWER value + ADD chroma — a deeper, warmer, more saturated amber shade).
+20193:     const shadeSigned = (clamp(raw.shade,0,100)-50)/50;   // -1 (max aging) .. +1 (max whitening)
+20194:     const shadeWhiten = Math.max(0,  shadeSigned);          // 0..1
+20195:     const shadeAge    = Math.max(0, -shadeSigned);          // 0..1
+20196:     const shadeAct    = Math.abs(shadeSigned);              // 0..1 (either direction)
+20197:     const P = {
+20198:       shade:      shadeAct,
+20199:       alignment:  clamp(raw.alignment,0,100)/100,
+20200:       // Tooth Shape is bidirectional (tapering ↔ square); locally we can only smooth, so the
+20201:       // tapering side drives mild surface smoothing and the square side does nothing here.
+20202:       toothShape: Math.max(0,(50-clamp(raw.toothShape,0,100))/50),
+20203:       scallop:    clamp(raw.scallop,0,100)/100,
+20204:       smileFrame: clamp(raw.smileFrame,0,100)/100
+20205:     };
+20206:     const img=await loadImage(source.dataUrl);
+20207:     const max=1400;
+20208:     const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+20209:     const scale=Math.min(1,max/Math.max(iw,ih));
+20210:     const w=Math.round(iw*scale), h=Math.round(ih*scale);
+20211: 
+20212:     const c=document.createElement('canvas'); c.width=w; c.height=h;
+20213:     const ctx=c.getContext('2d',{willReadFrequently:true});
+20214:     ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+20215:     ctx.drawImage(img,0,0,w,h);
+20216: 
+20217:     const band=detectBand(ctx,w,h);
+20218:     const mask=buildToothMask(ctx,w,h,band);
+20219: 
+20220:     if(mask){
+20221:       // blurred copy of the whole image for tooth-surface smoothing
+20222:       const bcv=document.createElement('canvas'); bcv.width=w; bcv.height=h;
