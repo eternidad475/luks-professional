@@ -28,4 +28,15 @@ for needle in ['cfCapRefresh','cfEnsureFaceMesh','prepareMorph','Preparing morph
         lo=max(0,i-18);hi=min(len(lines),i+30)
         out.extend(f'{n+1:05d}: {lines[n]}' for n in range(lo,hi))
 Path('docs/diag-morph-hooks.txt').write_text('\n'.join(out),encoding='utf-8')
+# All wait-related line numbers, then context around the last likely definition occurrence.
+wait_hits=[i for i,l in enumerate(lines) if 'cfWait' in l]
+Path('docs/diag-cfwait-lines.txt').write_text('\n'.join(f'{i+1:05d}: {lines[i]}' for i in wait_hits),encoding='utf-8')
+# Definitions often appear near hideAll/show methods; capture every object-like definition candidate.
+def_candidates=[i for i,l in enumerate(lines) if ('hideAll' in l or 'function show(' in l or 'const cfWait' in l or 'var cfWait' in l or 'window.cfWait=' in l or 'window.cfWait =' in l)]
+out2=[]
+for i in def_candidates:
+    out2.append(f'===== candidate line {i+1} =====')
+    lo=max(0,i-80);hi=min(len(lines),i+180)
+    out2.extend(f'{n+1:05d}: {lines[n]}' for n in range(lo,hi))
+Path('docs/diag-cfwait-definitions.txt').write_text('\n'.join(out2),encoding='utf-8')
 print('done')
