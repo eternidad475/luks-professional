@@ -29636,7 +29636,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   };
   var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v2-incisal-harmony';
   var CF_TEETH_AGES = ['〜19','20代','30代','40代','50代','60代','70代〜'];
-  var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', other:'Other / 回答しない' };
+  var CF_TEETH_SEX = { female:'Female / 女性', male:'Male / 男性', nonbinary:'Non-binary / ノンバイナリー' };
 
   function defaultTeethType(){
     return { id:'auto', source:'auto', selected_at:null, optional_context:{ sex:null, age:null } };
@@ -29645,6 +29645,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     var t = state.simTeethType;
     if(!t || !CF_TEETH_TYPES[t.id]) { t = defaultTeethType(); state.simTeethType = t; }
     if(!t.optional_context) t.optional_context = { sex:null, age:null };
+    // legacy sessions stored 'other'; the option is now Non-binary
+    if(t.optional_context.sex === 'other') t.optional_context.sex = 'nonbinary';
     return t;
   }
 
@@ -29717,7 +29719,28 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       out.push('Optional patient context — approximate age '+ctx.age+' (reference only, lower priority than the selected form and the visible findings): let age-appropriate enamel texture, incisal wear and translucency inform realism; do not exaggerate aging or rejuvenation.');
     }
     if(ctx.sex){
-      out.push('Optional patient context — reported sex '+(CF_TEETH_SEX[ctx.sex]||ctx.sex)+' (weak stylistic reference only): do NOT apply stereotyped "masculine/feminine" tooth-form rules, and never let this outrank the explicit tooth-form selection, the visible clinical findings, or overall naturalness.');
+      // Sex is ONE soft crown-form criterion for crown-form-correcting concepts
+      // (prosthetic / hybrid) in primary generation. Perception basis: broader,
+      // flatter-edged anteriors read masculine; rounded, softer contours read
+      // feminine. Non-binary deliberately blends both into a neutral character.
+      var sexKey = ctx.sex==='other' ? 'nonbinary' : ctx.sex;
+      var sexLabel = CF_TEETH_SEX[sexKey]||sexKey;
+      var conceptNow = ((state.simV82||{}).concept)||'ortho';
+      var crownConcept = (conceptNow==='prosthetic'||conceptNow==='hybrid');
+      if(crownConcept){
+        var lean = sexKey==='male'
+          ? 'lean the upper anterior crown character slightly toward a SQUARE tendency — flatter incisal edges, more defined line angles and mesio-/disto-incisal corners'
+          : sexKey==='female'
+          ? 'lean the upper anterior crown character slightly toward an OVOID tendency — rounded line angles, softly curved incisal edges and smooth cervical-to-incisal transitions'
+          : 'BLEND the square and ovoid tendencies into a deliberately neutral, androgynous crown character — balanced crown width, softly defined (neither sharp nor fully rounded) corners, and a gently curved, near-straight incisal edge sitting midway between the square and ovoid forms; avoid a clearly masculine-square or clearly feminine-ovoid look';
+        out.push('Optional patient context — reported sex '+sexLabel+' (one soft crown-form criterion for this crown-form-correcting treatment concept): '+lean+'. Scale it as a subtle tendency, never a template. '
+          + (manual
+            ? 'Because the clinician explicitly selected the '+def.en+' form, express this tendency ONLY as micro-character within that selected family — the explicit selection always wins on overall form.'
+            : 'Blend it with the facial-type direction and the visible clinical findings above; explicit clinician instructions and clinical findings always outrank it.')
+          + ' Keep the result photorealistic and natural.');
+      } else {
+        out.push('Optional patient context — reported sex '+sexLabel+' (in this orthodontic-only concept: a reference for enamel texture and naturalness only — do not change crown form based on sex here, and never let it outrank the explicit tooth-form selection or the clinical findings).');
+      }
     }
     return out.join(' ');
   }
@@ -29883,7 +29906,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
      chief complaint cards. Canonical storage stays in simTeethType.optional_context. ---- */
   function ctxFieldHTML(){
     var ctx = (window.cfTeethTypeCurrent().optional_context) || { sex:null, age:null };
-    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['other',SEXES.other]];
+    var sexOpts = [['','Unspecified / 未指定'],['female',SEXES.female],['male',SEXES.male],['nonbinary',SEXES.nonbinary]];
     var ageOpts = [['','未指定']].concat(AGES.map(function(a){ return [a,a]; }));
     function opts(list, cur){
       return list.map(function(o){
@@ -29895,7 +29918,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       + '<label class="cfTtCtxSel"><span>Sex / 性別</span><select id="cfTtSexSel" onchange="cfSetTeethCtx(\'sex\',this.value)">'+opts(sexOpts,ctx.sex)+'</select></label>'
       + '<label class="cfTtCtxSel"><span>Age / 年齢</span><select id="cfTtAgeSel" onchange="cfSetTeethCtx(\'age\',this.value)">'+opts(ageOpts,ctx.age)+'</select></label>'
       + '</div>'
-      + '<div class="cfTtCtxHint">形態や質感の自然さを補助する任意の参考情報です。歯科医師が選択した歯冠形態が常に優先され、性別から形態を自動決定することはありません。</div>';
+      + '<div class="cfTtCtxHint">補綴・ハイブリッド治療では歯冠形態補正の参考基準のひとつになります（男性=スクエア傾向・女性=オーバル傾向・ノンバイナリー=中間の中性的形態）。歯科医師が選択した歯冠形態と臨床所見が常に優先されます。</div>';
   }
   window.cfSetTeethCtx = function(key, value){
     var t = window.cfTeethTypeCurrent();
