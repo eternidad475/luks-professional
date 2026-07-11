@@ -16,17 +16,17 @@
  * from cache.
  */
 
-var VERSION = 'cfsw-v7-fast-result-shell';
+var VERSION = 'cfsw-v5-rollback-0711';
 var SHELL_CACHE = 'caseflow-shell-' + VERSION;
 
 /* App shell only. No patient data, no API responses, no user images. */
 var SHELL_ASSETS = [
   '/caseflow_studio_v96.html',
   '/manifest.webmanifest',
-  '/icons/icon-192-v2.png',
-  '/icons/icon-512-v2.png',
-  '/icons/maskable-512-v2.png',
-  '/icons/icon-180-v2.png'
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-512.png',
+  '/icons/icon-180.png'
 ];
 
 /* Same-origin static shell assets that may be served from cache. The main HTML

@@ -1,3 +1,0 @@
-SUCCESS_V2
-inline_scripts=83
-target_seconds=20-30

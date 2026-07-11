@@ -65,17 +65,6 @@ function check(name, ok, extra) {
   }));
   check('six radio cards', await page.evaluate(() =>
     document.querySelectorAll('#cfTtScroll [role="radio"]').length === 6));
-  check('manual specimens use the opaline ceramic material', await page.evaluate(() => {
-    const specimens = Array.from(document.querySelectorAll('#cfTtScroll .cfTtCard:not([data-id="auto"]) svg'));
-    return specimens.length === 5 && specimens.every(s => s.getAttribute('data-specimen-material') === 'opaline-ceramic-v2')
-      && !!document.getElementById('cfTtDefs')
-      && document.getElementById('cfTtDefs').innerHTML.includes('cfTtEnamelGrain')
-      && document.getElementById('cfTtDefs').innerHTML.includes('cfTtIncisalOpal');
-  }));
-  check('all five manual crown outlines are distinct', await page.evaluate(() => {
-    const firstPaths = Array.from(document.querySelectorAll('#cfTtScroll .cfTtCard:not([data-id="auto"]) svg [data-crown-outline="left"]'));
-    return firstPaths.length === 5 && new Set(firstPaths.map(p => p.getAttribute('d'))).size === 5;
-  }));
   check('focus moved inside dialog', await page.evaluate(() =>
     document.getElementById('cfTtOverlay').contains(document.activeElement)));
   await page.screenshot({ path: process.argv[3] + '/gallery-open.png' });
@@ -117,26 +106,6 @@ function check(name, ok, extra) {
   check('fragment carries modifier', frag.includes('Combine structural width'));
   check('fragment states subordination to clinician instruction', frag.includes('OUTRANKS'));
   check('fragment forbids stereotyped sex mapping', frag.includes('masculine/feminine'));
-  check('fragment forbids compensatory central-incisor elongation',
-    frag.includes('Do not lengthen or enlarge the maxillary central incisors'));
-  check('fragment enforces a continuous harmonious incisal curve',
-    frag.includes('continuous, harmonious maxillary incisal curve') && frag.includes('never a conspicuous two-tooth downward step'));
-  check('fragment includes a final morphology quality verification',
-    frag.includes('Before finalizing, verify all three conditions'));
-  const ovoidFrag = await page.evaluate(() => {
-    const saved = JSON.parse(JSON.stringify(window.state.simTeethType));
-    window.state.simTeethType = { id:'ovoid', source:'manual', selected_at:new Date().toISOString(), optional_context:{sex:null,age:null} };
-    const f = window.cfTeethTypePromptFragment(false);
-    window.state.simTeethType = saved;
-    return f;
-  });
-  check('Ovoid is expressed through outline rather than crown length',
-    ovoidFrag.includes('softly convex mesial and distal contours')
-      && ovoidFrag.includes('do not lengthen the central incisors to signal an ovoid form'));
-  check('manual family outranks the generic Tooth Shape slider family',
-    ovoidFrag.includes('generic Tooth Shape slider') && ovoidFrag.includes('must not replace the selected family'));
-  check('prompt version records incisal-harmony calibration',
-    (await page.evaluate(() => window.cfTeethTypeMeta().prompt_version)) === 'cf-teeth-p1-v2-incisal-harmony');
   const autoFacialFrag = await page.evaluate(() => {
     const saved = JSON.parse(JSON.stringify(window.state.simTeethType));
     window.state.simTeethType = { id:'auto', source:'auto', selected_at:null, optional_context:{sex:null,age:null} };
