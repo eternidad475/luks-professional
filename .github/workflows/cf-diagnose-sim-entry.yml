@@ -27,13 +27,15 @@ jobs:
         run: |
           cp tools/apply-result-first-paint.js /tmp/apply-result-first-paint.js
           cp tools/remove-result-caption-sync.js /tmp/remove-result-caption-sync.js
-          cp tools/result-first-smoke-v2.js /tmp/result-first-smoke.js
+          cp tools/replace-result-painter-v7.js /tmp/replace-result-painter-v7.js
+          cp tools/result-first-smoke-v3.js /tmp/result-first-smoke.js
       - name: Rebuild from current Production base
         run: |
           git fetch origin claude/image-morphing-video-3kujgb
           git checkout -B chatgpt/visual-result-first-payload origin/claude/image-morphing-video-3kujgb
           node /tmp/apply-result-first-paint.js
           node /tmp/remove-result-caption-sync.js
+          node /tmp/replace-result-painter-v7.js
           python3 - <<'PY'
           from pathlib import Path
           p=Path('caseflow_studio_v96.html')
@@ -68,7 +70,7 @@ jobs:
           print('inline scripts',len(blocks),'failures',len(failures))
           for i,msg in failures: print('BLOCK',i,msg)
           if failures: raise SystemExit(1)
-          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfOpenResultScreen','cf-result-route-guard-v6','cfsw-v6-result-first-paint']
+          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfOpenResultScreen','cf-result-route-guard-v6','cfsw-v6-result-first-paint','result image paint']
           combined=s+Path('sw.js').read_text(encoding='utf-8')
           for token in required:
               if token not in combined: raise SystemExit('missing '+token)
