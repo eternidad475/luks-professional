@@ -1,0 +1,211 @@
+20870:     if(cp){
+20871:       cp.addEventListener('input',()=>{ state.simCustomPrompt=cp.value.slice(0,500); if(cpc) cpc.textContent=state.simCustomPrompt.length+'/500'; });
+20872:       // Store the text, but do not auto-generate (wait for the 再生成 / Again button).
+20873:       cp.addEventListener('change',()=>{ state.simCustomPrompt=cp.value.slice(0,500); });
+20874:     }
+20875:     // v9.7 intent control bindings（生成は再生成ボタン待ち — sliders と同じ挙動）
+20876:     document.querySelectorAll('#cfIntentModeBtns [data-cfim]').forEach(b=>{
+20877:       b.addEventListener('click',()=>{ state.simIntentMode=b.getAttribute('data-cfim'); buildEditGrid(); });
+20878:     });
+20879:     const mc=$id('cfMinimalChange');
+20880:     if(mc) mc.addEventListener('change',()=>{ state.simMinimalChange=!!mc.checked; });
+20881:     const cs=$id('cfCorrectionScope');
+20882:     if(cs) cs.addEventListener('change',()=>{ state.simCorrectionScope=cs.value; });
+20883:   }
+20884:   window.buildSimV96EditGrid = buildEditGrid;
+20885: 
+20886:   /* ============================ generation entry point ============================ */
+20887:   window.generateSimulation = async function(){
+20888:     const fromSim = !!document.querySelector('#simulator.active');
+20889:     const src = pickSource();
+20890:     if(!src){ toastFn('Simulation Studio で使用する画像を追加してください'); if(typeof go==='function') go('upload'); return; }
+20891: 
+20892:     if(fromSim){
+20893:       // Preserve v9.5 rule: a chief-complaint card must be chosen on the studio page.
+20894:       const t=(state.simV82 && state.simV82.targets) || {};
+20895:       if(!Object.keys(t).some(k=>t[k])){
+20896:         toastFn('主訴カードを1つ以上選択してください');
+20897:         if(typeof window.rebuildSimulationStudioV95==='function') window.rebuildSimulationStudioV95();
+20898:         return;
+20899:       }
+20900:       state.simV96 = Object.assign({}, DEF, deriveFromSelections());
+20901:       // Guarantee the FIRST generation shows a visible "after". Shade and Tooth Shape are the
+20902:       // only axes the local fallback can render; if both sit at the neutral centre (e.g. an
+20903:       // alignment-only complaint, or when the AI backend falls back to local), the output would
+20904:       // be identical to the before. Seed a sensible baseline (mild whitening + naturalization).
+20905:       const sv=state.simV96;
+20906:       if(Math.abs((sv.shade||50)-50)<8 && Math.abs((sv.toothShape||50)-50)<8){
+20907:         sv.shade=62; sv.bioBlend=Math.max(sv.bioBlend||50,60);
+20908:       }
+20909:     }
+20910:     state.simV96 = Object.assign({}, DEF, state.simV96||{});
+20911:     state._simSource = src;
+20912: 
+20913:     // ① Any image put through generation/editing is added to the Gallery immediately so it is
+20914:     // reusable (e.g. a Sim Studio upload that wasn't in the gallery yet).
+20915:     try{
+20916:       if(src && src.dataUrl){
+20917:         if(!Array.isArray(state.photos)) state.photos=[];
+20918:         if(!state.photos.some(p=>p && p.dataUrl===src.dataUrl)){
+20919:           state.photos.push(src);
+20920:           if(typeof window.renderUpload==='function') window.renderUpload();
+20921:           if(typeof window.cfPersist!=='undefined' && window.cfPersist && window.cfPersist.schedule) try{ window.cfPersist.schedule(800); }catch(e){}
+20922:         }
+20923:       }
+20924:     }catch(e){}
+20925: 
+20926:     const _concept=(state.simV82||{}).concept||'ortho';
+20927:     const _ortho=(_concept==='ortho'||_concept==='hybrid');
+20928:     // Iterative orthodontic refinement: a REGENERATION (i.e. not the first generation
+20929:     // launched from the studio page) builds FURTHER on the after-image already shown in
+20930:     // the preview, so each pass keeps improving the alignment instead of restarting from
+20931:     // the original. The before image is unaffected — renderResultImages always reads the
+20932:     // original from state._simSource.
+20933:     let _genSrc = src;
+20934:     if(!fromSim && _ortho && state.simResult && state.simResult.dataUrl){
+20935:       _genSrc = Object.assign({}, src, {dataUrl: state.simResult.dataUrl});
+20936:     }
+20937: 
+20938:     toastFn(aiEnabled()?'AIで術後イメージを生成中…':'Reference Image を作成中…');
+20939:     try{
+20940:       const url = await produceImage(_genSrc);
+20941:       // Each explicit generation becomes a NEW gallery variation (up to 5) so earlier
+20942:       // generations are never lost when you re-edit.
+20943:       pushSimResult({
+20944:         dataUrl:url, source:src.dataUrl, srcObj:src, sourceKind:sourceKind(src),
+20945:         createdAt:new Date().toISOString(), settings:JSON.parse(JSON.stringify(state.simV96))
+20946:       });
+20947:       if(typeof go==='function') go('result');
+20948:       // After an orthodontic generation, recentre the alignment slider so the NEXT
+20949:       // regeneration applies a further, incremental correction on top of this result.
+20950:       if(_ortho){ state.simV96.alignment=50; window._cfExtractWarned=false; }
+20951:       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
+20952:       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);
+20953:     }catch(e){ console.error(e); toastFn('画像の作成に失敗しました'); }
+20954:   };
+20955: 
+20956:   /* ---- keep the result edit grid in sync whenever the result page renders ---- */
+20957:   const prevRenderResult = window.renderResult;
+20958:   window.renderResult = function(){
+20959:     const r = (typeof prevRenderResult==='function') ? prevRenderResult.apply(this,arguments) : undefined;
+20960:     setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 40);
+20961:     setTimeout(buildEditGrid, 180);
+20962:     return r;
+20963:   };
+20964: 
+20965:   const prevGo = window.go;
+20966:   if(typeof prevGo==='function' && !window.__v96GoWrapped){
+20967:     window.__v96GoWrapped=true;
+20968:     window.go=function(id){
+20969:       const r=prevGo.apply(this,arguments);
+20970:       if(id==='result') setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 70);
+20971:       return r;
+20972:     };
+20973:   }
+20974: 
+20975:   window.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildEditGrid, 200); });
+20976: })();
+20977: </script>
+20978: 
+20979: <script>
+20980: /* ---------- Swipe-from-left = back gesture (smartphone navigation) ---------- */
+20981: (function(){
+20982:   if(window.__cfSwipeBack) return; window.__cfSwipeBack=true;
+20983: 
+20984:   // Lightweight navigation history so a back-swipe returns to the previous screen.
+20985:   var navHistory=[], navigatingBack=false;
+20986:   var prevGo=window.go;
+20987:   window.go=function(id){
+20988:     var cur=document.querySelector('.screen.active');
+20989:     var curId=cur && cur.id;
+20990:     var r = prevGo ? prevGo.apply(this,arguments) : undefined;
+20991:     if(!navigatingBack && curId && curId!==id){
+20992:       if(navHistory[navHistory.length-1]!==curId){
+20993:         navHistory.push(curId);
+20994:         if(navHistory.length>60) navHistory.shift();
+20995:       }
+20996:     }
+20997:     return r;
+20998:   };
+20999:   window.cfGoBack=function(){
+21000:     if(!navHistory.length) return false;
+21001:     var target=navHistory.pop();
+21002:     navigatingBack=true;
+21003:     try{ window.go(target); } finally { navigatingBack=false; }
+21004:     return true;
+21005:   };
+21006: 
+21007:   // If an overlay / modal / sheet is open, let its own close control handle dismissal
+21008:   // instead of navigating the screen underneath.
+21009:   function overlayOpen(){
+21010:     var sel='.cropModal,.photoManagerModal,.sampleVideoOverlay,.sampleVideoSheet,.studioChooserOverlay,.studioChooser,[role="dialog"]';
+21011:     var els=document.querySelectorAll(sel);
+21012:     for(var i=0;i<els.length;i++){
+21013:       var el=els[i];
+21014:       if(el.offsetParent===null) continue;            // not rendered
+21015:       var cs=getComputedStyle(el);
+21016:       if(cs.display!=='none' && cs.visibility!=='hidden' && parseFloat(cs.opacity||'1')>0.02 && el.offsetWidth>0 && el.offsetHeight>0){
+21017:         return true;
+21018:       }
+21019:     }
+21020:     return false;
+21021:   }
+21022: 
+21023:   // Edge-swipe (start near the left edge, drag right) — mirrors the iOS back gesture and
+21024:   // avoids clashing with before/after compare sliders or horizontal content drags.
+21025:   var sx=0, sy=0, st=0, tracking=false;
+21026:   var EDGE=32, DIST_X=64, MAX_Y=80, MAX_T=800;
+21027:   document.addEventListener('touchstart',function(e){
+21028:     if(e.touches.length!==1){ tracking=false; return; }
+21029:     var t=e.touches[0];
+21030:     if(t.clientX<=EDGE && !overlayOpen()){ sx=t.clientX; sy=t.clientY; st=Date.now(); tracking=true; }
+21031:     else tracking=false;
+21032:   },{passive:true});
+21033:   document.addEventListener('touchmove',function(e){
+21034:     if(!tracking) return;
+21035:     var t=e.touches[0]; if(!t) return;
+21036:     // cancel if the gesture turns mostly vertical (it's a scroll, not a back-swipe)
+21037:     if(Math.abs(t.clientY-sy) > Math.abs(t.clientX-sx) && Math.abs(t.clientY-sy)>24) tracking=false;
+21038:   },{passive:true});
+21039:   document.addEventListener('touchend',function(e){
+21040:     if(!tracking) return; tracking=false;
+21041:     var t=e.changedTouches && e.changedTouches[0]; if(!t) return;
+21042:     var dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+21043:     if(dx>=DIST_X && Math.abs(dy)<=MAX_Y && dt<=MAX_T && !overlayOpen()){
+21044:       window.cfGoBack();
+21045:     }
+21046:   },{passive:true});
+21047: })();
+21048: </script>
+21049: 
+21050: <script>
+21051: /* ---------- Image standardization helper (Facial auto-level/crop, Focus grid, optional WB) ---------- */
+21052: (function(){
+21053:   if(window.__cfStd) return; window.__cfStd=true;
+21054:   var S = window.state || (window.state={});
+21055:   if(typeof S.cfAutoWB!=='boolean') S.cfAutoWB=false;       // WB on Studio transfer — default OFF (shade-safe)
+21056:   function toastFn(m){ if(typeof window.toast==='function') return toast(m); if(typeof window.toastFn==='function') return window.toastFn(m); }
+21057:   function loadImg(src){ return new Promise(function(res,rej){ var im=new Image(); im.onload=function(){res(im);}; im.onerror=rej; im.src=src; }); }
+21058: 
+21059:   // --- gray-world white balance (gentle, clamped so shade isn't wildly shifted) ---
+21060:   function grayWorld(data){
+21061:     var r=0,g=0,b=0,n=data.length/4,i;
+21062:     for(i=0;i<data.length;i+=4){ r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
+21063:     r/=n; g/=n; b/=n; var gray=(r+g+b)/3;
+21064:     var kr=gray/(r||1), kg=gray/(g||1), kb=gray/(b||1);
+21065:     var cl=function(k){ return Math.min(1.5,Math.max(0.7,k)); };
+21066:     kr=cl(kr); kg=cl(kg); kb=cl(kb);
+21067:     for(i=0;i<data.length;i+=4){
+21068:       data[i]=Math.min(255,data[i]*kr); data[i+1]=Math.min(255,data[i+1]*kg); data[i+2]=Math.min(255,data[i+2]*kb);
+21069:     }
+21070:   }
+21071:   async function applyWBToPhoto(idx){
+21072:     var p=S.photos && S.photos[idx]; if(!p||!p.dataUrl) return;
+21073:     var im=await loadImg(p.dataUrl);
+21074:     var c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+21075:     var x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(im,0,0);
+21076:     var id; try{ id=x.getImageData(0,0,c.width,c.height); }catch(e){ return; }
+21077:     grayWorld(id.data); x.putImageData(id,0,0);
+21078:     if(!p.originalDataUrl) p.originalDataUrl=p.dataUrl;
+21079:     p.dataUrl=c.toDataURL('image/jpeg',0.95); p.cfWB=true;
+21080:   }

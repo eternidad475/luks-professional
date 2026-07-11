@@ -1,0 +1,16 @@
+      const url = await produceImage(_genSrc);
+      try{if(window.cfWait)cfWait.hideAll();}catch(e){}
+      pushSimResult({dataUrl:url,source:src.dataUrl,srcObj:src,sourceKind:sourceKind(src),createdAt:new Date().toISOString(),settings:JSON.parse(JSON.stringify(state.simV96))});
+      try{if(typeof go==='function')go('result');}catch(e){console.error('[CaseFlow result route]',e);}
+      const ensureResult=function(){
+        try{
+          const resultEl=document.getElementById('result');
+          if(resultEl&&!resultEl.classList.contains('active')){document.querySelectorAll('.screen.active').forEach(el=>el.classList.remove('active'));resultEl.classList.add('active');}
+          renderResultImages();buildEditGrid();
+          if(window.__cfPendingGallerySync){window.__cfPendingGallerySync=false;if(typeof window.renderUpload==='function')window.renderUpload();}
+          if(typeof window.cfPersist!=='undefined'&&window.cfPersist&&window.cfPersist.schedule)window.cfPersist.schedule(900);
+          try{if(window.cfWait)cfWait.hideAll();}catch(e){}
+        }catch(e){console.error('[CaseFlow result paint]',e);}
+      };
+      requestAnimationFrame(()=>requestAnimationFrame(ensureResult));setTimeout(ensureResult,180);
+      if(_ortho){state.simV96.alignment=50;window._cfExtractWarned=false;}

@@ -1,0 +1,37 @@
+name: Test primary routing v4
+
+on:
+  push:
+    branches:
+      - chatgpt/fix-primary-morph-overlay-and-routing
+    paths:
+      - caseflow_studio_v96.html
+      - sw.js
+      - docs/primary-routing-v4-smoke.js
+      - .github/workflows/cf-test-primary-routing-v4.yml
+  pull_request:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - caseflow_studio_v96.html
+      - sw.js
+      - docs/primary-routing-v4-smoke.js
+      - .github/workflows/cf-test-primary-routing-v4.yml
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/fix-primary-morph-overlay-and-routing
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save playwright@1.54.1
+      - run: npx playwright install --with-deps chromium
+      - name: Start local server
+        run: python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
+      - name: Run stalled-AI smoke test
+        run: node docs/primary-routing-v4-smoke.js

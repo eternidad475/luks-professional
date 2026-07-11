@@ -1,0 +1,121 @@
+27962:     ko:'프로젝트는 48시간 동안 라이브러리에 임시 저장되며 이후 자동 삭제됩니다. 필요한 이미지와 영상은 기한 내에 저장하세요.'},
+27963:   'share.subtitle':{
+27964:     ja:'招待 / Invite &amp; share', en:'Invite &amp; share',
+27965:     pt:'Convidar e compartilhar', it:'Invita e condividi',
+27966:     ar:'دعوة ومشاركة', zh:'邀请与共享', ko:'초대 및 공유'},
+27967:   'export.save':{
+27968:     ja:'動画をカメラロールに保存', en:'Save video to camera roll',
+27969:     pt:'Salvar vídeo na galeria', it:'Salva il video nel rullino',
+27970:     ar:'حفظ الفيديو في ألبوم الكاميرا', zh:'将视频保存到相册', ko:'동영상을 카메라 롤에 저장'},
+27971:   /* status vocabulary (available to other scripts via cfI18n.t) */
+27972:   'status.loading':{ja:'読み込み中', en:'Loading', pt:'Carregando', it:'Caricamento', ar:'جارٍ التحميل', zh:'加载中', ko:'불러오는 중'},
+27973:   'status.saving':{ja:'保存中', en:'Saving', pt:'Salvando', it:'Salvataggio', ar:'جارٍ الحفظ', zh:'保存中', ko:'저장 중'},
+27974:   'status.error':{ja:'エラー', en:'Error', pt:'Erro', it:'Errore', ar:'خطأ', zh:'错误', ko:'오류'},
+27975:   'status.completed':{ja:'完了', en:'Completed', pt:'Concluído', it:'Completato', ar:'اكتمل', zh:'完成', ko:'완료'}
+27976: };
+27977: /* bottom-nav labels (ja keeps the original English label look) */
+27978: var NAV={
+27979:   'Project':{ja:'Project', en:'Project', pt:'Projeto', it:'Progetto', ar:'مشروع', zh:'项目', ko:'프로젝트'},
+27980:   'Gallery':{ja:'Gallery', en:'Gallery', pt:'Galeria', it:'Galleria', ar:'المعرض', zh:'图库', ko:'갤러리'},
+27981:   'Sim':{ja:'Sim', en:'Sim', pt:'Sim', it:'Sim', ar:'محاكاة', zh:'模拟', ko:'시뮬'},
+27982:   'Account':{ja:'Account', en:'Account', pt:'Conta', it:'Account', ar:'الحساب', zh:'账户', ko:'계정'},
+27983:   'Library':{ja:'Library', en:'Library', pt:'Biblioteca', it:'Libreria', ar:'المكتبة', zh:'资料库', ko:'라이브러리'},
+27984:   'Invite':{ja:'Invite', en:'Invite', pt:'Convidar', it:'Invita', ar:'دعوة', zh:'邀请', ko:'초대'}
+27985: };
+27986: /* reverse map: any translated nav label → canonical key */
+27987: var NAV_REV={};
+27988: Object.keys(NAV).forEach(function(k){
+27989:   Object.keys(NAV[k]).forEach(function(l){ NAV_REV[NAV[k][l]]=k; });
+27990: });
+27991: /* quiet process poems shown under the wait spinner (EN + local line) */
+27992: var POEMS=[
+27993:   {en:'Analyzing facial balance', ja:'顔貌バランスを解析中', pt:'Analisando o equilíbrio facial',
+27994:    it:'Analisi dell’equilibrio del volto', ar:'تحليل توازن الوجه', zh:'正在解析面部平衡', ko:'얼굴 균형 분석 중'},
+27995:   {en:'Refining smile frame', ja:'スマイルフレームを調整中', pt:'Refinando a moldura do sorriso',
+27996:    it:'Rifinitura della cornice del sorriso', ar:'صقل إطار الابتسامة', zh:'正在调整微笑框架', ko:'스마일 프레임 조정 중'},
+27997:   {en:'Preserving identity', ja:'顔貌の同一性を保持中', pt:'Preservando a identidade',
+27998:    it:'Preservazione dell’identità', ar:'الحفاظ على ملامح الوجه', zh:'正在保持面容同一性', ko:'얼굴 동일성 유지 중'},
+27999:   {en:'Rendering visual simulation', ja:'ビジュアルシミュレーションを生成中', pt:'Renderizando a simulação visual',
+28000:    it:'Rendering della simulazione visiva', ar:'إنشاء المحاكاة البصرية', zh:'正在生成视觉模拟', ko:'비주얼 시뮬레이션 생성 중'},
+28001:   {en:'Preparing morphing sequence', ja:'モーフィングシークエンスを準備中', pt:'Preparando a sequência de morphing',
+28002:    it:'Preparazione della sequenza di morphing', ar:'تحضير تسلسل المورفينغ', zh:'正在准备渐变序列', ko:'모핑 시퀀스 준비 중'}
+28003: ];
+28004: 
+28005: function getLang(){
+28006:   var v=null;
+28007:   try{ v=localStorage.getItem(LS_KEY); }catch(e){}
+28008:   return LANGS.some(function(l){return l.code===v;}) ? v : 'ja';
+28009: }
+28010: function langMeta(code){
+28011:   for(var i=0;i<LANGS.length;i++) if(LANGS[i].code===code) return LANGS[i];
+28012:   return LANGS[1];
+28013: }
+28014: function t(key){
+28015:   var e=STR[key]; if(!e) return key;
+28016:   var v=e[getLang()];
+28017:   return v!=null ? v : (e.en!=null ? e.en : key);
+28018: }
+28019: 
+28020: function applyDataI18n(code){
+28021:   var els=document.querySelectorAll('[data-i18n]');
+28022:   for(var i=0;i<els.length;i++){
+28023:     var el=els[i], entry=STR[el.getAttribute('data-i18n')];
+28024:     if(!entry) continue;
+28025:     var v=entry[code]; if(v==null) v=entry.en; if(v==null) continue;
+28026:     if(el.innerHTML!==v) el.innerHTML=v;
+28027:   }
+28028: }
+28029: function applyNav(code){
+28030:   var navs=document.querySelectorAll('.bottom .nav');
+28031:   for(var i=0;i<navs.length;i++){
+28032:     var btn=navs[i], node=null, nodes=btn.childNodes;
+28033:     for(var j=0;j<nodes.length;j++){
+28034:       if(nodes[j].nodeType===3 && nodes[j].nodeValue.replace(/\s+/g,'')!==''){ node=nodes[j]; break; }
+28035:     }
+28036:     if(!node) continue;
+28037:     var raw=node.nodeValue.trim();
+28038:     var key=NAV_REV[raw]||btn.dataset.cfNavKey;
+28039:     if(!key) continue;
+28040:     btn.dataset.cfNavKey=key;
+28041:     var v=NAV[key][code]!=null?NAV[key][code]:NAV[key].en;
+28042:     if(node.nodeValue!==v) node.nodeValue=v;
+28043:   }
+28044: }
+28045: function applyButtons(code){
+28046:   var m=langMeta(code);
+28047:   document.querySelectorAll('.cfLangBtn').forEach(function(b){ b.textContent=m.label; });
+28048: }
+28049: function apply(code){
+28050:   try{ localStorage.setItem(LS_KEY,code); }catch(e){}
+28051:   var m=langMeta(code);
+28052:   document.documentElement.lang=code;
+28053:   document.documentElement.dir=m.rtl?'rtl':'ltr';
+28054:   applyDataI18n(code);
+28055:   applyNav(code);
+28056:   applyButtons(code);
+28057:   var ov=document.getElementById('cfLangOverlay');
+28058:   if(ov) ov.querySelectorAll('.cfLangOpt').forEach(function(o){
+28059:     o.classList.toggle('on',o.dataset.lang===code);
+28060:     o.setAttribute('aria-pressed',o.dataset.lang===code?'true':'false');
+28061:   });
+28062: }
+28063: 
+28064: /* ——— language sheet ——— */
+28065: function ensureOverlay(){
+28066:   var ov=document.getElementById('cfLangOverlay');
+28067:   if(ov) return ov;
+28068:   ov=document.createElement('div');
+28069:   ov.id='cfLangOverlay';
+28070:   ov.className='cfLangOverlay';
+28071:   ov.setAttribute('aria-hidden','true');
+28072:   var sheet=document.createElement('div');
+28073:   sheet.className='cfLangSheet';
+28074:   sheet.setAttribute('role','dialog');
+28075:   sheet.setAttribute('aria-modal','true');
+28076:   sheet.setAttribute('aria-label','Language / 言語設定');
+28077:   sheet.innerHTML='<h3>Language</h3><p class="cfLangSub">言語設定 · Choose your language</p>';
+28078:   var list=document.createElement('div');
+28079:   list.className='cfLangList';
+28080:   LANGS.forEach(function(l){
+28081:     var b=document.createElement('button');
+28082:     b.type='button';

@@ -19531,6 +19531,7 @@ body[data-ui-tone="dark"]{
           clearTimeout(tid);
           if(res.ok){
             const j=await res.json();
+      cfCheckPrimaryRun(runCtx);
             const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);
             if(arr&&arr.length){
               const out=arr.slice(0,6);
@@ -20143,7 +20144,11 @@ body[data-ui-tone="dark"]{
   }
   window.buildSimulationPayload=buildSimulationPayload;
 
-  async function generateViaAI(source){
+  /* CF_PRIMARY_ROUTING_ISOLATION_V4 */
+  function cfPrimaryCancelled(ctx){return !!(ctx&&ctx.cancelled);}
+  function cfPrimaryCancelError(){const e=new Error('primary generation cancelled after deadline');e.name='AbortError';e.cfPrimaryCancelled=true;return e;}
+  function cfCheckPrimaryRun(ctx){if(cfPrimaryCancelled(ctx))throw cfPrimaryCancelError();}
+  async function generateViaAI(source,runCtx){
     const epRaw=aiEndpoint(); if(!epRaw) return null;
     // Token gate: 1回作成 = 2 tokens。失敗時は refund_generation_tokens で返却。
     let _ledgerId=null;
@@ -20155,21 +20160,29 @@ body[data-ui-tone="dark"]{
         _e.cfNoTokens=true; throw _e;
       }
       _ledgerId=(_tk&&_tk.ledgerId)||null;
+      cfCheckPrimaryRun(runCtx);
     }
     try{
+      cfCheckPrimaryRun(runCtx);
       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
+      cfCheckPrimaryRun(runCtx);
       const _payload=buildSimulationPayload(source);
       const _cfImageEdge=(source&&source.intraoral)?1536:1280;
       const _cfPrepStart=performance.now();
-      _payload.image=await cfPrepareGenerationImage(_payload.image,_cfImageEdge,0.84);
+      const _cfFastPrimary=!!(runCtx&&runCtx.primary);
+      const _cfSendEdge=_cfFastPrimary?((source&&source.intraoral)?1280:1024):_cfImageEdge;
+      _payload.image=await cfPrepareGenerationImage(_payload.image,_cfSendEdge,_cfFastPrimary?0.80:0.84);
+      cfCheckPrimaryRun(runCtx);
       const _cfPayloadBytes=JSON.stringify(_payload).length;
       const _cfRequestStart=performance.now();
       const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),1);
+      cfCheckPrimaryRun(runCtx);
       window.__caseflowLastRequestTiming={prepare_ms:Math.round(_cfRequestStart-_cfPrepStart),request_ms:Math.round(performance.now()-_cfRequestStart),payload_bytes:_cfPayloadBytes};
       const j=await res.json();
       if(j && j.error) throw new Error(String(j.error).slice(0,400));
       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
       if(!out) throw new Error('画像が返りませんでした (no image in response)');
+      cfCheckPrimaryRun(runCtx);
       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
       try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),5000))]); }
       catch(e){ console.warn('finalize failed or timed out, using raw AI image', e); return out; }
@@ -20497,6 +20510,11 @@ body[data-ui-tone="dark"]{
   }
   window.cfAutoSaveTempSim=cfAutoSaveTempSim;
   window.cfPersistLib=cfPersistLib;
+  function cfScheduleTempSimSave(r,opts){
+    const job=function(){try{cfAutoSaveTempSim(r,opts||{});}catch(e){console.error('[CaseFlow deferred autosave]',e);}};
+    try{if('requestIdleCallback' in window)requestIdleCallback(job,{timeout:2600});else setTimeout(job,650);}catch(e){setTimeout(job,650);}
+  }
+  window.cfScheduleTempSimSave=cfScheduleTempSimSave;
   function pushSimResult(r){
     if(!Array.isArray(state.simResults)) state.simResults=[];
     // Single stamping point: the tooth-form metadata rides on the same settings
@@ -20506,8 +20524,8 @@ body[data-ui-tone="dark"]{
     while(state.simResults.length>SIM_GALLERY_MAX) state.simResults.shift();
     state.simResultIndex=state.simResults.length-1;
     state.simResult=r;
-    // Generation just completed → save to Library and surface a truthful success/failure toast.
-    cfAutoSaveTempSim(r, {toast:true});
+    // Result paint is the priority; persistence runs after navigation.
+    cfScheduleTempSimSave(r,{toast:true});
   }
   function selectSimResult(i){
     const arr=Array.isArray(state.simResults)?state.simResults:[];
@@ -20654,82 +20672,51 @@ body[data-ui-tone="dark"]{
   window.caseflowEnsureIntraoral=ensureIntraoralFlag;
   // Produce the after-image: photoreal AI backend when enabled+configured, else the local
   // artifact-free colour/finish pass.
-  const CF_PRIMARY_RESULT_DEADLINE_MS=18000;
-  const CF_PRIMARY_PREFLIGHT_MS=700;
+  const CF_PRIMARY_RESULT_DEADLINE_MS=16000;
   async function cfFastPrimaryPreview(src,raw){
-    if(!src||!src.dataUrl) return null;
+    if(!src||!src.dataUrl)return null;
     try{
-      const img=await Promise.race([
-        loadImage(src.dataUrl),
-        new Promise((_,reject)=>setTimeout(()=>reject(new Error('quick preview decode timeout')),1800))
-      ]);
-      const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
-      if(!iw||!ih) return src.dataUrl;
-      const maxEdge=960,scale=Math.min(1,maxEdge/Math.max(iw,ih));
-      const w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
-      const c=document.createElement('canvas');c.width=w;c.height=h;
-      const x=c.getContext('2d',{alpha:false});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
-      // A deliberately conservative, GPU-light optical preview. It never claims structural AI accuracy.
+      const img=await Promise.race([loadImage(src.dataUrl),new Promise((_,reject)=>setTimeout(()=>reject(new Error('quick preview decode timeout')),1400))]);
+      const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(!iw||!ih)return src.dataUrl;
+      const maxEdge=840,scale=Math.min(1,maxEdge/Math.max(iw,ih)),w=Math.max(1,Math.round(iw*scale)),h=Math.max(1,Math.round(ih*scale));
+      const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{alpha:false});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='medium';x.drawImage(img,0,0,w,h);
       const facial=((src.category||'').toLowerCase()==='facial')||(!src.intraoral&&src.lips!==false);
-      const rx=facial?w*.31:w*.12, ry=facial?h*.50:h*.18, rw=facial?w*.38:w*.76, rh=facial?h*.23:h*.55;
-      const tmp=document.createElement('canvas');tmp.width=w;tmp.height=h;
-      const tx=tmp.getContext('2d');
-      const shade=((raw&&raw.shade)!=null?raw.shade:50); const bright=1+Math.max(0,shade-50)/50*.07;
-      tx.filter='brightness('+bright.toFixed(3)+') saturate(.92) contrast(1.025)';tx.drawImage(img,0,0,w,h);tx.filter='none';
-      x.save();x.beginPath();x.ellipse(rx+rw/2,ry+rh/2,rw/2,rh/2,0,0,Math.PI*2);x.clip();x.globalAlpha=.74;x.drawImage(tmp,0,0);x.restore();
-      try{drawBadge(x,w,h);}catch(e){}
-      const out=c.toDataURL('image/jpeg',.82);c.width=c.height=1;tmp.width=tmp.height=1;return out;
-    }catch(e){ console.warn('[CaseFlow] quick preview fallback uses source',e); return src.dataUrl; }
+      const rx=facial?w*.31:w*.12,ry=facial?h*.50:h*.18,rw=facial?w*.38:w*.76,rh=facial?h*.23:h*.55;
+      const shade=((raw&&raw.shade)!=null?raw.shade:50),bright=1+Math.max(0,shade-50)/50*.06;
+      x.save();x.beginPath();x.ellipse(rx+rw/2,ry+rh/2,rw/2,rh/2,0,0,Math.PI*2);x.clip();x.filter='brightness('+bright.toFixed(3)+') saturate(.93) contrast(1.02)';x.globalAlpha=.68;x.drawImage(img,0,0,w,h);x.restore();x.filter='none';
+      try{drawBadge(x,w,h);}catch(e){}const out=c.toDataURL('image/jpeg',.80);c.width=c.height=1;return out;
+    }catch(e){console.warn('[CaseFlow] quick preview uses source',e);return src.dataUrl;}
   }
   window.cfFastPrimaryPreview=cfFastPrimaryPreview;
   async function produceImage(src){
-    const started=performance.now();
-    let progressTimer=null, deadlineTimer=null;
-    window.__caseflowQuickPreviewUsed=false;
-    try{sessionStorage.setItem('cf_primary_generation_guard_v3',JSON.stringify({startedAt:Date.now()}));}catch(e){}
+    const started=performance.now(),run={id:'primary_'+Date.now()+'_'+Math.random().toString(36).slice(2),primary:true,cancelled:false};
+    let progressTimer=null,deadlineTimer=null;window.__cfPrimaryGenerationActive=true;window.__cfPrimaryRun=run;window.__caseflowQuickPreviewUsed=false;
+    try{sessionStorage.setItem('cf_primary_generation_guard_v4',JSON.stringify({startedAt:Date.now(),id:run.id}));}catch(e){}
+    if(typeof src.intraoral!=='boolean')src.intraoral=((src.category||'').toLowerCase()==='intraoral');
+    if(typeof src.intraoralDark!=='boolean')src.intraoralDark=false;
+    if(typeof src.lips!=='boolean')src.lips=(((src.category||'').toLowerCase()==='facial')&&!src.intraoral);
     try{if(window.cfWait)cfWait.show('AIシミュレーション中',0);}catch(e){}
-    const quickTask=cfFastPrimaryPreview(src,state.simV96||{});
-    try{
-      await Promise.allSettled([
-        Promise.race([ensureIntraoralFlag(src),new Promise(resolve=>setTimeout(resolve,CF_PRIMARY_PREFLIGHT_MS))]),
-        Promise.race([ensureProblemList(src),new Promise(resolve=>setTimeout(resolve,CF_PRIMARY_PREFLIGHT_MS))])
-      ]);
-    }catch(e){}
-    const preflightMs=Math.round(performance.now()-started);
-    const aiOn=aiEnabled();
-    if(aiOn){
-      const msgs=['画像を最適化中…','AIシミュレーション生成中…','臨床デザインを確認中…'];let mi=0;
-      const tick=()=>{try{const q=document.querySelector('.cfWaitOverlay .cfWaitSub');if(q)q.textContent=msgs[mi++%msgs.length];}catch(e){}};
-      tick();progressTimer=setInterval(tick,2200);
-    }
+    const quickTask=cfFastPrimaryPreview(src,state.simV96||{}),aiOn=aiEnabled();
+    if(aiOn){const msgs=['画像を最適化中…','AIシミュレーション生成中…','臨床デザインを確認中…'];let mi=0;const tick=()=>{try{const q=document.querySelector('.cfWaitOverlay .cfWaitSub');if(q)q.textContent=msgs[mi++%msgs.length];}catch(e){}};tick();progressTimer=setInterval(tick,2200);}
     try{
       if(aiOn){
-        const aiTask=generateViaAI(src).then(url=>({kind:'ai',url})).catch(err=>({kind:'error',err}));
-        const remaining=Math.max(2500,CF_PRIMARY_RESULT_DEADLINE_MS-(performance.now()-started));
-        const deadlineTask=new Promise(resolve=>{deadlineTimer=setTimeout(()=>resolve({kind:'deadline'}),remaining);});
+        const aiTask=generateViaAI(src,run).then(url=>({kind:'ai',url})).catch(err=>({kind:'error',err}));
+        const deadlineTask=new Promise(resolve=>{deadlineTimer=setTimeout(()=>resolve({kind:'deadline'}),CF_PRIMARY_RESULT_DEADLINE_MS);});
         const result=await Promise.race([aiTask,deadlineTask]);
-        if(result&&result.kind==='ai'&&result.url){
-          window.__caseflowPrimaryResultMode='ai';return result.url;
-        }
-        if(result&&result.kind==='error'&&result.err&&result.err.cfNoTokens) throw result.err;
-        if(result&&result.kind==='deadline'){try{if(window.__cfGenerationAbort)window.__cfGenerationAbort();}catch(e){}}
-        if(result&&result.kind==='error') window.__caseflowLastAIError=String((result.err&&result.err.message)||result.err||'AI error');
+        if(result&&result.kind==='ai'&&result.url){window.__caseflowPrimaryResultMode='ai';return result.url;}
+        if(result&&result.kind==='error'&&result.err&&result.err.cfNoTokens)throw result.err;
+        run.cancelled=true;try{if(window.__cfGenerationAbort)window.__cfGenerationAbort();}catch(e){}
+        if(result&&result.kind==='error')window.__caseflowLastAIError=String((result.err&&result.err.message)||result.err||'AI error');
       }
-      // Absolute contract: always resolve the first result screen without invoking the heavy
-      // full-frame local pixel/MediaPipe fallback after an AI stall.
-      let quick=null;
-      try{quick=await Promise.race([quickTask,new Promise(resolve=>setTimeout(()=>resolve(src&&src.dataUrl||null),1200))]);}catch(e){quick=src&&src.dataUrl||null;}
-      if(!quick) throw new Error('一次プレビューを作成できませんでした');
-      window.__caseflowQuickPreviewUsed=true;window.__caseflowPrimaryResultMode='quick';
-      setTimeout(()=>{try{toastFn('通信が時間内に完了しなかったため、軽量プレビューを表示しました。精密生成は結果画面から再実行できます。');}catch(e){}},80);
-      return quick;
-    } finally {
-      clearInterval(progressTimer);clearTimeout(deadlineTimer);
-      const totalMs=Math.round(performance.now()-started);
-      window.__caseflowGenerationTiming={preflight_ms:preflightMs,total_ms:totalMs,mode:window.__caseflowPrimaryResultMode||'unknown',hard_deadline_ms:CF_PRIMARY_RESULT_DEADLINE_MS,completed_at:new Date().toISOString()};
+      let quick=null;try{quick=await Promise.race([quickTask,new Promise(resolve=>setTimeout(()=>resolve(src&&src.dataUrl||null),900))]);}catch(e){quick=src&&src.dataUrl||null;}
+      if(!quick)throw new Error('一次プレビューを作成できませんでした');window.__caseflowQuickPreviewUsed=true;window.__caseflowPrimaryResultMode='quick';
+      setTimeout(()=>{try{toastFn('通信が時間内に完了しなかったため、軽量プレビューを表示しました。結果画面から精密生成できます。');}catch(e){}},80);return quick;
+    }finally{
+      run.cancelled=true;clearInterval(progressTimer);clearTimeout(deadlineTimer);
+      window.__caseflowGenerationTiming={total_ms:Math.round(performance.now()-started),mode:window.__caseflowPrimaryResultMode||'unknown',hard_deadline_ms:CF_PRIMARY_RESULT_DEADLINE_MS,completed_at:new Date().toISOString()};
       try{if(typeof window.cfLogEvent==='function')window.cfLogEvent('generation_timing','visual-simulation',window.__caseflowGenerationTiming);}catch(e){}
-      try{sessionStorage.removeItem('cf_primary_generation_guard_v3');}catch(e){}
-      try{if(window.cfWait)cfWait.hideAll();}catch(e){}
+      try{sessionStorage.removeItem('cf_primary_generation_guard_v4');sessionStorage.removeItem('cf_primary_generation_guard_v3');}catch(e){}
+      window.__cfPrimaryGenerationActive=false;if(window.__cfPrimaryRun===run)window.__cfPrimaryRun=null;try{if(window.cfWait)cfWait.hideAll();}catch(e){}
     }
   }
   window.caseflowProduceSimImage=produceImage;
@@ -20750,7 +20737,7 @@ body[data-ui-tone="dark"]{
       if(Array.isArray(state.simResults) && state.simResults.length){ state.simResults[state.simResultIndex||0]=r; }
       else { state.simResults=[r]; state.simResultIndex=0; }
       state.simResult=r;
-      cfAutoSaveTempSim(r);   // ① keep the 48h temp Library copy in sync with slider edits
+      cfScheduleTempSimSave(r);   // defer persistence so result editing remains responsive
       renderResultImages();
       // Persist the new result immediately so a reload won't lose it
       try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
@@ -20917,8 +20904,7 @@ body[data-ui-tone="dark"]{
         if(!Array.isArray(state.photos)) state.photos=[];
         if(!state.photos.some(p=>p && p.dataUrl===src.dataUrl)){
           state.photos.push(src);
-          if(typeof window.renderUpload==='function') window.renderUpload();
-          if(typeof window.cfPersist!=='undefined' && window.cfPersist && window.cfPersist.schedule) try{ window.cfPersist.schedule(800); }catch(e){}
+          window.__cfPendingGallerySync=true;
         }
       }
     }catch(e){}
@@ -20938,18 +20924,21 @@ body[data-ui-tone="dark"]{
     toastFn(aiEnabled()?'AIで術後イメージを生成中…':'Reference Image を作成中…');
     try{
       const url = await produceImage(_genSrc);
-      // Each explicit generation becomes a NEW gallery variation (up to 5) so earlier
-      // generations are never lost when you re-edit.
-      pushSimResult({
-        dataUrl:url, source:src.dataUrl, srcObj:src, sourceKind:sourceKind(src),
-        createdAt:new Date().toISOString(), settings:JSON.parse(JSON.stringify(state.simV96))
-      });
-      if(typeof go==='function') go('result');
-      // After an orthodontic generation, recentre the alignment slider so the NEXT
-      // regeneration applies a further, incremental correction on top of this result.
-      if(_ortho){ state.simV96.alignment=50; window._cfExtractWarned=false; }
-      setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
-      setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);
+      try{if(window.cfWait)cfWait.hideAll();}catch(e){}
+      pushSimResult({dataUrl:url,source:src.dataUrl,srcObj:src,sourceKind:sourceKind(src),createdAt:new Date().toISOString(),settings:JSON.parse(JSON.stringify(state.simV96))});
+      try{if(typeof go==='function')go('result');}catch(e){console.error('[CaseFlow result route]',e);}
+      const ensureResult=function(){
+        try{
+          const resultEl=document.getElementById('result');
+          if(resultEl&&!resultEl.classList.contains('active')){document.querySelectorAll('.screen.active').forEach(el=>el.classList.remove('active'));resultEl.classList.add('active');}
+          renderResultImages();buildEditGrid();
+          if(window.__cfPendingGallerySync){window.__cfPendingGallerySync=false;if(typeof window.renderUpload==='function')window.renderUpload();}
+          if(typeof window.cfPersist!=='undefined'&&window.cfPersist&&window.cfPersist.schedule)window.cfPersist.schedule(900);
+          try{if(window.cfWait)cfWait.hideAll();}catch(e){}
+        }catch(e){console.error('[CaseFlow result paint]',e);}
+      };
+      requestAnimationFrame(()=>requestAnimationFrame(ensureResult));setTimeout(ensureResult,180);
+      if(_ortho){state.simV96.alignment=50;window._cfExtractWarned=false;}
     }catch(e){ console.error(e); toastFn('画像の作成に失敗しました'); }
   };
 
@@ -27998,8 +27987,7 @@ var POEMS=[
    it:'Preservazione dell’identità', ar:'الحفاظ على ملامح الوجه', zh:'正在保持面容同一性', ko:'얼굴 동일성 유지 중'},
   {en:'Rendering visual simulation', ja:'ビジュアルシミュレーションを生成中', pt:'Renderizando a simulação visual',
    it:'Rendering della simulazione visiva', ar:'إنشاء المحاكاة البصرية', zh:'正在生成视觉模拟', ko:'비주얼 시뮬레이션 생성 중'},
-  {en:'Preparing morphing sequence', ja:'モーフィングシークエンスを準備中', pt:'Preparando a sequência de morphing',
-   it:'Preparazione della sequenza di morphing', ar:'تحضير تسلسل المورفينغ', zh:'正在准备渐变序列', ko:'모핑 시퀀스 준비 중'}
+  {en:'Finalizing clinical preview', ja:'臨床プレビューを仕上げ中', pt:'Finalizando a prévia clínica', it:'Finalizzazione dell’anteprima clinica', ar:'إنهاء المعاينة السريرية', zh:'正在完成临床预览', ko:'임상 미리보기 마무리 중'}
 ];
 
 function getLang(){
@@ -30277,6 +30265,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(stale||!document.querySelector('.screen.active'))setTimeout(recover,60);
   });
   document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(recover,50);});
+})();
+</script>
+<script id="cf-primary-routing-isolation-v4">
+(function(){
+  function guardAsync(name){var raw=window[name];if(typeof raw!=='function'||raw.__cfPrimaryIsolated)return;var wrapped=function(){if(window.__cfPrimaryGenerationActive)return Promise.resolve(null);return raw.apply(this,arguments);};wrapped.__cfPrimaryIsolated=true;wrapped.__cfRaw=raw;window[name]=wrapped;}
+  function guardSync(name){var raw=window[name];if(typeof raw!=='function'||raw.__cfPrimaryIsolated)return;var wrapped=function(){if(window.__cfPrimaryGenerationActive)return;return raw.apply(this,arguments);};wrapped.__cfPrimaryIsolated=true;wrapped.__cfRaw=raw;window[name]=wrapped;}
+  guardAsync('caseflowLocalAnalyze');guardAsync('cfEnsureFaceMesh');guardSync('cfCapRefresh');
+  window.addEventListener('pageshow',function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}});
 })();
 </script>
 </body>

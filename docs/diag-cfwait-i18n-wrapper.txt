@@ -1,0 +1,81 @@
+28110:   var home=document.getElementById('cfLangHomeBtn');
+28111:   if(home && !home.__cfBound){ home.__cfBound=true; home.addEventListener('click',openOverlay); }
+28112:   if(!document.getElementById('cfLangFixedBtn')){
+28113:     var app=document.querySelector('.app');
+28114:     if(app){
+28115:       var b=document.createElement('button');
+28116:       b.type='button';
+28117:       b.id='cfLangFixedBtn';
+28118:       b.className='cfLangBtn cfLangFixed';
+28119:       b.setAttribute('aria-label','Language / 言語設定');
+28120:       b.setAttribute('aria-haspopup','dialog');
+28121:       b.addEventListener('click',openOverlay);
+28122:       app.appendChild(b);
+28123:     }
+28124:   }
+28125: }
+28126: 
+28127: /* ——— nav survives later rewrites (Sim → Account swap etc.) ——— */
+28128: function observeNav(){
+28129:   var bar=document.querySelector('.bottom');
+28130:   if(!bar || bar.__cfLangObs) return;
+28131:   bar.__cfLangObs=true;
+28132:   new MutationObserver(function(){ applyNav(getLang()); }).observe(bar,{childList:true,subtree:true});
+28133: }
+28134: 
+28135: /* ——— quiet poem line under the wait spinner ——— */
+28136: function installPoems(){
+28137:   var w=window.cfWait;
+28138:   if(!w || w.__cfPoem) return;
+28139:   w.__cfPoem=true;
+28140:   var timer=null, idx=0;
+28141:   function el(){
+28142:     var card=document.querySelector('.cfWaitOverlay .cfWaitCard');
+28143:     if(!card) return null;
+28144:     var p=card.querySelector('.cfWaitPoem');
+28145:     if(!p){ p=document.createElement('div'); p.className='cfWaitPoem'; card.appendChild(p); }
+28146:     return p;
+28147:   }
+28148:   function tick(){
+28149:     var p=el(); if(!p) return;
+28150:     var ph=POEMS[idx%POEMS.length]; idx++;
+28151:     var loc=ph[getLang()]||ph.en;
+28152:     p.innerHTML=(loc===ph.en)?ph.en:(ph.en+'<br>'+loc);
+28153:   }
+28154:   function stopIfHidden(){
+28155:     setTimeout(function(){
+28156:       var o=document.querySelector('.cfWaitOverlay');
+28157:       if((!o || !o.classList.contains('show')) && timer){ clearInterval(timer); timer=null; }
+28158:     },80);
+28159:   }
+28160:   var _show=w.show, _hide=w.hide, _hideAll=w.hideAll;
+28161:   w.show=function(msg,delay){
+28162:     _show(msg,delay);
+28163:     if(!timer){ idx=0; tick(); timer=setInterval(tick,3400); }
+28164:   };
+28165:   w.hide=function(){ _hide(); stopIfHidden(); };
+28166:   w.hideAll=function(){ _hideAll(); stopIfHidden(); };
+28167: }
+28168: 
+28169: function boot(){
+28170:   ensureButtons();
+28171:   observeNav();
+28172:   installPoems();
+28173:   apply(getLang());
+28174: }
+28175: if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
+28176: else boot();
+28177: window.cfI18n={ t:t, get:getLang, set:apply, langs:LANGS };
+28178: })();
+28179: </script>
+28180: 
+28181: <!-- ============ Safe-area / PWA responsive fit (home card, landscape cards, floating controls) ============ -->
+28182: <script>
+28183: /* --real-vh = 実際に見えている高さの 1%（Safari の下部バー表示/非表示や PWA で
+28184:    一致させるため visualViewport.height を使う）。ホーム artboard の比例配置に使用。 */
+28185: (function(){
+28186:   function upd(){
+28187:     try{
+28188:       var vv=window.visualViewport;
+28189:       var h=(vv&&vv.height)?vv.height:window.innerHeight;
+28190:       if(h>0) document.documentElement.style.setProperty('--real-vh',(h*0.01)+'px');
