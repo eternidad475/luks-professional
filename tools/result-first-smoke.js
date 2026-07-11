@@ -56,11 +56,11 @@ const assert = require('assert');
     return {beforeLen:document.getElementById('resultBefore').src.length,afterLen:document.getElementById('resultAfter').src.length};
   });
 
-  await step('caption-only',()=>{
-    const src=state._simSource;
-    const label=typeof sourceKindLabel==='function'?sourceKindLabel(src):'missing';
-    document.getElementById('resultCaption').textContent=String(label)+' image / Reference Image';
-    return {label:String(label)};
+  await step('caption-bypass-contract',()=>{
+    const r=state.simResult,src=state._simSource;
+    const raw=(r&&r.sourceKind)||(src&&src.label)||(src&&src.category)||(src&&src.intraoral?'Intraoral':'Facial');
+    document.getElementById('resultCaption').textContent=String(raw)+' image / Reference Image';
+    return {label:String(raw),legacyHelperType:typeof sourceKindLabel};
   });
 
   await step('dismiss-overlay-only',()=>{
@@ -72,10 +72,11 @@ const assert = require('assert');
     if(typeof window.cfPaintPrimaryResult!=='function')throw new Error('cfPaintPrimaryResult missing');
     const raw=window.requestAnimationFrame;let captured=0;
     window.requestAnimationFrame=function(cb){captured++;window.__capturedResultFrame=cb;return 9901;};
-    try{const t=performance.now();const ok=window.cfPaintPrimaryResult();return {ok,elapsed:performance.now()-t,captured,scheduled:Number(window.__cfEditHydrationScheduled||0),firstPaint:Number(window.__cfResultFirstPaintAt||0)};}
+    try{const t=performance.now();const ok=window.cfPaintPrimaryResult();return {ok,elapsed:performance.now()-t,captured,scheduled:Number(window.__cfEditHydrationScheduled||0),firstPaint:Number(window.__cfResultFirstPaintAt||0),caption:document.getElementById('resultCaption').textContent};}
     finally{window.requestAnimationFrame=raw;}
   });
   assert(noRaf.elapsed<900,'paint remained synchronous even with rAF suppressed');
+  assert(/Facial image/.test(noRaf.caption),'primary caption did not use stored source kind');
 
   await new Promise(r=>setTimeout(r,180));
   const snapshot=await step('post-paint-snapshot',()=>({
