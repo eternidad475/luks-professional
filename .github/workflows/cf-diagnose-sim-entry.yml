@@ -1,15 +1,15 @@
 name: Assemble Visual Simulation result-first fix
 
 on:
-  push:
+  pull_request:
     branches:
-      - chatgpt/fix-visual-simulation-entry
+      - claude/image-morphing-video-3kujgb
 
 permissions:
   contents: write
 
 concurrency:
-  group: visual-result-first-assembly-v2
+  group: visual-result-first-assembly-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
