@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - chatgpt/primary-routing-v4-final
-  pull_request:
-    branches:
-      - claude/image-morphing-video-3kujgb
 
 permissions:
   contents: write
@@ -17,61 +14,75 @@ concurrency:
 
 jobs:
   assemble:
-    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'chatgpt/primary-routing-v4-final'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/primary-routing-v4-final
           fetch-depth: 0
-      - name: Fetch source and current production base
+      - name: Fetch current production and candidate payload
         run: |
-          git fetch origin chatgpt/fix-primary-morph-overlay-and-routing
           git fetch origin claude/image-morphing-video-3kujgb
-      - name: Copy validated implementation
+          git fetch origin chatgpt/primary-routing-v4-payload
+      - name: Extract only primary-routing changes
+        run: python3 scripts/cf_filter_primary_routing_v4_patch.py
+      - name: Rebuild candidate from current production
         run: |
-          git show origin/chatgpt/fix-primary-morph-overlay-and-routing:caseflow_studio_v96.html > caseflow_studio_v96.html
-          git show origin/chatgpt/fix-primary-morph-overlay-and-routing:sw.js > sw.js
-          mkdir -p docs scripts
-          git show origin/chatgpt/fix-primary-morph-overlay-and-routing:docs/primary-routing-v4-smoke.js > docs/primary-routing-v4-smoke.js
-      - name: Apply reviewer fixes
-        run: python3 scripts/cf_assemble_primary_routing_v4_final.py
-      - name: Deterministic syntax and routing validation
+          git checkout -f -B chatgpt/primary-routing-v4-payload origin/claude/image-morphing-video-3kujgb
+          git apply --index /tmp/cf-primary-routing-v4-filtered.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sw.js')
+          s=p.read_text(encoding='utf-8')
+          old="var VERSION = 'cfsw-v4-chrome-tooth-icons';"
+          new="var VERSION = 'cfsw-v5-primary-routing-chrome-tooth';"
+          if old not in s:
+              raise SystemExit('current chrome-tooth service-worker version not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          git add sw.js
+      - name: Validate no current feature was rolled back
         run: |
           python3 - <<'PY'
           import re, subprocess
           from pathlib import Path
-          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
-          assert 'Preparing morphing sequence' not in s
-          assert 'モーフィングシークエンスを準備中' not in s
-          assert 'const CF_PRIMARY_RESULT_DEADLINE_MS=16000' in s
-          assert 'cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)' not in s
-          assert 'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))' in s
-          assert 'cfsw-v4-primary-routing' in Path('sw.js').read_text(encoding='utf-8')
-          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
-          for i,b in enumerate(blocks):
-              p=Path('/tmp')/f'cf_inline_{i}.js'; p.write_text(b,encoding='utf-8')
-              subprocess.run(['node','--check',str(p)],check=True,stdout=subprocess.DEVNULL)
+          html=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
+          required=[
+            'CF_PRIMARY_ROUTING_ISOLATION_V4',
+            'const CF_PRIMARY_RESULT_DEADLINE_MS=16000',
+            'cfScheduleTempSimSave',
+            'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))',
+            'Finalizing clinical preview',
+            'cf-primary-routing-isolation-v4',
+            '/icons/icon-180-v2.png',
+            '/icons/icon-192-v2.png',
+            '/icons/favicon-32-v2.png',
+            "nonbinary:'Non-binary / ノンバイナリー'",
+            "one soft crown-form criterion",
+          ]
+          for token in required:
+              assert token in html, token
+          assert 'Preparing morphing sequence' not in html
+          assert 'モーフィングシークエンスを準備中' not in html
+          assert 'cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)' not in html
+          assert "cfsw-v5-primary-routing-chrome-tooth" in sw
+          for asset in ('/icons/icon-192-v2.png','/icons/icon-512-v2.png','/icons/maskable-512-v2.png','/icons/icon-180-v2.png'):
+              assert asset in sw, asset
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',html,re.I)
+          for i,block in enumerate(blocks):
+              path=Path('/tmp')/f'cf_inline_{i}.js'
+              path.write_text(block,encoding='utf-8')
+              subprocess.run(['node','--check',str(path)],check=True,stdout=subprocess.DEVNULL)
           subprocess.run(['node','--check','sw.js'],check=True)
           print('validated inline scripts:',len(blocks))
           PY
-      - name: Prepare payload worktree
-        run: |
-          cp caseflow_studio_v96.html /tmp/caseflow_studio_v96.html
-          cp sw.js /tmp/sw.js
-          cp docs/primary-routing-v4-smoke.js /tmp/primary-routing-v4-smoke.js
-          git checkout -f -B chatgpt/primary-routing-v4-payload origin/claude/image-morphing-video-3kujgb
-          cp /tmp/caseflow_studio_v96.html caseflow_studio_v96.html
-          cp /tmp/sw.js sw.js
-          mkdir -p docs
-          cp /tmp/primary-routing-v4-smoke.js docs/primary-routing-v4-smoke.js
-          git status --short
-      - name: Commit payload
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = "caseflow_studio_v96.html docs/primary-routing-v4-smoke.js sw.js "
+          git diff --cached --stat
+      - name: Commit corrected production candidate
         run: |
           git config user.name "caseflow-studio-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add caseflow_studio_v96.html sw.js docs/primary-routing-v4-smoke.js
-          git diff --cached --stat
-          git commit -m "fix(simulation): isolate primary generation and paint result first"
-      - name: Push payload branch
+          git commit -m "fix(simulation): isolate primary generation without feature rollback"
+      - name: Update pull request branch
         run: git push --force origin HEAD:chatgpt/primary-routing-v4-payload
