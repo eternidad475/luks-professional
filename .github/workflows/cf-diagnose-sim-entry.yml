@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: visual-result-first-assembly
+  group: visual-result-first-assembly-v2
   cancel-in-progress: true
 
 jobs:
