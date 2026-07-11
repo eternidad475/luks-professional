@@ -97,6 +97,9 @@ jobs:
           path: |
             /tmp/result-first-output.txt
             /tmp/cf-http.log
+            caseflow_studio_v96.html
+            sw.js
+            docs/visual-result-first-smoke.js
           if-no-files-found: warn
       - name: Commit clean production payload
         run: |
