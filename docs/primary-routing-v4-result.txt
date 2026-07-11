@@ -1,4 +1,0 @@
-SUCCESS_V4
-inline_scripts=85
-hard_deadline_ms=16000
-service_worker=cfsw-v4-primary-routing
