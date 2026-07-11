@@ -102,8 +102,11 @@ jobs:
       - name: Start app and run smoke test
         run: |
           python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
-          node /tmp/cf-entry-smoke.js
-      - name: Upload diagnostic screenshot and static context
+          status=0
+          node /tmp/cf-entry-smoke.js > /tmp/smoke-output.txt 2>&1 || status=$?
+          cat /tmp/smoke-output.txt
+          exit $status
+      - name: Upload diagnostic screenshot and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -111,4 +114,6 @@ jobs:
           path: |
             /tmp/cf-entry.png
             /tmp/static-diagnostic.txt
+            /tmp/smoke-output.txt
+            /tmp/cf-http.log
           if-no-files-found: ignore
