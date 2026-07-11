@@ -26,12 +26,14 @@ jobs:
       - name: Preserve patch and test tools
         run: |
           cp tools/apply-result-first-paint.js /tmp/apply-result-first-paint.js
-          cp tools/result-first-smoke.js /tmp/result-first-smoke.js
+          cp tools/remove-result-caption-sync.js /tmp/remove-result-caption-sync.js
+          cp tools/result-first-smoke-v2.js /tmp/result-first-smoke.js
       - name: Rebuild from current Production base
         run: |
           git fetch origin claude/image-morphing-video-3kujgb
           git checkout -B chatgpt/visual-result-first-payload origin/claude/image-morphing-video-3kujgb
           node /tmp/apply-result-first-paint.js
+          node /tmp/remove-result-caption-sync.js
           python3 - <<'PY'
           from pathlib import Path
           p=Path('caseflow_studio_v96.html')
@@ -73,7 +75,8 @@ jobs:
           forbidden=[
             "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60)",
             "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220)",
-            "if(id==='result')renderResult()"
+            "if(id==='result')renderResult()",
+            "if(cap)cap.textContent=cfResultKindLabel(r,src)"
           ]
           for token in forbidden:
               if token in s: raise SystemExit('old critical-path pattern remains: '+token)
