@@ -4,121 +4,39 @@ on:
   push:
     branches:
       - chatgpt/primary-routing-v4-final
-    paths:
-      - .github/workflows/cf-build-primary-routing-v4-final.yml
   pull_request:
     branches:
       - claude/image-morphing-video-3kujgb
-    paths:
-      - .github/workflows/cf-build-primary-routing-v4-final.yml
 
 permissions:
   contents: write
 
 jobs:
   assemble:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'chatgpt/primary-routing-v4-final'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/primary-routing-v4-final
           fetch-depth: 0
-      - name: Fetch validated implementation
-        run: git fetch origin chatgpt/fix-primary-morph-overlay-and-routing
-      - name: Copy only production files
+      - run: git fetch origin chatgpt/fix-primary-morph-overlay-and-routing
+      - name: Copy validated production files
         run: |
           git show origin/chatgpt/fix-primary-morph-overlay-and-routing:caseflow_studio_v96.html > caseflow_studio_v96.html
           git show origin/chatgpt/fix-primary-morph-overlay-and-routing:sw.js > sw.js
-          mkdir -p docs .github/workflows
+          mkdir -p docs .github/workflows scripts
           git show origin/chatgpt/fix-primary-morph-overlay-and-routing:docs/primary-routing-v4-smoke.js > docs/primary-routing-v4-smoke.js
-      - name: Apply reviewer fixes and harden validation
+      - name: Apply final fixes
+        run: python3 scripts/cf_assemble_primary_routing_v4_final.py
+      - name: Remove temporary assembly files
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          html_path=Path('caseflow_studio_v96.html')
-          html=html_path.read_text(encoding='utf-8')
-
-          bad="""            const j=await res.json();
-      cfCheckPrimaryRun(runCtx);
-            const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);"""
-          good="""            const j=await res.json();
-            const arr=Array.isArray(j)?j:(j&&Array.isArray(j.findings)?j.findings:null);"""
-          if bad not in html:
-              raise SystemExit('undefined runCtx screening insertion not found')
-          html=html.replace(bad,good,1)
-
-          marker="""    const quickTask=cfFastPrimaryPreview(src,state.simV96||{}),aiOn=aiEnabled();"""
-          replacement="""    // Reuse only findings that are already available. Do not launch a new heavy
-    // screening task on the first-result critical path; this preserves prompt quality
-    // when upload-time screening completed, while keeping the 16 s routing contract.
-    const cachedFindings=Array.isArray(src.problemList)?src.problemList:null;
-    if(cachedFindings&&cachedFindings.length)src.problemList=cachedFindings;
-    const quickTask=cfFastPrimaryPreview(src,state.simV96||{}),aiOn=aiEnabled();"""
-          if marker not in html:
-              raise SystemExit('primary quickTask marker not found')
-          html=html.replace(marker,replacement,1)
-          html_path.write_text(html,encoding='utf-8')
-
-          workflow='''name: Test primary routing v4
-
-on:
-  push:
-    branches:
-      - chatgpt/primary-routing-v4-final
-    paths:
-      - caseflow_studio_v96.html
-      - sw.js
-      - docs/primary-routing-v4-smoke.js
-      - .github/workflows/cf-test-primary-routing-v4.yml
-  pull_request:
-    branches:
-      - claude/image-morphing-video-3kujgb
-    paths:
-      - caseflow_studio_v96.html
-      - sw.js
-      - docs/primary-routing-v4-smoke.js
-      - .github/workflows/cf-test-primary-routing-v4.yml
-
-jobs:
-  smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --no-save playwright@1.54.1
-      - run: npx playwright install --with-deps chromium
-      - name: Static routing guards
-        run: |
-          python3 - <<'PY2'
-          from pathlib import Path
-          s=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
-          assert 'Preparing morphing sequence' not in s
-          assert 'モーフィングシークエンスを準備中' not in s
-          assert 'const CF_PRIMARY_RESULT_DEADLINE_MS=16000' in s
-          assert "cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)" not in s
-          assert 'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))' in s
-          assert "cfsw-v4-primary-routing" in Path('sw.js').read_text(encoding='utf-8')
-          PY2
-      - name: Start local server
-        run: python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
-      - name: Run stalled-AI smoke test
-        run: node docs/primary-routing-v4-smoke.js
-'''
-          Path('.github/workflows/cf-test-primary-routing-v4.yml').write_text(workflow,encoding='utf-8')
-          PY
-      - name: Remove assembly workflow
-        run: rm .github/workflows/cf-build-primary-routing-v4-final.yml
-      - name: Commit clean final diff
+          rm -f .github/workflows/cf-build-primary-routing-v4-final.yml
+          rm -f scripts/cf_assemble_primary_routing_v4_final.py
+      - name: Commit clean production diff
         run: |
           git config user.name "caseflow-studio-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add caseflow_studio_v96.html sw.js docs/primary-routing-v4-smoke.js .github/workflows/cf-test-primary-routing-v4.yml
-          git rm --cached --ignore-unmatch .github/workflows/cf-build-primary-routing-v4-final.yml || true
-          git add -u
+          git add -A
           git commit -m "fix(simulation): isolate primary generation and paint result first"
           git push origin HEAD:chatgpt/primary-routing-v4-final
