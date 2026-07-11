@@ -20017,15 +20017,21 @@ body[data-ui-tone="dark"]{
   }
   window.cfPrepareGenerationImage=cfPrepareGenerationImage;
 
-  async function fetchSimWithRetry(ep, body, maxAttempts){
-    maxAttempts=maxAttempts||1;
+  async function fetchSimWithRetry(ep, body, maxAttempts, budgetMs){
+    // Budget-aware: one long attempt fits the <30s first-result contract; a
+    // second attempt runs ONLY when the first failed fast enough (transient
+    // 429/5xx) that a retry can still finish inside the remaining budget.
+    maxAttempts=maxAttempts||2;
+    const deadlineAt=performance.now()+(budgetMs||26000);
     let lastErr=null;
     for(let attempt=1; attempt<=maxAttempts; attempt++){
+      const remaining=deadlineAt-performance.now();
+      if(attempt>1 && remaining<8000) break;
       let ctrl=null, tid=null;
       try{
         ctrl=new AbortController();
         window.__cfGenerationAbort=function(){ try{ ctrl.abort(); }catch(e){} };
-        tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },20000);
+        tid=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },Math.max(4000,Math.min(26000,remaining)));
         const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:body,signal:ctrl.signal});
         clearTimeout(tid); tid=null; window.__cfGenerationAbort=null;
         if(res.ok) return res;
@@ -20164,14 +20170,16 @@ body[data-ui-tone="dark"]{
       _payload.image=await cfPrepareGenerationImage(_payload.image,_cfImageEdge,0.84);
       const _cfPayloadBytes=JSON.stringify(_payload).length;
       const _cfRequestStart=performance.now();
-      const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),1);
+      const res=await fetchSimWithRetry(ep, JSON.stringify(_payload),2,26000);
       window.__caseflowLastRequestTiming={prepare_ms:Math.round(_cfRequestStart-_cfPrepStart),request_ms:Math.round(performance.now()-_cfRequestStart),payload_bytes:_cfPayloadBytes};
       const j=await res.json();
       if(j && j.error) throw new Error(String(j.error).slice(0,400));
       const out=j.image || j.dataUrl || j.output || (Array.isArray(j.images)?j.images[0]:null) || null;
       if(!out) throw new Error('画像が返りませんでした (no image in response)');
       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
-      try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),5000))]); }
+      // The mouth-region composite is what guarantees face identity — give it a
+      // realistic budget on older devices before falling back to the raw image.
+      try{ return await Promise.race([finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('画像仕上げ処理がタイムアウトしました')),9000))]); }
       catch(e){ console.warn('finalize failed or timed out, using raw AI image', e); return out; }
     }catch(genErr){
       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
@@ -20654,8 +20662,37 @@ body[data-ui-tone="dark"]{
   window.caseflowEnsureIntraoral=ensureIntraoralFlag;
   // Produce the after-image: photoreal AI backend when enabled+configured, else the local
   // artifact-free colour/finish pass.
-  const CF_PRIMARY_RESULT_DEADLINE_MS=18000;
+  const CF_PRIMARY_RESULT_DEADLINE_MS=29000;
   const CF_PRIMARY_PREFLIGHT_MS=700;
+  // Late-arrival adoption: when the deadline showed a light preview first, the
+  // still-running AI task upgrades that same result record in place on arrival.
+  let __cfPrimaryGenSeq=0;
+  function cfArmLateAdoption(aiTask, quickUrl){
+    const seq=__cfPrimaryGenSeq;
+    aiTask.then(function(r){
+      try{
+        if(!r || r.kind!=='ai' || !r.url) return;
+        if(seq!==__cfPrimaryGenSeq) return;              // superseded by a newer generation
+        const arr=Array.isArray(state.simResults)?state.simResults:[];
+        for(let i=arr.length-1;i>=0;i--){
+          const rec=arr[i];
+          if(!rec || rec.dataUrl!==quickUrl) continue;
+          rec.dataUrl=r.url;
+          rec.__lateUpgraded=true;
+          window.__caseflowPrimaryResultMode='ai-late';
+          if(state.simResultIndex===i || state.simResult===rec){
+            state.simResult=rec;
+            try{ renderResultImages(); }catch(e){}
+            try{ renderSimGallery(); }catch(e){}
+          }
+          try{ cfAutoSaveTempSim(rec,{toast:false}); }catch(e){}
+          try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
+          try{ toastFn('AI精密結果が完成しました。プレビューを置き換えました。'); }catch(e){}
+          break;
+        }
+      }catch(e){ console.warn('[CaseFlow] late AI adoption skipped', e); }
+    });
+  }
   async function cfFastPrimaryPreview(src,raw){
     if(!src||!src.dataUrl) return null;
     try{
@@ -20684,6 +20721,7 @@ body[data-ui-tone="dark"]{
   window.cfFastPrimaryPreview=cfFastPrimaryPreview;
   async function produceImage(src){
     const started=performance.now();
+    __cfPrimaryGenSeq++;
     let progressTimer=null, deadlineTimer=null;
     window.__caseflowQuickPreviewUsed=false;
     try{sessionStorage.setItem('cf_primary_generation_guard_v3',JSON.stringify({startedAt:Date.now()}));}catch(e){}
@@ -20703,6 +20741,7 @@ body[data-ui-tone="dark"]{
       tick();progressTimer=setInterval(tick,2200);
     }
     try{
+      let lateAI=null;
       if(aiOn){
         const aiTask=generateViaAI(src).then(url=>({kind:'ai',url})).catch(err=>({kind:'error',err}));
         const remaining=Math.max(2500,CF_PRIMARY_RESULT_DEADLINE_MS-(performance.now()-started));
@@ -20712,7 +20751,9 @@ body[data-ui-tone="dark"]{
           window.__caseflowPrimaryResultMode='ai';return result.url;
         }
         if(result&&result.kind==='error'&&result.err&&result.err.cfNoTokens) throw result.err;
-        if(result&&result.kind==='deadline'){try{if(window.__cfGenerationAbort)window.__cfGenerationAbort();}catch(e){}}
+        // Deadline: show the light preview NOW, but do NOT abort the in-flight
+        // AI request — the consumed token's real result is adopted on arrival.
+        if(result&&result.kind==='deadline') lateAI=aiTask;
         if(result&&result.kind==='error') window.__caseflowLastAIError=String((result.err&&result.err.message)||result.err||'AI error');
       }
       // Absolute contract: always resolve the first result screen without invoking the heavy
@@ -20721,7 +20762,12 @@ body[data-ui-tone="dark"]{
       try{quick=await Promise.race([quickTask,new Promise(resolve=>setTimeout(()=>resolve(src&&src.dataUrl||null),1200))]);}catch(e){quick=src&&src.dataUrl||null;}
       if(!quick) throw new Error('一次プレビューを作成できませんでした');
       window.__caseflowQuickPreviewUsed=true;window.__caseflowPrimaryResultMode='quick';
-      setTimeout(()=>{try{toastFn('通信が時間内に完了しなかったため、軽量プレビューを表示しました。精密生成は結果画面から再実行できます。');}catch(e){}},80);
+      if(lateAI){
+        cfArmLateAdoption(lateAI, quick);
+        setTimeout(()=>{try{toastFn('先に軽量プレビューを表示しています。AI精密結果は完成し次第、自動で置き換わります。');}catch(e){}},80);
+      } else {
+        setTimeout(()=>{try{toastFn('通信が時間内に完了しなかったため、軽量プレビューを表示しました。精密生成は結果画面から再実行できます。');}catch(e){}},80);
+      }
       return quick;
     } finally {
       clearInterval(progressTimer);clearTimeout(deadlineTimer);
@@ -21773,7 +21819,7 @@ window.cfWait = (function(){
     clearTimeout(showTimer);
     showTimer=setTimeout(function(){ if(el) el.classList.add('show'); }, delay==null?0:delay);
     clearTimeout(watchdogTimer);
-    watchdogTimer=setTimeout(function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理が長時間応答しなかったため停止しました。再試行してください。'); }catch(e){} },24000);
+    watchdogTimer=setTimeout(function(){ try{ if(window.__cfGenerationAbort) window.__cfGenerationAbort(); }catch(e){} hideAll(); try{ if(typeof toastFn==='function') toastFn('生成処理が長時間応答しなかったため停止しました。再試行してください。'); }catch(e){} },36000);
   }
   function hide(){
     depth=Math.max(0, depth-1);
