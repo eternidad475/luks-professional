@@ -26,10 +26,7 @@ const assert = require('assert');
   const step=async(name,fn,ms=3500)=>{
     console.log('STEP_START',name);
     const t=Date.now();
-    const value=await Promise.race([
-      page.evaluate(fn),
-      new Promise((_,reject)=>setTimeout(()=>reject(new Error('STEP_TIMEOUT '+name+' '+ms+'ms')),ms))
-    ]);
+    const value=await Promise.race([page.evaluate(fn),new Promise((_,reject)=>setTimeout(()=>reject(new Error('STEP_TIMEOUT '+name+' '+ms+'ms')),ms))]);
     console.log('STEP_DONE',name,Date.now()-t,JSON.stringify(value));
     return value;
   };
@@ -59,18 +56,28 @@ const assert = require('assert');
     return {beforeLen:document.getElementById('resultBefore').src.length,afterLen:document.getElementById('resultAfter').src.length};
   });
 
+  await step('caption-only',()=>{
+    const src=state._simSource;
+    const label=typeof sourceKindLabel==='function'?sourceKindLabel(src):'missing';
+    document.getElementById('resultCaption').textContent=String(label)+' image / Reference Image';
+    return {label:String(label)};
+  });
+
   await step('dismiss-overlay-only',()=>{
     document.querySelectorAll('.cfWaitOverlay.show').forEach(el=>el.classList.remove('show'));
     return {shown:!!document.querySelector('.cfWaitOverlay.show')};
   });
 
-  await step('call-paint',()=>{
+  const noRaf=await step('call-paint-no-raf',()=>{
     if(typeof window.cfPaintPrimaryResult!=='function')throw new Error('cfPaintPrimaryResult missing');
-    const t=performance.now();const ok=window.cfPaintPrimaryResult();
-    return {ok,elapsed:performance.now()-t,scheduled:Number(window.__cfEditHydrationScheduled||0),firstPaint:Number(window.__cfResultFirstPaintAt||0)};
+    const raw=window.requestAnimationFrame;let captured=0;
+    window.requestAnimationFrame=function(cb){captured++;window.__capturedResultFrame=cb;return 9901;};
+    try{const t=performance.now();const ok=window.cfPaintPrimaryResult();return {ok,elapsed:performance.now()-t,captured,scheduled:Number(window.__cfEditHydrationScheduled||0),firstPaint:Number(window.__cfResultFirstPaintAt||0)};}
+    finally{window.requestAnimationFrame=raw;}
   });
+  assert(noRaf.elapsed<900,'paint remained synchronous even with rAF suppressed');
 
-  await new Promise(r=>setTimeout(r,220));
+  await new Promise(r=>setTimeout(r,180));
   const snapshot=await step('post-paint-snapshot',()=>({
     active:document.getElementById('result').classList.contains('active'),
     waitShown:!!document.querySelector('.cfWaitOverlay.show'),
@@ -82,7 +89,7 @@ const assert = require('assert');
     guardInstalled:!!(window.go&&window.go.__cfResultGuardV6)
   }));
 
-  console.log(JSON.stringify({snapshot,pageErrors},null,2));
+  console.log(JSON.stringify({noRaf,snapshot,pageErrors},null,2));
   assert(snapshot.active,'result screen did not activate');
   assert(snapshot.beforeLen>100&&snapshot.afterLen>100,'before/after images were not painted');
   assert.strictEqual(snapshot.waitShown,false,'waiting overlay remained visible');
