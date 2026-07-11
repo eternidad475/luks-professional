@@ -98,7 +98,7 @@ replaceOnce('generation route duplicate renders',
       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);`,
 `      try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}
-      if(typeof go==='function')go('result');else cfPaintPrimaryResult();
+      if(typeof window.cfOpenResultScreen==='function')window.cfOpenResultScreen();else cfPaintPrimaryResult();
       if(_ortho){state.simV96.alignment=50;window._cfExtractWarned=false;}`
 );
 replaceOnce('legacy render wrapper',
@@ -122,19 +122,40 @@ replaceOnce('legacy render wrapper',
   }
 
   window.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildEditGrid, 200); });`,
-`  /* Result route: never run the legacy full-frame pixel renderer when an AI/result record exists. */
+`  /* Result route: bypass every legacy renderer/wrapper when a generated result exists. */
   const prevRenderResult=window.renderResult;
   window.renderResult=function(){
     if(cfResultRecord())return cfPaintPrimaryResult();
     return (typeof prevRenderResult==='function')?prevRenderResult.apply(this,arguments):undefined;
   };
+  function cfOpenResultScreen(){
+    try{pausePreview();}catch(e){}
+    document.querySelectorAll('.screen.active').forEach(function(el){el.classList.remove('active');});
+    const resultEl=$id('result');if(resultEl)resultEl.classList.add('active');
+    return cfPaintPrimaryResult();
+  }
+  window.cfOpenResultScreen=cfOpenResultScreen;
   const prevGo=window.go;
   if(typeof prevGo==='function'&&!window.__v96GoWrapped){
     window.__v96GoWrapped=true;
-    window.go=function(id){const r=prevGo.apply(this,arguments);if(id==='result')cfPaintPrimaryResult();return r;};
+    window.go=function(id){if(id==='result'&&cfResultRecord())return cfOpenResultScreen();return prevGo.apply(this,arguments);};
   }
   window.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#result.active'))cfPaintPrimaryResult();});`
 );
+if(!s.includes('cf-result-route-guard-v6')){
+  s=s.replace('</body>',`<script id="cf-result-route-guard-v6">
++(function(){
++  var raw=window.go;
++  if(typeof raw!=='function'||raw.__cfResultGuardV6)return;
++  function guarded(id){
++    if(id==='result'&&typeof window.cfOpenResultScreen==='function')return window.cfOpenResultScreen();
++    return raw.apply(this,arguments);
++  }
++  guarded.__cfResultGuardV6=true;guarded.__cfRaw=raw;window.go=guarded;
++})();
++</script>
++</body>`);
+}
 fs.writeFileSync(path,s);
 if(fs.existsSync('sw.js')){
   let x=fs.readFileSync('sw.js','utf8');
