@@ -30,7 +30,7 @@ jobs:
           npx playwright install --with-deps chromium >/dev/null 2>&1
       - name: Write entry smoke test
         run: |
-          cat > /tmp/cf-entry-smoke.js <<'JS'
+          cat > tools/.cf-entry-smoke.js <<'JS'
           const { chromium } = require('playwright');
           (async()=>{
             const browser=await chromium.launch({headless:true});
@@ -103,10 +103,10 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
           status=0
-          node /tmp/cf-entry-smoke.js > /tmp/smoke-output.txt 2>&1 || status=$?
+          node tools/.cf-entry-smoke.js > /tmp/smoke-output.txt 2>&1 || status=$?
           cat /tmp/smoke-output.txt
           exit $status
-      - name: Upload diagnostic screenshot and logs
+      - name: Upload diagnostic screenshot, logs, and source snapshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -116,4 +116,6 @@ jobs:
             /tmp/static-diagnostic.txt
             /tmp/smoke-output.txt
             /tmp/cf-http.log
+            caseflow_studio_v96.html
+            sw.js
           if-no-files-found: ignore
