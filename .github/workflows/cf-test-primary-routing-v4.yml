@@ -9,6 +9,14 @@ on:
       - sw.js
       - docs/primary-routing-v4-smoke.js
       - .github/workflows/cf-test-primary-routing-v4.yml
+  pull_request:
+    branches:
+      - claude/image-morphing-video-3kujgb
+    paths:
+      - caseflow_studio_v96.html
+      - sw.js
+      - docs/primary-routing-v4-smoke.js
+      - .github/workflows/cf-test-primary-routing-v4.yml
 
 jobs:
   smoke:
