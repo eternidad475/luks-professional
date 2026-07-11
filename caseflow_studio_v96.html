@@ -24572,6 +24572,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
         if(ratio){
           d.push('VISIBLE-WIDTH PROGRESSION (golden-proportion design reference): make each upper LATERAL incisor\'s apparent frontal width approximately '+ratio+'% of the adjacent CENTRAL incisor, with the canines stepping down harmoniously. Achieve this through crown contour, line angles and rotation illusion — never by unnatural enlargement, crown lengthening or fusing. This ratio is a soft visual design reference chosen by the clinician for comparison, not a universal biological law.');
         }
+        d.push('CENTRAL-INCISOR PROPORTION GUARD (HARD CONSTRAINT): keep each central incisor within a natural width-to-height ratio of about 78-84% and do NOT enlarge the centrals or lengthen any incisal edge — the incisal edge POSITION must not move downward and crown LENGTH must not increase versus the input. Express central dominance ONLY through the stated lateral-width percentage, never through bigger or longer centrals. A result with oversized dominant centrals or elongated incisal edges is a COMMON FAILURE and is INCORRECT.');
         d.push('Keep the completed alignment, dental midline, incisal curve, gingival architecture, contact points, tooth count and natural per-tooth individuality. Natural enamel shade with realistic translucency and texture — never flat opaque white, never generic veneers. Photorealistic; return the FULL image at the same crop so it overlays the input exactly.');
         return d.join(' ');
       }
@@ -29406,11 +29407,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
 /* ---- live optical preview ---- */
 .cfTtPrev{
-  position:relative;flex:0 1 auto;min-height:120px;max-height:34dvh;border-radius:20px;overflow:hidden;
+  /* the live stage: a large zoomed view of the anterior region */
+  position:relative;flex:0 1 auto;min-height:200px;max-height:46dvh;aspect-ratio:4/3;
+  border-radius:20px;overflow:hidden;align-self:center;width:100%;
   background:#0d0b15;box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 34px rgba(20,16,60,.22);
 }
-.cfTtPrev img,.cfTtPrev canvas{display:block;width:100%;height:100%;object-fit:contain}
-.cfTtPrev canvas{position:absolute;inset:0}
+.cfTtPrev img{display:none}
+.cfTtPrev canvas{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .cfTtPrevBadge{
   position:absolute;left:10px;bottom:9px;padding:4px 10px;border-radius:999px;
   font-size:9px;font-weight:950;letter-spacing:.08em;color:#fff;
@@ -29418,18 +29421,20 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   backdrop-filter:none;
 }
 
-/* ---- horizontal photoreal specimen carousel ---- */
+/* ---- vertical photoreal specimen carousel: specimens drift through a
+        narrow clinical light field; the centered card is the live one ---- */
 .cfTtScroll{
-  flex:0 0 auto;display:flex;flex-direction:row;gap:11px;
-  margin-top:11px;padding:4px 34%;
-  overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
-  scroll-snap-type:x mandatory;
-  mask-image:linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
-  -webkit-mask-image:linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  flex:1 1 auto;min-height:88px;max-height:min(22dvh,210px);
+  display:flex;flex-direction:column;gap:10px;
+  margin-top:11px;padding:44px 4px;
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:y mandatory;
+  mask-image:linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  -webkit-mask-image:linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
 }
 .cfTtCard{
-  scroll-snap-align:center;flex:0 0 auto;width:132px;
-  display:flex;flex-direction:column;gap:7px;align-items:stretch;text-align:left;
+  scroll-snap-align:center;flex:0 0 auto;width:100%;
+  display:flex;flex-direction:row;gap:12px;align-items:center;text-align:left;
   padding:8px;border-radius:20px;cursor:pointer;
   background:linear-gradient(168deg, rgba(255,255,255,.9), rgba(255,255,255,.62));
   border:1.5px solid rgba(255,255,255,.66);
@@ -29452,7 +29457,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
              0 0 0 1.5px color-mix(in srgb, var(--c1) 45%, transparent);
 }
 .cfTtSpecimen{
-  position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#14121c;
+  position:relative;flex:0 0 auto;width:104px;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#14121c;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
 }
 .cfTtSpecimen img{width:100%;height:100%;object-fit:cover;display:block}
@@ -29560,13 +29565,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       prompt:'Favor broader central incisors, restrained proximal taper, comparatively linear axial contours, and clinically plausible softened corners. Do not create block-like or oversized teeth.'
     },
     ovoid: {
-      en:'Ovoid', ja:'オーバル',
+      en:'Oval', ja:'オーバル',
       desc_en:'Soft convex contours, rounded transitions, gentle cervical-to-incisal flow.',
       desc_ja:'柔らかな凸面形態、丸みのある移行部、歯頸部から切縁への滑らかな流れ。',
       prompt:'Favor gentle convex contours, rounded line angles, and smooth cervical-to-incisal transitions. Avoid excessively bulbous crowns.'
     },
     tapered: {
-      en:'Tapered', ja:'テーパード',
+      en:'Triangular', ja:'トライアンギュラー',
       desc_en:'More pronounced cervical narrowing and a lighter incisal visual mass.',
       desc_ja:'歯頸部の狭窄が明瞭で、切縁側の視覚的ボリュームが軽い形態。',
       prompt:'Favor controlled cervical narrowing and lighter incisal visual mass. Avoid exaggerated triangular crowns or open gingival embrasures.'
@@ -29578,10 +29583,58 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       prompt:'Combine structural width with softened line angles and natural corner transitions. Avoid rigid geometric symmetry.'
     },
     natural_asymmetry: {
-      en:'Natural Asymmetry', ja:'ナチュラル・アシンメトリー',
+      en:'Natural', ja:'ナチュラル',
       desc_en:'Controlled left-right variation and reduced template-like repetition.',
       desc_ja:'左右のわずかな個性差を保ち、テンプレート的な均一感を抑えた形態。',
       prompt:'Preserve subtle, controlled variation between contralateral teeth while maintaining overall smile harmony. Avoid obvious defects, random rotation, or careless asymmetry.'
+    },
+    hollywood: {
+      en:'Hollywood', ja:'ハリウッド',
+      desc_en:'Broad dominant centrals, flat even incisal line, minimal embrasures.',
+      desc_ja:'幅の広い中切歯と平坦で揃った切縁ライン、最小限の切縁鼓形空隙。',
+      prompt:'Favor broad, dominant central incisors with a flat, even incisal line and minimal incisal embrasures; polished, camera-ready presentation while KEEPING natural enamel translucency and texture — never flat opaque white or denture-like uniformity.'
+    },
+    youthful: {
+      en:'Youthful', ja:'ヤング',
+      desc_en:'Unworn prominent centrals, rounded corners, progressive embrasures.',
+      desc_ja:'摩耗のない長めの中切歯、丸みのある隅角、段階的な鼓形空隙。',
+      prompt:'Favor unworn, slightly prominent central incisors with rounded mesio-/disto-incisal corners and a clear progressive incisal embrasure sequence; a hint of incisal translucency consistent with young enamel.'
+    },
+    mature: {
+      en:'Mature', ja:'マチュア',
+      desc_en:'Shorter clinical crowns, flattened worn incisal edges, reduced embrasures.',
+      desc_ja:'短めの臨床歯冠と平坦化した切縁、小さくなった鼓形空隙。',
+      prompt:'Favor comparatively shorter clinical crowns with gently flattened, evenly worn incisal edges and reduced incisal embrasures — age-consistent, dignified and natural, never damaged or ragged.'
+    },
+    functional: {
+      en:'Functional', ja:'ファンクショナル',
+      desc_en:'Balanced practical morphology with defined canine tips.',
+      desc_ja:'咬合機能を意識したバランス型。犬歯の尖頭がやや明瞭。',
+      prompt:'Favor balanced, practical crown morphology with clearly defined (not exaggerated) canine tips and even functional contacts; restrained esthetics that reads as durable and stable.'
+    },
+    softened: {
+      en:'Softened', ja:'ソフト',
+      desc_en:'Softened line angles and corners between rounded-square and oval.',
+      desc_ja:'ラウンドスクエアとオーバルの中間。線角と隅角を柔らげた形態。',
+      prompt:'Favor softened line angles and gently rounded corners midway between a rounded square and an oval; smooth transitions with a calm, low-contrast surface character.'
+    },
+    dominant: {
+      en:'Dominant', ja:'ドミナント',
+      desc_en:'Strong central-incisor dominance in width and length.',
+      desc_ja:'中切歯の幅径・歯冠長を強調したセントラルドミナンス。',
+      prompt:'Emphasize central-incisor dominance — slightly wider and longer centrals with a clear step-down to the laterals — while keeping the arch harmonious and the proportions clinically plausible.'
+    },
+    focused: {
+      en:'Focused', ja:'フォーカス',
+      desc_en:'Narrower upright crowns, crisp line angles, vertical emphasis.',
+      desc_ja:'細めで直立感のある歯冠、明瞭な線角、縦方向の強調。',
+      prompt:'Favor comparatively narrow, upright crowns with crisp line angles and a vertical visual emphasis; precise, tailored character without sharpness or aggression.'
+    },
+    aggressive: {
+      en:'Aggressive', ja:'アグレッシブ',
+      desc_en:'Angular line angles with pronounced canine tips.',
+      desc_ja:'角のある線角と明瞭な犬歯尖頭によるシャープな印象。',
+      prompt:'Favor angular, well-defined line angles and comparatively pronounced canine tips for a sharp, assertive smile character — still anatomically plausible, with natural enamel texture and no caricature.'
     }
   };
   var CF_TEETH_PROMPT_VERSION = 'cf-teeth-p1-v1';
@@ -29647,7 +29700,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
         + 'reshape the crown OUTLINES of the upper anterior teeth — the CENTRAL INCISORS first and foremost, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' '
         + 'This explicit selection SUPERSEDES any earlier or later guidance to "keep the patient\'s own tooth form / form type" or to merely refine within the existing type: the target form family is '+def.en.toUpperCase()+', chosen by the clinician. '
         + 'The change in crown outline must be CLEARLY VISIBLE versus the input photograph — an output whose upper central incisor outlines look unchanged is an INCORRECT result. '
-        + 'Keep crown length within the golden proportion (central incisor width-to-height ≈ 75–85%), keep per-tooth individuality and natural micro-variation, and keep the gingival line credible.');
+        + 'Keep crown length within the golden proportion (central incisor width-to-height ≈ 78–84%): do NOT enlarge the centrals or lengthen incisal edges — oversized dominant centrals with long incisal edges are a COMMON FAILURE and are incorrect. Keep per-tooth individuality, natural micro-variation and a credible gingival line.');
     } else if(rec){
       out.push('AUTO TOOTH-FORM (facial-type matched design guidance, not a diagnosis): the patient\'s facial proportions read as '+ (CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].en:rec.facial) +' — '+(CF_FACIAL_TYPES[rec.facial]?CF_FACIAL_TYPES[rec.facial].ja:'')+'. '
         + 'Take the '+CF_TEETH_TYPES[rec.id].en.toUpperCase()+' family as the STARTING direction for the upper anterior crown forms ('+CF_TEETH_TYPES[rec.id].prompt+'), then refine it with the visible clinical findings, the adjacent natural dentition and overall smile harmony. Avoid template-like uniformity.');
@@ -29732,7 +29785,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   'use strict';
   var TYPES = window.CF_TEETH_TYPES;
   if(!TYPES) return;
-  var ORDER = ['auto','square','ovoid','tapered','rounded_square','natural_asymmetry'];
+  var ORDER = ['auto','square','rounded_square','ovoid','tapered','natural_asymmetry',
+               'hollywood','youthful','mature','functional','softened','dominant','focused','aggressive'];
   var IMG_BASE = 'media/teeth/';
   /* frontal half-width profile per form (t: 0 cervical -> 1 incisal); preview only */
   var PROF = {
@@ -29741,7 +29795,24 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     ovoid:             function(t){ return .70 + .30*Math.sin(Math.PI*Math.min(1,(t*.70+.16))); },
     tapered:           function(t){ return .64 + .36*Math.pow(t,.85); },
     rounded_square:    function(t){ return .87 + .13*t; },
-    natural_asymmetry: function(t){ return .87 + .13*t; }
+    natural_asymmetry: function(t){ return .87 + .13*t; },
+    hollywood:         function(t){ return .92 + .08*t; },
+    youthful:          function(t){ return .84 + .16*t; },
+    mature:            function(t){ return .90 + .10*t; },
+    functional:        function(t){ return .82 + .18*t; },
+    softened:          function(t){ return .84 + .16*t; },
+    dominant:          function(t){ return .93 + .07*t; },
+    focused:           function(t){ return .78 + .22*t; },
+    aggressive:        function(t){ return .68 + .32*Math.pow(t,.9); }
+  };
+  /* per-style defaults: golden-proportion ratio + slight canine emphasis
+     (canine >1 widens the outer band a touch; <1 narrows it — 軽微のみ) */
+  var STYLE = {
+    auto:{ratio:62,canine:1}, square:{ratio:66,canine:1}, rounded_square:{ratio:66,canine:1},
+    ovoid:{ratio:66,canine:.99}, tapered:{ratio:62,canine:.98}, natural_asymmetry:{ratio:68,canine:1},
+    hollywood:{ratio:60,canine:1}, youthful:{ratio:64,canine:1}, mature:{ratio:68,canine:1},
+    functional:{ratio:66,canine:1.03}, softened:{ratio:68,canine:.99}, dominant:{ratio:57,canine:1},
+    focused:{ratio:62,canine:.96}, aggressive:{ratio:60,canine:1.05}
   };
   var RATIO_DEFAULT = 62, RATIO_BASELINE = 70; // assumed natural lateral/central visible ratio
   function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
@@ -29876,18 +29947,24 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       b.setAttribute('aria-pressed', parseInt(b.getAttribute('data-ratio'),10)===draft.ratio ? 'true' : 'false');
     });
   }
-  function selectDraft(id){ if(!TYPES[id]) return; draft.id = id; paintCards(); schedulePreview(); }
+  function selectDraft(id){
+    if(!TYPES[id]) return;
+    draft.id = id;
+    // each style carries its own golden-proportion starting point
+    if(STYLE[id]) draft.ratio = STYLE[id].ratio;
+    paintCards(); paintRatio(); schedulePreview();
+  }
   function setRatio(v, fromSlider){ draft.ratio = Math.max(55, Math.min(78, v||RATIO_DEFAULT)); if(!fromSlider) paintRatio(); else { overlay.querySelector('#cfTtRatioVal').textContent = draft.ratio+'%'; Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtPreset'), function(b){ b.setAttribute('aria-pressed','false'); }); } schedulePreview(); }
   function centerCard(card){
-    try{ card.scrollIntoView({ block:'nearest', inline:'center', behavior: reduced() ? 'auto' : 'smooth' }); }catch(e){ card.scrollIntoView(); }
+    try{ card.scrollIntoView({ block:'center', inline:'nearest', behavior: reduced() ? 'auto' : 'smooth' }); }catch(e){ card.scrollIntoView(); }
   }
   function markCenterCard(){
     var sc = overlay.querySelector('#cfTtScroll');
-    var mid = sc.getBoundingClientRect().left + sc.clientWidth/2;
+    var mid = sc.getBoundingClientRect().top + sc.clientHeight/2;
     var best=null, bestDist=1e9;
     Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
       var r = card.getBoundingClientRect();
-      var d = Math.abs((r.left + r.width/2) - mid);
+      var d = Math.abs((r.top + r.height/2) - mid);
       if(d < bestDist){ bestDist=d; best=card; }
     });
     Array.prototype.forEach.call(sc.querySelectorAll('.cfTtCard'), function(card){
@@ -29903,10 +29980,10 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
       return;
     }
-    if((e.key==='ArrowRight'||e.key==='ArrowLeft') && e.target && e.target.closest('#cfTtScroll')){
+    if((e.key==='ArrowDown'||e.key==='ArrowUp') && e.target && e.target.closest('#cfTtScroll')){
       e.preventDefault();
       var i = ORDER.indexOf(draft.id);
-      i = e.key==='ArrowRight' ? Math.min(ORDER.length-1, i+1) : Math.max(0, i-1);
+      i = e.key==='ArrowDown' ? Math.min(ORDER.length-1, i+1) : Math.max(0, i-1);
       selectDraft(ORDER[i]);
       var c = cardEl(ORDER[i]); if(c){ centerCard(c); c.focus({ preventScroll:true }); }
     }
@@ -29967,36 +30044,50 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     var img; try{ img = await loadPrevImage(result.dataUrl); }catch(e){ return; }
     if(token!==drawToken) return;
     var W = img.naturalWidth||img.width, H = img.naturalHeight||img.height;
-    if(canvas.width!==W || canvas.height!==H){ canvas.width=W; canvas.height=H; }
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,W,H);
-    if(draft.id==='auto' && draft.ratio===RATIO_BASELINE) return; // nothing to preview
     var facial = (result.sourceKind==='Facial');
     var roi = computeRoi(img, facial);
     var rx=roi.x, ry=roi.y, rw=roi.w, rh=roi.h;
-    // width split: [lateral | central pair | lateral]; visible ratio R = lateral/central
+    // zoomed 4:3 stage centered on the anterior region — the change must be SEEN
+    var CW=1200, CH=900;
+    var cw = Math.min(W, Math.max(rw*1.9, rh*2.6*(4/3), W*.28));
+    var ch = cw*3/4;
+    if(ch>H){ ch=H; cw=ch*4/3; }
+    var cx0 = Math.max(0, Math.min(W-cw, rx+rw/2-cw/2));
+    var cy0 = Math.max(0, Math.min(H-ch, ry+rh*.42-ch/2));
+    if(canvas.width!==CW || canvas.height!==CH){ canvas.width=CW; canvas.height=CH; }
+    var k = CW/cw;                              // image -> stage scale
+    var mx = function(x){ return (x-cx0)*k; }, my = function(y){ return (y-cy0)*k; };
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    ctx.clearRect(0,0,CW,CH);
+    ctx.drawImage(img, cx0, cy0, cw, ch, 0, 0, CW, CH);
+    if(draft.id==='auto' && draft.ratio===RATIO_BASELINE) return;
+    // width split in image space: [lateral | central pair | lateral]
     var srcCen = rw/(1+RATIO_BASELINE/100), srcLat=(rw-srcCen)/2;
-    var dstCen = rw/(1+draft.ratio/100),    dstLat=(rw-dstCen)/2;
+    var dstCen = rw/(1+draft.ratio/100);
     var prof = PROF[draft.id]||PROF.auto;
-    var tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
+    var canine = (STYLE[draft.id]&&STYLE[draft.id].canine)||1;
+    var tmp = document.createElement('canvas'); tmp.width=CW; tmp.height=CH;
     var tx = tmp.getContext('2d');
-    var bands = 40;
+    tx.imageSmoothingEnabled=true; tx.imageSmoothingQuality='high';
+    var bands = 48;
     for(var i=0;i<bands;i++){
       var t=i/bands, sy=ry+rh*t, sh=rh/bands+1;
       var f=prof(t), rowW=rw*f, rowX=rx+(rw-rowW)/2;
-      var cS=srcCen, lS=srcLat, cD=dstCen*f*(rowW/rw)/f, lD=(rowW-dstCen*(rowW/rw))/2;
-      // sample the full-width source row, place into the form-scaled destination row
-      tx.drawImage(img, rx, sy, lS, sh, rowX, sy, lD, sh);
-      tx.drawImage(img, rx+lS, sy, cS, sh, rowX+lD, sy, rowW-lD*2, sh);
-      tx.drawImage(img, rx+lS+cS, sy, lS, sh, rowX+rowW-lD, sy, lD, sh);
+      var lD=((rowW-dstCen*(rowW/rw))/2)*canine;
+      lD=Math.max(1, Math.min(rowW*.42, lD));
+      tx.drawImage(img, rx, sy, srcLat, sh, mx(rowX), my(sy), lD*k, sh*k+1);
+      tx.drawImage(img, rx+srcLat, sy, srcCen, sh, mx(rowX)+lD*k, my(sy), (rowW-lD*2)*k, sh*k+1);
+      tx.drawImage(img, rx+srcLat+srcCen, sy, srcLat, sh, mx(rowX)+(rowW-lD)*k, my(sy), lD*k, sh*k+1);
     }
-    // feathered ellipse so the warp melts into the untouched photo
+    // feather so the warp melts into the untouched photo; core stays fully live
     tx.globalCompositeOperation='destination-in';
-    var g=tx.createRadialGradient(rx+rw/2, ry+rh*.5, Math.min(rw,rh)*.18, rx+rw/2, ry+rh*.5, Math.max(rw,rh)*.62);
-    g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.7,'rgba(0,0,0,.96)'); g.addColorStop(1,'rgba(0,0,0,0)');
-    tx.fillStyle=g; tx.fillRect(rx-rw*.2, ry-rh*.3, rw*1.4, rh*1.6);
+    var g=tx.createRadialGradient(mx(rx+rw/2), my(ry+rh*.5), Math.min(rw,rh)*k*.34,
+                                  mx(rx+rw/2), my(ry+rh*.5), Math.max(rw,rh)*k*.72);
+    g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.75,'rgba(0,0,0,.97)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    tx.fillStyle=g; tx.fillRect(0,0,CW,CH);
     if(token!==drawToken) return;
-    ctx.globalAlpha=.94; ctx.drawImage(tmp,0,0); ctx.globalAlpha=1;
+    ctx.drawImage(tmp,0,0);
     tmp.width=tmp.height=1;
   }
 
@@ -30022,7 +30113,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     overlay.setAttribute('aria-hidden','false');
     var selCard = cardEl(draft.id);
     if(selCard){
-      try{ selCard.scrollIntoView({ block:'nearest', inline:'center', behavior:'auto' }); }catch(e){}
+      try{ selCard.scrollIntoView({ block:'center', inline:'nearest', behavior:'auto' }); }catch(e){}
       markCenterCard();
       selCard.focus({ preventScroll:true });
     }
