@@ -60,7 +60,7 @@ jobs:
           cp caseflow_studio_v96.html /tmp/caseflow_studio_v96.html
           cp sw.js /tmp/sw.js
           cp docs/primary-routing-v4-smoke.js /tmp/primary-routing-v4-smoke.js
-          git checkout -B chatgpt/primary-routing-v4-payload origin/claude/image-morphing-video-3kujgb
+          git checkout -f -B chatgpt/primary-routing-v4-payload origin/claude/image-morphing-video-3kujgb
           cp /tmp/caseflow_studio_v96.html caseflow_studio_v96.html
           cp /tmp/sw.js sw.js
           mkdir -p docs
