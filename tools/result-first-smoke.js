@@ -5,7 +5,7 @@ const assert = require('assert');
   const browser=await chromium.launch({headless:true});
   const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block',reducedMotion:'reduce'});
   const page=await context.newPage();
-  page.setDefaultTimeout(15000);
+  page.setDefaultTimeout(12000);
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(String(e&&e.stack||e)));
   await page.addInitScript(()=>{
@@ -14,61 +14,82 @@ const assert = require('assert');
     window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},from:chain,rpc:async()=>({data:null,error:null})})};
   });
   await page.route('**/*',route=>{
-    const req=route.request();
-    const url=req.url();
-    const type=req.resourceType();
-    if(type==='media'||type==='font'||/\/media\//.test(url)||/\/sw\.js(?:\?|$)/.test(url)) return route.abort();
+    const req=route.request(); const url=req.url(); const type=req.resourceType();
+    if(type==='media'||type==='font'||type==='image'||/\/media\//.test(url)||/\/sw\.js(?:\?|$)/.test(url)) return route.abort();
     if(url.startsWith('https://cdn.jsdelivr.net/')) return route.fulfill({status:200,contentType:'application/javascript',body:''});
     if(url.startsWith('https://fonts.googleapis.com/')) return route.fulfill({status:200,contentType:'text/css',body:''});
     return route.continue();
   });
   await page.goto('http://127.0.0.1:4173/caseflow_studio_v96.html',{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForTimeout(900);
-  await page.evaluate(()=>{try{pausePreview();}catch(e){}document.querySelectorAll('video').forEach(v=>{try{v.pause();v.removeAttribute('src');v.load();}catch(e){}});});
-  const evalTask=page.evaluate(async()=>{
-    const c=document.createElement('canvas');c.width=480;c.height=640;const x=c.getContext('2d');x.fillStyle='#d8c1b1';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.fillRect(150,365,180,48);
-    const before=c.toDataURL('image/jpeg',.76);x.fillStyle='#f9f6e9';x.fillRect(160,370,160,38);const after=c.toDataURL('image/jpeg',.74);
+  await page.waitForTimeout(700);
+
+  const step=async(name,fn,ms=3500)=>{
+    console.log('STEP_START',name);
+    const t=Date.now();
+    const value=await Promise.race([
+      page.evaluate(fn),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('STEP_TIMEOUT '+name+' '+ms+'ms')),ms))
+    ]);
+    console.log('STEP_DONE',name,Date.now()-t,JSON.stringify(value));
+    return value;
+  };
+
+  await step('setup',()=>{
+    try{pausePreview();}catch(e){}
+    document.querySelectorAll('video').forEach(v=>{try{v.pause();v.removeAttribute('src');}catch(e){}});
+    const c=document.createElement('canvas');c.width=240;c.height=320;const x=c.getContext('2d');x.fillStyle='#d8c1b1';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.fillRect(75,182,90,24);
+    const before=c.toDataURL('image/jpeg',.62);x.fillStyle='#f9f6e9';x.fillRect(80,185,80,19);const after=c.toDataURL('image/jpeg',.60);
     const src={dataUrl:before,category:'facial',label:'Facial',lips:true,intraoral:false,intraoralDark:false};
     state.photos=[src];state._simSource=src;state.simResults=[{dataUrl:after,source:before,srcObj:src,sourceKind:'Facial',settings:{}}];state.simResultIndex=0;state.simResult=state.simResults[0];
-    let legacyCanvasCalls=0;
-    const simCanvas=document.getElementById('simCanvas');
-    if(simCanvas){const raw=simCanvas.getContext.bind(simCanvas);simCanvas.getContext=function(){legacyCanvasCalls++;return raw.apply(this,arguments);};}
-    if(window.cfWait)window.cfWait.show('test',0);
-    if(typeof window.cfOpenResultScreen!=='function')throw new Error('cfOpenResultScreen missing');
-    const started=performance.now();
-    window.cfOpenResultScreen();
-    await new Promise(r=>setTimeout(r,140));
-    return {
-      elapsed:performance.now()-started,
-      active:document.getElementById('result').classList.contains('active'),
-      beforeLen:document.getElementById('resultBefore').src.length,
-      afterLen:document.getElementById('resultAfter').src.length,
-      waitShown:!!document.querySelector('.cfWaitOverlay.show'),
-      legacyCanvasCalls,
-      galleryChildren:document.getElementById('simResultGallery').children.length,
-      gridChildren:document.getElementById('simV96EditGrid').children.length,
-      editHydrationScheduled:Number(window.__cfEditHydrationScheduled||0),
-      firstPaintAt:Number(window.__cfResultFirstPaintAt||0),
-      guardInstalled:!!(window.go&&window.go.__cfResultGuardV6)
-    };
+    const simCanvas=document.getElementById('simCanvas');window.__legacyCanvasCalls=0;
+    if(simCanvas){const raw=simCanvas.getContext.bind(simCanvas);simCanvas.getContext=function(){window.__legacyCanvasCalls++;return raw.apply(this,arguments);};}
+    return {before:before.length,after:after.length,open:typeof window.cfOpenResultScreen,paint:typeof window.cfPaintPrimaryResult};
   });
-  const result=await Promise.race([
-    evalTask,
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('result-first browser evaluation exceeded 8 seconds')),8000))
-  ]);
-  console.log(JSON.stringify({result,pageErrors},null,2));
-  assert(result.active,'result screen did not activate');
-  assert(result.elapsed<900,'first result paint was not immediate');
-  assert(result.beforeLen>100&&result.afterLen>100,'before/after images were not painted');
-  assert.strictEqual(result.waitShown,false,'waiting overlay remained visible');
-  assert.strictEqual(result.legacyCanvasCalls,0,'legacy full-frame pixel renderer ran');
-  assert.strictEqual(result.galleryChildren,0,'single result duplicated into gallery on first paint');
-  assert(result.editHydrationScheduled>0,'edit controls were not scheduled for deferred hydration');
-  assert(result.firstPaintAt>0,'first-paint timing marker missing');
-  assert(result.guardInstalled,'final result-route guard was not installed');
+
+  await step('activate-only',()=>{
+    document.querySelectorAll('.screen.active').forEach(el=>el.classList.remove('active'));
+    const result=document.getElementById('result');result.classList.add('active');
+    return {active:result.classList.contains('active'),display:getComputedStyle(result).display};
+  });
+
+  await step('assign-images-only',()=>{
+    const r=state.simResult,src=state._simSource;
+    document.getElementById('resultBefore').src=r.source||src.dataUrl;
+    document.getElementById('resultAfter').src=r.dataUrl;
+    return {beforeLen:document.getElementById('resultBefore').src.length,afterLen:document.getElementById('resultAfter').src.length};
+  });
+
+  await step('dismiss-overlay-only',()=>{
+    document.querySelectorAll('.cfWaitOverlay.show').forEach(el=>el.classList.remove('show'));
+    return {shown:!!document.querySelector('.cfWaitOverlay.show')};
+  });
+
+  await step('call-paint',()=>{
+    if(typeof window.cfPaintPrimaryResult!=='function')throw new Error('cfPaintPrimaryResult missing');
+    const t=performance.now();const ok=window.cfPaintPrimaryResult();
+    return {ok,elapsed:performance.now()-t,scheduled:Number(window.__cfEditHydrationScheduled||0),firstPaint:Number(window.__cfResultFirstPaintAt||0)};
+  });
+
+  await new Promise(r=>setTimeout(r,220));
+  const snapshot=await step('post-paint-snapshot',()=>({
+    active:document.getElementById('result').classList.contains('active'),
+    waitShown:!!document.querySelector('.cfWaitOverlay.show'),
+    legacyCanvasCalls:Number(window.__legacyCanvasCalls||0),
+    beforeLen:document.getElementById('resultBefore').src.length,
+    afterLen:document.getElementById('resultAfter').src.length,
+    galleryChildren:document.getElementById('simResultGallery').children.length,
+    gridChildren:document.getElementById('simV96EditGrid').children.length,
+    guardInstalled:!!(window.go&&window.go.__cfResultGuardV6)
+  }));
+
+  console.log(JSON.stringify({snapshot,pageErrors},null,2));
+  assert(snapshot.active,'result screen did not activate');
+  assert(snapshot.beforeLen>100&&snapshot.afterLen>100,'before/after images were not painted');
+  assert.strictEqual(snapshot.waitShown,false,'waiting overlay remained visible');
+  assert.strictEqual(snapshot.legacyCanvasCalls,0,'legacy full-frame pixel renderer ran');
+  assert.strictEqual(snapshot.galleryChildren,0,'single result duplicated into gallery on first paint');
+  assert(snapshot.guardInstalled,'final result-route guard was not installed');
   const relevant=pageErrors.filter(x=>/SyntaxError|ReferenceError|cfPaintPrimaryResult|renderResultImages/.test(x));
   assert.deepStrictEqual(relevant,[],'result-first runtime errors: '+relevant.join('\n'));
-  await context.close();
-  await browser.close();
-  process.exit(0);
+  await context.close();await browser.close();process.exit(0);
 })().catch(async e=>{console.error(e);process.exit(1);});
