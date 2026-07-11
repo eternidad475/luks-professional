@@ -35,6 +35,22 @@ jobs:
           git fetch origin claude/image-morphing-video-3kujgb
           git checkout -B chatgpt/visual-result-first-payload origin/claude/image-morphing-video-3kujgb
           node /tmp/apply-result-first-paint.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('caseflow_studio_v96.html')
+          s=p.read_text(encoding='utf-8')
+          marker='<script id="cf-result-route-guard-v6">'
+          a=s.find(marker)
+          if a < 0:
+              raise SystemExit('result route guard missing')
+          b=s.find('</script>',a)
+          if b < 0:
+              raise SystemExit('result route guard end missing')
+          b += len('</script>')
+          block=s[a:b].replace('\n+','\n')
+          s=s[:a]+block+s[b:]
+          p.write_text(s,encoding='utf-8')
+          PY
           mkdir -p docs
           cp /tmp/result-first-smoke.js docs/visual-result-first-smoke.js
       - name: Syntax and deterministic safety audit
@@ -53,7 +69,7 @@ jobs:
           print('inline scripts',len(blocks),'failures',len(failures))
           for i,msg in failures: print('BLOCK',i,msg)
           if failures: raise SystemExit(1)
-          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfsw-v6-result-first-paint']
+          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfOpenResultScreen','cf-result-route-guard-v6','cfsw-v6-result-first-paint']
           combined=s+Path('sw.js').read_text(encoding='utf-8')
           for token in required:
               if token not in combined: raise SystemExit('missing '+token)
