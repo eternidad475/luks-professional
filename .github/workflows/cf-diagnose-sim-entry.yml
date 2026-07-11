@@ -1,121 +1,84 @@
-name: Diagnose Visual Simulation entry
+name: Assemble Visual Simulation result-first fix
 
 on:
   push:
     branches:
       - chatgpt/fix-visual-simulation-entry
-  pull_request:
-    branches:
-      - claude/image-morphing-video-3kujgb
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: visual-result-first-assembly
+  cancel-in-progress: true
 
 jobs:
-  diagnose:
+  assemble:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Inspect current result route and parse inline scripts
+      - name: Preserve patch and test tools
         run: |
-          node tools/diagnose-visual-entry.js > /tmp/static-diagnostic.txt
-          sed -n '/===== SUMMARY =====/,$p' /tmp/static-diagnostic.txt
-      - name: Install browser
+          cp tools/apply-result-first-paint.js /tmp/apply-result-first-paint.js
+          cp tools/result-first-smoke.js /tmp/result-first-smoke.js
+      - name: Rebuild from current Production base
         run: |
-          npm install --no-save playwright@1.54.1 >/dev/null 2>&1
-          npx playwright install --with-deps chromium >/dev/null 2>&1
-      - name: Write entry smoke test
+          git fetch origin claude/image-morphing-video-3kujgb
+          git checkout -B chatgpt/visual-result-first-payload origin/claude/image-morphing-video-3kujgb
+          node /tmp/apply-result-first-paint.js
+          mkdir -p docs
+          cp /tmp/result-first-smoke.js docs/visual-result-first-smoke.js
+      - name: Syntax and deterministic safety audit
         run: |
-          cat > tools/.cf-entry-smoke.js <<'JS'
-          const { chromium } = require('playwright');
-          (async()=>{
-            const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:390,height:844}});
-            const errors=[]; const logs=[];
-            page.on('pageerror',e=>errors.push(String(e.stack||e)));
-            page.on('console',m=>{if(['error','warning'].includes(m.type()))logs.push(m.type()+': '+m.text());});
-            await page.addInitScript(()=>{
-              try{
-                localStorage.setItem('caseflow_consent_v96','1');
-                localStorage.setItem('caseflow_consent_accepted','true');
-                localStorage.setItem('caseflow_onboarding_complete','1');
-              }catch(e){}
-              const chain={
-                select(){return this},eq(){return this},order(){return this},limit(){return this},
-                single:async()=>({data:{id:'smoke-user',role:'developer',display_name:'Smoke'},error:null}),
-                maybeSingle:async()=>({data:{id:'smoke-user',role:'developer',display_name:'Smoke'},error:null}),
-                insert:async()=>({data:null,error:null}),update(){return this},delete(){return this}
-              };
-              window.supabase={createClient:()=>({
-                auth:{
-                  getSession:async()=>({data:{session:{user:{id:'smoke-user',email:'smoke@example.com'}}}}),
-                  onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),
-                  signInWithPassword:async()=>({data:{session:{user:{id:'smoke-user'}}},error:null})
-                },
-                from:()=>Object.create(chain),
-                rpc:async()=>({data:{ok:true,balance:999},error:null})
-              })};
-            });
-            await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({status:200,contentType:'application/javascript',body:''}));
-            await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({status:200,contentType:'text/css',body:''}));
-            await page.goto('http://127.0.0.1:4173/caseflow_studio_v96.html',{waitUntil:'domcontentloaded',timeout:30000});
-            await page.waitForTimeout(3000);
-
-            async function visibleControls(){
-              return page.evaluate(()=>[...document.querySelectorAll('button,a,[role="button"]')].filter(x=>{const r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}).map(x=>({tag:x.tagName,id:x.id,cls:String(x.className||'').slice(0,100),text:(x.textContent||'').trim().replace(/\s+/g,' ').slice(0,140),onclick:x.getAttribute('onclick')})).slice(0,80));
-            }
-            async function activeScreens(){return page.evaluate(()=>[...document.querySelectorAll('.screen.active')].map(x=>x.id));}
-            console.log('INITIAL_ACTIVE',JSON.stringify(await activeScreens()));
-            console.log('INITIAL_CONTROLS',JSON.stringify(await visibleControls()));
-
-            const start=page.locator('button,a,[role="button"]').filter({hasText:/Create a CaseFlow|はじめる/i});
-            for(let i=0;i<await start.count();i++){
-              const c=start.nth(i); if(await c.isVisible()){try{await c.click({timeout:4000});break;}catch(e){}}
-            }
-            await page.waitForTimeout(1200);
-            console.log('AFTER_START_ACTIVE',JSON.stringify(await activeScreens()));
-            console.log('AFTER_START_CONTROLS',JSON.stringify(await visibleControls()));
-
-            let clicked=false;
-            const visual=page.locator('button,a,[role="button"]').filter({hasText:/Visual Simulation Studio|ビジュアルシミュレーション/i});
-            for(let i=0;i<await visual.count();i++){
-              const c=visual.nth(i); if(await c.isVisible()){try{await c.click({timeout:5000});clicked=true;break;}catch(e){console.log('VISUAL_CLICK_ERROR',e.message);}}
-            }
-            await page.waitForTimeout(1800);
-            console.log('VISUAL_CLICKED',clicked);
-            console.log('FINAL_ACTIVE',JSON.stringify(await activeScreens()));
-            console.log('FINAL_HEADINGS',JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('h1,h2,h3')].filter(x=>{const r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}).map(x=>(x.textContent||'').trim().replace(/\s+/g,' ')).slice(0,40))));
-            console.log('PAGE_ERRORS',JSON.stringify(errors.slice(0,30)));
-            console.log('CONSOLE_ERRORS',JSON.stringify(logs.slice(0,40)));
-            try{await page.screenshot({path:'/tmp/cf-entry.png',fullPage:true});}catch(e){console.log('SCREENSHOT_ERROR',e.message);}
-            const finalActive=await activeScreens();
-            if(errors.length)process.exitCode=2;
-            if(!clicked)process.exitCode=3;
-            if(!finalActive.some(id=>/sim|visual/i.test(id)))process.exitCode=4;
-            await browser.close();
-          })().catch(e=>{console.error('FATAL',e.stack||e);process.exit(1)});
-          JS
-      - name: Start app and run smoke test
+          python3 - <<'PY'
+          import re, subprocess
+          from pathlib import Path
+          p=Path('caseflow_studio_v96.html')
+          s=p.read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
+          failures=[]
+          for i,b in enumerate(blocks):
+              f=Path('/tmp')/f'cf_inline_{i}.js'; f.write_text(b,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(f)],text=True,capture_output=True)
+              if r.returncode: failures.append((i,r.stderr[-1200:]))
+          print('inline scripts',len(blocks),'failures',len(failures))
+          for i,msg in failures: print('BLOCK',i,msg)
+          if failures: raise SystemExit(1)
+          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfsw-v6-result-first-paint']
+          combined=s+Path('sw.js').read_text(encoding='utf-8')
+          for token in required:
+              if token not in combined: raise SystemExit('missing '+token)
+          forbidden=[
+            "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60)",
+            "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220)",
+            "if(id==='result')renderResult()"
+          ]
+          for token in forbidden:
+              if token in s: raise SystemExit('old critical-path pattern remains: '+token)
+          PY
+          node --check sw.js
+      - name: Install Chromium test runtime outside repository
+        run: |
+          npm install --prefix /tmp/cfnode --no-save playwright@1.54.1
+          /tmp/cfnode/node_modules/.bin/playwright install --with-deps chromium
+      - name: Run real-app result-first smoke test
+        env:
+          NODE_PATH: /tmp/cfnode/node_modules
         run: |
           python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
-          status=0
-          node tools/.cf-entry-smoke.js > /tmp/smoke-output.txt 2>&1 || status=$?
-          cat /tmp/smoke-output.txt
-          exit $status
-      - name: Upload diagnostic screenshot, logs, and source snapshot
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-entry-diagnostic
-          path: |
-            /tmp/cf-entry.png
-            /tmp/static-diagnostic.txt
-            /tmp/smoke-output.txt
-            /tmp/cf-http.log
-            caseflow_studio_v96.html
-            sw.js
-          if-no-files-found: ignore
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          node docs/visual-result-first-smoke.js
+      - name: Commit clean production payload
+        run: |
+          git config user.name "CaseFlow CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add caseflow_studio_v96.html sw.js docs/visual-result-first-smoke.js
+          git commit -m "fix(simulation): paint primary result before heavy hydration"
+          git push --force origin HEAD:chatgpt/visual-result-first-payload
