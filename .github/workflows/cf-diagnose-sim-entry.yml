@@ -71,13 +71,28 @@ jobs:
           npm install --prefix /tmp/cfnode --no-save playwright@1.54.1
           /tmp/cfnode/node_modules/.bin/playwright install --with-deps chromium
       - name: Run real-app result-first smoke test
+        id: smoke
         env:
           NODE_PATH: /tmp/cfnode/node_modules
         run: |
           python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
-          node docs/visual-result-first-smoke.js
+          set +e
+          node docs/visual-result-first-smoke.js > /tmp/result-first-output.txt 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/result-first-output.txt
+          exit $STATUS
+      - name: Upload result-first diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-result-first-diagnostics
+          path: |
+            /tmp/result-first-output.txt
+            /tmp/cf-http.log
+          if-no-files-found: warn
       - name: Commit clean production payload
         run: |
           git config user.name "CaseFlow CI"
