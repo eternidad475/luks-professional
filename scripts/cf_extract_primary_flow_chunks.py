@@ -15,6 +15,8 @@ def around(name,needle,before=80,after=180,occ=0):
     chunk(name,i-before+1,i+after+1)
 
 chunk('diag-primary-callsite.txt',20870,21080)
+chunk('diag-cfwait-core.txt',21720,21840)
+chunk('diag-cfwait-i18n-wrapper.txt',28110,28190)
 around('diag-wait-overlay.txt','window.cfWait',120,260)
 around('diag-wait-overlay-markup.txt','cfWaitOverlay',80,180)
 around('diag-poems.txt','var POEMS',30,90)
