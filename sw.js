@@ -16,7 +16,7 @@
  * from cache.
  */
 
-var VERSION = 'cfsw-v4-chrome-tooth-icons';
+var VERSION = 'cfsw-v5-primary-routing-chrome-tooth';
 var SHELL_CACHE = 'caseflow-shell-' + VERSION;
 
 /* App shell only. No patient data, no API responses, no user images. */
