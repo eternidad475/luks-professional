@@ -29,7 +29,8 @@ jobs:
           cp tools/remove-result-caption-sync.js /tmp/remove-result-caption-sync.js
           cp tools/replace-result-painter-v7.js /tmp/replace-result-painter-v7.js
           cp tools/replace-final-result-route-v8.js /tmp/replace-final-result-route-v8.js
-          cp tools/result-first-smoke-v3.js /tmp/result-first-smoke.js
+          cp tools/install-fast-result-shell-v9.js /tmp/install-fast-result-shell-v9.js
+          cp tools/result-first-smoke-v4.js /tmp/result-first-smoke.js
       - name: Rebuild from current Production base
         run: |
           git fetch origin claude/image-morphing-video-3kujgb
@@ -38,6 +39,7 @@ jobs:
           node /tmp/remove-result-caption-sync.js
           node /tmp/replace-result-painter-v7.js
           node /tmp/replace-final-result-route-v8.js
+          node /tmp/install-fast-result-shell-v9.js
           mkdir -p docs
           cp /tmp/result-first-smoke.js docs/visual-result-first-smoke.js
       - name: Syntax and deterministic safety audit
@@ -56,16 +58,14 @@ jobs:
           print('inline scripts',len(blocks),'failures',len(failures))
           for i,msg in failures: print('BLOCK',i,msg)
           if failures: raise SystemExit(1)
-          required=['cfPaintPrimaryResult','cfScheduleTempSimSave','cfOpenResultScreen','cf-result-route-guard-v8','cfsw-v6-result-first-paint','result image paint v8']
+          required=['cfScheduleTempSimSave','cf-fast-result-shell-v9','cfFastResultShell','__cfFastResultV9','cfsw-v7-fast-result-shell']
           combined=s+Path('sw.js').read_text(encoding='utf-8')
           for token in required:
               if token not in combined: raise SystemExit('missing '+token)
           forbidden=[
             "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60)",
             "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220)",
-            "if(id==='result')renderResult()",
-            "if(cap)cap.textContent=cfResultKindLabel(r,src)",
-            "cf-result-route-guard-v6"
+            "if(id==='result')renderResult()"
           ]
           for token in forbidden:
               if token in s: raise SystemExit('old critical-path pattern remains: '+token)
@@ -106,5 +106,5 @@ jobs:
           git config user.name "CaseFlow CI"
           git config user.email "actions@users.noreply.github.com"
           git add caseflow_studio_v96.html sw.js docs/visual-result-first-smoke.js
-          git commit -m "fix(simulation): paint primary result before heavy hydration"
+          git commit -m "fix(simulation): route primary result through lightweight shell"
           git push --force origin HEAD:chatgpt/visual-result-first-payload
