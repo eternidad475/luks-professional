@@ -5174,7 +5174,7 @@ const state={photos:[],alignIndex:0,ratio:'9:16',previewIndex:0,imageCache:[],ru
 const TEMPLATES=[['minimal','Minimal Clinical'],['aesthetic','Aesthetic Case'],['beforeafter','Before / After'],['timeline','Treatment Timeline'],['smile','Smile Design']];
 const complaints=['歯の色が気になる','前歯のすき間が気になる','歯の形が気になる','歯並びが気になる','正中のずれが気になる','ブラックトライアングルが気になる','歯肉ラインが気になる','笑った時の見え方が気になる','古い修復物が気になる','全体的に口元を整えたい'];
 
-function go(id){pausePreview();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));if(id==='export'){document.querySelectorAll('.nav')[3]?.classList.add('on')}else if(id==='preview'||id==='align'){document.querySelectorAll('.nav')[2]?.classList.add('on')}else if(id==='upload'){document.querySelectorAll('.nav')[1]?.classList.add('on')}else if(id==='start'||id==='home'||id==='simulator'){document.querySelectorAll('.nav')[0]?.classList.add('on')}if(id==='upload')renderUpload();if(id==='align')renderAlign();if(id==='preview')renderPreview();if(id==='simulator')renderSimulator();if(id==='result')renderResult()}
+function go(id){if(id!=='result')pausePreview();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const target=$(id);if(target)target.classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));if(id==='export'){document.querySelectorAll('.nav')[3]?.classList.add('on')}else if(id==='preview'||id==='align'){document.querySelectorAll('.nav')[2]?.classList.add('on')}else if(id==='upload'){document.querySelectorAll('.nav')[1]?.classList.add('on')}else if(id==='start'||id==='home'||id==='simulator'){document.querySelectorAll('.nav')[0]?.classList.add('on')}if(id==='upload')renderUpload();if(id==='align')renderAlign();if(id==='preview')renderPreview();if(id==='simulator')renderSimulator();if(id==='result'&&typeof window.cfPaintPrimaryResult!=='function')setTimeout(function(){try{renderResult();}catch(e){console.error('[CaseFlow result fallback]',e);}},0)}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 
@@ -20505,6 +20505,12 @@ body[data-ui-tone="dark"]{
   }
   window.cfAutoSaveTempSim=cfAutoSaveTempSim;
   window.cfPersistLib=cfPersistLib;
+  function cfRunIdle(job,timeout){
+    try{if('requestIdleCallback' in window)return requestIdleCallback(job,{timeout:timeout||1800});}catch(e){}
+    return setTimeout(job,Math.min(timeout||600,700));
+  }
+  function cfScheduleTempSimSave(r,opts){setTimeout(function(){cfRunIdle(function(){try{cfAutoSaveTempSim(r,opts||{});}catch(e){console.error('[CaseFlow deferred autosave]',e);}},2400);},1600);}
+  window.cfScheduleTempSimSave=cfScheduleTempSimSave;
   function pushSimResult(r){
     if(!Array.isArray(state.simResults)) state.simResults=[];
     // Single stamping point: the tooth-form metadata rides on the same settings
@@ -20514,8 +20520,8 @@ body[data-ui-tone="dark"]{
     while(state.simResults.length>SIM_GALLERY_MAX) state.simResults.shift();
     state.simResultIndex=state.simResults.length-1;
     state.simResult=r;
-    // Generation just completed → save to Library and surface a truthful success/failure toast.
-    cfAutoSaveTempSim(r, {toast:true});
+    // Paint the result first; compress/persist only after the browser has rendered it.
+    cfScheduleTempSimSave(r,{toast:true});
   }
   function selectSimResult(i){
     const arr=Array.isArray(state.simResults)?state.simResults:[];
@@ -20601,26 +20607,50 @@ body[data-ui-tone="dark"]{
   }
   window.cfRenderSimGallery=renderSimGallery;
 
-  function renderResultImages(){
-    // Seed the gallery from a legacy single simResult (e.g. loaded project).
-    if((!Array.isArray(state.simResults)||!state.simResults.length) && state.simResult && state.simResult.dataUrl){
-      state.simResults=[state.simResult]; state.simResultIndex=0;
-    }
+  let __cfResultPaintSeq=0;
+  function cfResultRecord(){
+    if((!Array.isArray(state.simResults)||!state.simResults.length)&&state.simResult&&state.simResult.dataUrl){state.simResults=[state.simResult];state.simResultIndex=0;}
     const arr=Array.isArray(state.simResults)?state.simResults:[];
-    const r=state.simResult || arr[state.simResultIndex||0], src=state._simSource||pickSource();
-    if(!r||!src){ renderSimGallery(); return; }
-    const before=$id('resultBefore'), after=$id('resultAfter');
-    // ⑤ ALWAYS pair the before image with THIS result's OWN source (never the global
-    // _simSource, which is stale when switching between variations generated from different
-    // uploads). r.source / r.srcObj are stored per-result in pushSimResult/regenerate.
-    const beforeSrc=(r.source) || (r.srcObj && r.srcObj.dataUrl) || src.dataUrl;
-    if(before) before.src=beforeSrc;
-    if(after)  after.src=r.dataUrl;
-    const cap=$id('resultCaption');
-    if(cap) cap.textContent=`${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。`;
-    if(typeof setupCompareSlider==='function'){ const el=$id('simulationCompareSlider'); if(el) setupCompareSlider(el); }
-    renderSimGallery();
+    return state.simResult||arr[state.simResultIndex||0]||null;
   }
+  function cfDismissWaitVisualOnly(){
+    try{document.querySelectorAll('.cfWaitOverlay.show').forEach(function(el){el.classList.remove('show');el.setAttribute('aria-hidden','true');});}catch(e){}
+  }
+  function cfResultKindLabel(r,src){
+    const raw=(r&&r.sourceKind)||(src&&src.label)||(src&&src.category)||'';
+    if(raw)return String(raw);
+    return src&&src.intraoral?'Intraoral':'Facial';
+  }
+  function cfPaintPrimaryResult(){
+    const seq=++__cfResultPaintSeq;
+    const r=cfResultRecord();
+    const src=state._simSource||(r&&r.srcObj)||(Array.isArray(state.photos)?state.photos[0]:null);
+    if(!r||!src)return false;
+    const resultEl=document.getElementById('result');
+    document.querySelectorAll('.screen.active').forEach(function(el){if(el!==resultEl)el.classList.remove('active');});
+    if(resultEl)resultEl.classList.add('active');
+    cfDismissWaitVisualOnly();
+    window.__cfResultFirstPaintAt=performance.now();
+    window.__cfEditHydrationScheduled=seq;
+    setTimeout(function(){
+      if(seq!==__cfResultPaintSeq)return;
+      try{
+        const before=document.getElementById('resultBefore');
+        const after=document.getElementById('resultAfter');
+        const beforeSrc=r.source||(r.srcObj&&r.srcObj.dataUrl)||src.dataUrl;
+        if(before){before.decoding='async';if(before.getAttribute('src')!==beforeSrc)before.setAttribute('src',beforeSrc);}
+        if(after){after.decoding='async';if(after.getAttribute('src')!==r.dataUrl)after.setAttribute('src',r.dataUrl);}
+      }catch(e){console.error('[CaseFlow result image paint]',e);}
+    },0);
+    setTimeout(function(){cfRunIdle(function(){if(seq!==__cfResultPaintSeq)return;try{const el=document.getElementById('simulationCompareSlider');if(el&&typeof setupCompareSlider==='function')setupCompareSlider(el);}catch(e){console.warn('[CaseFlow compare hydrate]',e);}},1800);},800);
+    setTimeout(function(){cfRunIdle(function(){if(seq!==__cfResultPaintSeq)return;try{buildEditGrid();window.__cfEditHydratedSeq=seq;}catch(e){console.warn('[CaseFlow edit hydrate]',e);}},2400);},1100);
+    setTimeout(function(){cfRunIdle(function(){if(seq!==__cfResultPaintSeq)return;try{renderSimGallery();}catch(e){console.warn('[CaseFlow gallery hydrate]',e);}},2200);},1400);
+    setTimeout(function(){cfRunIdle(function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{pausePreview();}catch(e){}},2200);},1700);
+    setTimeout(function(){cfRunIdle(function(){try{if(window.__cfPendingGallerySync&&typeof window.renderUpload==='function'){window.__cfPendingGallerySync=false;window.renderUpload();}if(window.cfPersist&&window.cfPersist.schedule)window.cfPersist.schedule(900);}catch(e){console.warn('[CaseFlow deferred sync]',e);}},2800);},2100);
+    return true;
+  }
+  window.cfPaintPrimaryResult=cfPaintPrimaryResult;
+  function renderResultImages(){return cfPaintPrimaryResult();}
 
   let regenTimer=null, regenBusy=false, regenQueued=false;
   function setBusy(on){
@@ -20680,13 +20710,9 @@ body[data-ui-tone="dark"]{
           rec.dataUrl=r.url;
           rec.__lateUpgraded=true;
           window.__caseflowPrimaryResultMode='ai-late';
-          if(state.simResultIndex===i || state.simResult===rec){
-            state.simResult=rec;
-            try{ renderResultImages(); }catch(e){}
-            try{ renderSimGallery(); }catch(e){}
-          }
-          try{ cfAutoSaveTempSim(rec,{toast:false}); }catch(e){}
-          try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
+          if(state.simResultIndex===i || state.simResult===rec){state.simResult=rec;try{window.cfOpenResultScreen();}catch(e){}}
+          try{cfScheduleTempSimSave(rec,{toast:false});}catch(e){}
+          setTimeout(function(){cfRunIdle(function(){try{if(window.cfPersist&&cfPersist.schedule)cfPersist.schedule(700);}catch(e){}},1800);},1400);
           try{ toastFn('AI精密結果が完成しました。プレビューを置き換えました。'); }catch(e){}
           break;
         }
@@ -20796,10 +20822,9 @@ body[data-ui-tone="dark"]{
       if(Array.isArray(state.simResults) && state.simResults.length){ state.simResults[state.simResultIndex||0]=r; }
       else { state.simResults=[r]; state.simResultIndex=0; }
       state.simResult=r;
-      cfAutoSaveTempSim(r);   // ① keep the 48h temp Library copy in sync with slider edits
-      renderResultImages();
-      // Persist the new result immediately so a reload won't lose it
-      try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
+      window.cfOpenResultScreen();
+      cfScheduleTempSimSave(r);
+      setTimeout(function(){cfRunIdle(function(){try{if(window.cfPersist)cfPersist.schedule(1000);}catch(e){}},1800);},1300);
     }catch(e){ console.error(e); toastFn('再生成に失敗しました'); }
     regenBusy=false; setBusy(false);
     if(regenQueued){ regenQueued=false; regenerate(); }
@@ -20963,8 +20988,7 @@ body[data-ui-tone="dark"]{
         if(!Array.isArray(state.photos)) state.photos=[];
         if(!state.photos.some(p=>p && p.dataUrl===src.dataUrl)){
           state.photos.push(src);
-          if(typeof window.renderUpload==='function') window.renderUpload();
-          if(typeof window.cfPersist!=='undefined' && window.cfPersist && window.cfPersist.schedule) try{ window.cfPersist.schedule(800); }catch(e){}
+          window.__cfPendingGallerySync=true;
         }
       }
     }catch(e){}
@@ -20990,35 +21014,29 @@ body[data-ui-tone="dark"]{
         dataUrl:url, source:src.dataUrl, srcObj:src, sourceKind:sourceKind(src),
         createdAt:new Date().toISOString(), settings:JSON.parse(JSON.stringify(state.simV96))
       });
-      if(typeof go==='function') go('result');
-      // After an orthodontic generation, recentre the alignment slider so the NEXT
-      // regeneration applies a further, incremental correction on top of this result.
-      if(_ortho){ state.simV96.alignment=50; window._cfExtractWarned=false; }
-      setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
-      setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);
+      if(typeof window.cfOpenResultScreen==='function')window.cfOpenResultScreen();else cfPaintPrimaryResult();
+      if(_ortho){state.simV96.alignment=50;window._cfExtractWarned=false;}
     }catch(e){ console.error(e); toastFn('画像の作成に失敗しました'); }
   };
 
-  /* ---- keep the result edit grid in sync whenever the result page renders ---- */
-  const prevRenderResult = window.renderResult;
-  window.renderResult = function(){
-    const r = (typeof prevRenderResult==='function') ? prevRenderResult.apply(this,arguments) : undefined;
-    setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 40);
-    setTimeout(buildEditGrid, 180);
-    return r;
+  /* Result route: bypass every legacy renderer/wrapper when a generated result exists. */
+  const prevRenderResult=window.renderResult;
+  window.renderResult=function(){
+    if(cfResultRecord())return cfPaintPrimaryResult();
+    return (typeof prevRenderResult==='function')?prevRenderResult.apply(this,arguments):undefined;
   };
-
-  const prevGo = window.go;
-  if(typeof prevGo==='function' && !window.__v96GoWrapped){
-    window.__v96GoWrapped=true;
-    window.go=function(id){
-      const r=prevGo.apply(this,arguments);
-      if(id==='result') setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 70);
-      return r;
-    };
+  function cfOpenResultScreen(){
+    document.querySelectorAll('.screen.active').forEach(function(el){el.classList.remove('active');});
+    const resultEl=$id('result');if(resultEl)resultEl.classList.add('active');
+    return cfPaintPrimaryResult();
   }
-
-  window.addEventListener('DOMContentLoaded', ()=>{ setTimeout(buildEditGrid, 200); });
+  window.cfOpenResultScreen=cfOpenResultScreen;
+  const prevGo=window.go;
+  if(typeof prevGo==='function'&&!window.__v96GoWrapped){
+    window.__v96GoWrapped=true;
+    window.go=function(id){if(id==='result'&&cfResultRecord())return cfOpenResultScreen();return prevGo.apply(this,arguments);};
+  }
+  window.addEventListener('DOMContentLoaded',function(){if(document.querySelector('#result.active'))cfPaintPrimaryResult();});
 })();
 </script>
 
@@ -30346,6 +30364,116 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(stale||!document.querySelector('.screen.active'))setTimeout(recover,60);
   });
   document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(recover,50);});
+})();
+</script>
+<script id="cf-result-route-guard-v8">
+(function(){
+  var rawGo=window.go;
+  var paintSeq=0;
+  function record(){
+    var arr=Array.isArray(window.state&&state.simResults)?state.simResults:[];
+    return (window.state&&state.simResult)||arr[(window.state&&state.simResultIndex)||0]||null;
+  }
+  function sourceFor(r){
+    return (window.state&&state._simSource)||(r&&r.srcObj)||((window.state&&Array.isArray(state.photos))?state.photos[0]:null);
+  }
+  function hideWait(){
+    try{document.querySelectorAll('.cfWaitOverlay.show').forEach(function(el){el.classList.remove('show');el.setAttribute('aria-hidden','true');});}catch(e){}
+  }
+  function openResult(){
+    var r=record(),src=sourceFor(r);
+    if(!r||!src){return typeof rawGo==='function'?rawGo.apply(this,arguments):false;}
+    var seq=++paintSeq;
+    var result=document.getElementById('result');
+    document.querySelectorAll('.screen.active').forEach(function(el){if(el!==result)el.classList.remove('active');});
+    if(result)result.classList.add('active');
+    hideWait();
+    window.__cfResultFirstPaintAt=performance.now();
+    window.__cfEditHydrationScheduled=seq;
+    setTimeout(function(){
+      if(seq!==paintSeq)return;
+      try{
+        var before=document.getElementById('resultBefore');
+        var after=document.getElementById('resultAfter');
+        var beforeSrc=r.source||(r.srcObj&&r.srcObj.dataUrl)||src.dataUrl;
+        if(before){before.decoding='async';before.setAttribute('src',beforeSrc);}
+        if(after){after.decoding='async';after.setAttribute('src',r.dataUrl);}
+      }catch(e){console.error('[CaseFlow result image paint v8]',e);}
+    },0);
+    setTimeout(function(){try{var el=document.getElementById('simulationCompareSlider');if(el&&typeof window.setupCompareSlider==='function')window.setupCompareSlider(el);}catch(e){console.warn('[CaseFlow compare hydrate v8]',e);}},900);
+    setTimeout(function(){try{if(typeof window.buildEditGrid==='function')window.buildEditGrid();}catch(e){console.warn('[CaseFlow edit hydrate v8]',e);}},1200);
+    setTimeout(function(){try{if(typeof window.renderSimGallery==='function')window.renderSimGallery();}catch(e){console.warn('[CaseFlow gallery hydrate v8]',e);}},1500);
+    setTimeout(function(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{if(typeof window.pausePreview==='function')window.pausePreview();}catch(e){}},1700);
+    return true;
+  }
+  function guarded(id){if(id==='result')return openResult();return typeof rawGo==='function'?rawGo.apply(this,arguments):false;}
+  guarded.__cfResultGuardV8=true;
+  guarded.__cfResultGuardV6=true;
+  guarded.__cfRaw=rawGo;
+  window.cfOpenResultScreen=openResult;
+  window.cfPaintPrimaryResult=openResult;
+  window.go=guarded;
+})();
+</script>
++
+<style id="cf-fast-result-shell-v9-style">
+.cfFastResultShell{position:absolute;inset:0;z-index:8200;display:none;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));color:var(--ink,#201b35);background:linear-gradient(145deg,color-mix(in srgb,var(--c1) 22%,#fbf8ff),color-mix(in srgb,var(--c2) 18%,#fbf8ff));contain:layout paint style}
+.cfFastResultShell.open{display:block}
+.cfFastResultTop{display:flex;align-items:center;gap:12px;min-height:44px;margin-bottom:12px}
+.cfFastResultTop button{width:42px;height:42px;border:1px solid rgba(255,255,255,.8);border-radius:999px;background:rgba(255,255,255,.88);color:var(--ink,#201b35);font-size:24px;box-shadow:0 8px 24px rgba(32,27,53,.10)}
+.cfFastResultHead{flex:1;min-width:0}.cfFastResultHead b{display:block;font-size:18px;letter-spacing:-.03em}.cfFastResultHead span{display:block;margin-top:3px;font:700 9px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;opacity:.58}
+.cfFastResultCard{padding:10px;border:1px solid rgba(255,255,255,.82);border-radius:24px;background:rgba(255,255,255,.76);box-shadow:0 18px 48px rgba(32,27,53,.14)}
+.cfFastCompare{position:relative;width:100%;height:min(62dvh,620px);min-height:320px;overflow:hidden;border-radius:18px;background:#111;touch-action:none;--cf-fast-split:50%}
+.cfFastCompare img{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain;background:#111}
+.cfFastCompare .cfFastAfter{clip-path:inset(0 calc(100% - var(--cf-fast-split)) 0 0)}
+.cfFastDivider{position:absolute;top:0;bottom:0;left:var(--cf-fast-split);width:2px;transform:translateX(-1px);background:rgba(255,255,255,.92);box-shadow:0 0 18px rgba(255,255,255,.72);pointer-events:none}
+.cfFastDivider:after{content:'↔';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.94);color:#201b35;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.cfFastLabels{position:absolute;inset:12px 12px auto;display:flex;justify-content:space-between;pointer-events:none}.cfFastLabels span{padding:5px 8px;border-radius:999px;background:rgba(0,0,0,.42);color:#fff;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em}
+.cfFastRange{width:100%;height:36px;margin:8px 0 0;accent-color:var(--c1,#7c5cff)}
+.cfFastMeta{margin:8px 4px 2px;font:700 9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.035em;opacity:.62}
+.cfFastActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.cfFastActions button{min-height:50px;border:1px solid rgba(255,255,255,.82);border-radius:16px;padding:8px;background:rgba(255,255,255,.82);color:var(--ink,#201b35);font-size:12px;font-weight:850;box-shadow:0 8px 22px rgba(32,27,53,.08)}
+.cfFastActions .cfFastPrimary{grid-column:1/-1;background:linear-gradient(135deg,var(--c1,#7c5cff),var(--c2,#ff9fd6));color:#fff;border-color:transparent}
+.cfFastActions button:disabled{display:none}
+.cfFastDisclaimer{margin:12px 5px 0;font-size:10px;line-height:1.55;font-weight:650;opacity:.58}
+@media(min-width:700px){.cfFastResultShell{left:50%;right:auto;width:min(720px,100vw);transform:translateX(-50%)}.cfFastCompare{height:min(68dvh,680px)}}
+@media(prefers-reduced-motion:reduce){.cfFastResultShell *{scroll-behavior:auto!important;transition:none!important}}
+</style>
+<script id="cf-fast-result-shell-v9">
+(function(){
+  var rawGo=window.go, shell=null, seq=0;
+  function record(){var arr=Array.isArray(window.state&&state.simResults)?state.simResults:[];return (window.state&&state.simResult)||arr[(window.state&&state.simResultIndex)||0]||null;}
+  function sourceFor(r){return (window.state&&state._simSource)||(r&&r.srcObj)||((window.state&&Array.isArray(state.photos))?state.photos[0]:null);}
+  function hideWait(){try{if(window.cfWait)window.cfWait.hideAll();}catch(e){}try{document.querySelectorAll('.cfWaitOverlay.show,.cfWaitOverlay.active').forEach(function(el){el.classList.remove('show','active');el.setAttribute('aria-hidden','true');});}catch(e){}}
+  function ensure(){
+    if(shell&&shell.isConnected)return shell;
+    shell=document.createElement('section');shell.id='cfFastResultShell';shell.className='cfFastResultShell';shell.setAttribute('aria-hidden','true');
+    shell.innerHTML='<div class="cfFastResultTop"><button type="button" data-cf-fast="back" aria-label="Back">‹</button><div class="cfFastResultHead"><b>Simulation Result</b><span>Primary visual result / 一次生成結果</span></div></div><div class="cfFastResultCard"><div class="cfFastCompare" id="cfFastCompare"><img class="cfFastBefore" id="cfFastBefore" alt="Before"><img class="cfFastAfter" id="cfFastAfter" alt="After"><div class="cfFastDivider"></div><div class="cfFastLabels"><span>Before</span><span>After</span></div></div><input class="cfFastRange" id="cfFastRange" type="range" min="0" max="100" value="50" aria-label="Before and after comparison"><p class="cfFastMeta" id="cfFastMeta">Reference image / 治療結果を保証するものではありません。</p></div><div class="cfFastActions"><button type="button" class="cfFastPrimary" data-cf-fast="smile">Smile Designer / 歯冠形態</button><button type="button" data-cf-fast="again">Regenerate / 再生成</button><button type="button" data-cf-fast="refine">Refine / 精密生成</button><button type="button" data-cf-fast="library">Library</button><button type="button" data-cf-fast="advanced">Advanced controls / 詳細調整</button></div><p class="cfFastDisclaimer">Clinical visualization support only. This image is not a diagnosis or a guarantee of treatment outcome.</p>';
+    var app=document.querySelector('.app')||document.body;app.appendChild(shell);
+    var range=shell.querySelector('#cfFastRange'),compare=shell.querySelector('#cfFastCompare');
+    range.addEventListener('input',function(){compare.style.setProperty('--cf-fast-split',range.value+'%');});
+    shell.addEventListener('click',function(e){var btn=e.target.closest('[data-cf-fast]');if(!btn)return;var action=btn.getAttribute('data-cf-fast');
+      if(action==='back'){close();if(typeof rawGo==='function')rawGo('simulator');}
+      else if(action==='again'){close();if(typeof window.generateSimulation==='function')window.generateSimulation();}
+      else if(action==='smile'){if(typeof window.cfOpenSmileDesigner==='function')window.cfOpenSmileDesigner();}
+      else if(action==='refine'){if(typeof window.runSecondaryRefinement==='function')window.runSecondaryRefinement();}
+      else if(action==='library'){close();if(typeof rawGo==='function')rawGo('library');}
+      else if(action==='advanced'){openLegacy();}
+    });
+    return shell;
+  }
+  function close(){if(!shell)return;shell.classList.remove('open');shell.setAttribute('aria-hidden','true');}
+  function openLegacy(){close();setTimeout(function(){try{document.querySelectorAll('.screen.active').forEach(function(el){el.classList.remove('active');});var r=document.getElementById('result');if(r)r.classList.add('active');if(typeof window.renderResultImages==='function')window.renderResultImages();}catch(e){console.error('[CaseFlow advanced result]',e);}},0);}
+  function paint(){
+    var r=record(),src=sourceFor(r);if(!r||!src)return typeof rawGo==='function'?rawGo('simulator'):false;
+    var token=++seq,el=ensure();hideWait();el.classList.add('open');el.setAttribute('aria-hidden','false');window.__cfFastResultOpenedAt=performance.now();
+    var refine=el.querySelector('[data-cf-fast="refine"]');if(refine)refine.disabled=typeof window.runSecondaryRefinement!=='function';
+    setTimeout(function(){if(token!==seq)return;try{var before=el.querySelector('#cfFastBefore'),after=el.querySelector('#cfFastAfter');var beforeSrc=r.source||(r.srcObj&&r.srcObj.dataUrl)||src.dataUrl;before.decoding='async';after.decoding='async';before.src=beforeSrc;after.src=r.dataUrl;var meta=el.querySelector('#cfFastMeta');var kind=(r.sourceKind||src.label||src.category||(src.intraoral?'Intraoral':'Facial'));if(meta)meta.textContent=kind+' image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。';window.__cfFastResultPaintedAt=performance.now();hideWait();}catch(e){console.error('[CaseFlow fast result paint]',e);}},0);
+    setTimeout(function(){hideWait();try{if(typeof window.pausePreview==='function')window.pausePreview();}catch(e){}},180);
+    return true;
+  }
+  function guarded(id){if(id==='result')return paint();if(id!=='result')close();return typeof rawGo==='function'?rawGo.apply(this,arguments):false;}
+  guarded.__cfFastResultV9=true;guarded.__cfRaw=rawGo;window.__cfFastResultV9=true;
+  window.cfCloseFastResult=close;window.cfOpenLegacyResultV9=openLegacy;window.cfOpenResultScreen=paint;window.cfPaintPrimaryResult=paint;window.go=guarded;
 })();
 </script>
 </body>
