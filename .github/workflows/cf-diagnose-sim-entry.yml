@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - chatgpt/fix-visual-simulation-entry
-  pull_request:
-    branches:
-      - claude/image-morphing-video-3kujgb
 
 permissions:
   contents: write
