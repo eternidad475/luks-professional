@@ -36,7 +36,7 @@ replaceOnce('result renderer',
     if(before) before.src=beforeSrc;
     if(after)  after.src=r.dataUrl;
     const cap=$id('resultCaption');
-    if(cap) cap.textContent=\`\${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。\`;
+    if(cap) cap.textContent=\`${sourceKindLabel(src)} image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。\`;
     if(typeof setupCompareSlider==='function'){ const el=$id('simulationCompareSlider'); if(el) setupCompareSlider(el); }
     renderSimGallery();
   }`,
@@ -49,6 +49,11 @@ replaceOnce('result renderer',
   function cfDismissWaitVisualOnly(){
     try{document.querySelectorAll('.cfWaitOverlay.show').forEach(function(el){el.classList.remove('show');el.setAttribute('aria-hidden','true');});}catch(e){}
   }
+  function cfResultKindLabel(r,src){
+    const raw=(r&&r.sourceKind)||(src&&src.label)||(src&&src.category)||'';
+    if(raw)return String(raw);
+    return src&&src.intraoral?'Intraoral':'Facial';
+  }
   function cfPaintPrimaryResult(){
     const seq=++__cfResultPaintSeq;
     const r=cfResultRecord(),src=state._simSource||pickSource();
@@ -60,7 +65,7 @@ replaceOnce('result renderer',
     if(before&&before.src!==beforeSrc)before.src=beforeSrc;
     if(after&&after.src!==r.dataUrl)after.src=r.dataUrl;
     const cap=$id('resultCaption');
-    if(cap)cap.textContent=sourceKindLabel(src)+' image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。';
+    if(cap)cap.textContent=cfResultKindLabel(r,src)+' image / Reference Image — 説明用の参考イメージであり、治療結果の保証ではありません。';
     cfDismissWaitVisualOnly();
     window.__cfResultFirstPaintAt=performance.now();
     window.__cfEditHydrationScheduled=seq;
