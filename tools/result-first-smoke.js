@@ -3,7 +3,8 @@ const assert = require('assert');
 
 (async()=>{
   const browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844}});
+  const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block',reducedMotion:'reduce'});
+  const page=await context.newPage();
   page.setDefaultTimeout(15000);
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(String(e&&e.stack||e)));
@@ -12,10 +13,18 @@ const assert = require('assert');
     const chain=()=>({select(){return this},eq(){return this},in(){return this},order(){return this},limit(){return this},single:async()=>({data:null,error:null}),maybeSingle:async()=>({data:null,error:null}),insert:async()=>({data:null,error:null}),update(){return this},delete(){return this}});
     window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),getUser:async()=>({data:{user:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},from:chain,rpc:async()=>({data:null,error:null})})};
   });
-  await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({status:200,contentType:'application/javascript',body:''}));
-  await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({status:200,contentType:'text/css',body:''}));
+  await page.route('**/*',route=>{
+    const req=route.request();
+    const url=req.url();
+    const type=req.resourceType();
+    if(type==='media'||type==='font'||/\/media\//.test(url)||/\/sw\.js(?:\?|$)/.test(url)) return route.abort();
+    if(url.startsWith('https://cdn.jsdelivr.net/')) return route.fulfill({status:200,contentType:'application/javascript',body:''});
+    if(url.startsWith('https://fonts.googleapis.com/')) return route.fulfill({status:200,contentType:'text/css',body:''});
+    return route.continue();
+  });
   await page.goto('http://127.0.0.1:4173/caseflow_studio_v96.html',{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(900);
+  await page.evaluate(()=>{try{pausePreview();}catch(e){}document.querySelectorAll('video').forEach(v=>{try{v.pause();v.removeAttribute('src');v.load();}catch(e){}});});
   const evalTask=page.evaluate(async()=>{
     const c=document.createElement('canvas');c.width=480;c.height=640;const x=c.getContext('2d');x.fillStyle='#d8c1b1';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.fillRect(150,365,180,48);
     const before=c.toDataURL('image/jpeg',.76);x.fillStyle='#f9f6e9';x.fillRect(160,370,160,38);const after=c.toDataURL('image/jpeg',.74);
@@ -25,8 +34,9 @@ const assert = require('assert');
     const simCanvas=document.getElementById('simCanvas');
     if(simCanvas){const raw=simCanvas.getContext.bind(simCanvas);simCanvas.getContext=function(){legacyCanvasCalls++;return raw.apply(this,arguments);};}
     if(window.cfWait)window.cfWait.show('test',0);
+    if(typeof window.cfOpenResultScreen!=='function')throw new Error('cfOpenResultScreen missing');
     const started=performance.now();
-    go('result');
+    window.cfOpenResultScreen();
     await new Promise(r=>setTimeout(r,140));
     return {
       elapsed:performance.now()-started,
@@ -38,12 +48,13 @@ const assert = require('assert');
       galleryChildren:document.getElementById('simResultGallery').children.length,
       gridChildren:document.getElementById('simV96EditGrid').children.length,
       editHydrationScheduled:Number(window.__cfEditHydrationScheduled||0),
-      firstPaintAt:Number(window.__cfResultFirstPaintAt||0)
+      firstPaintAt:Number(window.__cfResultFirstPaintAt||0),
+      guardInstalled:!!(window.go&&window.go.__cfResultGuardV6)
     };
   });
   const result=await Promise.race([
     evalTask,
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('result-first browser evaluation exceeded 12 seconds')),12000))
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('result-first browser evaluation exceeded 8 seconds')),8000))
   ]);
   console.log(JSON.stringify({result,pageErrors},null,2));
   assert(result.active,'result screen did not activate');
@@ -54,8 +65,10 @@ const assert = require('assert');
   assert.strictEqual(result.galleryChildren,0,'single result duplicated into gallery on first paint');
   assert(result.editHydrationScheduled>0,'edit controls were not scheduled for deferred hydration');
   assert(result.firstPaintAt>0,'first-paint timing marker missing');
+  assert(result.guardInstalled,'final result-route guard was not installed');
   const relevant=pageErrors.filter(x=>/SyntaxError|ReferenceError|cfPaintPrimaryResult|renderResultImages/.test(x));
   assert.deepStrictEqual(relevant,[],'result-first runtime errors: '+relevant.join('\n'));
+  await context.close();
   await browser.close();
   process.exit(0);
 })().catch(async e=>{console.error(e);process.exit(1);});
