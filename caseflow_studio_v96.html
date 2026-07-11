@@ -18492,6 +18492,7 @@ body[data-ui-tone="dark"]{
 #result .cfLibSelSave{flex:2}
 #result .srGalHint{flex:1 0 100%;margin-top:5px;font-size:10px;line-height:1.45;color:var(--cfUiSub,rgba(32,27,53,.55));font-weight:600}
 #result .srGalHint b{color:#6a3de8;font-weight:900}
+#cfRefineBtn{display:none !important} /* Refineは再生成へ統合 */
 #result #simV96EditGrid .simShadeHint{
   display:flex;justify-content:space-between;
   margin:3px 1px 0;font-size:8.5px;font-weight:800;letter-spacing:.01em;
@@ -19481,6 +19482,20 @@ body[data-ui-tone="dark"]{
       'RULE C — PRIORITY OUTPUT: When the same arch shows any sign of crowding, lingual displacement, ectopic eruption or arch irregularity, ' +
       'always output crowding as the primary finding and BLOCK the spacing/diastema finding entirely — even if a dark gap appears to be present. ' +
       '叢生（歯の重なりや舌側転位）によって生じる暗い影・凹み・奥行きを「歯間離開（すきっ歯）」と絶対に誤認しないでください。叢生が確認できる場合、すきっ歯の出力は強制ブロックし、叢生を最優先で出力してください。\n\n'+
+      'STEP 2B — MALOCCLUSION CLASSIFICATION (不正咬合の種類 — report the specific type when clearly visible):\n'+
+      '• 八重歯・乱杭歯（叢生）severe crowding / ectopic canine → {"en":"severe crowding / ectopic tooth (yaeba)","ja":"八重歯・乱杭歯（叢生）"}\n'+
+      '• 開咬 open bite (anterior teeth do not meet vertically) → {"en":"anterior open bite","ja":"オープンバイト（開咬）"}\n'+
+      '• 交叉咬合 crossbite (one or more upper teeth bite inside the lowers, often unilateral) → {"en":"crossbite","ja":"交叉咬合"}\n'+
+      '• 過蓋咬合 deep bite (uppers cover most of the lower crowns) → {"en":"deep overbite","ja":"深いかみ合わせ（過蓋咬合）"}\n'+
+      '• 空隙歯列 generalized spacing → {"en":"generalized spacing","ja":"すきっ歯（空隙歯列）"}\n'+
+      '• 正中不一致 midline discrepancy between upper and lower dental midlines → {"en":"dental midline discrepancy","ja":"正中の不一致"}\n'+
+      '• 上顎前突 maxillary protrusion / excessive overjet → {"en":"maxillary protrusion (excessive overjet)","ja":"出っ歯（上顎前突）"}\n'+
+      '• 反対咬合 anterior reverse bite → {"en":"anterior crossbite (reverse overjet)","ja":"受け口（反対咬合）"}\n'+
+      '• 上下顎前突 bimaxillary protrusion → {"en":"bimaxillary protrusion","ja":"口ゴボ（上下顎前突）"}\n'+
+      'Apply RULE A-C above: crowding-type and spacing-type findings remain mutually exclusive.\n\n'+
+      'STEP 2C — MISSING TEETH (FDI notation, obvious cases only):\n'+
+      'When a tooth position in the visible arch is CLEARLY edentulous (open gingival ridge where a tooth should be, adjacent teeth drifted/tilted into the space) — not a shadow, not overlap, not partial eruption — report it with the FDI tooth number, e.g. {"en":"missing tooth FDI 12 (upper right lateral incisor)","ja":"歯の欠損 FDI 12（右上側切歯）"}.\n'+
+      'Only report missing teeth you can identify with high certainty from the photograph; when uncertain, omit.\n\n'+
       'STEP 3 — OCCLUSION (vertical & horizontal):\n'+
       '• Deep bite: upper anteriors cover >50% of lower anteriors → {"en":"deep bite (excessive vertical overbite)","ja":"過蓋咬合（噛み合わせが深い）"}\n'+
       '• Open bite: anterior gap while posteriors occlude → {"en":"anterior open bite","ja":"開咬（前歯が噛み合わない）"}\n'+
@@ -24567,7 +24582,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           : 'Close-up dental photograph (image-to-image): edit ONLY the upper anterior crowns; keep framing, retractors, gingiva beyond the margins, and background unchanged.');
         if(hasForm){
           var def = types[tt.id];
-          d.push('SECONDARY CLINICIAN DESIGN REQUEST (MANDATORY, clearly visible): reshape the upper anterior crown OUTLINES — central incisors first, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' This explicit selection supersedes any guidance to keep the existing form family.');
+          d.push('SECONDARY CLINICIAN DESIGN REQUEST (MANDATORY, must be clearly recognizable at first glance): reshape the crown OUTLINES across the ENTIRE upper anterior segment between the canines (FDI 13-23) — central incisors first, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' This explicit selection supersedes any guidance to keep the existing form family.');
         }
         if(ratio){
           d.push('VISIBLE-WIDTH PROGRESSION (golden-proportion design reference): make each upper LATERAL incisor\'s apparent frontal width approximately '+ratio+'% of the adjacent CENTRAL incisor, with the canines stepping down harmoniously. Achieve this through crown contour, line angles and rotation illusion — never by unnatural enlargement, crown lengthening or fusing. This ratio is a soft visual design reference chosen by the clinician for comparison, not a universal biological law.');
@@ -29396,7 +29411,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtOverlay.open .cfTtSheet{opacity:1;transform:none}
 .cfTtOverlay.closing .cfTtSheet{opacity:0;transform:translateY(30px) scale(.955);pointer-events:none}
 .cfTtHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 2px 10px}
-.cfTtHead,.cfTtRatioBox,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
+.cfTtHead,.cfTtDescBox,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
 .cfTtHead h3{margin:0;font-size:17px;letter-spacing:-.03em}
 .cfTtHead p{margin:3px 0 0;font-size:11px;color:rgba(32,27,53,.5);font-weight:800}
 .cfTtClose{
@@ -29407,6 +29422,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
 /* ---- live optical preview ---- */
 .cfTtPrev{
+  display:none !important; /* 課題整理のため一時非表示（描画ロジックは温存） */
   /* the live stage: a large zoomed view of the anterior region */
   position:relative;flex:0 1 auto;min-height:200px;max-height:46dvh;aspect-ratio:4/3;
   border-radius:20px;overflow:hidden;align-self:center;width:100%;
@@ -29424,7 +29440,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 /* ---- vertical photoreal specimen carousel: specimens drift through a
         narrow clinical light field; the centered card is the live one ---- */
 .cfTtScroll{
-  flex:1 1 auto;min-height:88px;max-height:min(22dvh,210px);
+  flex:1 1 auto;min-height:120px;max-height:min(38dvh,380px);
   display:flex;flex-direction:column;gap:10px;
   margin-top:11px;padding:44px 4px;
   overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
@@ -29478,23 +29494,19 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 }
 .cfTtCard[aria-checked="true"] .cfTtCheck{opacity:1;transform:scale(1)}
 
-/* ---- golden proportion controls ---- */
-.cfTtRatioBox{margin-top:10px;padding:11px 13px;border-radius:18px;background:rgba(32,27,53,.05)}
-.cfTtRatioTop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.cfTtRatioTop b{font-size:12px;font-weight:950}
-.cfTtRatioVal{font-size:15px;font-weight:950;color:color-mix(in srgb, var(--c1) 78%, #201b35)}
-.cfTtRatioBox input[type=range]{width:100%;margin:9px 0 4px;accent-color:var(--c1)}
-.cfTtScale{display:flex;justify-content:space-between;font-size:9px;font-weight:800;color:rgba(32,27,53,.45)}
-.cfTtPresets{display:flex;gap:7px;margin-top:8px}
-.cfTtPreset{
-  flex:1;min-height:36px;border-radius:12px;border:1.5px solid rgba(32,27,53,.13);
-  background:rgba(255,255,255,.75);color:#201b35;font-size:11px;font-weight:900;cursor:pointer;
+/* ---- selected-form description（選択中サンプルの解説） ---- */
+.cfTtDescBox{margin-top:10px;padding:12px 14px;border-radius:18px;background:rgba(32,27,53,.05)}
+.cfTtDescTop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cfTtDescTop b{font-size:13px;font-weight:950;letter-spacing:.05em;color:#201b35}
+.cfTtDescTop i{font-size:11px;font-weight:800;font-style:normal;color:rgba(32,27,53,.55)}
+.cfTtDescJa{margin:7px 0 0;font-size:11.5px;line-height:1.75;font-weight:700;color:rgba(32,27,53,.82)}
+.cfTtDescPts{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:5px 6px}
+.cfTtDescPts li{
+  font-size:9px;font-weight:900;letter-spacing:.08em;padding:4px 9px;border-radius:999px;
+  color:color-mix(in srgb, var(--c1) 62%, #201b35);
+  border:1px solid color-mix(in srgb, var(--c1) 30%, transparent);
+  background:color-mix(in srgb, var(--c1) 8%, rgba(255,255,255,.7));
 }
-.cfTtPreset[aria-pressed="true"]{
-  border-color:color-mix(in srgb, var(--c1) 60%, transparent);
-  background:color-mix(in srgb, var(--c1) 13%, rgba(255,255,255,.85));
-}
-.cfTtPreset:focus-visible,.cfTtRatioBox input:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
 
 /* ---- disclaimer + actions ---- */
 .cfTtDisclaimer{margin:9px 4px 0;font-size:9.5px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
@@ -29565,13 +29577,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       prompt:'Favor broader central incisors, restrained proximal taper, comparatively linear axial contours, and clinically plausible softened corners. Do not create block-like or oversized teeth.'
     },
     ovoid: {
-      en:'Oval', ja:'オーバル',
+      en:'Ovoid', ja:'オーバル',
       desc_en:'Soft convex contours, rounded transitions, gentle cervical-to-incisal flow.',
       desc_ja:'柔らかな凸面形態、丸みのある移行部、歯頸部から切縁への滑らかな流れ。',
       prompt:'Favor gentle convex contours, rounded line angles, and smooth cervical-to-incisal transitions. Avoid excessively bulbous crowns.'
     },
     tapered: {
-      en:'Triangular', ja:'トライアンギュラー',
+      en:'Tapered', ja:'テーパード',
       desc_en:'More pronounced cervical narrowing and a lighter incisal visual mass.',
       desc_ja:'歯頸部の狭窄が明瞭で、切縁側の視覚的ボリュームが軽い形態。',
       prompt:'Favor controlled cervical narrowing and lighter incisal visual mass. Avoid exaggerated triangular crowns or open gingival embrasures.'
@@ -29583,7 +29595,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       prompt:'Combine structural width with softened line angles and natural corner transitions. Avoid rigid geometric symmetry.'
     },
     natural_asymmetry: {
-      en:'Natural', ja:'ナチュラル',
+      en:'Natural Asymmetry', ja:'ナチュラル・アシンメトリー',
       desc_en:'Controlled left-right variation and reduced template-like repetition.',
       desc_ja:'左右のわずかな個性差を保ち、テンプレート的な均一感を抑えた形態。',
       prompt:'Preserve subtle, controlled variation between contralateral teeth while maintaining overall smile harmony. Avoid obvious defects, random rotation, or careless asymmetry.'
@@ -29697,7 +29709,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     var out = [];
     if(manual){
       out.push('REQUESTED CHANGE — UPPER ANTERIOR TOOTH FORM (clinician-selected: '+def.en+' / '+def.ja+', MANDATORY, apply at full strength): '
-        + 'reshape the crown OUTLINES of the upper anterior teeth — the CENTRAL INCISORS first and foremost, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' '
+        + 'reshape the crown OUTLINES across the ENTIRE upper anterior segment between the canines (FDI 13-23) — the CENTRAL INCISORS first and foremost, laterals and canines in harmony — toward the '+def.en.toUpperCase()+' form: '+def.prompt+' '
         + 'This explicit selection SUPERSEDES any earlier or later guidance to "keep the patient\'s own tooth form / form type" or to merely refine within the existing type: the target form family is '+def.en.toUpperCase()+', chosen by the clinician. '
         + 'The change in crown outline must be CLEARLY VISIBLE versus the input photograph — an output whose upper central incisor outlines look unchanged is an INCORRECT result. '
         + 'Keep crown length within the golden proportion (central incisor width-to-height ≈ 78–84%): do NOT enlarge the centrals or lengthen incisal edges — oversized dominant centrals with long incisal edges are a COMMON FAILURE and are incorrect. Keep per-tooth individuality, natural micro-variation and a credible gingival line.');
@@ -29785,8 +29797,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   'use strict';
   var TYPES = window.CF_TEETH_TYPES;
   if(!TYPES) return;
-  var ORDER = ['auto','square','rounded_square','ovoid','tapered','natural_asymmetry',
-               'hollywood','youthful','mature','functional','softened','dominant','focused','aggressive'];
+  var ORDER = ['auto','square','rounded_square','ovoid','tapered','natural_asymmetry'];
   var IMG_BASE = 'media/teeth/';
   /* frontal half-width profile per form (t: 0 cervical -> 1 incisal); preview only */
   var PROF = {
@@ -29828,6 +29839,15 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   };
   var toothMaskCache = { key:null, val:null };
   var RATIO_DEFAULT = 62, RATIO_BASELINE = 70; // assumed natural lateral/central visible ratio
+  /* selected-form descriptions（添付資料準拠）: JA summary + trait chips */
+  var DESC = {
+    square:            { ja:'近遠心面が直線的で、歯頸部が広く、切縁隅角が明瞭な力強い印象の形態。',            pts:['STRAIGHT CONTOUR','WIDE CERVICAL','DEFINED INCISAL CORNERS'] },
+    ovoid:             { ja:'輪郭が滑らかに湾曲し、切縁への移行が柔らかい優しい印象の形態。',                  pts:['SOFT CURVATURE','ROUNDED INCISAL EDGE','GENTLE LINE ANGLES'] },
+    tapered:           { ja:'歯頸部が細く、切縁方向へ緩やかに広がるシャープで洗練された印象の形態。',          pts:['NARROW CERVICAL','GENTLE TAPER TO INCISAL','LIGHTER INCISAL MASS'] },
+    rounded_square:    { ja:'スクエアの比率を保ちつつ、隅角と移行部を柔らかくした自然な印象の形態。',          pts:['SQUARE PROPORTIONS','SOFTENED CORNERS','BALANCED TRANSITIONS'] },
+    natural_asymmetry: { ja:'左右に微細な差を持たせ、自然な不均一感を表現する形態。人工的な均一感を避ける。',  pts:['SUBTLE ASYMMETRY','NATURAL VARIATION','NON-UNIFORM DETAILS'] },
+    auto:              { ja:'顔貌・歯列・主訴・年齢などを総合的に解析し、最も調和する形態を自動で推奨します。', pts:['ANALYZED & RECOMMENDED','HARMONIZED WITH CONTEXT','NATURAL & BALANCED'] }
+  };
   function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 
@@ -29839,7 +29859,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(t.id==='auto' && t.auto_recommendation && TYPES[t.auto_recommendation.id]){
       base += ' ・推奨 ' + TYPES[t.auto_recommendation.id].en;
     }
-    return base + (t.golden_ratio ? ' ・' + t.golden_ratio + '%' : '');
+    return base;
   }
   function fieldIconId(){
     var t = window.cfTeethTypeCurrent();
@@ -29858,7 +29878,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       + '<button type="button" class="cfTtField" id="cfTtField" onclick="cfOpenTeethTypeGallery()" aria-haspopup="dialog" aria-expanded="false">'
       + '<span class="cfTtFieldIcon"><img src="'+IMG_BASE+esc(fieldIconId())+'.webp" alt=""></span>'
       + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(sig)+'</b>'
-      + '<small>前歯の形態と見かけ幅比率（ゴールデンプロポーション）を二次生成でデザイン</small></span>'
+      + '<small>上顎前歯部（犬歯間）の歯冠形態を二次生成でデザイン</small></span>'
       + '<span class="cfTtFieldChevron" aria-hidden="true">›</span></button>';
   }
   window.cfRenderTeethTypeField = mountSecondary;
@@ -29878,26 +29898,18 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     overlay.innerHTML = '<div class="cfTtBackdrop" data-cftt-cancel></div>'
       + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle" aria-describedby="cfTtDisclaimer">'
       + '<div class="cfSheetHandle"></div>'
-      + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Teeth Design — Golden Proportion</h3>'
-      + '<p>歯冠形態デザイナー — 形態と見かけ幅比率をリアルタイムに検討できます</p></div>'
+      + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Teeth Design — 歯冠形態</h3>'
+      + '<p>歯冠形態デザイナー — 各形態の特徴を確認しながら選択できます</p></div>'
       + '<button type="button" class="cfTtClose" data-cftt-cancel aria-label="Close / 閉じる">×</button></div>'
       + '<div class="cfTtPrev"><img id="cfTtPrevImg" alt="Current result"><canvas id="cfTtPrevCanvas"></canvas>'
       + '<span class="cfTtPrevBadge">LIVE PREVIEW / 光学プレビュー（参考）</span></div>'
       + '<div class="cfTtScroll" id="cfTtScroll" role="radiogroup" aria-label="Tooth form / 歯冠形態"></div>'
-      + '<div class="cfTtRatioBox"><div class="cfTtRatioTop"><b>Golden proportion / 側切歯の見かけ幅</b>'
-      + '<span class="cfTtRatioVal" id="cfTtRatioVal">62%</span></div>'
-      + '<input id="cfTtRatio" type="range" min="55" max="78" step="1" value="62" aria-label="Lateral incisor visible width relative to the central incisor">'
-      + '<div class="cfTtScale"><span>Central dominant</span><span>Golden 62%</span><span>Natural soft</span></div>'
-      + '<div class="cfTtPresets">'
-      + '<button type="button" class="cfTtPreset" data-ratio="62">Golden 62</button>'
-      + '<button type="button" class="cfTtPreset" data-ratio="68">Natural 68</button>'
-      + '<button type="button" class="cfTtPreset" data-ratio="74">Soft 74</button>'
-      + '</div></div>'
+      + '<div class="cfTtDescBox" id="cfTtDescBox" aria-live="polite"></div>'
       + '<p class="cfTtDisclaimer" id="cfTtDisclaimer">'+DISCLAIMER_JA+'<br>'+DISCLAIMER_EN+'</p>'
       + '<div class="cfTtActions">'
       + '<button type="button" class="cfTtBtn" data-cftt-cancel>Cancel / キャンセル</button>'
       + '<button type="button" class="cfTtBtn" id="cfTtAutoBtn">Auto / 自動に戻す</button>'
-      + '<button type="button" class="cfTtBtn cfTtApply" id="cfTtApplyBtn">Apply・精密生成</button>'
+      + '<button type="button" class="cfTtBtn cfTtApply" id="cfTtApplyBtn">Apply・デザイン反映</button>'
       + '</div></div>';
     document.body.appendChild(overlay);
 
@@ -29908,11 +29920,6 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     overlay.querySelector('#cfTtAutoBtn').addEventListener('click', function(){
       selectDraft('auto'); setRatio(RATIO_DEFAULT);
       var c = cardEl('auto'); if(c) centerCard(c);
-    });
-    overlay.querySelector('#cfTtRatio').addEventListener('input', function(){ setRatio(parseInt(this.value,10)||RATIO_DEFAULT, true); });
-    overlay.querySelector('.cfTtPresets').addEventListener('click', function(e){
-      var b = e.target.closest('[data-ratio]'); if(!b) return;
-      setRatio(parseInt(b.getAttribute('data-ratio'),10));
     });
     overlay.addEventListener('keydown', onDialogKeydown, true);
     var sc = overlay.querySelector('#cfTtScroll');
@@ -29953,21 +29960,22 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       card.setAttribute('aria-checked', card.getAttribute('data-id')===draft.id ? 'true' : 'false');
     });
   }
-  function paintRatio(){
-    overlay.querySelector('#cfTtRatioVal').textContent = draft.ratio + '%';
-    overlay.querySelector('#cfTtRatio').value = draft.ratio;
-    Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtPreset'), function(b){
-      b.setAttribute('aria-pressed', parseInt(b.getAttribute('data-ratio'),10)===draft.ratio ? 'true' : 'false');
-    });
+  function paintDesc(){
+    var box = overlay.querySelector('#cfTtDescBox'); if(!box) return;
+    var d = TYPES[draft.id] || TYPES.auto;
+    var ds = DESC[draft.id] || DESC.auto;
+    box.innerHTML = '<div class="cfTtDescTop"><b>'+esc(d.en)+'</b><i>'+esc(d.ja)+'</i></div>'
+      + '<p class="cfTtDescJa">'+esc(ds.ja)+'</p>'
+      + '<ul class="cfTtDescPts">'+ds.pts.map(function(p){ return '<li>'+esc(p)+'</li>'; }).join('')+'</ul>';
   }
   function selectDraft(id){
     if(!TYPES[id]) return;
     draft.id = id;
-    // each style carries its own golden-proportion starting point
+    // each style carries its own golden-proportion starting point (internal — drives preview/prompt)
     if(STYLE[id]) draft.ratio = STYLE[id].ratio;
-    paintCards(); paintRatio(); schedulePreview();
+    paintCards(); paintDesc(); schedulePreview();
   }
-  function setRatio(v, fromSlider){ draft.ratio = Math.max(55, Math.min(78, v||RATIO_DEFAULT)); if(!fromSlider) paintRatio(); else { overlay.querySelector('#cfTtRatioVal').textContent = draft.ratio+'%'; Array.prototype.forEach.call(overlay.querySelectorAll('.cfTtPreset'), function(b){ b.setAttribute('aria-pressed','false'); }); } schedulePreview(); }
+  function setRatio(v){ draft.ratio = Math.max(55, Math.min(78, v||RATIO_DEFAULT)); schedulePreview(); }
   function centerCard(card){
     try{ card.scrollIntoView({ block:'center', inline:'nearest', behavior: reduced() ? 'auto' : 'smooth' }); }catch(e){ card.scrollIntoView(); }
   }
@@ -30166,8 +30174,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(!result || !result.dataUrl){ if(typeof toast==='function') toast('先に一次生成を実行してください'); return; }
     ensureOverlay();
     var cur = window.cfTeethTypeCurrent();
-    draft = { id: cur.id, ratio: cur.golden_ratio || RATIO_DEFAULT };
-    paintCards(); paintRatio();
+    draft = { id: cur.id, ratio: cur.golden_ratio || (STYLE[cur.id] && STYLE[cur.id].ratio) || RATIO_DEFAULT };
+    paintCards(); paintDesc();
     var pi = overlay.querySelector('#cfTtPrevImg');
     if(pi && pi.getAttribute('src')!==result.dataUrl) pi.src = result.dataUrl;
     if(typeof window.cfComputeTeethAutoRecommendation==='function') window.cfComputeTeethAutoRecommendation();
@@ -30198,7 +30206,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
         id: draft.id,
         source: draft.id==='auto' ? 'auto' : 'secondary_manual',
         selected_at: new Date().toISOString(),
-        golden_ratio: draft.ratio,
+        golden_ratio: draft.id==='auto' ? null : draft.ratio,
         optional_context: prev.optional_context || { sex:null, age:null },
         auto_recommendation: prev.auto_recommendation || null
       };
@@ -30333,6 +30341,157 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     window.renderResult = wrapped;
   })();
   window.addEventListener('DOMContentLoaded', function(){ setTimeout(mountSecondary, 300); });
+
+  /* Regeneration integration: refine folded into 再生成, auto-scroll to the
+     Before/After slider on completion, prosthetic-concept auto-open of the
+     form gallery, and the dismissible feedback card. */
+  (function hookGenerate2(){
+    var prev = window.generateSimulation;
+    if(typeof prev !== 'function'){ document.addEventListener('DOMContentLoaded', hookGenerate2, { once:true }); return; }
+    if(prev.__cfTtPostHooked) return;
+    var wrapped = async function(){
+      var r = await prev.apply(this, arguments);
+      try{
+        var rec = window.state && state.simResult;
+        if(rec && rec.dataUrl){
+          // Refine is part of regeneration whenever a teeth design is active
+          var t = window.cfTeethTypeCurrent ? window.cfTeethTypeCurrent() : null;
+          var designActive = t && (t.id!=='auto' || t.golden_ratio);
+          if(designActive && !rec._secondaryRefined && typeof window.runSecondaryRefinement==='function'){
+            setTimeout(function(){ try{ window.runSecondaryRefinement(); }catch(e){} }, 250);
+          }
+          // auto-scroll to the top Before/After compare slider
+          setTimeout(function(){
+            try{
+              var el = document.getElementById('simulationCompareSlider') || document.querySelector('#result .simCompareHead');
+              if(el && document.querySelector('#result.active')) el.scrollIntoView({ behavior:'smooth', block:'start' });
+            }catch(e){}
+          }, 450);
+          // prosthetic-related concepts: surface the form gallery once per result
+          setTimeout(function(){
+            try{
+              var c = ((state.simV82||{}).concept)||'ortho';
+              if((c==='prosthetic'||c==='hybrid') && !rec.__cfTtPrompted && !document.querySelector('.cfTtOverlay.open')){
+                rec.__cfTtPrompted = true;
+                window.cfOpenTeethTypeGallery();
+              }
+            }catch(e){}
+          }, 1400);
+          setTimeout(function(){ try{ if(window.cfShowFeedbackCard) cfShowFeedbackCard(rec); }catch(e){} }, 2400);
+        }
+      }catch(e){}
+      return r;
+    };
+    wrapped.__cfTtPostHooked = true;
+    window.generateSimulation = wrapped;
+  })();
+})();
+</script>
+
+<style id="cf-p1-feedback-style">
+.cfFbCard{
+  position:fixed;left:50%;transform:translateX(-50%) translateY(14px);opacity:0;pointer-events:none;
+  bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:10030;width:min(460px,calc(100% - 24px));
+  border-radius:22px;padding:14px 44px 14px 16px;color:#fff;
+  background:
+    radial-gradient(130% 160% at 10% 0%, color-mix(in srgb, var(--c1) 42%, transparent) 0%, transparent 60%),
+    radial-gradient(140% 170% at 95% 110%, color-mix(in srgb, var(--c2) 30%, transparent) 0%, transparent 58%),
+    linear-gradient(165deg, rgba(24,20,38,.94), rgba(14,11,24,.96));
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 22px 60px rgba(10,8,24,.5), inset 0 1px 0 rgba(255,255,255,.14);
+  transition:opacity .34s ease, transform .38s cubic-bezier(.22,.9,.24,1);
+}
+.cfFbCard.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.cfFbHead{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:950;letter-spacing:-.01em}
+.cfFbHead .cfSdOrb,.cfFbOrb{font-size:15px}
+.cfFbSub{margin:3px 0 10px;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.62);line-height:1.55}
+.cfFbRow{display:flex;gap:9px;align-items:flex-start}
+.cfFbRate{display:flex;gap:8px;flex:0 0 auto}
+.cfFbBtn{
+  min-height:44px;min-width:86px;border:0;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:13px;font-weight:950;color:#fff;cursor:pointer;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 80%, #d33), color-mix(in srgb, var(--c1) 45%, var(--c2)));
+}
+.cfFbBtn[data-fb="bad"]{background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 45%, #5a3fd0), color-mix(in srgb, var(--c2) 60%, #7040c0))}
+.cfFbBtn[aria-pressed="true"]{outline:2px solid #fff;outline-offset:2px}
+.cfFbReasons{flex:1;min-width:0}
+.cfFbReasons b{display:block;font-size:10px;font-weight:900;color:rgba(255,255,255,.55);margin-bottom:6px}
+.cfFbChips{display:flex;flex-wrap:wrap;gap:6px}
+.cfFbChip{
+  min-height:32px;padding:5px 11px;border-radius:10px;border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.08);color:#fff;font-size:10.5px;font-weight:800;cursor:pointer;
+}
+.cfFbChip[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 45%, rgba(255,255,255,.14));border-color:rgba(255,255,255,.55)}
+.cfFbClose{
+  position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:50%;
+  display:grid;place-items:center;background:rgba(255,255,255,.10);color:#fff;font-size:17px;cursor:pointer;
+}
+.cfFbThanks{font-size:12.5px;font-weight:900;padding:8px 2px}
+@media (prefers-reduced-motion: reduce){ .cfFbCard{transition:opacity .12s linear;transform:translateX(-50%)} }
+</style>
+
+<script id="cf-p1-feedback">
+/* CaseFlow Feedback Engine™ — dismissible post-generation feedback card. */
+(function(){
+  'use strict';
+  var card=null, curRec=null, rating=null, reasons={}, hideTimer=0;
+  var CHIPS=[['color','色が不自然'],['size','歯が大きい'],['shape','形が好みでない'],['smile','笑顔が不自然'],['weak','変化が少ない'],['other','その他']];
+  function ensure(){
+    if(card) return card;
+    card=document.createElement('div');
+    card.className='cfFbCard';
+    card.setAttribute('role','group');
+    card.setAttribute('aria-label','CaseFlow Feedback Engine');
+    card.innerHTML='<button type="button" class="cfFbClose" aria-label="閉じる">×</button>'
+      +'<div class="cfFbHead"><span class="cfFbOrb">✦</span>CaseFlow Feedback Engine™</div>'
+      +'<div class="cfFbSub">結果についてのご意見をお聞かせください。AIが次回の精度向上に活用します。</div>'
+      +'<div class="cfFbBody"><div class="cfFbRow">'
+      +'<div class="cfFbRate">'
+      +'<button type="button" class="cfFbBtn" data-fb="good">👍 Good</button>'
+      +'<button type="button" class="cfFbBtn" data-fb="bad">👎 Bad</button>'
+      +'</div>'
+      +'<div class="cfFbReasons"><b>理由を選択（任意）</b><div class="cfFbChips">'
+      +CHIPS.map(function(c){return '<button type="button" class="cfFbChip" data-r="'+c[0]+'" aria-pressed="false">'+c[1]+'</button>';}).join('')
+      +'</div></div></div></div>';
+    document.body.appendChild(card);
+    card.querySelector('.cfFbClose').addEventListener('click', function(){ hide(); });
+    card.addEventListener('click', function(e){
+      var b=e.target.closest('.cfFbChip');
+      if(b){ var k=b.getAttribute('data-r'); reasons[k]=!reasons[k]; b.setAttribute('aria-pressed', reasons[k]?'true':'false'); return; }
+      var g=e.target.closest('.cfFbBtn');
+      if(g){ rating=g.getAttribute('data-fb'); submit(); }
+    });
+    return card;
+  }
+  function submit(){
+    try{
+      var rs=Object.keys(reasons).filter(function(k){return reasons[k];});
+      var meta={ rating:rating, reasons:rs, at:new Date().toISOString(),
+                 teeth_type:(typeof window.cfTeethTypeMeta==='function')?window.cfTeethTypeMeta():null,
+                 mode:window.__caseflowPrimaryResultMode||null };
+      if(curRec){ curRec.settings=curRec.settings||{}; curRec.settings.feedback=meta; }
+      if(typeof window.cfLogEvent==='function') window.cfLogEvent('feedback','visual-simulation',{ rating:rating, reasons:rs.join(',') });
+      try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
+    }catch(e){}
+    var body=card.querySelector('.cfFbBody');
+    if(body) body.innerHTML='<div class="cfFbThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
+    clearTimeout(hideTimer); hideTimer=setTimeout(hide, 1600);
+  }
+  function hide(){ if(card) card.classList.remove('show'); }
+  window.cfShowFeedbackCard=function(rec){
+    if(rec && rec.__cfFbShown) return;
+    if(rec) rec.__cfFbShown=true;
+    ensure();
+    curRec=rec; rating=null; reasons={};
+    var body=card.querySelector('.cfFbBody');
+    if(body && !body.querySelector('.cfFbRate')){
+      card.remove(); card=null; ensure(); curRec=rec;
+    }
+    Array.prototype.forEach.call(card.querySelectorAll('.cfFbChip'), function(b){ b.setAttribute('aria-pressed','false'); });
+    clearTimeout(hideTimer);
+    card.classList.add('show');
+    hideTimer=setTimeout(hide, 30000);
+  };
 })();
 </script>
 
