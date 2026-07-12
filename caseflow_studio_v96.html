@@ -4909,6 +4909,8 @@ button[id="localMLDetectButton"]{
 
 <section class="screen soft" id="result">
   <div class="topbar"><button class="iconbtn" onclick="cfGoBack('simulator')">‹</button><div><h2 class="title" data-i18n="result.title">シミュレーション結果</h2><p class="subtitle" data-i18n="result.subtitle">Simulation / Reference Image</p></div><button class="linkbtn cfPresentBtn" onclick="cfEnterPresentation()" title="患者提示モード" aria-label="Presentation mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>提示</button></div>
+  <!-- Result-page treatment-concept switcher (populated by cf-p1-concept-switch) -->
+  <div id="cfConceptSwitchHost"></div>
   <div class="simResultStage">
   <div class="simResultGallery" id="simResultGallery"></div>
   <div class="simResultCompare card">
@@ -4921,6 +4923,8 @@ button[id="localMLDetectButton"]{
     </div>
     <canvas id="simCanvas" style="display:none"></canvas>
     <p class="caption" id="resultCaption">UI確認用の仮生成です。</p>
+    <!-- Inline Good/Bad feedback bar, right under the preview (populated by cf-p1-feedback) -->
+    <div id="cfFbeInlineHost"></div>
   </div>
   </div>
   <div class="card simEditPanel" id="simResultEditPanel">
@@ -18522,8 +18526,8 @@ body[data-ui-tone="dark"]{
 /* ==================================================================================
    v9.6 Simulation Studio
    - Post-generation adjustment sliders replaced by 5 aesthetic correction axes:
-       Shade / 色調, Alignment / 歯列, Tooth Shape / 歯冠形態,
-       Scallop / 歯肉ライン, Smile Frame / スマイルフレーム
+       Shade / 色調, Alignment / 歯列, Incisal / 切縁形態,
+       Cervical / 歯茎部幅, Smile Frame / スマイルフレーム
    - Each slider: left = current (no correction, 0), center = evidence-based (50),
      right = maximum correction (100). Default position = center (EBM).
    - Moving a slider re-generates the reference image so the change is reflected.
@@ -18546,8 +18550,8 @@ body[data-ui-tone="dark"]{
   const AXES = [
     ['shade','Color','色調'],
     ['alignment','Alignment','歯列補正'],
-    ['toothShape','Shape','歯冠形態'],
-    ['scallop','Scallop','歯肉ライン'],
+    ['toothShape','Incisal','切縁形態'],
+    ['scallop','Cervical','歯茎部幅'],
     ['smileFrame','Smile Frame','スマイルフレーム']
   ];
 
@@ -18593,6 +18597,9 @@ body[data-ui-tone="dark"]{
     Object.keys(s).forEach(k=>s[k]=clamp(s[k],0,100));
     return s;
   }
+  // Re-derive the edit-axis defaults for the CURRENT concept (used by the result-page
+  // treatment-concept switcher before it regenerates a not-yet-cached concept).
+  window.cfApplyConceptDefaults = function(){ state.simV96 = Object.assign({}, DEF, deriveFromSelections()); };
 
   /* ============================ image generation ============================ */
   function loadImage(src){
@@ -20784,7 +20791,14 @@ body[data-ui-tone="dark"]{
     // smile framing context in a focus shot, so the control is irrelevant.
     const noSmileFrame = !!(src0 && (src0.category==='focus' || src0.intraoral || src0.lips===false));
     const rowAxes = AXES.slice().filter(([key]) => !(noSmileFrame && key==='smileFrame'));
-    rowAxes.push(['bioBlend','Bio-Blend','生体調和']);
+    // Bio-Blend (生体調和) is a restorative-surface control — show it ONLY for crown-restorative
+    // concepts (補綴 / ハイブリッド). For other concepts keep it neutral so it has no effect.
+    const bioConcept0 = (state.simV82||{}).concept||'ortho';
+    if(bioConcept0==='prosthetic' || bioConcept0==='hybrid'){
+      rowAxes.push(['bioBlend','Bio-Blend','生体調和']);
+    } else {
+      state.simV96.bioBlend = 50;
+    }
     // Shade / Tooth Shape / Bio-Blend are bidirectional: show a signed value (±) around 50.
     const BIDIR = {shade:1, toothShape:1, bioBlend:1};
     const fmtSigned = v => { const d=Math.round((v-50)*2); return (d>0?'+':'')+d; };
@@ -20878,9 +20892,11 @@ body[data-ui-tone="dark"]{
       // alignment-only complaint, or when the AI backend falls back to local), the output would
       // be identical to the before. Seed a sensible baseline (mild whitening + naturalization).
       const sv=state.simV96;
+      const _bioOK=((state.simV82||{}).concept==='prosthetic'||(state.simV82||{}).concept==='hybrid');
       if(Math.abs((sv.shade||50)-50)<8 && Math.abs((sv.toothShape||50)-50)<8){
-        sv.shade=62; sv.bioBlend=Math.max(sv.bioBlend||50,60);
+        sv.shade=62; if(_bioOK) sv.bioBlend=Math.max(sv.bioBlend||50,60);
       }
+      if(!_bioOK) sv.bioBlend=50;
     }
     state.simV96 = Object.assign({}, DEF, state.simV96||{});
     state._simSource = src;
@@ -30518,13 +30534,13 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
               var alreadyChosen = ttNow && ttNow.id && ttNow.id!=='auto';
               // Only surface the post-generation popup when the clinician has NOT already
               // picked a form on the upload page — otherwise it would nag them twice.
-              if((c==='prosthetic'||c==='hybrid') && !alreadyChosen && !rec.__cfTtPrompted && !document.querySelector('.cfTtOverlay.open')){
+              if((c==='prosthetic'||c==='hybrid') && !alreadyChosen && !rec.__cfTtPrompted && !window.__cfBatchGenerating && !document.querySelector('.cfTtOverlay.open')){
                 rec.__cfTtPrompted = true;
                 window.cfOpenTeethTypeGallery();
               }
             }catch(e){}
           }, 1400);
-          setTimeout(function(){ try{ if(window.cfShowFeedbackCard) cfShowFeedbackCard(rec); }catch(e){} }, 2400);
+          setTimeout(function(){ try{ if(window.cfMountFeedbackInline) cfMountFeedbackInline(rec, { studio_module:'visual_simulation', artifact_type:'image' }); }catch(e){} }, 600);
         }
       }catch(e){}
       return r;
@@ -30559,21 +30575,39 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 </script>
 
 <style id="cf-p1-feedback-style">
-/* CaseFlow Feedback Engine™ — unique cfFbe* prefix to avoid colliding with the
-   existing .cfFb* feedback-form / admin-inbox modal styles elsewhere in the app. */
+/* CaseFlow Feedback Engine™ — inline Good/Bad bar under the preview + Bad-detail modal.
+   Unique cfFbe* prefix (avoids the existing .cfFb* support-form modal styles). */
+.cfFbeInline{
+  margin-top:12px;padding:12px 14px;border-radius:16px;
+  background:color-mix(in srgb, var(--c1) 7%, rgba(255,255,255,.55));
+  border:1px solid color-mix(in srgb, var(--c1) 16%, rgba(32,27,53,.10));
+}
+.cfFbeInlineQ{font-size:11.5px;font-weight:900;color:var(--cfUiText,#201b35);margin:0 0 8px}
+.cfFbeInlineBtns{display:flex;gap:8px;flex-wrap:wrap}
+.cfFbeInlineBtn{
+  flex:1 1 0;min-width:120px;min-height:44px;border:0;border-radius:13px;font-size:13px;font-weight:950;color:#fff;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.cfFbeInlineBtn[data-fb="good"]{background:linear-gradient(150deg,#1f9d6b,color-mix(in srgb,var(--c1) 55%,#1f9d6b))}
+.cfFbeInlineBtn[data-fb="bad"]{background:linear-gradient(150deg,color-mix(in srgb,var(--c1) 55%,#5a3fd0),color-mix(in srgb,var(--c2) 60%,#7040c0))}
+.cfFbeInlineBtn:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
+.cfFbeInlineThanks{font-size:12px;font-weight:900;color:#1f8a5e;padding:4px 2px}
+
+/* Bad-detail modal (centered over a backdrop) */
+.cfFbeModal{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(12,10,22,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.cfFbeModal.open{display:flex}
 .cfFbeCard{
-  position:fixed;left:50%;transform:translateX(-50%) translateY(14px);opacity:0;pointer-events:none;
-  bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:10030;width:min(460px,calc(100% - 24px));
-  border-radius:22px;padding:14px 44px 14px 16px;color:#fff;
+  position:relative;width:min(460px,calc(100% - 8px));max-height:86dvh;overflow:auto;color:#fff;
+  border-radius:22px;padding:16px 16px 14px;
   background:
     radial-gradient(130% 160% at 10% 0%, color-mix(in srgb, var(--c1) 42%, transparent) 0%, transparent 60%),
     radial-gradient(140% 170% at 95% 110%, color-mix(in srgb, var(--c2) 30%, transparent) 0%, transparent 58%),
-    linear-gradient(165deg, rgba(24,20,38,.94), rgba(14,11,24,.96));
+    linear-gradient(165deg, rgba(24,20,38,.96), rgba(14,11,24,.98));
   border:1px solid rgba(255,255,255,.16);
-  box-shadow:0 22px 60px rgba(10,8,24,.5), inset 0 1px 0 rgba(255,255,255,.14);
-  transition:opacity .34s ease, transform .38s cubic-bezier(.22,.9,.24,1);
+  box-shadow:0 22px 60px rgba(10,8,24,.55), inset 0 1px 0 rgba(255,255,255,.14);
+  transform:translateY(10px);opacity:0;transition:opacity .28s ease, transform .3s cubic-bezier(.22,.9,.24,1);
 }
-.cfFbeCard.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.cfFbeModal.open .cfFbeCard{transform:none;opacity:1}
 .cfFbeHead{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:950;letter-spacing:-.01em}
 .cfFbeOrb{font-size:15px}
 .cfFbeSub{margin:3px 0 10px;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.62);line-height:1.55}
@@ -30619,7 +30653,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfFbeThanks{font-size:12.5px;font-weight:900;padding:8px 2px}
 .cfFbeNote{font-size:9px;font-weight:700;color:rgba(255,255,255,.45);margin-top:6px}
 .cfFbeBtn:focus-visible,.cfFbeChip:focus-visible,.cfFbeSubmit:focus-visible,.cfFbeClose:focus-visible{outline:2px solid #fff;outline-offset:2px}
-@media (prefers-reduced-motion: reduce){ .cfFbeCard{transition:opacity .12s linear;transform:translateX(-50%)} }
+@media (prefers-reduced-motion: reduce){ .cfFbeCard{transition:opacity .12s linear;transform:none} }
 </style>
 
 <script id="cf-p1-feedback">
@@ -30670,7 +30704,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     return base.filter(function(t){ return !morphOnly[t[0]]; });
   }
 
-  var card=null, curRec=null, curOpts=null, rating=null, reasons={}, hideTimer=0, submitting=false;
+  var modal=null, card=null, curRec=null, curOpts=null, rating=null, reasons={}, submitting=false;
 
   function outputIdFor(rec){
     if(!rec) return 'sim_'+Date.now();
@@ -30682,17 +30716,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); }
 
-  function ensure(){
-    if(card) return card;
-    card=document.createElement('div');
-    card.className='cfFbeCard';
-    card.setAttribute('role','group');
-    card.setAttribute('aria-label','CaseFlow Feedback Engine');
-    card.innerHTML='<button type="button" class="cfFbeClose" aria-label="閉じる / Close">×</button>'
-      +'<div class="cfFbeHead"><span class="cfFbeOrb">✦</span>CaseFlow Feedback Engine™</div>'
-      +'<div class="cfFbeSub">この結果は有用でしたか？ / Was this result useful?</div>'
-      +'<div class="cfFbeBody">'
-      +'<div class="cfFbeRate">'
+  function bodyHTML(){
+    return '<div class="cfFbeRate">'
       +'<button type="button" class="cfFbeBtn" data-fb="good">👍 良い / Good</button>'
       +'<button type="button" class="cfFbeBtn" data-fb="bad">👎 改善が必要 / Bad</button>'
       +'</div>'
@@ -30703,20 +30728,49 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       +'<label class="cfFbeConsent"><input type="checkbox" class="cfFbeConsentBox">'
       +'<span>匿名化された評価情報を、CASEFLOW STUDIO の品質改善に利用することを許可します。 / Allow anonymized feedback signals to improve CASEFLOW STUDIO.</span></label>'
       +'<div class="cfFbeActions"><button type="button" class="cfFbeSubmit">送信 / Submit</button></div>'
-      +'</div>'
       +'</div>';
-    document.body.appendChild(card);
-    card.querySelector('.cfFbeClose').addEventListener('click', function(){ hide(); });
+  }
+
+  function ensureModal(){
+    if(modal) return modal;
+    modal=document.createElement('div');
+    modal.className='cfFbeModal';
+    modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.setAttribute('aria-label','CaseFlow Feedback Engine');
+    card=document.createElement('div');
+    card.className='cfFbeCard';
+    card.innerHTML='<button type="button" class="cfFbeClose" aria-label="閉じる / Close">×</button>'
+      +'<div class="cfFbeHead"><span class="cfFbeOrb">✦</span>CaseFlow Feedback Engine™</div>'
+      +'<div class="cfFbeSub" id="cfFbeSub">改善点を教えてください / Tell us what to improve</div>'
+      +'<div class="cfFbeBody"></div>';
+    modal.appendChild(card);
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
+    card.querySelector('.cfFbeClose').addEventListener('click', closeModal);
     card.addEventListener('click', function(e){
       var c=e.target.closest('[data-r]');
       if(c){ var k=c.getAttribute('data-r'); reasons[k]=!reasons[k]; c.setAttribute('aria-pressed', reasons[k]?'true':'false'); return; }
       var g=e.target.closest('.cfFbeBtn');
       if(g){ selectRating(g.getAttribute('data-fb')); return; }
       var s=e.target.closest('.cfFbeSubmit');
-      if(s){ submit(); return; }
+      if(s){ submitFromModal(); return; }
     });
-    return card;
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && modal.classList.contains('open')) closeModal(); });
+    return modal;
   }
+
+  function resetCard(){
+    rating=null; reasons={}; submitting=false;
+    card.querySelector('.cfFbeBody').innerHTML=bodyHTML();
+  }
+  function openModal(preset){
+    ensureModal();
+    resetCard();
+    var sub=card.querySelector('#cfFbeSub');
+    if(sub) sub.textContent = preset==='bad' ? '改善点を教えてください / Tell us what to improve' : 'この結果は有用でしたか？ / Was this result useful?';
+    modal.classList.add('open');
+    if(preset) selectRating(preset);
+  }
+  function closeModal(){ if(modal) modal.classList.remove('open'); }
 
   function selectRating(r){
     rating=r; reasons={};
@@ -30725,10 +30779,12 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     });
     var module=(curOpts&&curOpts.studio_module)||'visual_simulation';
     var chips=card.querySelector('.cfFbeChips');
-    chips.innerHTML=tagsFor(r, module).map(function(t){
-      return '<button type="button" class="cfFbeChip" data-r="'+t[0]+'" aria-pressed="false">'+esc(t[1])+'<small>'+esc(t[2])+'</small></button>';
-    }).join('');
-    card.querySelector('.cfFbeDetail').hidden=false;
+    if(chips){
+      chips.innerHTML=tagsFor(r, module).map(function(t){
+        return '<button type="button" class="cfFbeChip" data-r="'+t[0]+'" aria-pressed="false">'+esc(t[1])+'<small>'+esc(t[2])+'</small></button>';
+      }).join('');
+    }
+    var det=card.querySelector('.cfFbeDetail'); if(det) det.hidden=false;
     // do NOT auto-submit — the clinician confirms with Submit.
   }
 
@@ -30764,14 +30820,14 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
   }
 
-  async function submit(){
-    if(submitting || !rating) return;
+  // Shared submit: builds the payload, posts to the API (token-auth), and always mirrors
+  // the judgement into the result record + usage log so the clinician is never blocked.
+  async function doSubmit(comment, consent){
+    if(submitting) return;
     submitting=true;
-    var btn=card.querySelector('.cfFbeSubmit'); if(btn) btn.disabled=true;
     var rs=Object.keys(reasons).filter(function(k){ return reasons[k]; });
-    var comment=(card.querySelector('.cfFbeComment')||{}).value||'';
-    var consent=!!(card.querySelector('.cfFbeConsentBox')||{}).checked;
     var m=gatherMeta();
+    comment=String(comment||'').slice(0,2000);
     var payload={
       output_id: outputIdFor(curRec),
       original_output_id: (curRec&&curRec.__cfOriginalOutputId)||null,
@@ -30779,52 +30835,193 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       studio_module: (curOpts&&curOpts.studio_module)||'visual_simulation',
       rating: rating,
       reason_tags: rs,
-      comment: comment.slice(0,2000)||null,
+      comment: comment||null,
       selected_teeth_type: m.selected_teeth_type,
       patient_context: m.patient_context,
       slider_snapshot: m.slider_snapshot,
       generation_metadata: m.generation_metadata,
       use_for_personalization: true,
-      use_for_aggregate_learning: consent
+      use_for_aggregate_learning: !!consent
     };
-    var localMeta={ rating:rating, reason_tags:rs, comment:comment.slice(0,2000), at:new Date().toISOString(),
-                    teeth_type:m.selected_teeth_type, use_for_aggregate_learning:consent };
-    var note='';
-    try{
-      await postReview(payload);
-    }catch(e){
-      // graceful: keep the judgement locally so the dentist is never blocked
-      localFallback(localMeta);
-      note = /no-token|no-auth/.test(String(e&&e.message)) ? 'ローカルに記録しました（未ログイン） / Saved locally'
-           : 'ローカルに記録しました / Saved locally';
-    }
-    // always mirror into the result record + usage log
+    var localMeta={ rating:rating, reason_tags:rs, comment:comment, at:new Date().toISOString(),
+                    teeth_type:m.selected_teeth_type, use_for_aggregate_learning:!!consent };
+    try{ await postReview(payload); }
+    catch(e){ localFallback(localMeta); }
     try{ if(curRec){ curRec.settings=curRec.settings||{}; curRec.settings.feedback=localMeta; } }catch(e){}
-    var body=card.querySelector('.cfFbeBody');
-    if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>'
-      + (note?'<div class="cfFbeNote">'+esc(note)+'</div>':'');
     submitting=false;
-    clearTimeout(hideTimer); hideTimer=setTimeout(hide, 1800);
+    return true;
   }
 
-  function hide(){ if(card) card.classList.remove('show'); }
+  function inlineThanks(){
+    var host=document.getElementById('cfFbeInlineHost');
+    if(host) host.innerHTML='<div class="cfFbeInline"><div class="cfFbeInlineThanks">ありがとうございます — フィードバックを記録しました ✦</div></div>';
+  }
 
+  async function submitFromModal(){
+    if(!rating || submitting) return;
+    var comment=(card.querySelector('.cfFbeComment')||{}).value||'';
+    var consent=!!(card.querySelector('.cfFbeConsentBox')||{}).checked;
+    var btn=card.querySelector('.cfFbeSubmit'); if(btn) btn.disabled=true;
+    await doSubmit(comment, consent);
+    var body=card.querySelector('.cfFbeBody');
+    if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
+    inlineThanks();
+    setTimeout(closeModal, 1400);
+  }
+
+  // ── Inline Good/Bad bar under the result preview ─────────────────────────────
+  // Good = quick positive record; Bad = open the reason-tags / comment popup.
+  window.cfMountFeedbackInline=function(rec, opts){
+    var host=document.getElementById('cfFbeInlineHost');
+    if(!host) return;
+    curRec=rec||null; curOpts=opts||{ studio_module:'visual_simulation', artifact_type:'image' };
+    host.innerHTML='<div class="cfFbeInline">'
+      +'<p class="cfFbeInlineQ">✦ CaseFlow Feedback Engine™ — この結果は有用でしたか？ / Was this result useful?</p>'
+      +'<div class="cfFbeInlineBtns">'
+      +'<button type="button" class="cfFbeInlineBtn" data-fb="good">👍 良い / Good</button>'
+      +'<button type="button" class="cfFbeInlineBtn" data-fb="bad">👎 改善が必要 / Bad</button>'
+      +'</div></div>';
+    host.querySelector('[data-fb="good"]').addEventListener('click', async function(){
+      rating='good'; reasons={};
+      await doSubmit('', false);
+      inlineThanks();
+    });
+    host.querySelector('[data-fb="bad"]').addEventListener('click', function(){ openModal('bad'); });
+  };
+
+  // Modal entry point (used by the morph export path, which has no inline host).
   window.cfShowFeedbackCard=function(rec, opts){
     if(rec && rec.__cfFbShown) return;
     if(rec) rec.__cfFbShown=true;
-    ensure();
-    curRec=rec; curOpts=opts||null; rating=null; reasons={}; submitting=false;
-    // rebuild if a previous submission replaced the body with the thanks note
-    if(!card.querySelector('.cfFbeRate')){ card.remove(); card=null; ensure(); curRec=rec; curOpts=opts||null; }
-    Array.prototype.forEach.call(card.querySelectorAll('.cfFbeBtn'), function(b){ b.setAttribute('aria-pressed','false'); });
-    var det=card.querySelector('.cfFbeDetail'); if(det) det.hidden=true;
-    var cm=card.querySelector('.cfFbeComment'); if(cm) cm.value='';
-    var cb=card.querySelector('.cfFbeConsentBox'); if(cb) cb.checked=false;
-    var sb=card.querySelector('.cfFbeSubmit'); if(sb) sb.disabled=false;
-    clearTimeout(hideTimer);
-    card.classList.add('show');
-    hideTimer=setTimeout(hide, 30000);
+    curRec=rec||null; curOpts=opts||null;
+    openModal(null);
   };
+})();
+</script>
+
+<style id="cf-p1-concept-switch-style">
+/* Result-page treatment-concept switcher — compare ortho / prosthetic / hybrid outputs. */
+#cfConceptSwitchHost{margin:0 0 4px}
+.cfCsWrap{padding:12px 14px;border-radius:16px;margin:0 0 4px;
+  background:color-mix(in srgb, var(--c1) 6%, rgba(255,255,255,.5));border:1px solid color-mix(in srgb, var(--c1) 14%, rgba(32,27,53,.10))}
+.cfCsHead{font-size:11px;font-weight:950;letter-spacing:.02em;color:var(--cfUiText,#201b35);margin:0 0 8px}
+.cfCsHead small{font-weight:800;color:rgba(32,27,53,.55);margin-left:6px}
+.cfCsBtns{display:flex;gap:7px}
+.cfCsBtn{flex:1 1 0;min-height:52px;border-radius:13px;border:1.5px solid rgba(32,27,53,.12);cursor:pointer;
+  background:rgba(255,255,255,.7);color:#201b35;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.2;position:relative}
+.cfCsBtn b{font-size:12px;font-weight:950}
+.cfCsBtn span{font-size:9px;font-weight:800;color:rgba(32,27,53,.55)}
+.cfCsBtn[aria-pressed="true"]{border-color:color-mix(in srgb, var(--c1) 62%, transparent);background:color-mix(in srgb, var(--c1) 13%, rgba(255,255,255,.85))}
+.cfCsBtn .cfCsDot{position:absolute;top:5px;right:7px;font-size:9px;font-weight:900;color:#1f8a5e}
+.cfCsBtn:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
+.cfCsAll{margin-top:8px;width:100%;min-height:38px;border:0;border-radius:11px;cursor:pointer;font-size:11px;font-weight:900;color:#fff;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 78%, #fff), color-mix(in srgb, var(--c2) 55%, var(--c1)))}
+.cfCsAll:disabled{opacity:.5;cursor:default}
+</style>
+<script id="cf-p1-concept-switch">
+/* Result-page treatment-concept switcher. Caches each concept's result so the clinician
+   and patient can flip between orthodontic / prosthetic / hybrid outputs instantly; a
+   not-yet-generated concept regenerates on demand, and an optional batch generates all
+   three (with a token-cost confirmation). Does not alter the protected primary flow. */
+(function(){
+  'use strict';
+  var CONCEPTS=[['ortho','Orthodontic','歯列矯正'],['prosthetic','Prosthetic','補綴治療'],['hybrid','Hybrid','矯正＋補綴']];
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); }
+  function cache(){ return (window.state && (state.simResultsByConcept=state.simResultsByConcept||{})) || {}; }
+  function curConcept(){ return ((window.state&&state.simV82&&state.simV82.concept))||'ortho'; }
+
+  function renderSwitcher(){
+    var host=document.getElementById('cfConceptSwitchHost');
+    if(!host) return;
+    var hasResult=!!(window.state && state.simResult && state.simResult.dataUrl);
+    if(!hasResult){ host.innerHTML=''; return; }
+    var c=curConcept(), cc=cache();
+    host.innerHTML='<div class="cfCsWrap"><p class="cfCsHead">治療コンセプト比較 / Compare treatment concepts'
+      +'<small>タップで切替（各結果はキャッシュ）</small></p><div class="cfCsBtns">'
+      +CONCEPTS.map(function(x){
+        var done=!!(cc[x[0]]&&cc[x[0]].dataUrl);
+        return '<button type="button" class="cfCsBtn" data-c="'+x[0]+'" aria-pressed="'+(x[0]===c?'true':'false')+'">'
+          +(done?'<span class="cfCsDot" aria-hidden="true">✓</span>':'')
+          +'<b>'+esc(x[1])+'</b><span>'+esc(x[2])+'</span></button>';
+      }).join('')
+      +'</div>'
+      +'<button type="button" class="cfCsAll" id="cfCsAllBtn">3パターンを比較生成 / Generate all three</button>'
+      +'</div>';
+    Array.prototype.forEach.call(host.querySelectorAll('.cfCsBtn'), function(b){
+      b.addEventListener('click', function(){ switchTo(b.getAttribute('data-c')); });
+    });
+    var allBtn=host.querySelector('#cfCsAllBtn');
+    if(allBtn) allBtn.addEventListener('click', generateAll);
+  }
+
+  function restore(c){
+    var cc=cache(), e=cc[c];
+    if(!e || !e.dataUrl) return false;
+    state.simV82.concept=c;
+    state.simResult={ dataUrl:e.dataUrl, source:e.source, sourceKind:e.sourceKind, createdAt:e.createdAt, settings:e.settings, _primaryDataUrl:e._primaryDataUrl };
+    if(e.simV96) state.simV96=Object.assign({}, e.simV96);
+    var before=document.getElementById('resultBefore'), after=document.getElementById('resultAfter');
+    if(before && e.source) before.src=e.source;
+    if(after) after.src=e.dataUrl;
+    try{ if(typeof window.buildSimV96EditGrid==='function') window.buildSimV96EditGrid(); }catch(err){}
+    try{ if(typeof window.cfRenderTeethTypeField==='function') window.cfRenderTeethTypeField(); }catch(err){}
+    try{ if(window.cfMountFeedbackInline) window.cfMountFeedbackInline(state.simResult, { studio_module:'visual_simulation', artifact_type:'image' }); }catch(err){}
+    renderSwitcher();
+    return true;
+  }
+
+  function switchTo(c){
+    if(!c || c===curConcept()) return;
+    if(restore(c)) return;                    // cached → instant compare
+    // not cached → regenerate for this concept with its own axis defaults
+    state.simV82.concept=c;
+    try{ if(typeof window.cfApplyConceptDefaults==='function') window.cfApplyConceptDefaults(); }catch(e){}
+    renderSwitcher();
+    try{ if(typeof window.generateSimulation==='function') window.generateSimulation(); }catch(e){}
+  }
+
+  async function generateAll(){
+    var cc=cache();
+    var todo=CONCEPTS.map(function(x){return x[0];}).filter(function(k){ return !(cc[k]&&cc[k].dataUrl); });
+    if(!todo.length){ if(typeof toast==='function') toast('3パターンとも生成済みです'); return; }
+    var msg='未生成の '+todo.length+' パターンを生成します（各2トークン＝計'+(todo.length*2)+'トークン）。よろしいですか？';
+    if(!(typeof confirm==='function' ? confirm(msg) : true)) return;
+    var btn=document.getElementById('cfCsAllBtn'); if(btn){ btn.disabled=true; btn.textContent='生成中… / Generating…'; }
+    window.__cfBatchGenerating=true;   // suppress the per-concept teeth popup during the batch
+    for(var i=0;i<todo.length;i++){
+      state.simV82.concept=todo[i];
+      try{ if(typeof window.cfApplyConceptDefaults==='function') window.cfApplyConceptDefaults(); }catch(e){}
+      renderSwitcher();
+      try{ await window.generateSimulation(); }catch(e){ /* stop the batch on failure (e.g. no tokens) */ break; }
+    }
+    window.__cfBatchGenerating=false;
+    renderSwitcher();
+  }
+
+  // Cache each generated result under its concept, then refresh the switcher.
+  (function hookGenCache(){
+    var prev=window.generateSimulation;
+    if(typeof prev!=='function'){ document.addEventListener('DOMContentLoaded', hookGenCache, { once:true }); return; }
+    if(prev.__cfConceptCacheHooked) return;
+    var wrapped=async function(){
+      var r=await prev.apply(this, arguments);
+      try{
+        var rec=window.state && state.simResult;
+        if(rec && rec.dataUrl){
+          var c=curConcept();
+          cache()[c]={ dataUrl:rec.dataUrl, source:rec.source, sourceKind:rec.sourceKind, createdAt:rec.createdAt,
+                       settings:rec.settings, _primaryDataUrl:rec._primaryDataUrl, simV96:JSON.parse(JSON.stringify(state.simV96||{})) };
+          rec.__concept=c;
+          setTimeout(renderSwitcher, 300);
+        }
+      }catch(e){}
+      return r;
+    };
+    wrapped.__cfConceptCacheHooked=true;
+    window.generateSimulation=wrapped;
+  })();
+
+  window.cfRenderConceptSwitch=renderSwitcher;
 })();
 </script>
 
