@@ -4209,7 +4209,7 @@ button[id="localMLDetectButton"]{
   margin-top:4px;
   font-size:11.5px;
   line-height:1.5;
-  color:var(--cfUiSub,rgba(32,27,53,.62));
+  color:rgba(28,23,46,.82);
   font-weight:800;
 }
 .simSourceBadge{
@@ -17631,7 +17631,9 @@ body[data-ui-tone="dark"]{
       const timerHtml=remTxt?`<span class="cfLibTimer${libExpCls(r)}" data-lib-timer="1">&#128337;&nbsp;保存期限：${remTxt}</span>`:'';
       const favHtml=libFavOf(r)?`<span class="cfLibFavBadge">★ お気に入り</span>`:'';
       const _rt=libRatingOf(r);
-      const rateHtml=_rt==='good'?`<span class="cfLibRateBadge good">👍 高評価</span>`:_rt==='bad'?`<span class="cfLibRateBadge bad">👎 要改善</span>`:'';
+      const _svgUp=`<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true" style="vertical-align:-2px"><path d="M1 21h4V9H1v12zM23 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1z"/></svg>`;
+      const _svgDown=`<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true" style="vertical-align:-2px"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v1c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>`;
+      const rateHtml=_rt==='good'?`<span class="cfLibRateBadge good">${_svgUp} 高評価</span>`:_rt==='bad'?`<span class="cfLibRateBadge bad">${_svgDown} 要改善</span>`:'';
       const at=libAssetType(r);
       const meta=`${esc(at)}<br>${esc(r.createdAt||'')}<span class="${isVideo(r)?'libraryVideoBadge':isSimulation(r)?'libraryImageBadge':'libraryVideoBadge'}">${esc(at)}</span><span class="libraryDocStatus">${isVideo(r)?'Openで動画を表示します':isSimulation(r)?'OpenでReference Imageを表示します':'Openでプロジェクトを復元します'}</span>`;
       return `<article class="libraryCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div><div class="libraryTitle" data-id="${esc(r.id)}">${esc(libStudioLabel(r))}</div>${favHtml}${rateHtml}${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
@@ -18219,7 +18221,7 @@ body[data-ui-tone="dark"]{
 }
 #simulator .simV95SectionLabel{
   margin:16px 0 8px;
-  color:var(--cfUiSub,rgba(32,27,53,.62));
+  color:color-mix(in srgb, var(--c1) 42%, #1a1530);
   font-size:11px;
   font-weight:950;
   letter-spacing:.04em;
@@ -22919,7 +22921,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var recs=libRecords().filter(isImage);
     if(!recs.length){ bar.innerHTML=''; selectMode=false; return; }
     if(!selectMode){
-      bar.innerHTML='<button class="cfLibToolBtn" onclick="cfLibStartSelect()">📷 カメラロールに保存（複数選択）</button>';
+      bar.innerHTML='<button class="cfLibToolBtn" onclick="cfLibStartSelect()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="vertical-align:-3px;margin-right:5px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg>カメラロールに保存（複数選択）</button>';
     } else {
       var n=Object.keys(selected).filter(function(k){return selected[k];}).length;
       bar.innerHTML='<button class="cfLibToolBtn primary"'+(n===0?' disabled':'')+' onclick="cfLibSaveSelected()">選択した '+n+' 枚を保存</button>'+
@@ -25590,7 +25592,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
             '<button class="cfAlBtn" data-view="beforeafter">B/A</button>'+
             '<button class="cfAlBtn" data-view="side">Side</button>'+
           '</div>'+
-          '<div class="cfAlRow2"><button class="cfAlBtn pri big" id="cfAlAutoCur">⚡ Auto Align</button><button class="cfAlBtn" id="cfAlReset">Reset</button></div>'+
+          '<div class="cfAlRow2"><button class="cfAlBtn pri big" id="cfAlAutoCur"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M13 2 3 14h7l-1 8 11-13h-8z"/></svg>Auto Align</button><button class="cfAlBtn" id="cfAlReset">Reset</button></div>'+
           '<div class="cfAlStatus" id="cfAlignDetState"></div>'+
         '</div>'+
         '<div class="cfAlSheetMore" id="cfAlSheetMore">'+
@@ -25633,7 +25635,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
           '</div>'+
           '<div class="cfAlGroup">'+
             '<button class="cfAlBtn" id="cfAlSlideshow">▷ スライドショー確認（Layer Check）</button>'+
-            '<div class="cfAlNote" id="cfAlFlowNote">基準画像に合わせて他の画像の位置を整えます。まず ⚡Auto Align を試し、必要に応じて Move / Scale / Rotate で微調整 → Next で Preview へ。</div>'+
+            '<div class="cfAlNote" id="cfAlFlowNote">基準画像に合わせて他の画像の位置を整えます。まず Auto Align を試し、必要に応じて Move / Scale / Rotate で微調整 → Next で Preview へ。</div>'+
           '</div>'+
         '</div>'+
       '</div>';
@@ -29694,7 +29696,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   color:#201b35;font-size:12.5px;font-weight:800;-webkit-appearance:none;appearance:none;
 }
 .cfTtCtxSel select:focus-visible{outline:2px solid color-mix(in srgb, var(--c1) 70%, #201b35);outline-offset:2px}
-.cfTtCtxHint{margin:0 2px 8px;font-size:10px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
+.cfTtCtxHint{margin:0 2px 8px;font-size:10px;line-height:1.65;font-weight:700;color:rgba(28,23,46,.74)}
 
 /* ---- reduced motion ---- */
 @media (prefers-reduced-motion: reduce){
@@ -30603,6 +30605,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   font-size:15px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:6px;line-height:1;
 }
 .cfFbeIcon span{font-size:11.5px;font-weight:900}
+.cfFbeSvg{width:20px;height:20px;fill:currentColor;display:inline-block;vertical-align:middle}
+.cfFbeBtn .cfFbeSvg{width:16px;height:16px}
 .cfFbeIcon[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 20%, rgba(255,255,255,.92));border-color:color-mix(in srgb,var(--c1) 55%,transparent);color:color-mix(in srgb,var(--c1) 78%,#201b35)}
 .cfFbeIcon.cfFbeFav[aria-pressed="true"]{color:#c98600;border-color:rgba(224,168,51,.6);background:#fff6e0}
 .cfFbeIcon:active{transform:scale(.96)}
@@ -30680,6 +30684,9 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
    with a local + usage_events fallback so the dentist is never blocked. */
 (function(){
   'use strict';
+  // Vector (SVG) icons — CASEFLOW keeps a restrained, non-emoji visual language.
+  var SVG_UP='<svg class="cfFbeSvg" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h4V9H1v12zM23 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1z"/></svg>';
+  var SVG_DOWN='<svg class="cfFbeSvg" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v1c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>';
   // Clinical reason taxonomy (id, ja, en) — matches the /api/feedback/submit allowlist.
   var GOOD_TAGS=[
     ['natural','自然','Natural'],
@@ -30733,8 +30740,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 
   function bodyHTML(){
     return '<div class="cfFbeRate">'
-      +'<button type="button" class="cfFbeBtn" data-fb="good">👍 良い / Good</button>'
-      +'<button type="button" class="cfFbeBtn" data-fb="bad">👎 改善が必要 / Bad</button>'
+      +'<button type="button" class="cfFbeBtn" data-fb="good">'+SVG_UP+' 良い / Good</button>'
+      +'<button type="button" class="cfFbeBtn" data-fb="bad">'+SVG_DOWN+' 改善が必要 / Bad</button>'
       +'</div>'
       +'<div class="cfFbeDetail" hidden>'
       +'<p class="cfFbeReasonsHead">該当する項目を選択（任意） / Select what applies (optional)</p>'
@@ -30911,8 +30918,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(!curRec){ host.innerHTML=''; return; }
     var r=currentRating(), fav=currentFav();
     host.innerHTML='<div class="cfFbeBar" role="group" aria-label="評価・共有 / Rate & share">'
-      +'<button type="button" class="cfFbeIcon cfFbeLike" data-a="good" aria-pressed="'+(r==='good'?'true':'false')+'" aria-label="良い / Good">👍</button>'
-      +'<button type="button" class="cfFbeIcon cfFbeDislike" data-a="bad" aria-pressed="'+(r==='bad'?'true':'false')+'" aria-label="改善が必要 / Bad">👎</button>'
+      +'<button type="button" class="cfFbeIcon cfFbeLike" data-a="good" aria-pressed="'+(r==='good'?'true':'false')+'" aria-label="良い / Good">'+SVG_UP+'</button>'
+      +'<button type="button" class="cfFbeIcon cfFbeDislike" data-a="bad" aria-pressed="'+(r==='bad'?'true':'false')+'" aria-label="改善が必要 / Bad">'+SVG_DOWN+'</button>'
       +'<button type="button" class="cfFbeIcon" data-a="share" aria-label="共有 / Share">↗<span>共有</span></button>'
       +'<button type="button" class="cfFbeIcon cfFbeFav" data-a="fav" aria-pressed="'+(fav?'true':'false')+'" aria-label="お気に入り / Save">✦<span>保存</span></button>'
       +'</div>';
