@@ -17565,6 +17565,7 @@ body[data-ui-tone="dark"]{
 
   // Display helpers shared by the list + favourites pick-up row.
   function libFavOf(r){ return !!(r && ((r.payload && r.payload.simResult && r.payload.simResult.fav) || r.fav)); }
+  function libRatingOf(r){ try{ return (r && r.payload && r.payload.simResult && r.payload.simResult.settings && r.payload.simResult.settings.feedback && r.payload.simResult.settings.feedback.rating)||null; }catch(e){ return null; } }
   function libStudioLabel(r){ return isVideo(r) ? 'Landmark Morph Video' : isSimulation(r) ? 'Visual Simulation' : 'Project'; }
   function libAssetType(r){ return isVideo(r) ? 'video' : isSimulation(r) ? (r.kind==='simulation-image' ? 'image' : 'reference') : 'project'; }
   function libExpAt(r){ return (typeof window.cfLibExpiresAt==='function') ? window.cfLibExpiresAt(r) : 0; }
@@ -17629,9 +17630,11 @@ body[data-ui-tone="dark"]{
       const remTxt=exp?libRem(r):'';
       const timerHtml=remTxt?`<span class="cfLibTimer${libExpCls(r)}" data-lib-timer="1">&#128337;&nbsp;保存期限：${remTxt}</span>`:'';
       const favHtml=libFavOf(r)?`<span class="cfLibFavBadge">★ お気に入り</span>`:'';
+      const _rt=libRatingOf(r);
+      const rateHtml=_rt==='good'?`<span class="cfLibRateBadge good">👍 高評価</span>`:_rt==='bad'?`<span class="cfLibRateBadge bad">👎 要改善</span>`:'';
       const at=libAssetType(r);
       const meta=`${esc(at)}<br>${esc(r.createdAt||'')}<span class="${isVideo(r)?'libraryVideoBadge':isSimulation(r)?'libraryImageBadge':'libraryVideoBadge'}">${esc(at)}</span><span class="libraryDocStatus">${isVideo(r)?'Openで動画を表示します':isSimulation(r)?'OpenでReference Imageを表示します':'Openでプロジェクトを復元します'}</span>`;
-      return `<article class="libraryCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div><div class="libraryTitle" data-id="${esc(r.id)}">${esc(libStudioLabel(r))}</div>${favHtml}${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
+      return `<article class="libraryCard" data-id="${esc(r.id)}">${libMediaTag(r)}<div><div class="libraryTitle" data-id="${esc(r.id)}">${esc(libStudioLabel(r))}</div>${favHtml}${rateHtml}${timerHtml}<div class="libraryMeta">${meta}</div><div class="libraryBtns"><button type="button" data-lib-open="${esc(r.id)}">Open</button><button type="button" onclick="shareLibraryProject('${esc(r.id)}')">Share</button><button type="button" class="danger" onclick="deleteLibraryProject('${esc(r.id)}')">Delete</button></div></div></article>`;
     }).join('');
 
     root.innerHTML=html;
@@ -18591,9 +18594,13 @@ body[data-ui-tone="dark"]{
     // Orthodontic concept => default baseline now sits in the IDEAL-finish band
     // (≈85) for a clearly dynamic correction out of the box; the slider can still
     // push to a fully resolved 100, or be eased back for a subtler result.
-    if(concept==='ortho'){      s.alignment=Math.max(s.alignment,85); s.smileFrame=Math.max(s.smileFrame,38); }
-    if(concept==='prosthetic'){ s.shade=Math.max(s.shade,54); }
-    if(concept==='hybrid'){     s.alignment=Math.max(s.alignment,80); s.shade=Math.max(s.shade,54); }
+    // Concept-characteristic defaults:
+    //  ortho    → tooth-AXIS correction (歯軸改善): strong alignment, crown forms untouched.
+    //  prosthetic → crown-FORM asymmetry correction: little/no tooth movement, form + shade.
+    //  hybrid   → NEAR-IDEAL finished case in one pass: strong alignment AND form.
+    if(concept==='ortho'){      s.alignment=Math.max(s.alignment,85); s.smileFrame=Math.max(s.smileFrame,38); s.toothShape=50; }
+    if(concept==='prosthetic'){ s.shade=Math.max(s.shade,54); s.alignment=Math.min(s.alignment,28); s.scallop=Math.max(s.scallop,40); }
+    if(concept==='hybrid'){     s.alignment=Math.max(s.alignment,88); s.shade=Math.max(s.shade,56); s.smileFrame=Math.max(s.smileFrame,45); }
     Object.keys(s).forEach(k=>s[k]=clamp(s[k],0,100));
     return s;
   }
@@ -18988,7 +18995,11 @@ body[data-ui-tone="dark"]{
 
   function buildClinicalPrompt(){
     const v=state.simV82||{}, concept=v.concept||'ortho', s=state.simV96||{};
-    const conceptMap={ortho:'orthodontic alignment only (no veneers or crowns)',prosthetic:'prosthetic restoration with veneers/crowns',hybrid:'combined orthodontic and prosthetic treatment'};
+    const conceptMap={
+      ortho:'orthodontic alignment ONLY (no veneers or crowns) — the basic treatment: correct tooth AXIS / inclination (歯軸改善), de-rotate, upright and level the patient\'s OWN teeth into a well-aligned arch. Do NOT reshape individual crown outlines or add restorations; the crown forms stay the patient\'s own',
+      prosthetic:'prosthetic restoration (veneers / crowns) WITHOUT orthodontic movement — the goal is to correct crown-FORM ASYMMETRY (歯冠形態の非対称性): make the left/right crown shapes, widths, heights, incisal edges, contacts and shade symmetric and ideally proportioned tooth-by-tooth at the existing tooth positions. Keep tooth POSITIONS/axes essentially as-is',
+      hybrid:'combined orthodontic + prosthetic treatment delivered to a NEAR-IDEAL, finished level in a SINGLE pass: FULLY align the arch (axis/rotation/leveling) AND reshape the crown forms to ideal symmetric proportions, so this first result already reads as a completed, harmonious case with little left to refine'
+    };
     const srcP = state._simSource||pickSource();
     const kind=(typeof sourceKind==='function') ? sourceKind(srcP) : 'Image';
     const isFacial = (kind==='Facial');
@@ -19112,10 +19123,10 @@ body[data-ui-tone="dark"]{
         +'(D) NOSE — nasal tip, alar width, nasal bridge and naso-labial fold: UNCHANGED. '
         +'(E) LIP SHAPE AND THICKNESS — upper and lower lip vermilion border, lip thickness, lip-to-teeth display: UNCHANGED; do NOT thin, thicken or beautify the lips. '
         +'(F) EYES, SKIN, HAIR, EXPRESSION, LIGHTING, FRAMING: all UNCHANGED. '
-        +'(G) OVERALL FACE WIDTH & SHAPE (CRITICAL) — the total face width, cheek width, bizygomatic (cheekbone) width and the width-to-height ASPECT RATIO of the whole face and head must remain IDENTICAL to the input; the head outline must overlay the original exactly. A VERY COMMON FAILURE is the after image showing a horizontally WIDER, broader, rounder or stretched face than the before — this is INCORRECT. Do NOT widen, broaden, fatten, stretch or enlarge the face, cheeks or head in any direction, and do NOT change the head size or zoom. '
+        +'(G) OVERALL FACE WIDTH, SHAPE & VOLUME (CRITICAL) — the total face width, cheek width, bizygomatic (cheekbone) width, facial VOLUME/fullness and the width-to-height ASPECT RATIO of the whole face and head must remain IDENTICAL to the input; the head outline must overlay the original exactly. A VERY COMMON FAILURE is the after image showing a horizontally WIDER, broader, rounder, PUFFIER / more SWOLLEN (浮腫んだ) or stretched face than the before, or the face gaining fullness/weight over repeated generations — this is INCORRECT. Do NOT widen, broaden, fatten, puff up, swell, add fullness/volume/weight, stretch or enlarge the face, cheeks or head in any direction, and do NOT change the head size or zoom. Preserve the exact cheek and jaw slimness of the original. '
         +'Change ONLY the TEETH visible inside the open mouth aperture. Do NOT beautify, slim, smooth, or reconstruct any facial structure outside the teeth. '
-        +'Violating any point above (especially changing the commissure direction, the patient age, the chin outline, or widening the overall face) is an INCORRECT result. '
-        +'Negative (enforce hard): wider face, broadened face, widened cheeks, enlarged head, stretched face, rounder face, changed face proportions.'
+        +'Violating any point above (especially changing the commissure direction, the patient age, the chin outline, or widening / puffing up the overall face) is an INCORRECT result. '
+        +'Negative (enforce hard): wider face, broadened face, widened cheeks, puffy face, swollen face, edematous face, fuller cheeks, weight gain, bloated face, enlarged head, stretched face, rounder face, changed face proportions.'
       );
       parts.push('FACIAL-TYPE CROWN HARMONY (facial upload — skeletal facial-profile reference): harmonise the upper anterior crown FORM and LENGTH with the patient\'s facial type. Short/broad faces (短頭型 brachyfacial, deep-bite tendency) carry comparatively SHORTER, broader crowns — do NOT over-lengthen the centrals; balanced faces (中顔型 mesofacial) carry average-length ovoid crowns; long faces (長顔型 dolichofacial, open-bite tendency) carry LONGER, slender crowns. Keep the crowns clinically plausible for THIS face and never resort to identical template teeth.');
     }
@@ -20118,7 +20129,10 @@ body[data-ui-tone="dark"]{
     // does not read as "補正が弱い". Bracket-removal and extraction facial keep their higher
     // strengths (they legitimately need broader change and are handled above / below).
     if(isFacialSrc && !isExtraction && !hasBracketsFlag){
-      denoising_strength=Math.min(denoising_strength, isHybrid?0.60:0.55);
+      // Hybrid legitimately changes more (near-ideal in one pass) so it gets a slightly higher
+      // cap; ortho/prosthetic stay tighter for identity. Strong anti-drift negatives + the
+      // FACE IDENTITY LOCK keep the face the patient's own at any of these strengths.
+      denoising_strength=Math.min(denoising_strength, isHybrid?0.66:0.55);
     }
     const payload={
       image:source.dataUrl,
@@ -20145,6 +20159,7 @@ body[data-ui-tone="dark"]{
           + 'different face, different person, age change, older appearance, younger appearance, adult face for child patient, '
           + 'altered jaw, different chin shape, changed facial contour, reshaped nose, different ethnic features, '
           + 'changed commissure angle, upturned corners, lifted mouth corners, changed lower face, facial reconstruction, '
+          + 'puffy face, swollen face, edematous face, bloated face, fuller cheeks, wider face, weight gain, rounder face, '
           + 'beautified skin, slimmed face, different facial proportions, changed expression'
         : 'braces, brackets, wires, archwires, metallic dental appliances, orthodontic attachments, bracket slots, metal clips, ligatures, bonded attachments';
     } else {
@@ -22867,6 +22882,9 @@ body.cfPresent .cfPresentExit{display:flex!important}
 #library .libraryCard.cfLibSelMode .libraryTitleEdit{pointer-events:none;opacity:.5}
 /* Favourite body badge */
 #library .cfLibFavBadge{display:inline-flex;align-items:center;gap:3px;margin:2px 0 0;font-size:10.5px;font-weight:900;color:#7a5a00;background:rgba(255,206,0,.22);border-radius:8px;padding:3px 8px;letter-spacing:.01em}
+#library .cfLibRateBadge{display:inline-flex;align-items:center;gap:3px;margin:2px 0 0 5px;font-size:10.5px;font-weight:900;border-radius:8px;padding:3px 8px;letter-spacing:.01em}
+#library .cfLibRateBadge.good{color:#1f7a55;background:rgba(31,157,107,.16)}
+#library .cfLibRateBadge.bad{color:#b23a46;background:rgba(192,48,58,.14)}
 /* Favourites pick-up row */
 #library .cfLibPick{margin:2px 0 14px;padding:11px 0 4px;border-top:1px solid rgba(32,27,53,.08);border-bottom:1px solid rgba(32,27,53,.08)}
 #library .cfLibPickHead{font-size:11.5px;font-weight:900;letter-spacing:.04em;color:rgba(32,27,53,.6);margin:0 0 9px;padding:0 2px}
@@ -30577,21 +30595,18 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 <style id="cf-p1-feedback-style">
 /* CaseFlow Feedback Engine™ — inline Good/Bad bar under the preview + Bad-detail modal.
    Unique cfFbe* prefix (avoids the existing .cfFb* support-form modal styles). */
-.cfFbeInline{
-  margin-top:12px;padding:12px 14px;border-radius:16px;
-  background:color-mix(in srgb, var(--c1) 7%, rgba(255,255,255,.55));
-  border:1px solid color-mix(in srgb, var(--c1) 16%, rgba(32,27,53,.10));
+/* YouTube-style always-visible action row: like / dislike / share / favourite. */
+.cfFbeBar{display:flex;align-items:center;gap:7px;margin-top:12px;flex-wrap:wrap}
+.cfFbeIcon{
+  min-height:42px;padding:0 15px;border:1px solid color-mix(in srgb, var(--c1) 18%, rgba(32,27,53,.13));
+  border-radius:999px;background:rgba(255,255,255,.62);color:var(--cfUiText,#201b35);
+  font-size:15px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:6px;line-height:1;
 }
-.cfFbeInlineQ{font-size:11.5px;font-weight:900;color:var(--cfUiText,#201b35);margin:0 0 8px}
-.cfFbeInlineBtns{display:flex;gap:8px;flex-wrap:wrap}
-.cfFbeInlineBtn{
-  flex:1 1 0;min-width:120px;min-height:44px;border:0;border-radius:13px;font-size:13px;font-weight:950;color:#fff;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-}
-.cfFbeInlineBtn[data-fb="good"]{background:linear-gradient(150deg,#1f9d6b,color-mix(in srgb,var(--c1) 55%,#1f9d6b))}
-.cfFbeInlineBtn[data-fb="bad"]{background:linear-gradient(150deg,color-mix(in srgb,var(--c1) 55%,#5a3fd0),color-mix(in srgb,var(--c2) 60%,#7040c0))}
-.cfFbeInlineBtn:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
-.cfFbeInlineThanks{font-size:12px;font-weight:900;color:#1f8a5e;padding:4px 2px}
+.cfFbeIcon span{font-size:11.5px;font-weight:900}
+.cfFbeIcon[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 20%, rgba(255,255,255,.92));border-color:color-mix(in srgb,var(--c1) 55%,transparent);color:color-mix(in srgb,var(--c1) 78%,#201b35)}
+.cfFbeIcon.cfFbeFav[aria-pressed="true"]{color:#c98600;border-color:rgba(224,168,51,.6);background:#fff6e0}
+.cfFbeIcon:active{transform:scale(.96)}
+.cfFbeIcon:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
 
 /* Bad-detail modal (centered over a backdrop) */
 .cfFbeModal{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(12,10,22,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -30638,8 +30653,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   color:#fff;font-size:11.5px;font-weight:600;padding:8px 10px;font-family:inherit;
 }
 .cfFbeComment::placeholder{color:rgba(255,255,255,.4)}
-.cfFbeConsent{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.6);line-height:1.5;cursor:pointer}
-.cfFbeConsent input{margin-top:1px;width:16px;height:16px;flex:0 0 auto;accent-color:var(--c1)}
+.cfFbeConsent{display:flex;align-items:center;gap:11px;margin-top:12px;font-size:11px;font-weight:700;color:rgba(255,255,255,.72);line-height:1.5;cursor:pointer}
+.cfFbeConsent input{margin:0;width:26px;height:26px;flex:0 0 auto;accent-color:var(--c1);cursor:pointer}
 .cfFbeActions{display:flex;justify-content:flex-end;margin-top:11px}
 .cfFbeSubmit{
   min-height:44px;padding:0 20px;border:0;border-radius:14px;font-size:12.5px;font-weight:950;color:#fff;cursor:pointer;
@@ -30852,41 +30867,81 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     return true;
   }
 
-  function inlineThanks(){
-    var host=document.getElementById('cfFbeInlineHost');
-    if(host) host.innerHTML='<div class="cfFbeInline"><div class="cfFbeInlineThanks">ありがとうございます — フィードバックを記録しました ✦</div></div>';
-  }
-
   async function submitFromModal(){
     if(!rating || submitting) return;
     var comment=(card.querySelector('.cfFbeComment')||{}).value||'';
     var consent=!!(card.querySelector('.cfFbeConsentBox')||{}).checked;
     var btn=card.querySelector('.cfFbeSubmit'); if(btn) btn.disabled=true;
     await doSubmit(comment, consent);
+    reflectToLibrary();
     var body=card.querySelector('.cfFbeBody');
     if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
-    inlineThanks();
+    renderBar();
     setTimeout(closeModal, 1400);
   }
 
-  // ── Inline Good/Bad bar under the result preview ─────────────────────────────
-  // Good = quick positive record; Bad = open the reason-tags / comment popup.
+  // ── YouTube-style action row (like / dislike / share / favourite) ────────────
+  // Always visible under the preview; the rating is re-selectable at any time.
+  function currentRating(){ try{ return (curRec && curRec.settings && curRec.settings.feedback && curRec.settings.feedback.rating)||null; }catch(e){ return null; } }
+  function currentFav(){ try{ return !!(curRec && curRec.fav); }catch(e){ return false; } }
+
+  function reflectToLibrary(){
+    // Upsert the 48h Library record (by __autoId) so rating + favourite show in Library too.
+    try{ if(typeof window.cfAutoSaveTempSim==='function' && window.state && state.simResult===curRec) window.cfAutoSaveTempSim(curRec); }catch(e){}
+    try{ if(typeof window.renderLibrary==='function') window.renderLibrary(); }catch(e){}
+    try{ if(window.cfPersist && cfPersist.schedule) cfPersist.schedule(500); }catch(e){}
+  }
+
+  async function shareResult(){
+    var url=curRec && curRec.dataUrl;
+    if(!url){ if(typeof toast==='function') toast('共有できる画像がありません'); return; }
+    try{
+      if(navigator.share && navigator.canShare){
+        var blob=await (await fetch(url)).blob();
+        var file=new File([blob], 'caseflow-simulation.jpg', { type: blob.type||'image/jpeg' });
+        if(navigator.canShare({ files:[file] })){ await navigator.share({ files:[file], title:'CASEFLOW STUDIO' }); return; }
+      }
+      if(navigator.share){ await navigator.share({ title:'CASEFLOW STUDIO', text:'Simulation / Reference Image' }); return; }
+    }catch(e){ if(String(e&&e.name)==='AbortError') return; }
+    try{ var a=document.createElement('a'); a.href=url; a.download='caseflow-simulation.jpg'; document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
+  }
+
+  function renderBar(){
+    var host=document.getElementById('cfFbeInlineHost'); if(!host) return;
+    if(!curRec){ host.innerHTML=''; return; }
+    var r=currentRating(), fav=currentFav();
+    host.innerHTML='<div class="cfFbeBar" role="group" aria-label="評価・共有 / Rate & share">'
+      +'<button type="button" class="cfFbeIcon cfFbeLike" data-a="good" aria-pressed="'+(r==='good'?'true':'false')+'" aria-label="良い / Good">👍</button>'
+      +'<button type="button" class="cfFbeIcon cfFbeDislike" data-a="bad" aria-pressed="'+(r==='bad'?'true':'false')+'" aria-label="改善が必要 / Bad">👎</button>'
+      +'<button type="button" class="cfFbeIcon" data-a="share" aria-label="共有 / Share">↗<span>共有</span></button>'
+      +'<button type="button" class="cfFbeIcon cfFbeFav" data-a="fav" aria-pressed="'+(fav?'true':'false')+'" aria-label="お気に入り / Save">✦<span>保存</span></button>'
+      +'</div>';
+    host.querySelector('[data-a="good"]').addEventListener('click', onGood);
+    host.querySelector('[data-a="bad"]').addEventListener('click', function(){ openModal('bad'); });
+    host.querySelector('[data-a="share"]').addEventListener('click', shareResult);
+    host.querySelector('[data-a="fav"]').addEventListener('click', onFav);
+  }
+  async function onGood(){
+    var was=currentRating();
+    rating = (was==='good') ? null : 'good';   // re-ratable toggle
+    reasons={};
+    if(rating){ await doSubmit('', false); }
+    else { try{ if(curRec && curRec.settings && curRec.settings.feedback) curRec.settings.feedback.rating=null; }catch(e){} }
+    reflectToLibrary();
+    renderBar();
+    if(typeof toast==='function' && rating==='good') toast('高評価を記録しました ✦');
+  }
+  function onFav(){
+    try{ if(curRec) curRec.fav=!curRec.fav; }catch(e){}
+    reflectToLibrary();
+    renderBar();
+    if(typeof toast==='function') toast(currentFav()?'お気に入りに追加しました':'お気に入りを解除しました');
+  }
+
   window.cfMountFeedbackInline=function(rec, opts){
-    var host=document.getElementById('cfFbeInlineHost');
-    if(!host) return;
+    var host=document.getElementById('cfFbeInlineHost'); if(!host) return;
     curRec=rec||null; curOpts=opts||{ studio_module:'visual_simulation', artifact_type:'image' };
-    host.innerHTML='<div class="cfFbeInline">'
-      +'<p class="cfFbeInlineQ">✦ CaseFlow Feedback Engine™ — この結果は有用でしたか？ / Was this result useful?</p>'
-      +'<div class="cfFbeInlineBtns">'
-      +'<button type="button" class="cfFbeInlineBtn" data-fb="good">👍 良い / Good</button>'
-      +'<button type="button" class="cfFbeInlineBtn" data-fb="bad">👎 改善が必要 / Bad</button>'
-      +'</div></div>';
-    host.querySelector('[data-fb="good"]').addEventListener('click', async function(){
-      rating='good'; reasons={};
-      await doSubmit('', false);
-      inlineThanks();
-    });
-    host.querySelector('[data-fb="bad"]').addEventListener('click', function(){ openModal('bad'); });
+    renderBar();
   };
 
   // Modal entry point (used by the morph export path, which has no inline host).
@@ -30917,6 +30972,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfCsAll{margin-top:8px;width:100%;min-height:38px;border:0;border-radius:11px;cursor:pointer;font-size:11px;font-weight:900;color:#fff;
   background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 78%, #fff), color-mix(in srgb, var(--c2) 55%, var(--c1)))}
 .cfCsAll:disabled{opacity:.5;cursor:default}
+/* Plan badge overlaid on the preview — which treatment plan generated this image. */
+#cfPlanBadge{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;
+  padding:5px 12px;border-radius:999px;font-size:11px;font-weight:950;letter-spacing:.02em;color:#fff;pointer-events:none;
+  background:linear-gradient(135deg, color-mix(in srgb, var(--c1) 82%, #000), color-mix(in srgb, var(--c2) 60%, var(--c1)));
+  box-shadow:0 4px 14px rgba(10,8,24,.4), inset 0 1px 0 rgba(255,255,255,.18);white-space:nowrap}
 </style>
 <script id="cf-p1-concept-switch">
 /* Result-page treatment-concept switcher. Caches each concept's result so the clinician
@@ -30952,13 +31012,26 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     });
     var allBtn=host.querySelector('#cfCsAllBtn');
     if(allBtn) allBtn.addEventListener('click', generateAll);
+    renderPlanBadge();
   }
+
+  function conceptLabel(c){ var x=CONCEPTS.filter(function(e){return e[0]===c;})[0]; return x?(x[2]+' / '+x[1]):c; }
+  function renderPlanBadge(){
+    var slider=document.getElementById('simulationCompareSlider'); if(!slider) return;
+    var badge=document.getElementById('cfPlanBadge');
+    var hasResult=!!(window.state && state.simResult && state.simResult.dataUrl);
+    if(!hasResult){ if(badge) badge.remove(); return; }
+    if(!badge){ badge=document.createElement('div'); badge.id='cfPlanBadge'; slider.appendChild(badge); }
+    var c=(state.simResult && state.simResult.__concept) || curConcept();
+    badge.textContent='治療プラン: '+conceptLabel(c);
+  }
+  window.cfRenderPlanBadge=renderPlanBadge;
 
   function restore(c){
     var cc=cache(), e=cc[c];
     if(!e || !e.dataUrl) return false;
     state.simV82.concept=c;
-    state.simResult={ dataUrl:e.dataUrl, source:e.source, sourceKind:e.sourceKind, createdAt:e.createdAt, settings:e.settings, _primaryDataUrl:e._primaryDataUrl };
+    state.simResult={ dataUrl:e.dataUrl, source:e.source, sourceKind:e.sourceKind, createdAt:e.createdAt, settings:e.settings, _primaryDataUrl:e._primaryDataUrl, __concept:c };
     if(e.simV96) state.simV96=Object.assign({}, e.simV96);
     var before=document.getElementById('resultBefore'), after=document.getElementById('resultAfter');
     if(before && e.source) before.src=e.source;
