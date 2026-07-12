@@ -25899,6 +25899,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfAdmMini{padding:7px 10px;border-radius:9px;border:1.5px solid rgba(124,92,255,.3);background:#fff;font-size:12px;color:#231a3a}',
     '.cfAdmBtnS{padding:7px 12px;border:0;border-radius:9px;background:#5b3fd6;color:#fff;font-weight:800;font-size:12px;cursor:pointer}',
     '.cfAdmSection{margin:14px 0 6px;font-weight:900;font-size:13px;color:#5b3fd6}',
+    /* CaseFlow Feedback Engine™ admin panel */
+    '.cfFeOverview{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px}',
+    '.cfFeStat{border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:8px 10px;background:rgba(124,92,255,.04)}',
+    '.cfFeStat b{display:block;font-size:17px;font-weight:950;color:#231a3a;line-height:1.1}',
+    '.cfFeStat span{font-size:9.5px;font-weight:800;color:#7a7290;letter-spacing:.02em}',
+    '.cfFeStat.good b{color:#1f9d6b}.cfFeStat.bad b{color:#c0303a}',
+    '.cfFeWide{grid-column:1 / -1;font-size:11px;font-weight:700;color:#5a5270;line-height:1.5}',
+    '.cfFeWide em{font-style:normal;font-weight:900;color:#c0303a}',
+    '.cfFeEmpty{border:1px dashed rgba(124,92,255,.28);border-radius:14px;padding:18px 14px;text-align:center;color:#7a7290;font-size:12px;line-height:1.7}',
+    '.cfFeFilters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}',
+    '.cfFeStream{font-size:12px;color:#7a7290}',
+    '.cfFeRow{border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:9px 11px;margin-bottom:8px}',
+    '.cfFeRowTop{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:4px}',
+    '.cfFePill{font-size:9.5px;font-weight:900;padding:2px 8px;border-radius:999px;letter-spacing:.03em}',
+    '.cfFePill.good{background:rgba(31,157,107,.14);color:#1f8a5e}.cfFePill.bad{background:rgba(192,48,58,.13);color:#c0303a}',
+    '.cfFeWhen{font-size:10px;color:#9a92ac;margin-left:auto}',
+    '.cfFeTags{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0}',
+    '.cfFeTag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:8px;background:rgba(124,92,255,.09);color:#5b3fd6}',
+    '.cfFeComment{font-size:11.5px;color:#3a3350;margin-top:3px;line-height:1.5;word-break:break-word}',
+    '.cfFeMeta{font-size:9.5px;color:#9a92ac;margin-top:4px;word-break:break-all}',
     /* account icon + menu */
     '#cfAcctBtn{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:2147482500;display:none;width:40px;height:40px;border:0;border-radius:999px;cursor:pointer;',
     ' background:rgba(255,255,255,.90);color:#5b3fd6;font-weight:900;font-size:15px;box-shadow:0 5px 16px rgba(40,20,80,.22);backdrop-filter:blur(8px)}',
@@ -26110,6 +26130,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '<div class="cfFbCard">'+
       '<p class="cfFbTitle">Feedback Inbox / 管理者受信箱</p>'+
       '<a href="/admin" target="_blank" rel="noopener" class="cfG2BtnGhost" style="display:block;text-decoration:none;text-align:center;box-sizing:border-box;margin:0 0 12px">Admin Operations を開く / Open Admin Dashboard</a>'+
+      '<div class="cfAdmSection">CaseFlow Feedback Engine™ / Clinical Curation Loop</div>'+
+      '<div id="cfFeOverview" class="cfFeOverview">読み込み中…</div>'+
+      '<div class="cfFeFilters">'+
+        '<select id="cfFeRating" class="cfAdmMini"><option value="">評価: すべて</option><option value="good">Good</option><option value="bad">Bad</option></select>'+
+        '<select id="cfFeModule" class="cfAdmMini"><option value="">モジュール: すべて</option><option value="visual_simulation">Visual Simulation</option><option value="morphing_video">Morphing</option></select>'+
+        '<button type="button" class="cfAdmBtnS" id="cfFeRefresh">更新</button>'+
+      '</div>'+
+      '<div id="cfFeStream" class="cfFeStream">—</div>'+
+      '<div class="cfAdmSection">Feedback Inbox / 管理者受信箱</div>'+
       '<div id="cfAdmList" style="min-height:40px;font-size:12.5px;color:#7a7290">読み込み中…</div>'+
       '<div class="cfAdmSection">招待コード発行 / Create invite code</div>'+
       '<input class="cfFbSelect" id="cfAdmInvEmail" type="email" placeholder="招待先メール（任意）">'+
@@ -27504,7 +27533,68 @@ body.cfPresent .cfPresentExit{display:flex!important}
           });
         }
       }catch(e){ console.error('[CF Admin] codes exception',e); codes.textContent='—'; }
+      loadFeedbackEngine();
     }
+
+    /* ---- CaseFlow Feedback Engine™ — Overview + Review Stream (admin) ---- */
+    var FE_REASON_LABELS={
+      natural:'自然', believable_beauty:'美しいが自然', clinically_convincing:'臨床的に納得',
+      good_smile_design:'スマイル設計良', teeth_type_worked:'歯冠形態が合う', face_preserved:'顔貌保持',
+      patient_friendly:'患者説明向き', smooth_morphing:'モーフ滑らか', matches_intention:'意図に一致',
+      too_artificial:'人工的すぎる', not_clinically_plausible:'臨床的に不自然', tooth_shape_off:'歯冠形態が不自然',
+      wrong_teeth_type:'形態選択が不一致', shade_off:'色調が不自然', alignment_off:'歯列が不自然',
+      incisal_line_off:'切縁ライン不自然', smile_frame_off:'スマイルフレーム不自然', gingiva_wrong:'歯肉が不自然',
+      face_identity_changed:'顔貌同一性の崩れ', lip_expression_changed:'口唇表現の変化', morph_not_smooth:'モーフ不滑',
+      warp_unusual:'ワープ不自然', flicker_ghosting:'フリッカー・残像', too_much_correction:'補正過剰',
+      too_little_correction:'補正不足', other:'その他'
+    };
+    async function loadFeedbackEngine(){
+      var ov=el('cfFeOverview'), stream=el('cfFeStream');
+      if(!ov||!stream) return;
+      try{
+        var o=await sb.rpc('admin_feedback_overview');
+        if(o.error){ ov.innerHTML='<div class="cfFeWide">概要の取得に失敗しました（migration未適用の可能性）。</div>'; }
+        else{
+          var d=o.data||{};
+          if(!Number(d.total_feedback)){
+            ov.innerHTML='<div class="cfFeEmpty">臨床フィードバックはまだ記録されていません。<br>No clinical feedback has been collected yet.</div>';
+          } else {
+            var tb=(d.top_bad_reasons&&d.top_bad_reasons[0])?((FE_REASON_LABELS[d.top_bad_reasons[0].tag]||d.top_bad_reasons[0].tag)+'（'+d.top_bad_reasons[0].cnt+'）'):'—';
+            ov.innerHTML=
+              '<div class="cfFeStat"><b>'+esc(String(d.total_feedback))+'</b><span>総フィードバック</span></div>'+
+              '<div class="cfFeStat good"><b>'+esc(String(d.good_rate))+'%</b><span>Good率（'+esc(String(d.good_count))+'）</span></div>'+
+              '<div class="cfFeStat bad"><b>'+esc(String(d.bad_rate))+'%</b><span>Bad率（'+esc(String(d.bad_count))+'）</span></div>'+
+              '<div class="cfFeWide">最多の改善理由: <em>'+esc(tb)+'</em> ・ 直近7日: '+esc(String(d.recent_feedback_count))+' 件 ・ 集約学習の同意: '+esc(String(d.aggregate_learning_opt_in_count))+' 件</div>';
+          }
+        }
+      }catch(e){ console.error('[CF FE] overview',e); ov.textContent='概要の取得に失敗しました。'; }
+      try{
+        var rating=(el('cfFeRating')||{}).value||null, mod=(el('cfFeModule')||{}).value||null;
+        var r=await sb.rpc('admin_feedback_reviews',{ p_rating:rating||null, p_module:mod||null, p_limit:40 });
+        if(r.error){ stream.textContent='レビューの取得に失敗しました。'; return; }
+        var rows=(r.data&&r.data.reviews)||[];
+        if(!rows.length){ stream.innerHTML='<div class="cfFeEmpty" style="padding:12px">該当するレビューはありません。</div>'; return; }
+        stream.innerHTML=rows.map(function(f){
+          var tags=(f.reason_tags||[]).map(function(t){ return '<span class="cfFeTag">'+esc(FE_REASON_LABELS[t]||t)+'</span>'; }).join('');
+          var tt=f.selected_teeth_type&&(f.selected_teeth_type.id||f.selected_teeth_type.en);
+          return '<div class="cfFeRow">'+
+            '<div class="cfFeRowTop">'+
+              '<span class="cfFePill '+(f.rating==='good'?'good':'bad')+'">'+(f.rating==='good'?'GOOD':'BAD')+'</span>'+
+              '<span class="cfFeTag">'+esc(f.studio_module||'')+'</span>'+
+              '<span class="cfFeTag">'+esc(f.artifact_type||'')+'</span>'+
+              (f.has_refinement?'<span class="cfFeTag">refined</span>':'')+
+              '<span class="cfFeWhen">'+esc((f.created_at||'').slice(0,16).replace('T',' '))+'</span>'+
+            '</div>'+
+            (tags?'<div class="cfFeTags">'+tags+'</div>':'')+
+            (f.comment?'<div class="cfFeComment">'+esc(f.comment)+'</div>':'')+
+            '<div class="cfFeMeta">'+esc(f.output_id_short||'')+(tt?' ・ 形態: '+esc(String(tt)):'')+'</div>'+
+          '</div>';
+        }).join('');
+      }catch(e){ console.error('[CF FE] reviews',e); stream.textContent='レビューの取得に失敗しました。'; }
+    }
+    ['cfFeRating','cfFeModule'].forEach(function(id){ var s=el(id); if(s) s.addEventListener('change',loadFeedbackEngine); });
+    (function(){ var b=el('cfFeRefresh'); if(b) b.addEventListener('click',loadFeedbackEngine); })();
+
     el('cfAdmClose').addEventListener('click',function(){ admModal.classList.remove('open'); });
     el('cfAdmInvCreate').addEventListener('click',async function(){
       var role=el('cfAdmInvRole').value, email=(el('cfAdmInvEmail').value||'').trim();

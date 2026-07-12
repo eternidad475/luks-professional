@@ -38,14 +38,18 @@ Base commit: `34217e9` on the production line.
 - Inherits the dynamic palette (`--c1/--c2`), stays above the bottom nav (`bottom: calc(86px + safe-area)`), ≥44px targets, reduced-motion fallback, × dismiss, 30s auto-hide.
 - Stamps a stable `output_id` on the result record for lineage.
 
+### 1C — Admin Feedback Engine panel (`caseflow_studio_v96.html`)
+- Added inside the existing admin modal (no nav restructure): **Overview** stat tiles (total / Good% / Bad% / top-bad reason / recent-7d / aggregate opt-in) + **Review Stream** with rating/module filters, calling `admin_feedback_overview()` and `admin_feedback_reviews()`. Intentional empty state (`臨床フィードバックはまだ記録されていません。`). Truncated `output_id`, no raw prompt in the first-level UI.
+
+## Migration status
+- **APPLIED to the production Supabase project** (`nuolihmfdjzofporhwkp`) on approval — additive only (new table + 2 RPCs); existing tables/RLS/billing untouched. Security advisor: the 2 new RPCs show the same expected `authenticated_security_definer_function_executable` WARN as every existing `admin_*` RPC (each self-gated by `is_admin()` raising `not_authorized`) — consistent, no new/unique risk. New table has RLS enabled with policies.
+
 ## Deviations
 - **API vs client insert:** followed the spec's serverless endpoint (server-side validation) rather than the app's usual client-side RLS insert.
-- **Admin dashboard (1C)** — Overview + Review Stream UI — is **not yet wired** in this commit; the RPCs it will call are already shipped in the migration. Next increment.
 
-## Remaining before production (per spec)
-- Apply the migration to the production Supabase project (**awaiting explicit approval** — it is the only irreversible step; additive, isolated).
-- 1C admin Feedback Engine panel (Overview + Review Stream) using the two RPCs.
-- Full regression matrix (§18, 30 checks), Preview screenshot gate (§20), readiness report.
+## Remaining before production merge (per spec)
+- Morphing-studio result surface wiring (same card, `studio_module:'morphing_video'`).
+- Full §18 regression matrix + §20 screenshot gate as formal artifacts.
 - **Do not merge to production** until approved.
 
 ## Rollback
