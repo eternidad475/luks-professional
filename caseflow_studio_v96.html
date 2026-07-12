@@ -19392,48 +19392,6 @@ body[data-ui-tone="dark"]{
     return c.toDataURL('image/jpeg',0.94);
   }
 
-  // Build a feathered MOUTH-REGION mask for a facial portrait. Compositing the AI result
-  // through this mask replaces ONLY the intraoral region (teeth / gingiva) and keeps the
-  // ENTIRE surrounding face — eyes, nose, cheeks, jaw, skin, hair, lips — as the patient's
-  // own original pixels. This is the reliable guarantee of facial identity: the after-image
-  // is the SAME person by construction, regardless of what the backend returns.
-  //   Priority 1: the inner-lip aperture (landmarks) — the cleanest, lip-preserving contour.
-  //   Priority 2: the detected tooth band → a tight mouth ellipse (no landmarks needed).
-  //   Priority 3: a default centred mouth ellipse (only if nothing else is detectable).
-  // Always returns a mask so the facial path never falls back to a full-frame face paste.
-  async function buildFacialMouthMask(o, ox, w, h){
-    let inner=null; try{ inner=await lipInnerPolygon(o,w,h); }catch(e){ inner=null; }
-    const m1=document.createElement('canvas'); m1.width=w; m1.height=h;
-    const m1x=m1.getContext('2d'); m1x.fillStyle='#fff';
-    let featherPx;
-    if(inner && inner.length>=10){
-      let cx=0,cy=0; inner.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=inner.length; cy/=inner.length;
-      const exp=1.06; // small expansion so incisal edges are never clipped; feather hides the seam
-      m1x.beginPath();
-      inner.forEach((p,i)=>{ const x=cx+(p.x-cx)*exp, y=cy+(p.y-cy)*exp; i?m1x.lineTo(x,y):m1x.moveTo(x,y); });
-      m1x.closePath(); m1x.fill();
-      let minX=1e9,maxX=-1e9; inner.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);});
-      featherPx=Math.max(3,Math.round((maxX-minX)*0.05));
-    } else {
-      let band=null; try{ band=(typeof detectBand==='function')?detectBand(ox,w,h):null; }catch(e){ band=null; }
-      let cxb,cyb,rxb,ryb;
-      if(band && (band.x1-band.x0)>w*0.04 && (band.y1-band.y0)>h*0.01){
-        const bw=band.x1-band.x0, bh=band.y1-band.y0;
-        cxb=(band.x0+band.x1)/2; cyb=(band.y0+band.y1)/2;
-        rxb=bw*0.52; ryb=Math.max(bh*0.70, bw*0.24); // a touch taller than the teeth → covers the aperture / closed gaps
-      } else {
-        // last-resort default mouth location for a centred smiling portrait
-        cxb=w*0.5; cyb=h*0.66; rxb=w*0.17; ryb=h*0.075;
-      }
-      m1x.save(); m1x.beginPath(); m1x.ellipse(cxb,cyb,rxb,ryb,0,0,Math.PI*2); m1x.fill(); m1x.restore();
-      featherPx=Math.max(4,Math.round(Math.min(w,h)*0.02));
-    }
-    const mk=document.createElement('canvas'); mk.width=w; mk.height=h;
-    const mx=mk.getContext('2d'); mx.filter='blur('+featherPx+'px)';
-    mx.drawImage(m1,0,0); mx.filter='none';
-    return mk;
-  }
-
   // colour/exposure-match an AI canvas (scaled to w×h) toward the original (mean shift)
   function toneMatchToOriginal(aix, ox, w, h, str){
     try{
@@ -19997,28 +19955,17 @@ body[data-ui-tone="dark"]{
 
     const facial=(kind==='Facial');
     if(facial){
-      // ── FACIAL: RELIABLE IDENTITY PRESERVATION (mouth-region composite). ────────────
-      // A full-frame AI paste let the backend's occasional hallucinated / different face
-      // become the result (顔貌の同一性が崩れる — a serious patient-facing failure). Instead
-      // we replace ONLY the mouth/teeth region from the AI output and keep the ENTIRE
-      // surrounding face as the patient's OWN original pixels. The after-image is therefore
-      // the SAME person by construction. buildFacialMouthMask always returns a mask, so we
-      // never fall back to a whole-face paste. The compare slider then shows:
-      //   before = the patient's own photo,  after = same photo with only the teeth edited.
+      // ── FACIAL: show the AI's identity-preserving full-frame edit (natural, seamless). ──
+      // A post-hoc mouth-region patch guaranteed identity but read as an unnatural pasted
+      // region around the mouth. Instead we keep the WHOLE generated image and preserve
+      // identity at the GENERATION level: a moderate (capped) facial denoising_strength keeps
+      // the model faithful to THIS patient's face, backed by the FACE IDENTITY LOCK prompt +
+      // hard negatives. Deterministic post-processing (midline diastema closure) still
+      // guarantees the common spacing correction regardless of the model's strength.
       ctx.drawImage(oc,0,0);                 // base = original (shown when sliders are 0)
       const sF=requestedStrength();
       if(sF>0.001){
-        let mask=null; try{ mask=await buildFacialMouthMask(o, ox, w, h); }catch(e){ mask=null; }
-        if(mask){
-          // blend the mask boundary toward the original's local tone so the edge never reads as a seam
-          if(typeof cfRingToneMatch==='function'){ try{ cfRingToneMatch(aix, ox, mask, w, h, 0.10, 0.55); }catch(e){} }
-          const masked=document.createElement('canvas'); masked.width=w; masked.height=h;
-          const mkx=masked.getContext('2d'); mkx.drawImage(aic,0,0);
-          mkx.globalCompositeOperation='destination-in'; mkx.drawImage(mask,0,0); mkx.globalCompositeOperation='source-over';
-          ctx.globalAlpha=1; ctx.drawImage(masked,0,0); ctx.globalAlpha=1;
-        }
-        // If somehow no mask (never expected), we intentionally leave the ORIGINAL face
-        // untouched rather than risk a full-face swap — identity safety over showing an edit.
+        ctx.globalAlpha=1; ctx.drawImage(aic,0,0); ctx.globalAlpha=1;   // full completed after-image
       }
     } else {
       // ── FOCUS: dental ROI local processing is appropriate here (close-up / intraoral). ──
@@ -20154,13 +20101,16 @@ body[data-ui-tone="dark"]{
     // Bracket removal needs more aggressive denoising to fully erase metal hardware
     // and reconstruct underlying enamel — floor raised to 0.72.
     if(hasBracketsFlag) denoising_strength=Math.max(denoising_strength,0.72);
-    // Facial source: the result is composited back ONLY inside the lip aperture (teeth/gingiva),
-    // so the AI may change the dentition strongly without any identity/skin risk. Raise the
-    // floor for facial ortho/hybrid so the smile correction is clearly visible (matches the
-    // "補正が弱い" feedback) — the face stays the patient's own pixels regardless.
-    // Facial floor: enough to clearly idealise the dentition, but NOT so high that the model
-    // regenerates a generic (often gummy) smile instead of editing this patient's teeth.
-    if(isFacialSrc && isOrtho && !isExtraction) denoising_strength=Math.max(denoising_strength, isHybrid?0.74:0.70);
+    // FACIAL IDENTITY CAP (patient safety): the whole generated portrait is shown, so a high
+    // denoising let the model regenerate the entire face into a DIFFERENT PERSON (顔貌の同一性が
+    //崩れる). Facial is therefore CAPPED to a moderate strength that edits the dentition while
+    // keeping the model faithful to THIS patient's face. Deterministic post-processing (midline
+    // diastema closure) still guarantees the common spacing correction, so a moderate strength
+    // does not read as "補正が弱い". Bracket-removal and extraction facial keep their higher
+    // strengths (they legitimately need broader change and are handled above / below).
+    if(isFacialSrc && !isExtraction && !hasBracketsFlag){
+      denoising_strength=Math.min(denoising_strength, isHybrid?0.60:0.55);
+    }
     const payload={
       image:source.dataUrl,
       prompt:buildClinicalPrompt(),
