@@ -26386,6 +26386,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
               if(tk&&tk.ok===false&&tk.reason==='insufficient'&&typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
             });
           }
+          /* CaseFlow Feedback Engine™ — surface the clinical card for the morph result */
+          setTimeout(function(){
+            try{
+              if(typeof window.cfShowFeedbackCard==='function'){
+                var mr={ createdAt:new Date().toISOString(), settings:{}, sourceKind:'Morph' };
+                window.cfShowFeedbackCard(mr, { studio_module:'morphing_video', artifact_type:'video' });
+              }
+            }catch(e){}
+          }, 900);
         }
         else cfLogEvent('export_completed','export',{ mime:String(type||'').slice(0,40) });
       }catch(e){ console.error('[CF Usage] export log failed',e); }

@@ -47,10 +47,15 @@ Base commit: `34217e9` on the production line.
 ## Deviations
 - **API vs client insert:** followed the spec's serverless endpoint (server-side validation) rather than the app's usual client-side RLS insert.
 
-## Remaining before production merge (per spec)
-- Morphing-studio result surface wiring (same card, `studio_module:'morphing_video'`).
-- Full §18 regression matrix + §20 screenshot gate as formal artifacts.
-- **Do not merge to production** until approved.
+### Morphing result surface
+- The clinical card is also surfaced on morph **video export** (`setExportBlob` hook) with `studio_module:'morphing_video'`, `artifact_type:'video'` — morph-specific reason tags shown, no token/regeneration side effects.
+
+## Validation (§18 matrix, headless)
+- 39 E2E checks green, incl.: reason tags hidden until Good/Bad; no auto-submit; explicit Submit records rating+tag+consent; stable output_id; **submit payload carries no raw image / no client `user_id`**; consent defaults false; **feedback never consumes a token**; **never triggers regeneration**; morph module surfaces morph-only tags; no duplicate card in the DOM; admin empty state.
+- 81 inline JS blocks `node --check`: 0 failures. `api/feedback/submit.js` `node --check`: OK.
+
+## Remaining (post-merge, optional)
+- §20 screenshot gate as a formal CI artifact; per-user personalization / refinement-suggestion phases (interface boundaries reserved, not built — per §17).
 
 ## Rollback
 - Frontend/API: revert the branch (no prod impact — Preview only).
