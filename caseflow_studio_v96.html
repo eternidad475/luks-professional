@@ -171,6 +171,14 @@ backdrop-filter:blur(22px) saturate(1.55);z-index:-1;pointer-events:none}
 input[type=color]{appearance:none;-webkit-appearance:none;width:44px;height:36px;border:2px solid rgba(255,255,255,.72);border-radius:999px;padding:0;background:none;overflow:hidden}
 input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-webkit-color-swatch{border:0;border-radius:999px}
 .note{font-size:11px;line-height:1.55;color:rgba(32,27,53,.52);background:rgba(255,255,255,.54);border-radius:18px;padding:12px 14px;margin-top:14px}
+/* Always-visible disclaimer (no collapse), higher contrast on the glass card. */
+.noteStatic{color:var(--cfUiSoft,rgba(32,27,53,.78));background:var(--cfUiPanel,rgba(255,255,255,.6))}
+.noteStatic .noteHead{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:900;color:var(--cfUiText,#201b35);margin:0 0 6px}
+.noteStatic .noteHead::before{content:"";width:14px;height:14px;flex:0 0 auto;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") center/contain no-repeat}
+.noteStatic p{margin:0;font-size:11px;line-height:1.6;color:var(--cfUiSoft,rgba(32,27,53,.78))}
+#simulator .noteStatic,#result .noteStatic{color:rgba(28,23,46,.8)}
+#simulator .noteStatic .noteHead,#result .noteStatic .noteHead{color:#241d3a}
+#simulator .noteStatic p,#result .noteStatic p{color:rgba(28,23,46,.8)}
 .hero .note{color:rgba(255,255,255,.78);background:transparent;padding:0}
 details.note{padding:8px 14px}
 details.note summary{cursor:pointer;font-size:11px;font-weight:800;color:rgba(32,27,53,.45);list-style:none;display:flex;align-items:center;gap:5px}
@@ -4209,7 +4217,7 @@ button[id="localMLDetectButton"]{
   margin-top:4px;
   font-size:11.5px;
   line-height:1.5;
-  color:rgba(28,23,46,.82);
+  color:var(--cfUiSub,rgba(32,27,53,.62));
   font-weight:800;
 }
 .simSourceBadge{
@@ -4904,7 +4912,7 @@ button[id="localMLDetectButton"]{
     <div class="row"><span>スマイル範囲</span><input type="range" min="25" max="75" value="50" id="simBand"><b id="simBandVal">50</b></div>
   </div>
   <div class="aiPanel"><div><b>AI Simulation</b><span id="aiStatus">Local preview mode. Replit backend can be connected.</span></div><label class="switch"><input type="checkbox" id="aiMode"><span></span></label></div><button class="primary" data-i18n="sim.generate" onclick="generateSimulation()">参考イメージを生成</button>
-  <details class="note"><summary>免責事項</summary><p>参考イメージ作成用の仮処理です（歯の明度・空隙閉鎖・ブラックトライアングル・スマイル整えを可視化）。治療結果の保証・診断ではありません。</p></details>
+  <div class="note noteStatic"><b class="noteHead">免責事項</b><p>参考イメージ作成用の仮処理です（歯の明度・空隙閉鎖・ブラックトライアングル・スマイル整えを可視化）。治療結果の保証・診断ではありません。</p></div>
 </section>
 
 <section class="screen soft" id="result">
@@ -4942,7 +4950,7 @@ button[id="localMLDetectButton"]{
     <button class="tool" id="cfRefineBtn" onclick="runSecondaryRefinement()" title="上顎前歯ゴールデンプロポーション二次精密生成" style="display:none;background:linear-gradient(135deg,#7c5cff,#c47eff);color:#fff;border-color:transparent">✦ Refine<br>精密生成</button>
     <button class="tool cfLibraryBtn" onclick="go('library')" title="Library を開く（生成画像は自動保存されます）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Library</button>
   </div>
-  <details class="note"><summary>免責事項</summary><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></details>
+  <div class="note noteStatic"><b class="noteHead">免責事項</b><p>Simulation / 参考イメージ：治療結果の保証、診断、治療計画の自動決定を目的としません。最終判断は歯科医師が行います。</p></div>
 </section>
 
 
@@ -18219,6 +18227,10 @@ body[data-ui-tone="dark"]{
 #simulator .simTargetCard:active{
   transform:scale(.988);
 }
+/* The simulator studio panel sits on LIGHT glass regardless of the app tone, so its
+   headings must stay dark even when --cfUiText flips to white in dark tone. */
+#simulator .simFinishHead b{color:#241d3a}
+#simulator .simFinishHead span{color:rgba(28,23,46,.82)}
 #simulator .simV95SectionLabel{
   margin:16px 0 8px;
   color:color-mix(in srgb, var(--c1) 42%, #1a1530);
@@ -18532,7 +18544,7 @@ body[data-ui-tone="dark"]{
    v9.6 Simulation Studio
    - Post-generation adjustment sliders replaced by 5 aesthetic correction axes:
        Shade / 色調, Alignment / 歯列, Incisal / 切縁形態,
-       Cervical / 歯茎部幅, Smile Frame / スマイルフレーム
+       Cervical / 歯頸側幅径, Smile Frame / スマイルフレーム
    - Each slider: left = current (no correction, 0), center = evidence-based (50),
      right = maximum correction (100). Default position = center (EBM).
    - Moving a slider re-generates the reference image so the change is reflected.
@@ -18556,7 +18568,7 @@ body[data-ui-tone="dark"]{
     ['shade','Color','色調'],
     ['alignment','Alignment','歯列補正'],
     ['toothShape','Incisal','切縁形態'],
-    ['scallop','Cervical','歯茎部幅'],
+    ['scallop','Cervical','歯頸側幅径'],
     ['smileFrame','Smile Frame','スマイルフレーム']
   ];
 
@@ -19172,7 +19184,7 @@ body[data-ui-tone="dark"]{
       const hw=isExtractionFacial?1.8:1.5;
       reqs.push('HYBRID COMBINED TREATMENT — MANDATORY: apply BOTH components at FULL STRENGTH simultaneously. '
         +'(1) ORTHODONTIC component (priority ×'+hw+'): resolve ALL crowding, rotations, crossbites, spacing and axial tilting — deliver fully aligned arches as if orthodontic treatment is complete. '
-        +'(2) PROSTHETIC component (priority ×1.5): reshape individual crown FORMS to veneer/crown-level ideal — correct width-to-height ratios, ideal proximal contact points, harmonious interdental embrasures, scalloped gingival contours. '
+        +'(2) PROSTHETIC component (priority ×1.5): reshape individual crown FORMS to veneer/crown-level ideal — correct width-to-height ratios, ideal proximal contact points, harmonious interdental embrasures, scalloped gingival contours. Make BOTH the maximum crown width (最大歯冠幅径) AND the cervical width (歯頸側幅径) follow an ideal golden proportion: each tooth\'s cervical width ≈ 62–70% of its own maximum width (natural cervical taper), and the maximum widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 with the cervical widths in the same harmonious progression — without enlarging the centrals beyond the input. '
         +'(3) Shade/colour (priority ×1.0). '
         +'CRITICAL: the final hybrid result MUST show MORE total visible change than an orthodontic-only result would. Do NOT halve the effort for each component — apply each at its own full strength. A result where the teeth look only slightly moved or barely changed is INCORRECT for hybrid mode.');
     }
@@ -19251,6 +19263,7 @@ body[data-ui-tone="dark"]{
     if(isFacial && (concept==='ortho'||concept==='hybrid')){
       const hybridSmileExtra = concept==='hybrid'
         ? ' (6) PROSTHETIC CROWN FORM (hybrid only — in addition to arch alignment): reshape individual crown forms toward veneer/crown-level ideal proportions — precise incisal edge definition, ideal proximal contact points, even crown widths stepped correctly central→lateral→canine, natural scalloped gingival zeniths with harmonious interdental papilla height. The COMBINED hybrid result must show CLEARLY MORE change than an ortho-only result: both the arch position AND the individual crown shapes must be obviously improved vs. the input.'
+          + ' (7) HYBRID IDEAL GOLDEN PROPORTION (矯正＋補綴 — target a finished, textbook result): BOTH the maximum crown width (最大歯冠幅径, at the widest mesio-distal contour / contact level) AND the cervical width (歯頸側幅径, at the gingival third) must follow an ideal golden proportion. Per tooth, the cervical width is about 62–70% of that tooth\'s maximum crown width (a natural cervical taper — never a straight box), and ACROSS the anterior teeth the maximum widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 while the cervical widths keep the same harmonious progression, so both the incisal-two-thirds and the gingival third read as ideal. Deliver this level in this single first generation (little left to refine). Still respect the central-incisor size cap above (do not enlarge the centrals to force the ratio).'
         : '';
       parts.push('SMILE DESIGN TARGET (change ONLY the teeth/gingiva seen between the lips; keep lips, skin, framing and identity untouched): deliver a CLEARLY idealised but credible result. '+
         '(1) CLOSE the midline diastema and all anterior spacing so the central incisors meet at a coincident, centred dental midline. Resolve all crowding (叢生), rotations (捻転), crossbites (反対咬合), open bite (開咬), deep bite (過蓋咬合) and excessive overjet (オーバージェット) visible within the smile window. '+
