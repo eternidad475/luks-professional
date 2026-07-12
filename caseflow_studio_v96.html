@@ -29411,7 +29411,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
 .cfTtOverlay.open .cfTtSheet{opacity:1;transform:none}
 .cfTtOverlay.closing .cfTtSheet{opacity:0;transform:translateY(30px) scale(.955);pointer-events:none}
 .cfTtHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 2px 10px}
-.cfTtHead,.cfTtDescBox,.cfTtDisclaimer,.cfTtActions{flex:0 0 auto}
+.cfTtHead,.cfTtDescBox,.cfTtActions{flex:0 0 auto}
 .cfTtHead h3{margin:0;font-size:17px;letter-spacing:-.03em}
 .cfTtHead p{margin:3px 0 0;font-size:11px;color:rgba(32,27,53,.5);font-weight:800}
 .cfTtClose{
@@ -29508,8 +29508,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   background:color-mix(in srgb, var(--c1) 8%, rgba(255,255,255,.7));
 }
 
-/* ---- disclaimer + actions ---- */
-.cfTtDisclaimer{margin:9px 4px 0;font-size:9.5px;line-height:1.65;font-weight:700;color:rgba(32,27,53,.5)}
+/* ---- actions ---- */
 .cfTtActions{display:flex;gap:9px;margin-top:10px}
 .cfTtBtn{
   flex:1;min-height:48px;border-radius:16px;border:1.5px solid rgba(32,27,53,.13);
@@ -29886,8 +29885,6 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   /* ---- dialog ---- */
   var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
   var prevImg=null, prevImgUrl=null, roiCache={}, drawRaf=0, drawToken=0;
-  var DISCLAIMER_JA='この選択はシミュレーション上の歯冠形態の方向性を調整するものです。最終的な治療計画を決定するものではありません。プレビューは歯冠部のみに適用される光学的な参考表示です（口唇・歯肉は変化しません）。';
-  var DISCLAIMER_EN='This selection guides the visual morphology of the simulation. It does not determine the final treatment plan.';
 
   function ensureOverlay(){
     if(overlay) return overlay;
@@ -29896,7 +29893,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     overlay.id = 'cfTtOverlay';
     overlay.setAttribute('aria-hidden','true');
     overlay.innerHTML = '<div class="cfTtBackdrop" data-cftt-cancel></div>'
-      + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle" aria-describedby="cfTtDisclaimer">'
+      + '<div class="cfTtSheet" role="dialog" aria-modal="true" aria-labelledby="cfTtTitle">'
       + '<div class="cfSheetHandle"></div>'
       + '<div class="cfTtHead"><div><h3 id="cfTtTitle">Teeth Design — 歯冠形態</h3>'
       + '<p>歯冠形態デザイナー — 各形態の特徴を確認しながら選択できます</p></div>'
@@ -29905,7 +29902,6 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       + '<span class="cfTtPrevBadge">LIVE PREVIEW / 光学プレビュー（参考）</span></div>'
       + '<div class="cfTtScroll" id="cfTtScroll" role="radiogroup" aria-label="Tooth form / 歯冠形態"></div>'
       + '<div class="cfTtDescBox" id="cfTtDescBox" aria-live="polite"></div>'
-      + '<p class="cfTtDisclaimer" id="cfTtDisclaimer">'+DISCLAIMER_JA+'<br>'+DISCLAIMER_EN+'</p>'
       + '<div class="cfTtActions">'
       + '<button type="button" class="cfTtBtn" data-cftt-cancel>Cancel / キャンセル</button>'
       + '<button type="button" class="cfTtBtn" id="cfTtAutoBtn">Auto / 自動に戻す</button>'
