@@ -25899,6 +25899,26 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '.cfAdmMini{padding:7px 10px;border-radius:9px;border:1.5px solid rgba(124,92,255,.3);background:#fff;font-size:12px;color:#231a3a}',
     '.cfAdmBtnS{padding:7px 12px;border:0;border-radius:9px;background:#5b3fd6;color:#fff;font-weight:800;font-size:12px;cursor:pointer}',
     '.cfAdmSection{margin:14px 0 6px;font-weight:900;font-size:13px;color:#5b3fd6}',
+    /* CaseFlow Feedback Engine™ admin panel */
+    '.cfFeOverview{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px}',
+    '.cfFeStat{border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:8px 10px;background:rgba(124,92,255,.04)}',
+    '.cfFeStat b{display:block;font-size:17px;font-weight:950;color:#231a3a;line-height:1.1}',
+    '.cfFeStat span{font-size:9.5px;font-weight:800;color:#7a7290;letter-spacing:.02em}',
+    '.cfFeStat.good b{color:#1f9d6b}.cfFeStat.bad b{color:#c0303a}',
+    '.cfFeWide{grid-column:1 / -1;font-size:11px;font-weight:700;color:#5a5270;line-height:1.5}',
+    '.cfFeWide em{font-style:normal;font-weight:900;color:#c0303a}',
+    '.cfFeEmpty{border:1px dashed rgba(124,92,255,.28);border-radius:14px;padding:18px 14px;text-align:center;color:#7a7290;font-size:12px;line-height:1.7}',
+    '.cfFeFilters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}',
+    '.cfFeStream{font-size:12px;color:#7a7290}',
+    '.cfFeRow{border:1px solid rgba(124,92,255,.18);border-radius:12px;padding:9px 11px;margin-bottom:8px}',
+    '.cfFeRowTop{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:4px}',
+    '.cfFePill{font-size:9.5px;font-weight:900;padding:2px 8px;border-radius:999px;letter-spacing:.03em}',
+    '.cfFePill.good{background:rgba(31,157,107,.14);color:#1f8a5e}.cfFePill.bad{background:rgba(192,48,58,.13);color:#c0303a}',
+    '.cfFeWhen{font-size:10px;color:#9a92ac;margin-left:auto}',
+    '.cfFeTags{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0}',
+    '.cfFeTag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:8px;background:rgba(124,92,255,.09);color:#5b3fd6}',
+    '.cfFeComment{font-size:11.5px;color:#3a3350;margin-top:3px;line-height:1.5;word-break:break-word}',
+    '.cfFeMeta{font-size:9.5px;color:#9a92ac;margin-top:4px;word-break:break-all}',
     /* account icon + menu */
     '#cfAcctBtn{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:2147482500;display:none;width:40px;height:40px;border:0;border-radius:999px;cursor:pointer;',
     ' background:rgba(255,255,255,.90);color:#5b3fd6;font-weight:900;font-size:15px;box-shadow:0 5px 16px rgba(40,20,80,.22);backdrop-filter:blur(8px)}',
@@ -26110,6 +26130,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
     '<div class="cfFbCard">'+
       '<p class="cfFbTitle">Feedback Inbox / 管理者受信箱</p>'+
       '<a href="/admin" target="_blank" rel="noopener" class="cfG2BtnGhost" style="display:block;text-decoration:none;text-align:center;box-sizing:border-box;margin:0 0 12px">Admin Operations を開く / Open Admin Dashboard</a>'+
+      '<div class="cfAdmSection">CaseFlow Feedback Engine™ / Clinical Curation Loop</div>'+
+      '<div id="cfFeOverview" class="cfFeOverview">読み込み中…</div>'+
+      '<div class="cfFeFilters">'+
+        '<select id="cfFeRating" class="cfAdmMini"><option value="">評価: すべて</option><option value="good">Good</option><option value="bad">Bad</option></select>'+
+        '<select id="cfFeModule" class="cfAdmMini"><option value="">モジュール: すべて</option><option value="visual_simulation">Visual Simulation</option><option value="morphing_video">Morphing</option></select>'+
+        '<button type="button" class="cfAdmBtnS" id="cfFeRefresh">更新</button>'+
+      '</div>'+
+      '<div id="cfFeStream" class="cfFeStream">—</div>'+
+      '<div class="cfAdmSection">Feedback Inbox / 管理者受信箱</div>'+
       '<div id="cfAdmList" style="min-height:40px;font-size:12.5px;color:#7a7290">読み込み中…</div>'+
       '<div class="cfAdmSection">招待コード発行 / Create invite code</div>'+
       '<input class="cfFbSelect" id="cfAdmInvEmail" type="email" placeholder="招待先メール（任意）">'+
@@ -26357,6 +26386,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
               if(tk&&tk.ok===false&&tk.reason==='insufficient'&&typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
             });
           }
+          /* CaseFlow Feedback Engine™ — surface the clinical card for the morph result */
+          setTimeout(function(){
+            try{
+              if(typeof window.cfShowFeedbackCard==='function'){
+                var mr={ createdAt:new Date().toISOString(), settings:{}, sourceKind:'Morph' };
+                window.cfShowFeedbackCard(mr, { studio_module:'morphing_video', artifact_type:'video' });
+              }
+            }catch(e){}
+          }, 900);
         }
         else cfLogEvent('export_completed','export',{ mime:String(type||'').slice(0,40) });
       }catch(e){ console.error('[CF Usage] export log failed',e); }
@@ -27504,7 +27542,68 @@ body.cfPresent .cfPresentExit{display:flex!important}
           });
         }
       }catch(e){ console.error('[CF Admin] codes exception',e); codes.textContent='—'; }
+      loadFeedbackEngine();
     }
+
+    /* ---- CaseFlow Feedback Engine™ — Overview + Review Stream (admin) ---- */
+    var FE_REASON_LABELS={
+      natural:'自然', believable_beauty:'美しいが自然', clinically_convincing:'臨床的に納得',
+      good_smile_design:'スマイル設計良', teeth_type_worked:'歯冠形態が合う', face_preserved:'顔貌保持',
+      patient_friendly:'患者説明向き', smooth_morphing:'モーフ滑らか', matches_intention:'意図に一致',
+      too_artificial:'人工的すぎる', not_clinically_plausible:'臨床的に不自然', tooth_shape_off:'歯冠形態が不自然',
+      wrong_teeth_type:'形態選択が不一致', shade_off:'色調が不自然', alignment_off:'歯列が不自然',
+      incisal_line_off:'切縁ライン不自然', smile_frame_off:'スマイルフレーム不自然', gingiva_wrong:'歯肉が不自然',
+      face_identity_changed:'顔貌同一性の崩れ', lip_expression_changed:'口唇表現の変化', morph_not_smooth:'モーフ不滑',
+      warp_unusual:'ワープ不自然', flicker_ghosting:'フリッカー・残像', too_much_correction:'補正過剰',
+      too_little_correction:'補正不足', other:'その他'
+    };
+    async function loadFeedbackEngine(){
+      var ov=el('cfFeOverview'), stream=el('cfFeStream');
+      if(!ov||!stream) return;
+      try{
+        var o=await sb.rpc('admin_feedback_overview');
+        if(o.error){ ov.innerHTML='<div class="cfFeWide">概要の取得に失敗しました（migration未適用の可能性）。</div>'; }
+        else{
+          var d=o.data||{};
+          if(!Number(d.total_feedback)){
+            ov.innerHTML='<div class="cfFeEmpty">臨床フィードバックはまだ記録されていません。<br>No clinical feedback has been collected yet.</div>';
+          } else {
+            var tb=(d.top_bad_reasons&&d.top_bad_reasons[0])?((FE_REASON_LABELS[d.top_bad_reasons[0].tag]||d.top_bad_reasons[0].tag)+'（'+d.top_bad_reasons[0].cnt+'）'):'—';
+            ov.innerHTML=
+              '<div class="cfFeStat"><b>'+esc(String(d.total_feedback))+'</b><span>総フィードバック</span></div>'+
+              '<div class="cfFeStat good"><b>'+esc(String(d.good_rate))+'%</b><span>Good率（'+esc(String(d.good_count))+'）</span></div>'+
+              '<div class="cfFeStat bad"><b>'+esc(String(d.bad_rate))+'%</b><span>Bad率（'+esc(String(d.bad_count))+'）</span></div>'+
+              '<div class="cfFeWide">最多の改善理由: <em>'+esc(tb)+'</em> ・ 直近7日: '+esc(String(d.recent_feedback_count))+' 件 ・ 集約学習の同意: '+esc(String(d.aggregate_learning_opt_in_count))+' 件</div>';
+          }
+        }
+      }catch(e){ console.error('[CF FE] overview',e); ov.textContent='概要の取得に失敗しました。'; }
+      try{
+        var rating=(el('cfFeRating')||{}).value||null, mod=(el('cfFeModule')||{}).value||null;
+        var r=await sb.rpc('admin_feedback_reviews',{ p_rating:rating||null, p_module:mod||null, p_limit:40 });
+        if(r.error){ stream.textContent='レビューの取得に失敗しました。'; return; }
+        var rows=(r.data&&r.data.reviews)||[];
+        if(!rows.length){ stream.innerHTML='<div class="cfFeEmpty" style="padding:12px">該当するレビューはありません。</div>'; return; }
+        stream.innerHTML=rows.map(function(f){
+          var tags=(f.reason_tags||[]).map(function(t){ return '<span class="cfFeTag">'+esc(FE_REASON_LABELS[t]||t)+'</span>'; }).join('');
+          var tt=f.selected_teeth_type&&(f.selected_teeth_type.id||f.selected_teeth_type.en);
+          return '<div class="cfFeRow">'+
+            '<div class="cfFeRowTop">'+
+              '<span class="cfFePill '+(f.rating==='good'?'good':'bad')+'">'+(f.rating==='good'?'GOOD':'BAD')+'</span>'+
+              '<span class="cfFeTag">'+esc(f.studio_module||'')+'</span>'+
+              '<span class="cfFeTag">'+esc(f.artifact_type||'')+'</span>'+
+              (f.has_refinement?'<span class="cfFeTag">refined</span>':'')+
+              '<span class="cfFeWhen">'+esc((f.created_at||'').slice(0,16).replace('T',' '))+'</span>'+
+            '</div>'+
+            (tags?'<div class="cfFeTags">'+tags+'</div>':'')+
+            (f.comment?'<div class="cfFeComment">'+esc(f.comment)+'</div>':'')+
+            '<div class="cfFeMeta">'+esc(f.output_id_short||'')+(tt?' ・ 形態: '+esc(String(tt)):'')+'</div>'+
+          '</div>';
+        }).join('');
+      }catch(e){ console.error('[CF FE] reviews',e); stream.textContent='レビューの取得に失敗しました。'; }
+    }
+    ['cfFeRating','cfFeModule'].forEach(function(id){ var s=el(id); if(s) s.addEventListener('change',loadFeedbackEngine); });
+    (function(){ var b=el('cfFeRefresh'); if(b) b.addEventListener('click',loadFeedbackEngine); })();
+
     el('cfAdmClose').addEventListener('click',function(){ admModal.classList.remove('open'); });
     el('cfAdmInvCreate').addEventListener('click',async function(){
       var role=el('cfAdmInvRole').value, email=(el('cfAdmInvEmail').value||'').trim();
@@ -30495,72 +30594,233 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   background:rgba(255,255,255,.08);color:#fff;font-size:10.5px;font-weight:800;cursor:pointer;
 }
 .cfFbeChip[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 45%, rgba(255,255,255,.14));border-color:rgba(255,255,255,.55)}
+.cfFbeChip small{display:block;font-size:8.5px;font-weight:700;opacity:.6;letter-spacing:.02em}
+.cfFbeDetail{margin-top:11px}
+.cfFbeDetail[hidden]{display:none}
+.cfFbeReasonsHead{font-size:10px;font-weight:900;color:rgba(255,255,255,.55);margin:0 0 7px}
+.cfFbeComment{
+  width:100%;box-sizing:border-box;margin-top:9px;min-height:40px;max-height:120px;resize:vertical;
+  border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);
+  color:#fff;font-size:11.5px;font-weight:600;padding:8px 10px;font-family:inherit;
+}
+.cfFbeComment::placeholder{color:rgba(255,255,255,.4)}
+.cfFbeConsent{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.6);line-height:1.5;cursor:pointer}
+.cfFbeConsent input{margin-top:1px;width:16px;height:16px;flex:0 0 auto;accent-color:var(--c1)}
+.cfFbeActions{display:flex;justify-content:flex-end;margin-top:11px}
+.cfFbeSubmit{
+  min-height:44px;padding:0 20px;border:0;border-radius:14px;font-size:12.5px;font-weight:950;color:#fff;cursor:pointer;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 82%, #fff), color-mix(in srgb, var(--c2) 55%, var(--c1)));
+}
+.cfFbeSubmit:disabled{opacity:.5;cursor:default}
 .cfFbeClose{
   position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:50%;
   display:grid;place-items:center;background:rgba(255,255,255,.10);color:#fff;font-size:17px;cursor:pointer;
 }
 .cfFbeThanks{font-size:12.5px;font-weight:900;padding:8px 2px}
+.cfFbeNote{font-size:9px;font-weight:700;color:rgba(255,255,255,.45);margin-top:6px}
+.cfFbeBtn:focus-visible,.cfFbeChip:focus-visible,.cfFbeSubmit:focus-visible,.cfFbeClose:focus-visible{outline:2px solid #fff;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){ .cfFbeCard{transition:opacity .12s linear;transform:translateX(-50%)} }
 </style>
 
 <script id="cf-p1-feedback">
-/* CaseFlow Feedback Engine™ — dismissible post-generation feedback card. */
+/* CaseFlow Feedback Engine™ — Clinical Curation Loop (Phase 1B result-screen card).
+   Progressive disclosure: Good/Bad → reveal clinical reason tags + optional comment
+   + aggregate-learning consent (default OFF) → explicit Submit. Never auto-submits,
+   never consumes tokens, never triggers regeneration. Persists to
+   caseflow_feedback_reviews via POST /api/feedback/submit (token-authenticated),
+   with a local + usage_events fallback so the dentist is never blocked. */
 (function(){
   'use strict';
-  var card=null, curRec=null, rating=null, reasons={}, hideTimer=0;
-  var CHIPS=[['color','色が不自然'],['size','歯が大きい'],['shape','形が好みでない'],['smile','笑顔が不自然'],['weak','変化が少ない'],['other','その他']];
+  // Clinical reason taxonomy (id, ja, en) — matches the /api/feedback/submit allowlist.
+  var GOOD_TAGS=[
+    ['natural','自然','Natural'],
+    ['believable_beauty','美しいが不自然でない','Beautiful but believable'],
+    ['clinically_convincing','臨床的に納得感がある','Clinically convincing'],
+    ['good_smile_design','スマイル設計が良い','Good smile design'],
+    ['teeth_type_worked','歯冠形態選択が合っている','Teeth type worked'],
+    ['face_preserved','顔貌が保たれている','Face preserved'],
+    ['patient_friendly','患者説明に使いやすい','Patient-friendly'],
+    ['smooth_morphing','モーフィングが滑らか','Smooth morphing'],
+    ['matches_intention','自分の意図に合っている','Matches intention']
+  ];
+  var BAD_TAGS=[
+    ['too_artificial','人工的すぎる','Too artificial'],
+    ['not_clinically_plausible','臨床的に不自然','Not clinically plausible'],
+    ['tooth_shape_off','歯冠形態が不自然','Tooth shape off'],
+    ['wrong_teeth_type','歯冠形態の選択が合っていない','Wrong teeth type'],
+    ['shade_off','色調が不自然','Shade off'],
+    ['alignment_off','歯列が不自然','Alignment off'],
+    ['incisal_line_off','切縁ラインが不自然','Incisal line off'],
+    ['smile_frame_off','スマイルフレームが不自然','Smile frame off'],
+    ['gingiva_wrong','歯肉の見え方が不自然','Gingiva looks wrong'],
+    ['face_identity_changed','顔貌の同一性が崩れた','Face identity changed'],
+    ['lip_expression_changed','口唇表現が変わりすぎた','Lip expression changed'],
+    ['morph_not_smooth','モーフィングが滑らかでない','Morphing not smooth'],
+    ['warp_unusual','ワープ変形が不自然','Warp unnatural'],
+    ['flicker_ghosting','フリッカー・残像がある','Flicker / ghosting'],
+    ['too_much_correction','補正が強すぎる','Too much correction'],
+    ['too_little_correction','補正が弱すぎる','Too little correction'],
+    ['other','その他','Other']
+  ];
+  // Reason tags relevant to the module (image vs morph). Image hides morph-only tags.
+  function tagsFor(rating, module){
+    var base = rating==='good' ? GOOD_TAGS : BAD_TAGS;
+    var morphOnly = { smooth_morphing:1, morph_not_smooth:1, warp_unusual:1, flicker_ghosting:1 };
+    if(module==='morphing_video') return base;
+    return base.filter(function(t){ return !morphOnly[t[0]]; });
+  }
+
+  var card=null, curRec=null, curOpts=null, rating=null, reasons={}, hideTimer=0, submitting=false;
+
+  function outputIdFor(rec){
+    if(!rec) return 'sim_'+Date.now();
+    if(!rec.__cfOutputId){
+      var stamp=String(rec.createdAt||new Date().toISOString()).replace(/[^0-9]/g,'').slice(0,17);
+      rec.__cfOutputId='sim_'+stamp+'_'+Math.random().toString(36).slice(2,7);
+    }
+    return rec.__cfOutputId;
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); }
+
   function ensure(){
     if(card) return card;
     card=document.createElement('div');
     card.className='cfFbeCard';
     card.setAttribute('role','group');
     card.setAttribute('aria-label','CaseFlow Feedback Engine');
-    card.innerHTML='<button type="button" class="cfFbeClose" aria-label="閉じる">×</button>'
+    card.innerHTML='<button type="button" class="cfFbeClose" aria-label="閉じる / Close">×</button>'
       +'<div class="cfFbeHead"><span class="cfFbeOrb">✦</span>CaseFlow Feedback Engine™</div>'
-      +'<div class="cfFbeSub">結果についてのご意見をお聞かせください。AIが次回の精度向上に活用します。</div>'
-      +'<div class="cfFbeBody"><div class="cfFbeRow">'
+      +'<div class="cfFbeSub">この結果は有用でしたか？ / Was this result useful?</div>'
+      +'<div class="cfFbeBody">'
       +'<div class="cfFbeRate">'
-      +'<button type="button" class="cfFbeBtn" data-fb="good">👍 Good</button>'
-      +'<button type="button" class="cfFbeBtn" data-fb="bad">👎 Bad</button>'
+      +'<button type="button" class="cfFbeBtn" data-fb="good">👍 良い / Good</button>'
+      +'<button type="button" class="cfFbeBtn" data-fb="bad">👎 改善が必要 / Bad</button>'
       +'</div>'
-      +'<div class="cfFbeReasons"><b>理由を選択（任意）</b><div class="cfFbeChips">'
-      +CHIPS.map(function(c){return '<button type="button" class="cfFbeChip" data-r="'+c[0]+'" aria-pressed="false">'+c[1]+'</button>';}).join('')
-      +'</div></div></div></div>';
+      +'<div class="cfFbeDetail" hidden>'
+      +'<p class="cfFbeReasonsHead">該当する項目を選択（任意） / Select what applies (optional)</p>'
+      +'<div class="cfFbeChips"></div>'
+      +'<textarea class="cfFbeComment" maxlength="2000" placeholder="コメント（任意） / Comment (optional)"></textarea>'
+      +'<label class="cfFbeConsent"><input type="checkbox" class="cfFbeConsentBox">'
+      +'<span>匿名化された評価情報を、CASEFLOW STUDIO の品質改善に利用することを許可します。 / Allow anonymized feedback signals to improve CASEFLOW STUDIO.</span></label>'
+      +'<div class="cfFbeActions"><button type="button" class="cfFbeSubmit">送信 / Submit</button></div>'
+      +'</div>'
+      +'</div>';
     document.body.appendChild(card);
     card.querySelector('.cfFbeClose').addEventListener('click', function(){ hide(); });
     card.addEventListener('click', function(e){
-      var b=e.target.closest('.cfFbeChip');
-      if(b){ var k=b.getAttribute('data-r'); reasons[k]=!reasons[k]; b.setAttribute('aria-pressed', reasons[k]?'true':'false'); return; }
+      var c=e.target.closest('[data-r]');
+      if(c){ var k=c.getAttribute('data-r'); reasons[k]=!reasons[k]; c.setAttribute('aria-pressed', reasons[k]?'true':'false'); return; }
       var g=e.target.closest('.cfFbeBtn');
-      if(g){ rating=g.getAttribute('data-fb'); submit(); }
+      if(g){ selectRating(g.getAttribute('data-fb')); return; }
+      var s=e.target.closest('.cfFbeSubmit');
+      if(s){ submit(); return; }
     });
     return card;
   }
-  function submit(){
-    try{
-      var rs=Object.keys(reasons).filter(function(k){return reasons[k];});
-      var meta={ rating:rating, reasons:rs, at:new Date().toISOString(),
-                 teeth_type:(typeof window.cfTeethTypeMeta==='function')?window.cfTeethTypeMeta():null,
-                 mode:window.__caseflowPrimaryResultMode||null };
-      if(curRec){ curRec.settings=curRec.settings||{}; curRec.settings.feedback=meta; }
-      if(typeof window.cfLogEvent==='function') window.cfLogEvent('feedback','visual-simulation',{ rating:rating, reasons:rs.join(',') });
-      try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
-    }catch(e){}
-    var body=card.querySelector('.cfFbeBody');
-    if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
-    clearTimeout(hideTimer); hideTimer=setTimeout(hide, 1600);
+
+  function selectRating(r){
+    rating=r; reasons={};
+    Array.prototype.forEach.call(card.querySelectorAll('.cfFbeBtn'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-fb')===r ? 'true':'false');
+    });
+    var module=(curOpts&&curOpts.studio_module)||'visual_simulation';
+    var chips=card.querySelector('.cfFbeChips');
+    chips.innerHTML=tagsFor(r, module).map(function(t){
+      return '<button type="button" class="cfFbeChip" data-r="'+t[0]+'" aria-pressed="false">'+esc(t[1])+'<small>'+esc(t[2])+'</small></button>';
+    }).join('');
+    card.querySelector('.cfFbeDetail').hidden=false;
+    // do NOT auto-submit — the clinician confirms with Submit.
   }
+
+  function gatherMeta(){
+    function safe(fn){ try{ return fn(); }catch(e){ return null; } }
+    var tt = safe(function(){ return (typeof window.cfTeethTypeMeta==='function')?window.cfTeethTypeMeta():null; });
+    var ctx = safe(function(){ var c=window.cfTeethTypeCurrent&&window.cfTeethTypeCurrent(); return c&&c.optional_context||null; });
+    var v82 = safe(function(){ return window.state&&state.simV82?JSON.parse(JSON.stringify(state.simV82)):null; });
+    var concept = safe(function(){ return (window.state&&state.simV82&&state.simV82.concept)||null; });
+    var sourceKind = safe(function(){ return curRec&&curRec.sourceKind||null; });
+    return { selected_teeth_type:tt, patient_context:ctx, slider_snapshot:v82,
+             generation_metadata:{ concept:concept, source_kind:sourceKind, mode:window.__caseflowPrimaryResultMode||null } };
+  }
+
+  async function postReview(payload){
+    var sb=window.cfSupabase; if(!sb||!sb.auth) throw new Error('no-auth');
+    var s=await sb.auth.getSession();
+    var jwt=s&&s.data&&s.data.session&&s.data.session.access_token;
+    if(!jwt) throw new Error('no-token');
+    var res=await fetch('/api/feedback/submit',{
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+jwt },
+      body:JSON.stringify(payload)
+    });
+    var j=null; try{ j=await res.json(); }catch(e){}
+    if(!res.ok) throw new Error((j&&j.error)||('http_'+res.status));
+    return j;
+  }
+
+  function localFallback(meta){
+    try{ if(curRec){ curRec.settings=curRec.settings||{}; curRec.settings.feedback=meta; } }catch(e){}
+    try{ if(typeof window.cfLogEvent==='function') window.cfLogEvent('feedback','visual-simulation',{ rating:meta.rating, reasons:(meta.reason_tags||[]).join(',') }); }catch(e){}
+    try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
+  }
+
+  async function submit(){
+    if(submitting || !rating) return;
+    submitting=true;
+    var btn=card.querySelector('.cfFbeSubmit'); if(btn) btn.disabled=true;
+    var rs=Object.keys(reasons).filter(function(k){ return reasons[k]; });
+    var comment=(card.querySelector('.cfFbeComment')||{}).value||'';
+    var consent=!!(card.querySelector('.cfFbeConsentBox')||{}).checked;
+    var m=gatherMeta();
+    var payload={
+      output_id: outputIdFor(curRec),
+      original_output_id: (curRec&&curRec.__cfOriginalOutputId)||null,
+      artifact_type: (curOpts&&curOpts.artifact_type)||'image',
+      studio_module: (curOpts&&curOpts.studio_module)||'visual_simulation',
+      rating: rating,
+      reason_tags: rs,
+      comment: comment.slice(0,2000)||null,
+      selected_teeth_type: m.selected_teeth_type,
+      patient_context: m.patient_context,
+      slider_snapshot: m.slider_snapshot,
+      generation_metadata: m.generation_metadata,
+      use_for_personalization: true,
+      use_for_aggregate_learning: consent
+    };
+    var localMeta={ rating:rating, reason_tags:rs, comment:comment.slice(0,2000), at:new Date().toISOString(),
+                    teeth_type:m.selected_teeth_type, use_for_aggregate_learning:consent };
+    var note='';
+    try{
+      await postReview(payload);
+    }catch(e){
+      // graceful: keep the judgement locally so the dentist is never blocked
+      localFallback(localMeta);
+      note = /no-token|no-auth/.test(String(e&&e.message)) ? 'ローカルに記録しました（未ログイン） / Saved locally'
+           : 'ローカルに記録しました / Saved locally';
+    }
+    // always mirror into the result record + usage log
+    try{ if(curRec){ curRec.settings=curRec.settings||{}; curRec.settings.feedback=localMeta; } }catch(e){}
+    var body=card.querySelector('.cfFbeBody');
+    if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>'
+      + (note?'<div class="cfFbeNote">'+esc(note)+'</div>':'');
+    submitting=false;
+    clearTimeout(hideTimer); hideTimer=setTimeout(hide, 1800);
+  }
+
   function hide(){ if(card) card.classList.remove('show'); }
-  window.cfShowFeedbackCard=function(rec){
+
+  window.cfShowFeedbackCard=function(rec, opts){
     if(rec && rec.__cfFbShown) return;
     if(rec) rec.__cfFbShown=true;
     ensure();
-    curRec=rec; rating=null; reasons={};
-    var body=card.querySelector('.cfFbeBody');
-    if(body && !body.querySelector('.cfFbeRate')){
-      card.remove(); card=null; ensure(); curRec=rec;
-    }
-    Array.prototype.forEach.call(card.querySelectorAll('.cfFbeChip'), function(b){ b.setAttribute('aria-pressed','false'); });
+    curRec=rec; curOpts=opts||null; rating=null; reasons={}; submitting=false;
+    // rebuild if a previous submission replaced the body with the thanks note
+    if(!card.querySelector('.cfFbeRate')){ card.remove(); card=null; ensure(); curRec=rec; curOpts=opts||null; }
+    Array.prototype.forEach.call(card.querySelectorAll('.cfFbeBtn'), function(b){ b.setAttribute('aria-pressed','false'); });
+    var det=card.querySelector('.cfFbeDetail'); if(det) det.hidden=true;
+    var cm=card.querySelector('.cfFbeComment'); if(cm) cm.value='';
+    var cb=card.querySelector('.cfFbeConsentBox'); if(cb) cb.checked=false;
+    var sb=card.querySelector('.cfFbeSubmit'); if(sb) sb.disabled=false;
     clearTimeout(hideTimer);
     card.classList.add('show');
     hideTimer=setTimeout(hide, 30000);
