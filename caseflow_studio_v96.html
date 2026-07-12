@@ -18032,9 +18032,9 @@ body[data-ui-tone="dark"]{
   function conceptPreset(key){
     switch(key){
       case 'prosthetic':
-        return { amount:64, shade:60, scallop:58, missing:54, band:50 };
+        return { amount:64, shade:54, scallop:58, missing:54, band:50 };
       case 'hybrid':
-        return { amount:68, shade:54, scallop:52, missing:38, band:49 };
+        return { amount:68, shade:52, scallop:52, missing:38, band:49 };
       case 'ortho':
       default:
         return { amount:54, shade:28, scallop:34, missing:14, band:48 };
@@ -18277,9 +18277,9 @@ body[data-ui-tone="dark"]{
   function conceptPreset(key){
     switch(key){
       case 'prosthetic':
-        return {amount:64, shade:60, scallop:58, missing:54, band:50};
+        return {amount:64, shade:54, scallop:58, missing:54, band:50};
       case 'hybrid':
-        return {amount:68, shade:54, scallop:52, missing:38, band:49};
+        return {amount:68, shade:52, scallop:52, missing:38, band:49};
       case 'ortho':
       default:
         return {amount:54, shade:28, scallop:34, missing:14, band:48};
@@ -18588,8 +18588,8 @@ body[data-ui-tone="dark"]{
     // (≈85) for a clearly dynamic correction out of the box; the slider can still
     // push to a fully resolved 100, or be eased back for a subtler result.
     if(concept==='ortho'){      s.alignment=Math.max(s.alignment,85); s.smileFrame=Math.max(s.smileFrame,38); }
-    if(concept==='prosthetic'){ s.shade=Math.max(s.shade,66); }
-    if(concept==='hybrid'){     s.alignment=Math.max(s.alignment,80); s.shade=Math.max(s.shade,62); }
+    if(concept==='prosthetic'){ s.shade=Math.max(s.shade,54); }
+    if(concept==='hybrid'){     s.alignment=Math.max(s.alignment,80); s.shade=Math.max(s.shade,54); }
     Object.keys(s).forEach(k=>s[k]=clamp(s[k],0,100));
     return s;
   }
@@ -19030,7 +19030,7 @@ body[data-ui-tone="dark"]{
       }
       const rq=[];
       const shadeSigned=(s.shade==null?50:s.shade)-50, shadeMag=Math.round(Math.abs(shadeSigned)*2);
-      if(shadeMag>=15 && shadeSigned>0) rq.push('brighten the enamel toward a healthier, lighter shade (strength '+shadeMag+'%), keeping natural translucency — never flat opaque white');
+      if(shadeMag>=15 && shadeSigned>0) rq.push('brighten the enamel toward a healthier, lighter shade (strength '+shadeMag+'%, target roughly VITA A1–B1, NOT bleach / Hollywood pure white), keeping natural translucency and a slightly warm, believable tone — never flat opaque white');
       else if(shadeMag>=15 && shadeSigned<0) rq.push('age the enamel strongly (strength '+shadeMag+'%): clearly LOWER the value/brightness AND INCREASE chroma toward a deeper, warmer, more saturated amber shade — more chromatic and darker, photorealistic and natural, not muted or grey');
       const tsS=(s.toothShape==null?50:s.toothShape)-50, tsM=Math.round(Math.abs(tsS)*2);
       if(tsM>=15 && tsS<0) rq.push('reshape the crown OUTLINE toward an OVOID/curved form within the OVOID↔SQUARE range (strength '+tsM+'%): PRIORITY = the incisal edge gently curved/rounded with rounded corners; proximal outlines softened to gentle curves as secondary; keep the gingival line FIXED (do not move the gum); keep crown length within the golden proportion (≈75–85% width-to-height), not shorter/longer — make it clearly visible');
@@ -19083,7 +19083,7 @@ body[data-ui-tone="dark"]{
     ];
     // Esthetic-dentistry criteria embedded as standing reference for every generation.
     parts.push('Apply these esthetic-dentistry criteria (refine, do not over-correct; the goal is NOT pure-white, perfectly straight or perfectly symmetric teeth — preserve natural individuality and age-appropriate character): '+
-      'Shade — improve VALUE/brightness first, keep some chroma and incisal translucency/opalescence, never flat opaque white. '+
+      'Shade — improve VALUE/brightness first but keep it MODERATE and believable: target a natural bright enamel shade (about the VITA A1–B1 range), keep clear chroma and incisal translucency/opalescence, and never push to flat opaque bleach / Hollywood pure white. When uncertain, err slightly WARMER and more natural rather than whiter. '+
       'Proportions — the maxillary central incisor is the key reference, width-to-height ratio about 75–85%, centrals slightly dominant. '+
       'Incisal edges — form a consonant smile arc PARALLEL to the lower-lip curve; incisal embrasures increase progressively central→lateral→canine (never identical or flat). '+
       'Tooth form — refine within the patient\'s own type (square / ovoid / triangular); keep natural line angles, corner roundness and surface texture; avoid generic veneer squares. '+
@@ -19131,7 +19131,7 @@ body[data-ui-tone="dark"]{
     const tsMag=Math.round(Math.abs(tsSigned)*2);
     L.shade=lvl(shadeMag); L.alignment=lvl(s.alignment); L.toothShape=lvl(s.toothShape); L.scallop=lvl(s.scallop); L.smileFrame=lvl(s.smileFrame);
     const reqs=[];
-    if(L.shade && shadeSigned>0)      reqs.push('Shade — WHITENING ('+L.shade+', strength '+shadeMag+'%): raise VALUE/brightness toward a natural healthy lighter shade while keeping chroma and incisal translucency — never flat opaque white');
+    if(L.shade && shadeSigned>0)      reqs.push('Shade — WHITENING ('+L.shade+', strength '+shadeMag+'%): raise VALUE/brightness toward a natural healthy lighter shade (target roughly VITA A1–B1, NOT bleach / Hollywood pure white) while keeping chroma and incisal translucency — keep it believable and slightly warm, never flat opaque white');
     else if(L.shade && shadeSigned<0) reqs.push('Shade — AGING / 色調エイジング ('+L.shade+', strength '+shadeMag+'%): move strongly OPPOSITE to whitening — clearly LOWER the value/brightness AND INCREASE the chroma/saturation toward a deeper, warmer, more saturated amber-yellow mature shade (more chromatic and darker, NOT muted, grey or bleached). Scale the effect to the strength; keep it photorealistic and natural, never artificially orange or dirty');
     const isExtractionFacial = !isIntraoral && Math.round(s.alignment||0)>=80;
     if(L.alignment){
@@ -19210,8 +19210,14 @@ body[data-ui-tone="dark"]{
     // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
     // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
     // WIDTH (not orthodontic movement). The face stays the patient's own pixels.
-    if(concept==='prosthetic' && isFacial){
-      parts.push('PROSTHETIC FACIAL MODE — treat the smile as a CLOSE-UP restorative (focus) case: refine ONLY the visible teeth with veneer/crown-level precision (crown form, proportions, incisal edges, shade) and CLOSE any midline diastema / spacing by restoring natural tooth WIDTH and contact points, NOT by moving teeth. Work tooth-by-tooth for an individualised, natural result; keep the lips, gingiva, framing and the rest of the face exactly as in the patient\'s own photograph.');
+    if(concept==='prosthetic'){
+      parts.push('PROSTHETIC GOLDEN-PROPORTION DESIGN (crown / veneer restorative — apply the proportion CONCRETELY; realising the golden proportion is the whole point of this concept): '+
+        'the maxillary central incisor is the key reference with a width-to-height ratio of about 78–82%; from the front the apparent crown widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 (RED / golden proportion) — i.e. each lateral incisor should show about 62% of the adjacent central incisor\'s apparent width, and the canine steps down harmoniously again. '+
+        'Rebuild ideal proximal contact points and progressively increasing incisal embrasures (central→lateral→canine), a consonant incisal smile arc, and harmonious scalloped gingival zeniths (centrals and canines slightly apical to the laterals). '+
+        'Achieve this proportion through crown FORM, contour and contact-point design — NEVER by enlarging the centrals, lengthening the incisal edges or fusing teeth. Keep natural enamel translucency and per-tooth individuality: the proportional improvement must be clearly visible yet believable for THIS patient.');
+      if(isFacial){
+        parts.push('PROSTHETIC FACIAL MODE — treat the smile as a CLOSE-UP restorative (focus) case: refine ONLY the visible teeth with veneer/crown-level precision (crown form, proportions, incisal edges, shade) and CLOSE any midline diastema / spacing by restoring natural tooth WIDTH and contact points, NOT by moving teeth. Work tooth-by-tooth for an individualised, natural result; keep the lips, gingiva, framing and the rest of the face exactly as in the patient\'s own photograph.');
+      }
     }
     // Golden-proportion smile design for facial ortho/hybrid — the edit is composited only inside
     // the lip aperture, so push for a clearly idealised dentition.
@@ -19492,7 +19498,8 @@ body[data-ui-tone="dark"]{
       '• 上顎前突 maxillary protrusion / excessive overjet → {"en":"maxillary protrusion (excessive overjet)","ja":"出っ歯（上顎前突）"}\n'+
       '• 反対咬合 anterior reverse bite → {"en":"anterior crossbite (reverse overjet)","ja":"受け口（反対咬合）"}\n'+
       '• 上下顎前突 bimaxillary protrusion → {"en":"bimaxillary protrusion","ja":"口ゴボ（上下顎前突）"}\n'+
-      'Apply RULE A-C above: crowding-type and spacing-type findings remain mutually exclusive.\n\n'+
+      'Apply RULE A-C above: crowding-type and spacing-type findings remain mutually exclusive. '+
+      'ABSOLUTE OVERRIDE: if you output 八重歯・乱杭歯（叢生）or crowding of ANY degree, you MUST NOT also output すきっ歯（空隙歯列）or any spacing finding — a crowded arch cannot simultaneously be a spaced arch. When both seem possible, the crowding wins and spacing is suppressed entirely.\n\n'+
       'STEP 2C — MISSING TEETH (FDI notation, obvious cases only):\n'+
       'When a tooth position in the visible arch is CLEARLY edentulous (open gingival ridge where a tooth should be, adjacent teeth drifted/tilted into the space) — not a shadow, not overlap, not partial eruption — report it with the FDI tooth number, e.g. {"en":"missing tooth FDI 12 (upper right lateral incisor)","ja":"歯の欠損 FDI 12（右上側切歯）"}.\n'+
       'Only report missing teeth you can identify with high certainty from the photograph; when uncertain, omit.\n\n'+
@@ -19527,6 +19534,21 @@ body[data-ui-tone="dark"]{
   }
   window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
 
+  // ── Deterministic safety net: crowding and spacing are clinically OPPOSITE.
+  // When ANY crowding-type finding is present, strip every spacing/diastema finding
+  // regardless of which tier produced it (AI models occasionally emit both despite
+  // RULE A-C). This guarantees an obviously-crowded case is never labelled すきっ歯.
+  function dedupeCrowdingSpacing(arr){
+    if(!Array.isArray(arr) || arr.length<2) return arr;
+    const isCrowd=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /crowd|ectopic|yaeba|tooth overlap/.test(e) || /叢生|乱杭|八重歯|重なり|ガタガタ/.test(j); };
+    const isSpace=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /spacing|diastema/.test(e) || /すきっ歯|空隙|離開/.test(j); };
+    if(!arr.some(isCrowd)) return arr;
+    const filtered=arr.filter(f=>!isSpace(f));
+    if(filtered.length===arr.length) return arr;
+    if(arr.__structured){ try{ Object.defineProperty(filtered,'__structured',{value:arr.__structured,enumerable:false}); }catch(e){ filtered.__structured=arr.__structured; } }
+    return filtered;
+  }
+
   // ── Orchestrator: try Vision AI /screen, fall back to pixel heuristic ─────────
   async function buildProblemList(dataUrl){
     try{
@@ -19554,13 +19576,13 @@ body[data-ui-tone="dark"]{
                 try{ Object.defineProperty(out,'__structured',{value:j.structured,enumerable:false}); }
                 catch(e){ out.__structured=j.structured; }
               }
-              return out;
+              return dedupeCrowdingSpacing(out);
             }
           }
         }catch(e){ /* no /screen endpoint or timeout → fall through */ }
       }
       // Tier 2: Enhanced pixel heuristic (offline / no endpoint)
-      return await buildProblemListPixel(dataUrl);
+      return dedupeCrowdingSpacing(await buildProblemListPixel(dataUrl));
     }catch(e){ return []; }
   }
   window.caseflowProblemList = buildProblemList;
@@ -29873,7 +29895,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     var sig = fieldValueText();
     if(host.getAttribute('data-cftt-sig')===sig && host.querySelector('#cfTtField')) return; // idempotent
     host.setAttribute('data-cftt-sig', sig);
-    host.innerHTML = '<div class="simV95SectionLabel">Teeth Design / 歯冠形態デザイン</div>'
+    host.innerHTML = '<div class="simV96AiHead"><b>Teeth Design / 歯冠形態デザイン</b></div>'
       + '<button type="button" class="cfTtField" id="cfTtField" onclick="cfOpenTeethTypeGallery()" aria-haspopup="dialog" aria-expanded="false">'
       + '<span class="cfTtFieldIcon"><img src="'+IMG_BASE+esc(fieldIconId())+'.webp" alt=""></span>'
       + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(sig)+'</b>'
@@ -30165,15 +30187,21 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   }
 
   /* ---- open / close / apply ---- */
+  // pregen = opened on the upload page BEFORE a result exists (prosthetic/hybrid
+  // concept). We store the chosen form so the PRIMARY generation applies it, and we
+  // skip the result-preview + secondary-refinement handoff (there is nothing yet).
+  var pregenMode=false;
   window.cfOpenTeethTypeGallery = function(){
     var result = window.state && state.simResult;
-    if(!result || !result.dataUrl){ if(typeof toast==='function') toast('先に一次生成を実行してください'); return; }
+    pregenMode = !(result && result.dataUrl);
     ensureOverlay();
     var cur = window.cfTeethTypeCurrent();
     draft = { id: cur.id, ratio: cur.golden_ratio || (STYLE[cur.id] && STYLE[cur.id].ratio) || RATIO_DEFAULT };
     paintCards(); paintDesc();
-    var pi = overlay.querySelector('#cfTtPrevImg');
-    if(pi && pi.getAttribute('src')!==result.dataUrl) pi.src = result.dataUrl;
+    if(!pregenMode){
+      var pi = overlay.querySelector('#cfTtPrevImg');
+      if(pi && pi.getAttribute('src')!==result.dataUrl) pi.src = result.dataUrl;
+    }
     if(typeof window.cfComputeTeethAutoRecommendation==='function') window.cfComputeTeethAutoRecommendation();
     opener = document.getElementById('cfTtField');
     if(opener){
@@ -30190,23 +30218,27 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       markCenterCard();
       selCard.focus({ preventScroll:true });
     }
-    schedulePreview();
+    if(!pregenMode) schedulePreview();
   };
 
   function closeGallery(apply){
     if(!overlay || !overlay.classList.contains('open')) return;
-    var applied=false;
+    var applied=false, pregenApplied=false;
     if(apply && draft){
       var prev = window.cfTeethTypeCurrent();
+      var hasResult = !!(window.state && state.simResult && state.simResult.dataUrl);
       window.state.simTeethType = {
         id: draft.id,
-        source: draft.id==='auto' ? 'auto' : 'secondary_manual',
+        // pre-generation choice is a plain 'manual' selection (feeds the primary prompt);
+        // post-generation choice is 'secondary_manual' (feeds the refinement pass).
+        source: draft.id==='auto' ? 'auto' : (hasResult ? 'secondary_manual' : 'manual'),
         selected_at: new Date().toISOString(),
         golden_ratio: draft.id==='auto' ? null : draft.ratio,
         optional_context: prev.optional_context || { sex:null, age:null },
         auto_recommendation: prev.auto_recommendation || null
       };
       applied=true;
+      pregenApplied=!hasResult;
       mountSecondary();
       try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
     }
@@ -30221,10 +30253,18 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(f){ f.setAttribute('aria-expanded','false'); try{ f.focus({ preventScroll:true }); }catch(e){} }
     draft = null;
     if(applied){
-      if(typeof toast==='function') toast('歯冠形態デザインを二次精密生成へ反映します');
-      // hand the committed design to the gated secondary refinement pipeline
-      if(typeof window.runSecondaryRefinement==='function'){
-        try{ var p=window.runSecondaryRefinement(); if(p&&p.then) p.then(function(){ mountSecondary(); }); }catch(e){}
+      if(pregenApplied){
+        // upload-page selection: no result yet — the primary generation will apply the form.
+        if(typeof toast==='function'){
+          var lbl=(window.cfTeethTypeCurrent&&window.cfTeethTypeCurrent().id)||'';
+          toast(lbl==='auto' ? '歯冠形態は自動（推奨）で生成します' : 'この歯冠形態で一次生成に反映します');
+        }
+      } else {
+        if(typeof toast==='function') toast('歯冠形態デザインを二次精密生成へ反映します');
+        // hand the committed design to the gated secondary refinement pipeline
+        if(typeof window.runSecondaryRefinement==='function'){
+          try{ var p=window.runSecondaryRefinement(); if(p&&p.then) p.then(function(){ mountSecondary(); }); }catch(e){}
+        }
       }
     }
   }
@@ -30367,7 +30407,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
           setTimeout(function(){
             try{
               var c = ((state.simV82||{}).concept)||'ortho';
-              if((c==='prosthetic'||c==='hybrid') && !rec.__cfTtPrompted && !document.querySelector('.cfTtOverlay.open')){
+              var ttNow = window.cfTeethTypeCurrent ? window.cfTeethTypeCurrent() : null;
+              var alreadyChosen = ttNow && ttNow.id && ttNow.id!=='auto';
+              // Only surface the post-generation popup when the clinician has NOT already
+              // picked a form on the upload page — otherwise it would nag them twice.
+              if((c==='prosthetic'||c==='hybrid') && !alreadyChosen && !rec.__cfTtPrompted && !document.querySelector('.cfTtOverlay.open')){
                 rec.__cfTtPrompted = true;
                 window.cfOpenTeethTypeGallery();
               }
@@ -30381,11 +30425,36 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     wrapped.__cfTtPostHooked = true;
     window.generateSimulation = wrapped;
   })();
+
+  /* Upload-page trigger: selecting a crown-restorative concept (歯冠修復補綴を含む
+     治療 = prosthetic or hybrid) surfaces the tooth-form popup so the chosen form
+     feeds the FIRST (primary) generation, not only the secondary refinement. */
+  (function hookConceptPopup(){
+    var prev = window.caseflowSetSimConceptV95;
+    if(typeof prev !== 'function'){ document.addEventListener('DOMContentLoaded', hookConceptPopup, { once:true }); return; }
+    if(prev.__cfTtConceptHooked) return;
+    var wrapped = function(key){
+      var r = prev.apply(this, arguments);
+      try{
+        var k = key || ((window.state&&state.simV82||{}).concept);
+        if((k==='prosthetic'||k==='hybrid') && !document.querySelector('.cfTtOverlay.open')){
+          setTimeout(function(){
+            try{ if(!document.querySelector('.cfTtOverlay.open') && typeof window.cfOpenTeethTypeGallery==='function') window.cfOpenTeethTypeGallery(); }catch(e){}
+          }, 440);
+        }
+      }catch(e){}
+      return r;
+    };
+    wrapped.__cfTtConceptHooked = true;
+    window.caseflowSetSimConceptV95 = wrapped;
+  })();
 })();
 </script>
 
 <style id="cf-p1-feedback-style">
-.cfFbCard{
+/* CaseFlow Feedback Engine™ — unique cfFbe* prefix to avoid colliding with the
+   existing .cfFb* feedback-form / admin-inbox modal styles elsewhere in the app. */
+.cfFbeCard{
   position:fixed;left:50%;transform:translateX(-50%) translateY(14px);opacity:0;pointer-events:none;
   bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:10030;width:min(460px,calc(100% - 24px));
   border-radius:22px;padding:14px 44px 14px 16px;color:#fff;
@@ -30397,33 +30466,33 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   box-shadow:0 22px 60px rgba(10,8,24,.5), inset 0 1px 0 rgba(255,255,255,.14);
   transition:opacity .34s ease, transform .38s cubic-bezier(.22,.9,.24,1);
 }
-.cfFbCard.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
-.cfFbHead{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:950;letter-spacing:-.01em}
-.cfFbHead .cfSdOrb,.cfFbOrb{font-size:15px}
-.cfFbSub{margin:3px 0 10px;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.62);line-height:1.55}
-.cfFbRow{display:flex;gap:9px;align-items:flex-start}
-.cfFbRate{display:flex;gap:8px;flex:0 0 auto}
-.cfFbBtn{
+.cfFbeCard.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.cfFbeHead{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:950;letter-spacing:-.01em}
+.cfFbeOrb{font-size:15px}
+.cfFbeSub{margin:3px 0 10px;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.62);line-height:1.55}
+.cfFbeRow{display:flex;gap:9px;align-items:flex-start}
+.cfFbeRate{display:flex;gap:8px;flex:0 0 auto}
+.cfFbeBtn{
   min-height:44px;min-width:86px;border:0;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
   font-size:13px;font-weight:950;color:#fff;cursor:pointer;
   background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 80%, #d33), color-mix(in srgb, var(--c1) 45%, var(--c2)));
 }
-.cfFbBtn[data-fb="bad"]{background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 45%, #5a3fd0), color-mix(in srgb, var(--c2) 60%, #7040c0))}
-.cfFbBtn[aria-pressed="true"]{outline:2px solid #fff;outline-offset:2px}
-.cfFbReasons{flex:1;min-width:0}
-.cfFbReasons b{display:block;font-size:10px;font-weight:900;color:rgba(255,255,255,.55);margin-bottom:6px}
-.cfFbChips{display:flex;flex-wrap:wrap;gap:6px}
-.cfFbChip{
+.cfFbeBtn[data-fb="bad"]{background:linear-gradient(150deg, color-mix(in srgb, var(--c1) 45%, #5a3fd0), color-mix(in srgb, var(--c2) 60%, #7040c0))}
+.cfFbeBtn[aria-pressed="true"]{outline:2px solid #fff;outline-offset:2px}
+.cfFbeReasons{flex:1;min-width:0}
+.cfFbeReasons b{display:block;font-size:10px;font-weight:900;color:rgba(255,255,255,.55);margin-bottom:6px}
+.cfFbeChips{display:flex;flex-wrap:wrap;gap:6px}
+.cfFbeChip{
   min-height:32px;padding:5px 11px;border-radius:10px;border:1px solid rgba(255,255,255,.22);
   background:rgba(255,255,255,.08);color:#fff;font-size:10.5px;font-weight:800;cursor:pointer;
 }
-.cfFbChip[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 45%, rgba(255,255,255,.14));border-color:rgba(255,255,255,.55)}
-.cfFbClose{
+.cfFbeChip[aria-pressed="true"]{background:color-mix(in srgb, var(--c1) 45%, rgba(255,255,255,.14));border-color:rgba(255,255,255,.55)}
+.cfFbeClose{
   position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:50%;
   display:grid;place-items:center;background:rgba(255,255,255,.10);color:#fff;font-size:17px;cursor:pointer;
 }
-.cfFbThanks{font-size:12.5px;font-weight:900;padding:8px 2px}
-@media (prefers-reduced-motion: reduce){ .cfFbCard{transition:opacity .12s linear;transform:translateX(-50%)} }
+.cfFbeThanks{font-size:12.5px;font-weight:900;padding:8px 2px}
+@media (prefers-reduced-motion: reduce){ .cfFbeCard{transition:opacity .12s linear;transform:translateX(-50%)} }
 </style>
 
 <script id="cf-p1-feedback">
@@ -30435,26 +30504,26 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   function ensure(){
     if(card) return card;
     card=document.createElement('div');
-    card.className='cfFbCard';
+    card.className='cfFbeCard';
     card.setAttribute('role','group');
     card.setAttribute('aria-label','CaseFlow Feedback Engine');
-    card.innerHTML='<button type="button" class="cfFbClose" aria-label="閉じる">×</button>'
-      +'<div class="cfFbHead"><span class="cfFbOrb">✦</span>CaseFlow Feedback Engine™</div>'
-      +'<div class="cfFbSub">結果についてのご意見をお聞かせください。AIが次回の精度向上に活用します。</div>'
-      +'<div class="cfFbBody"><div class="cfFbRow">'
-      +'<div class="cfFbRate">'
-      +'<button type="button" class="cfFbBtn" data-fb="good">👍 Good</button>'
-      +'<button type="button" class="cfFbBtn" data-fb="bad">👎 Bad</button>'
+    card.innerHTML='<button type="button" class="cfFbeClose" aria-label="閉じる">×</button>'
+      +'<div class="cfFbeHead"><span class="cfFbeOrb">✦</span>CaseFlow Feedback Engine™</div>'
+      +'<div class="cfFbeSub">結果についてのご意見をお聞かせください。AIが次回の精度向上に活用します。</div>'
+      +'<div class="cfFbeBody"><div class="cfFbeRow">'
+      +'<div class="cfFbeRate">'
+      +'<button type="button" class="cfFbeBtn" data-fb="good">👍 Good</button>'
+      +'<button type="button" class="cfFbeBtn" data-fb="bad">👎 Bad</button>'
       +'</div>'
-      +'<div class="cfFbReasons"><b>理由を選択（任意）</b><div class="cfFbChips">'
-      +CHIPS.map(function(c){return '<button type="button" class="cfFbChip" data-r="'+c[0]+'" aria-pressed="false">'+c[1]+'</button>';}).join('')
+      +'<div class="cfFbeReasons"><b>理由を選択（任意）</b><div class="cfFbeChips">'
+      +CHIPS.map(function(c){return '<button type="button" class="cfFbeChip" data-r="'+c[0]+'" aria-pressed="false">'+c[1]+'</button>';}).join('')
       +'</div></div></div></div>';
     document.body.appendChild(card);
-    card.querySelector('.cfFbClose').addEventListener('click', function(){ hide(); });
+    card.querySelector('.cfFbeClose').addEventListener('click', function(){ hide(); });
     card.addEventListener('click', function(e){
-      var b=e.target.closest('.cfFbChip');
+      var b=e.target.closest('.cfFbeChip');
       if(b){ var k=b.getAttribute('data-r'); reasons[k]=!reasons[k]; b.setAttribute('aria-pressed', reasons[k]?'true':'false'); return; }
-      var g=e.target.closest('.cfFbBtn');
+      var g=e.target.closest('.cfFbeBtn');
       if(g){ rating=g.getAttribute('data-fb'); submit(); }
     });
     return card;
@@ -30469,8 +30538,8 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       if(typeof window.cfLogEvent==='function') window.cfLogEvent('feedback','visual-simulation',{ rating:rating, reasons:rs.join(',') });
       try{ if(window.cfPersist&&cfPersist.schedule) cfPersist.schedule(700); }catch(e){}
     }catch(e){}
-    var body=card.querySelector('.cfFbBody');
-    if(body) body.innerHTML='<div class="cfFbThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
+    var body=card.querySelector('.cfFbeBody');
+    if(body) body.innerHTML='<div class="cfFbeThanks">ありがとうございます — フィードバックを記録しました ✦</div>';
     clearTimeout(hideTimer); hideTimer=setTimeout(hide, 1600);
   }
   function hide(){ if(card) card.classList.remove('show'); }
@@ -30479,11 +30548,11 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
     if(rec) rec.__cfFbShown=true;
     ensure();
     curRec=rec; rating=null; reasons={};
-    var body=card.querySelector('.cfFbBody');
-    if(body && !body.querySelector('.cfFbRate')){
+    var body=card.querySelector('.cfFbeBody');
+    if(body && !body.querySelector('.cfFbeRate')){
       card.remove(); card=null; ensure(); curRec=rec;
     }
-    Array.prototype.forEach.call(card.querySelectorAll('.cfFbChip'), function(b){ b.setAttribute('aria-pressed','false'); });
+    Array.prototype.forEach.call(card.querySelectorAll('.cfFbeChip'), function(b){ b.setAttribute('aria-pressed','false'); });
     clearTimeout(hideTimer);
     card.classList.add('show');
     hideTimer=setTimeout(hide, 30000);
