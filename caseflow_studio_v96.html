@@ -19513,6 +19513,15 @@ body[data-ui-tone="dark"]{
       'Analyze the supplied dental photograph and extract observable findings using the 4-step pipeline below.\n'+
       'Output ONLY valid JSON: {"findings":[{"en":"<English finding>","ja":"<日本語所見>"}]}\n'+
       'Maximum 5 findings. No duplicates. Only report findings clearly visible in the image. No explanations.\n\n'+
+      'OBSERVATION-FIRST PROTOCOL (do this BEFORE naming any diagnosis — do NOT guess a diagnosis label first):\n'+
+      'For the maxillary and mandibular anterior segments SEPARATELY, first OBSERVE, in this order: '+
+      '(1) how many teeth and which regions are clearly visible; '+
+      '(2) whether adjacent crowns OVERLAP or their contact points are irregular; '+
+      '(3) whether any clearly OPEN interdental space exists where background/oral cavity is continuously visible through the full crown height; '+
+      '(4) tooth AXES (tilting); (5) ROTATION; (6) labial/lingual position irregularity; (7) incisal-edge arrangement (step-downs); '+
+      '(8) visibility / uncertainty. ONLY THEN classify findings from what you actually observed. Never invent information you cannot see. '+
+      'Decision rule from these observations: if you observe overlap / rotation / axis irregularity / positional displacement / crowded contacts with NO clearly open full-height interdental gap, the segment is CROWDING (叢生), NOT spacing. '+
+      'A dark region that appears only between overlapped or rotated teeth is a depth SHADOW, not an open space.\n\n'+
       'STEP 1 — APPLIANCE STATUS (clinician-confirmed, SKIP auto-detection):\n'+
       'Bracket and wire status is explicitly confirmed by the treating clinician via the UI hasBrackets control — do NOT attempt to auto-detect orthodontic appliances from the image pixel data.\n'+
       'Do NOT include any appliance finding in your output JSON regardless of what you observe in the image.\n'+
@@ -19567,7 +19576,8 @@ body[data-ui-tone="dark"]{
       'Layers:\n'+
       '1. facialBalance {midlineAlignment, symmetry, interpupillaryOcclusalRelation, smileCant, facialType, profileType(straight/convex/concave), lipProtrusion, chinLipBalance, confidence 0-1}\n'+
       '2. dentolabialBalance {lipLine, incisalDisplay, smileArc, lowerLipRelation, commissureSymmetry, smileWidth, buccalCorridor, confidence}\n'+
-      '3. orthodonticFindings {anteriorCrossbite, reverseOverjet, excessiveOverjet, deepBite, openBite, crowding{present,severity}, spacing{present,severity}, rotation{present,details}, axialInclinationIssue{present,details}, midlineDiscrepancy{present,details}, archAsymmetry{present,details}, confidence}\n'+
+      '3. orthodonticFindings {anteriorCrossbite, reverseOverjet, excessiveOverjet, deepBite, openBite, crowding{present,severity,region,evidence[]}, spacing{present,severity,region,evidence[]}, rotation{present,details}, axialInclinationIssue{present,details}, midlineDiscrepancy{present,details}, archAsymmetry{present,details}, confidence}\n'+
+      '   EVIDENCE GATE (critical — these booleans drive downstream reconciliation): set spacing.present=true ONLY when you can name a specific region AND describe the actual visible interdental gap (which teeth, and that background is continuously visible through the full crown height); otherwise spacing.present=false. Set crowding.present=true when you observe overlap/rotation/axis or positional irregularity, with region and the observed evidence listed. crowding and spacing are evaluated PER REGION (maxillary_anterior / mandibular_anterior); they may legitimately coexist in DIFFERENT regions, but within the SAME region overlapping crowns must be crowding, never spacing. If a gap cannot be justified with visible evidence, do NOT flag spacing.\n'+
       '4. restorativeFindings {missingTooth, pegLateral, toothSizeDiscrepancy, discoloration, fracture, wear, oldRestorationMismatch, crownProportionIssue — each {present,details}; confidence}\n'+
       'plus gingivalFindings {gingivalMarginDisharmony, papillaIssue, blackTriangle, gummySmile, confidence}, '+
       'priorityClassification {orthodonticPriority[], restorativePriority[], gingivalPriority[], lipFacialPriority[], uncertainVisibility[]}, '+
@@ -19585,21 +19595,55 @@ body[data-ui-tone="dark"]{
   }
   window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
 
-  // ── Deterministic safety net: crowding and spacing are clinically OPPOSITE.
-  // When ANY crowding-type finding is present, strip every spacing/diastema finding
-  // regardless of which tier produced it (AI models occasionally emit both despite
-  // RULE A-C). This guarantees an obviously-crowded case is never labelled すきっ歯.
+  // ── Deterministic reconciliation: crowding vs. spacing (clinically OPPOSITE).
+  // Root-cause fix: the flat findings[] array occasionally carries a spacing/diastema
+  // finding on a clearly CROWDED arch (a 2D shadow artefact the model mislabels). The old
+  // net only stripped spacing when a crowding TEXT was also present in the same array, so a
+  // spacing-only emission slipped through. This version ALSO consults the model's own
+  // structured layer (__structured.orthodonticFindings.crowding/spacing.present), which the
+  // Vision AI derives from the full-resolution image — it is view-independent and reliable:
+  //   • crowding present (flat OR structured) AND spacing NOT structurally confirmed
+  //       → the spacing finding is an unconfirmed shadow/artefact → strip it.
+  //   • crowding present AND the structured layer explicitly confirms spacing.present too
+  //       → genuine coexistence (e.g. upper crowding + lower spacing in different regions)
+  //         → trust the model and keep BOTH (never force whole-arch mutual exclusivity).
+  // Helpers stay non-enumerable so __structured/__review survive.
+  function cffReattach(dst, srcArr){
+    if(srcArr && srcArr.__structured){ try{ Object.defineProperty(dst,'__structured',{value:srcArr.__structured,enumerable:false}); }catch(e){ dst.__structured=srcArr.__structured; } }
+    if(srcArr && srcArr.__review){ try{ Object.defineProperty(dst,'__review',{value:srcArr.__review,enumerable:false}); }catch(e){ dst.__review=srcArr.__review; } }
+    return dst;
+  }
   function dedupeCrowdingSpacing(arr){
-    if(!Array.isArray(arr) || arr.length<2) return arr;
+    if(!Array.isArray(arr) || !arr.length) return arr;
     const isCrowd=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /crowd|ectopic|yaeba|tooth overlap/.test(e) || /叢生|乱杭|八重歯|重なり|ガタガタ/.test(j); };
     const isSpace=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /spacing|diastema/.test(e) || /すきっ歯|空隙|離開/.test(j); };
-    if(!arr.some(isCrowd)) return arr;
-    const filtered=arr.filter(f=>!isSpace(f));
-    if(filtered.length===arr.length) return arr;
-    if(arr.__structured){ try{ Object.defineProperty(filtered,'__structured',{value:arr.__structured,enumerable:false}); }catch(e){ filtered.__structured=arr.__structured; } }
-    if(arr.__review){ try{ Object.defineProperty(filtered,'__review',{value:arr.__review,enumerable:false}); }catch(e){ filtered.__review=arr.__review; } }
-    return filtered;
+    let sCrowd=null, sSpace=null; // model structured booleans (null = not reported)
+    try{
+      const of=arr.__structured && arr.__structured.orthodonticFindings;
+      if(of){
+        if(of.crowding && typeof of.crowding.present==='boolean') sCrowd=of.crowding.present;
+        if(of.spacing  && typeof of.spacing.present ==='boolean') sSpace=of.spacing.present;
+      }
+    }catch(e){}
+    const hasCrowdFlat=arr.some(isCrowd), hasSpaceFlat=arr.some(isSpace);
+    const crowdingPresent = hasCrowdFlat || sCrowd===true;
+    if(!crowdingPresent) return arr; // no crowding evidence → nothing to reconcile (正中離開 etc. kept)
+    // Genuine coexistence confirmed by the model's structured layer → keep both, but make
+    // sure crowding is represented in the visible flat list.
+    if(sSpace===true){
+      if(!hasCrowdFlat){
+        const withC=arr.slice(); withC.unshift({en:'crowding (tooth overlap / rotation)',ja:'叢生（歯の重なり・ガタガタ）'});
+        return cffReattach(withC, arr);
+      }
+      return arr;
+    }
+    // Crowding present, spacing NOT structurally confirmed → strip unconfirmed spacing.
+    let filtered=hasSpaceFlat?arr.filter(f=>!isSpace(f)):arr.slice();
+    if(!hasCrowdFlat && sCrowd===true) filtered.unshift({en:'crowding (tooth overlap / rotation)',ja:'叢生（歯の重なり・ガタガタ）'});
+    if(filtered.length===arr.length && hasSpaceFlat===false) return arr;
+    return cffReattach(filtered, arr);
   }
+  window.cfDedupeCrowdingSpacing = dedupeCrowdingSpacing;
 
   // ── Deterministic crowding signal from the incisal profile ────────────────────
   // A lightweight read used to VETO an AI "spacing/diastema" call on a clearly crowded
@@ -19608,9 +19652,23 @@ body[data-ui-tone="dark"]{
     try{
       const img=await loadImage(dataUrl);
       const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
-      const W=256, H=Math.max(8,Math.round(W*ih/iw));
+      // Pass 1 — locate the tooth band on a coarse render of the WHOLE frame.
+      const PW=384, PH=Math.max(8,Math.round(PW*ih/iw));
+      const pc=document.createElement('canvas'); pc.width=PW; pc.height=PH;
+      const pctx=pc.getContext('2d',{willReadFrequently:true}); pctx.drawImage(img,0,0,PW,PH);
+      const pb=detectBand(pctx,PW,PH);
+      // Map the band back to source pixels (+margin) and analyse ONLY that crop, enlarged.
+      // This is the key fix for FACIAL photos: on a full-face portrait the mouth is a tiny
+      // fraction of the frame, so a whole-image 256px render flattens the incisal step-downs
+      // and crowding becomes undetectable. Cropping to the mouth restores the effective
+      // resolution an intraoral close-up already has. (For a close-up the crop ≈ full frame.)
+      const mx=iw*0.02, my=ih*0.02;
+      const sx=Math.max(0,(pb.x0/PW)*iw-mx), sxr=Math.min(iw,(pb.x1/PW)*iw+mx);
+      const sy=Math.max(0,(pb.y0/PH)*ih-my), syr=Math.min(ih,(pb.y1/PH)*ih+my);
+      const cw=Math.max(8,sxr-sx), chh=Math.max(8,syr-sy);
+      const W=256, H=Math.max(8,Math.round(W*chh/cw));
       const c=document.createElement('canvas'); c.width=W; c.height=H;
-      const ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,W,H);
+      const ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img, sx,sy,cw,chh, 0,0,W,H);
       const band=detectBand(ctx,W,H);
       const mask=buildToothMask(ctx,W,H,band);
       if(!mask) return null;
@@ -19626,6 +19684,7 @@ body[data-ui-tone="dark"]{
       return { crowding:(rough/bh)>0.11, roughness:rough/bh };
     }catch(e){ return null; }
   }
+  window.cfPixelArchSignal = pixelArchSignal;
 
   // ── Orchestrator: try Vision AI /screen, fall back to pixel heuristic ─────────
   async function buildProblemList(dataUrl){
