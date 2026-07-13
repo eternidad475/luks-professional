@@ -19154,6 +19154,7 @@ body[data-ui-tone="dark"]{
         +'Negative (enforce hard): round face, 丸顔, moon face, rounder face, circular face, wider face, broadened face, widened cheeks, puffy face, swollen face, edematous face, fuller cheeks, weight gain, bloated face, chubby face, enlarged head, stretched face, changed face proportions.'
       );
       parts.push('FACIAL-TYPE CROWN HARMONY (facial upload — skeletal facial-profile reference): harmonise the upper anterior crown FORM and LENGTH with the patient\'s facial type. Short/broad faces (短頭型 brachyfacial, deep-bite tendency) carry comparatively SHORTER, broader crowns — do NOT over-lengthen the centrals; balanced faces (中顔型 mesofacial) carry average-length ovoid crowns; long faces (長顔型 dolichofacial, open-bite tendency) carry LONGER, slender crowns. Keep the crowns clinically plausible for THIS face and never resort to identical template teeth.');
+      parts.push('INCISAL-EDGE LENGTH LOCK (facial upload — HARD CONSTRAINT): the vertical POSITION of the upper incisal edges (the amount of tooth shown below the upper lip / between the lips) must NOT move downward and the crown LENGTH must NOT increase versus the input. The observed failure is the upper anteriors — especially the centrals — coming out too LONG (incisal edges extended downward, more tooth display than the original). Keep the incisal-edge line at the SAME height as the input, or if anything a hair SHORTER — never longer. Improve alignment/arc by LEVELLING uneven edges up to the existing incisal line, NOT by lengthening teeth downward. Do NOT increase the tooth-to-lip display or lengthen the clinical crowns. Elongated centrals / a longer incisal display than the input is INCORRECT.');
     }
     if(isIntraoral && isIntraoralDark){
       parts.push('CRITICAL: this is an intraoral CLOSE-UP of a single arch (anterior teeth), taken with cheek retractors against a BLACK contraster background. Keep the black background pure black and completely unchanged; keep the cheek retractors and the gingiva unchanged. Modify ONLY the enamel of the visible teeth. Do NOT invent extra teeth, lips, skin or a full smile, and do NOT change the framing, magnification or number of teeth.');
@@ -19600,6 +19601,32 @@ body[data-ui-tone="dark"]{
     return filtered;
   }
 
+  // ── Deterministic crowding signal from the incisal profile ────────────────────
+  // A lightweight read used to VETO an AI "spacing/diastema" call on a clearly crowded
+  // arch (they are clinically opposite). Returns {crowding:bool, roughness:number} or null.
+  async function pixelArchSignal(dataUrl){
+    try{
+      const img=await loadImage(dataUrl);
+      const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+      const W=256, H=Math.max(8,Math.round(W*ih/iw));
+      const c=document.createElement('canvas'); c.width=W; c.height=H;
+      const ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,W,H);
+      const band=detectBand(ctx,W,H);
+      const mask=buildToothMask(ctx,W,H,band);
+      if(!mask) return null;
+      let minX=W,maxX=0,minY=H,maxY=0,n=0;
+      const colMaxY=new Int16Array(W).fill(-1);
+      for(let q=0;q<mask.length;q++){ if(mask[q]<0.5) continue; n++; const x=q%W,y=(q/W)|0;
+        if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; if(y>colMaxY[x])colMaxY[x]=y; }
+      if(n<200) return null;
+      const bh=Math.max(1,maxY-minY);
+      const cols=[]; for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0) cols.push(colMaxY[x]); }
+      if(cols.length<=12) return null;
+      let rough=0; for(let i=1;i<cols.length;i++) rough+=Math.abs(cols[i]-cols[i-1]); rough/=cols.length;
+      return { crowding:(rough/bh)>0.11, roughness:rough/bh };
+    }catch(e){ return null; }
+  }
+
   // ── Orchestrator: try Vision AI /screen, fall back to pixel heuristic ─────────
   async function buildProblemList(dataUrl){
     try{
@@ -19632,6 +19659,21 @@ body[data-ui-tone="dark"]{
                 var _rv=(typeof j.review==='object')?(j.review.ja||j.review.en||''):String(j.review);
                 if(_rv){ try{ Object.defineProperty(out,'__review',{value:String(_rv).slice(0,400),enumerable:false}); }catch(e){ out.__review=String(_rv).slice(0,400); } }
               }
+              // Deterministic veto: if the Vision AI called spacing/diastema but did NOT
+              // call crowding, corroborate against the pixel incisal profile. When the arch
+              // is clearly crowded, inject a crowding finding so dedupe strips the (opposite)
+              // spacing call — an obviously crowded arch must never surface as すきっ歯.
+              try{
+                const _isCrowd=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /crowd|ectopic|yaeba|tooth overlap/.test(e) || /叢生|乱杭|八重歯|重なり|ガタガタ/.test(j); };
+                const _isSpace=f=>{ const e=String(f&&f.en||'').toLowerCase(), j=String(f&&f.ja||''); return /spacing|diastema/.test(e) || /すきっ歯|空隙|離開/.test(j); };
+                if(out.some(_isSpace) && !out.some(_isCrowd)){
+                  const sig=await pixelArchSignal(dataUrl);
+                  if(sig && sig.crowding){
+                    out.unshift({en:'crowding (incisal step-downs — tooth overlap or rotation)',ja:'叢生（歯の重なり・ガタガタ）'});
+                    if(out.length>6) out.length=6;
+                  }
+                }
+              }catch(e){ /* veto is best-effort; never block findings */ }
               return dedupeCrowdingSpacing(out);
             }
           }
@@ -19695,11 +19737,12 @@ body[data-ui-tone="dark"]{
       // High roughness = severe step-downs → crowding / rotation. Moderate = uneven incisal.
       // hasCrowding is used to suppress diastema detection (crowding shadows mimic gaps in 2D).
       const cols=[]; for(let x=minX;x<=maxX;x++){ if(colMaxY[x]>=0) cols.push(colMaxY[x]); }
-      let hasCrowdingFinding=false;
+      let hasCrowdingFinding=false, incisalRough=null;
       if(cols.length>12){
         let rough=0; for(let i=1;i<cols.length;i++) rough+=Math.abs(cols[i]-cols[i-1]); rough/=cols.length;
-        if(rough/bh>0.11){ F.push({en:'crowding (severe incisal step-downs — tooth overlap or rotation likely)',ja:'叢生（歯の重なり・ガタガタ）'}); hasCrowdingFinding=true; }
-        else if(rough/bh>0.04) F.push({en:'uneven incisal edges (mild irregularity or wear)',ja:'切縁の不揃い・軽度摩耗'});
+        incisalRough=rough/bh;
+        if(incisalRough>0.11){ F.push({en:'crowding (severe incisal step-downs — tooth overlap or rotation likely)',ja:'叢生（歯の重なり・ガタガタ）'}); hasCrowdingFinding=true; }
+        else if(incisalRough>0.04) F.push({en:'uneven incisal edges (mild irregularity or wear)',ja:'切縁の不揃い・軽度摩耗'});
       }
       // Spacing / diastema — SUPPRESSED when:
       //   (a) brackets present (bracket slots and wire gaps mimic open spaces), OR
@@ -19707,10 +19750,14 @@ body[data-ui-tone="dark"]{
       //       cast deep shadows that look like gaps. Crowding and diastema are clinically
       //       MUTUALLY EXCLUSIVE; when crowding is present every dark interproximal region
       //       must be treated as a depth shadow, never as an open interdental space.
-      if(!hasBrackets && !hasCrowdingFinding){
+      // Only trust a "gap" on an OTHERWISE EVEN arch. Any incisal irregularity (even mild)
+      // means overlapping / rotated / lingually-displaced teeth, which cast interproximal
+      // shadows that mimic open spaces in a 2D frontal photo. Requiring a smooth incisal
+      // profile (and a wider contiguous gap) stops a crowded arch being labelled すきっ歯.
+      if(!hasBrackets && !hasCrowdingFinding && incisalRough!=null && incisalRough<=0.045){
         const y0=Math.round(minY+bh*0.42),y1=Math.round(minY+bh*0.58); let run=0,maxRun=0;
         for(let x=minX;x<=maxX;x++){ let t=false; for(let y=y0;y<=y1;y++){ if(mask[y*W+x]>0.5){t=true;break;} } if(!t){run++;if(run>maxRun)maxRun=run;}else run=0; }
-        if(maxRun/bw>0.06) F.push({en:'spacing / diastema between teeth',ja:'歯間離開（すきっ歯）'});
+        if(maxRun/bw>0.09) F.push({en:'spacing / diastema between teeth',ja:'歯間離開（すきっ歯）'});
       }
 
       // ── STEP 3: Occlusion (deep bite / open bite / crossbite) ─────────────────
