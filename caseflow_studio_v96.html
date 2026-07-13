@@ -18362,6 +18362,8 @@ body[data-ui-tone="dark"]{
         ${conceptBtn('hybrid','Orthodontic + Prosthetic','歯列矯正＋補綴治療','矯正と補綴の両方を組み合わせた総合的な改善イメージ')}
       </div>
 
+      <div id="cfTtUploadHost" class="cfTtUploadHost" style="display:none"></div>
+
       ${(typeof window.cfPatientCtxFieldHTML==='function') ? window.cfPatientCtxFieldHTML() : ''}
 
       <div class="simV95SectionLabel">Chief complaint cards / 主訴カード</div>
@@ -18378,6 +18380,9 @@ body[data-ui-tone="dark"]{
 
     const primary = document.querySelector('#simulator button.primary[onclick*="generateSimulation"]');
     if(primary) primary.innerHTML = 'Reference Image 作成';
+    // Upload-page Teeth Design card — shown for crown-restorative concepts (補綴/ハイブリッド)
+    // so the chosen crown form feeds the FIRST (primary) generation.
+    try{ if(typeof window.cfMountUploadTeethCard==='function') window.cfMountUploadTeethCard(); }catch(e){}
   }
 
   window.rebuildSimulationStudioV95 = rebuildSimulationStudioV95;
@@ -18511,6 +18516,11 @@ body[data-ui-tone="dark"]{
 #result #simV96EditGrid .simV96RefRow{margin-top:9px}
 #result #simV96EditGrid .simV96RefBtn{display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:11px;border:1.5px dashed var(--cfUiBorder,rgba(32,27,53,.22));background:var(--cfUiPanelStrong,rgba(255,255,255,.85));color:var(--cfUiText,#201b35);font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
 #result #simV96EditGrid .simV96RefBtn:active{transform:scale(.98)}
+/* Reference-image button placed INSIDE the prompt box (bottom-right corner) */
+#result #simV96EditGrid .simV96PromptWrap{position:relative}
+#result #simV96EditGrid .simV96RefBtnInBox{position:absolute;right:8px;bottom:9px;width:32px;height:32px;display:grid;place-items:center;padding:0;border-radius:9px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.20));background:var(--cfUiPanelStrong,rgba(255,255,255,.92));color:color-mix(in srgb,var(--c1) 60%,var(--cfUiText,#201b35));cursor:pointer;transition:transform .12s,background .12s}
+#result #simV96EditGrid .simV96RefBtnInBox:hover{background:color-mix(in srgb,var(--c1) 12%,#fff)}
+#result #simV96EditGrid .simV96RefBtnInBox:active{transform:scale(.94)}
 #result #simV96EditGrid .simV96RefThumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 #result #simV96EditGrid .simV96RefThumb{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16))}
 #result #simV96EditGrid .simV96RefThumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -18594,7 +18604,7 @@ body[data-ui-tone="dark"]{
 
   const AXES = [
     ['shade','Color','色調'],
-    ['alignment','Alignment','歯列配列'],
+    ['alignment','Alignment','歯列補正'],
     ['toothShape','Incisal','切縁形態'],
     ['scallop','Cervical','歯頸側幅径'],
     ['smileFrame','Smile Frame','スマイルフレーム']
@@ -19037,6 +19047,10 @@ body[data-ui-tone="dark"]{
           const labels=tg.map(k=>tmap[k]||k).concat(tgc.map(String));
           if(labels.length) parts.push('CLINICIAN-SELECTED SIMULATION TARGETS: '+labels.slice(0,10).join(', ')+'. Focus the visible change on these targets; do not introduce unrelated changes.');
         }
+        const refs=Array.isArray(state.simRefImages)?state.simRefImages:[];
+        if(refs.length){
+          parts.push('REFERENCE IMAGES ATTACHED ('+refs.length+'): the clinician has attached reference image(s) as a DESIGN target. Read the UPPER ANTERIOR CROWN FORM characteristics from them — crown OUTLINE/shape family (square / ovoid / triangular), width-to-height proportion, incisal-edge form, surface texture and the central:lateral:canine width progression — and reflect those crown-form characteristics into THIS patient\'s upper anterior teeth. Use the references ONLY for tooth crown FORM/character; NEVER copy the reference patient\'s face, identity, lips or skin, and keep this patient\'s own facial identity unchanged.');
+        }
       }catch(e){}
       const custom=String(state.simCustomPrompt||'').trim();
       if(mode==='user-first'){
@@ -19302,6 +19316,16 @@ body[data-ui-tone="dark"]{
     // Prosthetic on a facial photo → handle the smile as a CLOSE-UP (focus) restorative case for
     // a more natural result: veneer/crown-level tooth work, diastema closed by restoring tooth
     // WIDTH (not orthodontic movement). The face stays the patient's own pixels.
+    if(concept==='prosthetic' || concept==='hybrid'){
+      // Absolute, stage-independent priorities for crown-restorative concepts. This is a
+      // patient-communication top-down document, so these must hold on the FIRST generation,
+      // on every REGENERATION and on every concept switch — never drift between passes.
+      parts.push('CROWN-RESTORATIVE TOP PRIORITIES (補綴関連コンセプト — these OVERRIDE lesser esthetic tweaks and must hold identically at EVERY generation stage — first pass, every regeneration, every concept switch): '+
+        '(1) FACIAL IDENTITY — preserve this patient\'s facial identity completely and unchanged at all times (face shape/width/volume, lips, skin, eyes, nose, chin, expression, framing). Regeneration must reproduce the SAME identity, never drift. '+
+        (isFacial?'':'(intraoral/close-up: keep lips, gingiva, framing and background unchanged.) ')+
+        '(2) BILATERAL-SYMMETRIC GOLDEN PROPORTION — the maxillary anterior teeth must be LEFT-RIGHT SYMMETRIC in BOTH the maximum crown width (最大歯冠幅径, mesio-distal) AND the vertical crown dimension (垂直的幅径 = crown height/length): the right and left central incisors match each other, the right and left laterals match, the right and left canines match, and across the arch the widths follow the golden proportion (central : lateral : canine ≈ 1.6 : 1.0 : 0.6) with matching crown heights on each side, so the smile is symmetric about the dental midline. Achieve width dominance only by narrowing the laterals — never by enlarging or lengthening the centrals beyond the input (+0% / −3% cap). '+
+        '(3) INCISAL EDGE ALONG THE LIP LINE — arrange the upper incisal-edge line so it forms a consonant smile arc that runs PARALLEL to and follows the lower-lip line (リップライン); level any left-right incisal-height asymmetry so both sides sit symmetrically along that lip-line curve.');
+    }
     if(concept==='prosthetic'){
       parts.push('PROSTHETIC GOLDEN-PROPORTION DESIGN (crown / veneer restorative — apply the proportion CONCRETELY; realising the golden proportion is the whole point of this concept): '+
         'the maxillary central incisor is the key reference with a width-to-height ratio of about 78–82%; from the front the apparent crown widths step down central : lateral : canine ≈ 1.6 : 1.0 : 0.6 (RED / golden proportion) — i.e. each lateral incisor should show about 62% of the adjacent central incisor\'s apparent width, and the canine steps down harmoniously again. '+
@@ -21102,13 +21126,13 @@ body[data-ui-tone="dark"]{
     // built-in default endpoint, so generation works silently without any visible control.
     const aiRow=`<div class="simV96AiRow">
         <div class="simV96AiHead"><b>追加指示 / 主訴メモ</b><span id="simV96CpCount">${cpVal.length}/500</span></div>
-        <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：正中離開だけ閉じたい。矮小歯は残す。歯列は少し野暮ったさを残す。右上1番の変色を改善。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
-        <div class="simV96RefRow">
+        <div class="simV96PromptWrap">
+          <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：正中離開だけ閉じたい。矮小歯は残す。右上1番の変色を改善。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px 44px 10px 10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
           <input type="file" id="simV96RefInput" accept="image/*" multiple style="display:none">
-          <button type="button" id="simV96RefBtn" class="simV96RefBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>参考画像を追加 / Add reference image</button>
-          <div class="simV96RefThumbs" id="simV96RefThumbs"></div>
-          <div class="simV96RefNote">診断ではなく、生成AIへの参考資料として添付されます（対応バックエンド接続時に反映）。最大3枚。</div>
+          <button type="button" id="simV96RefBtn" class="simV96RefBtnInBox" title="参考画像を追加 / Add reference image" aria-label="参考画像を追加"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></button>
         </div>
+        <div class="simV96RefThumbs" id="simV96RefThumbs"></div>
+        <div class="simV96RefNote">参考画像は歯冠形態の特徴を捉えて画像生成に自動反映されます（対応バックエンド接続時）。診断資料ではありません。最大3枚。</div>
       </div>`;
     // v9.7 intent controls — 反映モード / 最小変更 / 補正範囲
     state.simIntentMode=state.simIntentMode||'balanced';
@@ -21171,8 +21195,7 @@ body[data-ui-tone="dark"]{
             const ortho=(cpt==='ortho'||cpt==='hybrid');
             const initA=Math.round(state.simV96.alignment||0);
             const show=ortho&&initA>=80;
-            return `<div class="cfAxisDesc">歯の重なり、捻転、位置、歯間スペースを調整します（明瞭な空隙がある場合のみ空隙を補正）。</div>`+
-              `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`+
+            return `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`+
               `<div id="cfExtractBadge" class="cfExtractBadge" style="display:${show?'flex':'none'}">抜歯矯正モード</div>`;
           })()
         : (key==='toothShape')
@@ -29909,6 +29932,10 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
    one backdrop-filter layer; transforms/opacity only; reduced-motion aware.
    ================================================================================== */
 
+/* ---- upload-page Teeth Design card host (補綴/ハイブリッド only) ---- */
+.cfTtUploadHost{margin:10px 0 2px}
+.cfTtUploadHead{margin:0 0 2px}
+.cfTtUploadHead b{font-size:12px;font-weight:900;color:var(--cfUiText,#201b35)}
 /* ---- launcher on the result screen (static host #cfTtSecondaryHost) ---- */
 .cfTtField{
   width:100%;display:flex;align-items:center;gap:12px;text-align:left;
@@ -30100,6 +30127,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   .cfTtCard.isCenter{transform:none}
   .cfTtCard.justSelected .cfTtSpecimen::after{animation:none}
   .cfTtField{transition:none}
+  .cfTtUploadHost{transition:none}
   .cfTtCheck{transition:opacity .12s linear}
 }
 </style>
@@ -30441,6 +30469,26 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
   }
   window.cfRenderTeethTypeField = mountSecondary;
 
+  /* Upload-page Teeth Design card — visible only for 補綴/ハイブリッド concepts, so the
+     chosen crown form feeds the PRIMARY generation. Opens the same gallery on tap. */
+  function mountUploadCard(){
+    var host = document.getElementById('cfTtUploadHost');
+    if(!host) return;
+    var concept = (window.state && state.simV82 && state.simV82.concept) || 'ortho';
+    if(concept!=='prosthetic' && concept!=='hybrid'){ if(host.innerHTML!=='') host.innerHTML=''; host.style.display='none'; host.removeAttribute('data-cftt-sig'); return; }
+    host.style.display='';
+    var sig = fieldValueText();
+    if(host.getAttribute('data-cftt-sig')===sig && host.querySelector('#cfTtField')) return; // idempotent
+    host.setAttribute('data-cftt-sig', sig);
+    host.innerHTML = '<div class="simV96AiHead cfTtUploadHead"><b>Teeth Design / 歯冠形態デザイン</b></div>'
+      + '<button type="button" class="cfTtField" id="cfTtField" onclick="cfOpenTeethTypeGallery()" aria-haspopup="dialog" aria-expanded="false">'
+      + '<span class="cfTtFieldIcon"><img src="'+IMG_BASE+esc(fieldIconId())+'.webp" alt=""></span>'
+      + '<span class="cfTtFieldMain"><b id="cfTtFieldValue">'+esc(sig)+'</b>'
+      + '<small>補綴・ハイブリッド治療の上顎前歯部（犬歯間）歯冠形態を選択（一次生成に反映）</small></span>'
+      + '<span class="cfTtFieldChevron" aria-hidden="true">›</span></button>';
+  }
+  window.cfMountUploadTeethCard = mountUploadCard;
+
   /* ---- dialog ---- */
   var overlay=null, opener=null, draft=null, scrollRaf=0, closeTimer=0;
   var prevImg=null, prevImgUrl=null, roiCache={}, drawRaf=0, drawToken=0;
@@ -30777,6 +30825,7 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
       applied=true;
       pregenApplied=!hasResult;
       mountSecondary();
+      try{ mountUploadCard(); }catch(e){}
       try{ if(window.cfPersist && window.cfPersist.schedule) window.cfPersist.schedule(800); }catch(e){}
     }
     overlay.setAttribute('aria-hidden','true');
