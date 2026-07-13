@@ -18491,6 +18491,23 @@ body[data-ui-tone="dark"]{
 #result #simV96EditGrid .simV96Review{margin:6px 0 7px;padding:9px 11px;border-radius:12px;background:color-mix(in srgb, var(--c1) 8%, rgba(255,255,255,.05));border-left:3px solid color-mix(in srgb, var(--c1) 55%, transparent)}
 #result #simV96EditGrid .simV96Review b{display:block;font-size:10px;font-weight:900;letter-spacing:.02em;color:color-mix(in srgb, var(--c1) 70%, var(--cfUiText,#201b35));margin-bottom:3px}
 #result #simV96EditGrid .simV96Review p{margin:0;font-size:11px;line-height:1.6;font-weight:600;color:var(--cfUiText,#201b35)}
+/* v9.8 Findings view-model — A. observations / B. targets / C. review notes */
+#result #simV96EditGrid .cfFindingsV2 .cfFvSec{margin:0 0 11px}
+#result #simV96EditGrid .cfFindingsV2 .cfFvSec:last-child{margin-bottom:0}
+#result #simV96EditGrid .cfFindingsV2 .cfFvHd{display:block;font-size:10px;font-weight:950;letter-spacing:.03em;color:color-mix(in srgb,var(--c1) 68%,var(--cfUiText,#201b35));margin:0 0 5px;text-transform:uppercase}
+#result #simV96EditGrid .cfFindingsV2 .cfFvList{margin:0;padding-left:16px;list-style:disc}
+#result #simV96EditGrid .cfFindingsV2 .cfFvList li{font-size:11.5px;font-weight:750;line-height:1.5;color:var(--cfUiText,#201b35);margin-bottom:3px}
+#result #simV96EditGrid .cfFindingsV2 .cfFvSub{font-size:9.5px;font-weight:600;color:var(--cfUiSub,rgba(32,27,53,.6));line-height:1.4;margin-top:1px}
+#result #simV96EditGrid .cfFindingsV2 .cfFvEmpty{margin:0;font-size:11px;font-weight:650;color:var(--cfUiSub,rgba(32,27,53,.6))}
+#result #simV96EditGrid .cfFindingsV2 .cfFvHint{font-size:9.5px;font-weight:600;color:var(--cfUiSub,rgba(32,27,53,.58));margin:0 0 6px;line-height:1.4}
+#result #simV96EditGrid .cfFindingsV2 .cfFvNotes li{font-weight:700}
+#result #simV96EditGrid .cfFindingsV2 .cfFvDisc{display:block;font-size:9.5px;font-weight:600;color:var(--cfUiSub,rgba(32,27,53,.55));line-height:1.45;margin-top:5px}
+#result #simV96EditGrid .cfTgtChips{display:flex;flex-wrap:wrap;gap:6px}
+#result #simV96EditGrid .cfTgtChip{font:inherit;font-size:11px;font-weight:850;padding:6px 11px;border-radius:999px;cursor:pointer;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.18));background:var(--cfUiPanelStrong,rgba(255,255,255,.85));color:var(--cfUiSub,rgba(32,27,53,.62));transition:all .12s;min-height:32px}
+#result #simV96EditGrid .cfTgtChip.on{border-color:transparent;background:linear-gradient(135deg,#6a3de8,#7c5cfc);color:#fff;box-shadow:0 2px 8px rgba(106,61,232,.28)}
+#result #simV96EditGrid .cfTgtChip.cfTgtAdd{border-style:dashed;color:color-mix(in srgb,var(--c1) 62%,var(--cfUiText,#201b35));background:transparent}
+#result #simV96EditGrid #cfTgtAddInput{margin-top:7px;width:100%;box-sizing:border-box;padding:8px 10px;border-radius:10px;border:1.5px solid var(--cfUiBorder,rgba(32,27,53,.18));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px}
+#result #simV96EditGrid .cfAxisDesc{font-size:9.5px;font-weight:650;color:var(--cfUiSub,rgba(32,27,53,.58));line-height:1.4;margin:2px 0 4px}
 #result #simV96EditGrid .simV96RefRow{margin-top:9px}
 #result #simV96EditGrid .simV96RefBtn{display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:11px;border:1.5px dashed var(--cfUiBorder,rgba(32,27,53,.22));background:var(--cfUiPanelStrong,rgba(255,255,255,.85));color:var(--cfUiText,#201b35);font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
 #result #simV96EditGrid .simV96RefBtn:active{transform:scale(.98)}
@@ -18577,7 +18594,7 @@ body[data-ui-tone="dark"]{
 
   const AXES = [
     ['shade','Color','色調'],
-    ['alignment','Alignment','歯列補正'],
+    ['alignment','Alignment','歯列配列'],
     ['toothShape','Incisal','切縁形態'],
     ['scallop','Cervical','歯頸側幅径'],
     ['smileFrame','Smile Frame','スマイルフレーム']
@@ -18995,6 +19012,32 @@ body[data-ui-tone="dark"]{
         if(Array.isArray(g.preserve)&&g.preserve.length) parts.push('PRESERVE (from screening): '+g.preserve.slice(0,6).join('; ')+'.');
         if(Array.isArray(g.avoid)&&g.avoid.length) parts.push('AVOID (from screening): '+g.avoid.slice(0,6).join('; ')+'.');
       }
+      // v9.8 — feed the granular alignment visible_features (not just an umbrella label) and
+      // the clinician-selected simulation targets into the generation prompt.
+      try{
+        const view=(typeof cfDeriveFindingsView==='function')?cfDeriveFindingsView(pl):null;
+        if(view && view.alignment && view.alignment.present){
+          const a=view.alignment, f=[];
+          if(a.overlap) f.push('tooth overlap / crowding');
+          if(a.rotation) f.push('rotation');
+          if(a.displacement) f.push('labial-lingual / axial displacement');
+          if(a.incisal_irregularity) f.push('uneven incisal edges');
+          if(a.midline) f.push('midline deviation');
+          if(a.crossbite) f.push('anterior crossbite');
+          parts.push('OBSERVED ALIGNMENT FEATURES ('+(a.region||'anterior').replace(/_/g,' ')+'): '+(f.join(', ')||'irregular arrangement')+'. '
+            +'Express these as tooth POSITION / axis / rotation corrections. '
+            +(a.visible_spacing
+                ? 'A clearly OPEN interdental space IS present — close ONLY that visible space.'
+                : 'NO clearly open interdental space is present — do NOT create, widen, invent or "close" spaces that are not clearly visible in the input; dark areas between overlapped or rotated teeth are depth SHADOWS, not gaps.'));
+        }
+        const tg=Array.isArray(state.simTargets)?state.simTargets:[];
+        const tgc=Array.isArray(state.simTargetsCustom)?state.simTargetsCustom:[];
+        if(tg.length||tgc.length){
+          const tmap={alignment:'tooth alignment/arrangement',symmetry:'left-right balance',crownForm:'crown form',proportion:'crown proportion',gingiva:'gingival line',shade:'shade',missing:'missing-tooth area',prosthetic:'prosthetic crown form'};
+          const labels=tg.map(k=>tmap[k]||k).concat(tgc.map(String));
+          if(labels.length) parts.push('CLINICIAN-SELECTED SIMULATION TARGETS: '+labels.slice(0,10).join(', ')+'. Focus the visible change on these targets; do not introduce unrelated changes.');
+        }
+      }catch(e){}
       const custom=String(state.simCustomPrompt||'').trim();
       if(mode==='user-first'){
         parts.push('USER-FIRST MODE: the clinician\'s written request'+(custom?' ("'+custom.slice(0,180)+'")':'')+' and slider settings define the ONLY intended changes. Apply automated findings ONLY where they directly support that request. Add NO corrections beyond it — items the clinician chose to keep (e.g. a peg lateral to preserve, residual character to retain, brackets to keep) must be kept exactly.');
@@ -20916,6 +20959,135 @@ body[data-ui-tone="dark"]{
     regenTimer=setTimeout(regenerate, delay==null?60:delay);
   }
 
+  // ══ Findings view-model (v9.8) ══════════════════════════════════════════════
+  // Separates the analysis into: (A) visible features observed in the image,
+  // (B) simulation targets the clinician can edit, (C) review notes for what the
+  // image cannot show. The patient-facing UI collapses all arrangement findings
+  // (overlap / rotation / displacement / spacing) into ONE umbrella label
+  // "歯列配列の不整", while the internal object keeps the granular booleans for the
+  // generation prompt. This kills the crowding↔spacing label whiplash at the UI
+  // layer and removes the duplicate "risk review paraphrase".
+  const CF_SIM_TARGETS = [
+    ['alignment','歯列配列','Alignment'],
+    ['symmetry','左右バランス','Symmetry'],
+    ['crownForm','歯冠形態','Crown form'],
+    ['proportion','歯冠プロポーション','Proportion'],
+    ['gingiva','歯肉ライン','Gingival line'],
+    ['shade','色調','Shade'],
+    ['missing','欠損部','Missing tooth'],
+    ['prosthetic','補綴形態','Prosthetic form']
+  ];
+  window.CF_SIM_TARGETS = CF_SIM_TARGETS;
+  function cfDeriveFindingsView(pl){
+    const arr = Array.isArray(pl)?pl:[];
+    const S = arr.__structured || null;
+    const of = (S&&S.orthodonticFindings)||{};
+    const rf = (S&&S.restorativeFindings)||{};
+    const gf = (S&&S.gingivalFindings)||{};
+    const pc = (S&&S.priorityClassification)||{};
+    const air = (S&&S.additionalImageRecommendations)||{};
+    const jaAll = arr.map(f=>String((f&&f.ja)||f||''));
+    const enAll = arr.map(f=>String((f&&f.en)||'').toLowerCase());
+    const m = re => jaAll.some(s=>re.test(s)) || enAll.some(s=>re.test(s));
+    const b = o => !!(o && o.present);
+    const overlap = b(of.crowding) || m(/叢生|乱杭|八重歯|重なり|ガタガタ|crowd|overlap|ectopic|yaeba/);
+    const rotation = b(of.rotation) || m(/捻転|rotation|rotate/);
+    const displacement = b(of.axialInclinationIssue) || b(of.archAsymmetry) || m(/転位|位置不整|傾斜|axial|tilt|malposition|asymmetr/);
+    const visible_spacing = b(of.spacing) || m(/すきっ歯|空隙|離開|spacing|diastema/);
+    const incisal_irregularity = m(/切縁の不揃い|切縁の不整|不揃い|uneven incisal|incisal.*irregular/);
+    const midline = b(of.midlineDiscrepancy) || m(/正中/);
+    const crossbite = b(of.anteriorCrossbite) || m(/交叉|crossbite|反対咬合|reverse overjet/);
+    const alignmentPresent = overlap||rotation||displacement||visible_spacing||incisal_irregularity||midline||crossbite;
+    const region = (of.crowding&&of.crowding.region) || (of.spacing&&of.spacing.region) || null;
+    const confidence = (typeof of.confidence==='number')?of.confidence
+                     : ((S&&typeof S.confidence==='number')?S.confidence:null);
+    const uncertain = Array.isArray(pc.uncertainVisibility)?pc.uncertainVisibility:[];
+    const visibilityLow = !!air.needsHigherResolution || uncertain.length>2 || (confidence!=null && confidence<0.5);
+    const others = [];
+    const pushO=(cond,ja,cat)=>{ if(cond && !others.some(o=>o.cat===cat)) others.push({ja,cat}); };
+    pushO(b(rf.missingTooth)||m(/欠損|missing tooth|FDI/), '歯の欠損','missing');
+    pushO(b(rf.pegLateral)||m(/矮小|peg/), '矮小歯（側切歯の幅不足）','peg');
+    pushO(b(rf.discoloration)||m(/変色|色ムラ|discolo|黄ば/), '歯の変色・色調','shade');
+    pushO(b(rf.wear)||m(/摩耗|咬耗|wear/), '咬耗・摩耗','wear');
+    pushO(b(rf.fracture)||m(/破折|fracture|chip/), '破折・欠け','fracture');
+    pushO(b(gf.blackTriangle)||m(/ブラックトライアングル|black triangle/), 'ブラックトライアングル','blacktriangle');
+    pushO(b(gf.gummySmile)||m(/ガミー|gummy/), 'ガミースマイル傾向','gummy');
+    pushO(b(gf.gingivalMarginDisharmony)||m(/歯肉ライン|歯肉退縮|recession|gingival margin/), '歯肉ラインの不調和','gingiva');
+    const feats=[];
+    if(overlap) feats.push('重なり');
+    if(rotation) feats.push('捻転');
+    if(displacement) feats.push('位置の不整');
+    if(incisal_irregularity) feats.push('切縁の不揃い');
+    if(midline) feats.push('正中のずれ');
+    if(visible_spacing) feats.push('明瞭な空隙');
+    return {
+      alignment: alignmentPresent ? {
+        category:'alignment_irregularity', present:true,
+        overlap, rotation, displacement, visible_spacing, incisal_irregularity, midline, crossbite,
+        region: region||'anterior', confidence,
+        visibility: visibilityLow?'limited':'sufficient', features:feats
+      } : { present:false },
+      others, visibilityLow, confidence, uncertain
+    };
+  }
+  window.cfDeriveFindingsView = cfDeriveFindingsView;
+  function cfDefaultSimTargets(view, concept){
+    const t=new Set();
+    if(view.alignment && view.alignment.present){ t.add('alignment'); if(view.alignment.displacement||view.alignment.midline) t.add('symmetry'); }
+    (view.others||[]).forEach(o=>{
+      if(o.cat==='missing') t.add('missing');
+      if(o.cat==='shade') t.add('shade');
+      if(o.cat==='gingiva'||o.cat==='blacktriangle'||o.cat==='gummy') t.add('gingiva');
+      if(o.cat==='peg'){ t.add('proportion'); t.add('crownForm'); }
+      if(o.cat==='wear'||o.cat==='fracture') t.add('crownForm');
+    });
+    if(concept==='prosthetic'||concept==='hybrid'){ t.add('crownForm'); t.add('proportion'); if(concept==='prosthetic') t.add('prosthetic'); }
+    if(!t.size) t.add('alignment');
+    return Array.from(t);
+  }
+  window.cfDefaultSimTargets = cfDefaultSimTargets;
+  function cfRenderFindingsPanel(pl, concept){
+    const view = cfDeriveFindingsView(pl);
+    const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const hasAny = (view.alignment&&view.alignment.present) || view.others.length;
+    // A. Visual observations
+    const aLines=[];
+    if(view.alignment && view.alignment.present){
+      const supp = view.alignment.features.length ? '（'+view.alignment.features.join('・')+'）' : '';
+      aLines.push('<li><b>歯列配列の不整</b>'+esc(supp)+'<div class="cfFvSub">歯の重なり、捻転、空隙、位置関係を含む歯並びの不調和</div></li>');
+    }
+    (view.others||[]).forEach(o=> aLines.push('<li>'+esc(o.ja)+'</li>'));
+    const aSection = '<div class="cfFvSec"><b class="cfFvHd">画像所見 / Visual observations</b>'
+      + (hasAny ? '<ul class="cfFvList">'+aLines.join('')+'</ul>'
+                : '<p class="cfFvEmpty">明らかな配列・形態の所見は検出されませんでした。</p>')
+      + '</div>';
+    // B. Simulation targets (editable chips)
+    const sel = new Set(Array.isArray(state.simTargets)?state.simTargets:cfDefaultSimTargets(view, concept));
+    const custom = Array.isArray(state.simTargetsCustom)?state.simTargetsCustom:[];
+    const chips = CF_SIM_TARGETS.map(([k,ja])=>{
+      const on = sel.has(k);
+      return '<button type="button" class="cfTgtChip'+(on?' on':'')+'" data-tgt="'+k+'" aria-pressed="'+on+'">'+esc(ja)+'</button>';
+    }).join('')
+      + custom.map((c,i)=>'<button type="button" class="cfTgtChip on cfTgtCustom" data-cust="'+i+'" aria-pressed="true">'+esc(c)+' ×</button>').join('')
+      + '<button type="button" class="cfTgtChip cfTgtAdd" id="cfTgtAddBtn">＋ 追加</button>';
+    const bSection = '<div class="cfFvSec"><b class="cfFvHd">シミュレーション対象 / Simulation targets</b>'
+      + '<div class="cfFvHint">歯科医師が調整対象を選択・追加できます（AI所見は確定事項ではありません）</div>'
+      + '<div class="cfTgtChips" id="cfTgtChips">'+chips+'</div>'
+      + '<input type="text" id="cfTgtAddInput" maxlength="24" placeholder="対象を追加して Enter">'
+      + '</div>';
+    // C. Review notes — ONLY genuine "cannot evaluate" items, never a paraphrase of A.
+    const cNotes=[];
+    if(view.visibilityLow) cNotes.push('視認性・解像度が十分でないため、一部の所見は判定が限定的です。');
+    if(view.alignment && view.alignment.present && view.alignment.overlap && view.alignment.visible_spacing)
+      cNotes.push('部位により重なりと空隙が併存する可能性があり、判定に注意が必要です。');
+    const cSection = '<div class="cfFvSec"><b class="cfFvHd">確認事項 / Review notes</b>'
+      + (cNotes.length?('<ul class="cfFvList cfFvNotes">'+cNotes.map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul>'):'')
+      + '<small class="cfFvDisc">臼歯部咬合・歯周状態・骨格的要因など、この画像だけでは評価できない事項があります。画像から確認できる範囲での参考情報であり、確定診断や治療結果の保証ではありません。</small>'
+      + '</div>';
+    return '<div class="simV96Findings cfFindingsV2">'+aSection+bSection+cSection+'</div>';
+  }
+  window.cfRenderFindingsPanel = cfRenderFindingsPanel;
+
   function buildEditGrid(){
     const grid=$id('simV96EditGrid');
     if(!grid) return;
@@ -20954,16 +21126,21 @@ body[data-ui-tone="dark"]{
           </select>
         </div>
       </div>`;
-    // Automated pre-generation problem list (shown read-only; also folded into the prompt).
+    // Automated pre-generation findings — v9.8 A/B/C view-model (observations /
+    // editable simulation targets / review notes). The old flat "自動所見 + リスクレビュー"
+    // pair (which duplicated the same content) is replaced by cfRenderFindingsPanel.
     const src0 = state._simSource || pickSource();
     const pl0 = (src0 && Array.isArray(src0.problemList)) ? src0.problemList : [];
-    const _escR = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const rev0 = (pl0 && pl0.__review) ? String(pl0.__review) : '';
-    const findRow = pl0.length
-      ? `<div class="simV96Findings"><b>自動所見 / Auto findings</b><ul>${pl0.map(f=>`<li>${(f&&f.ja)||f}</li>`).join('')}</ul>`
-        + (rev0 ? `<div class="simV96Review"><b>リスクレビュー / Risk review</b><p>${_escR(rev0)}</p></div>` : '')
-        + `<small>※ 画像からの自動スクリーニングです（確定診断ではありません）。主訴カード・治療オプションと併せて画像生成に反映されます。</small></div>`
-      : '';
+    const concept0 = (state.simV82||{}).concept||'ortho';
+    // Reset/derive clinician-editable simulation targets when the source (analysis) changes,
+    // but preserve the clinician's edits while they stay on the same source.
+    const srcKey = (src0 && src0.dataUrl) ? String(src0.dataUrl).slice(0,80) : '';
+    if(state.__simTargetsKey !== srcKey || !Array.isArray(state.simTargets)){
+      state.__simTargetsKey = srcKey;
+      state.simTargets = cfDefaultSimTargets(cfDeriveFindingsView(pl0), concept0);
+      state.simTargetsCustom = [];
+    }
+    const findRow = (pl0.length || (src0 && src0.problemList)) ? cfRenderFindingsPanel(pl0, concept0) : '';
     // NOTE: the shot-type (リップの有無・コントラスター) selection now lives in the Micro/Focus
     // upload card, so it is intentionally NOT shown here — it is fixed at upload time and the
     // regeneration simply reflects it.
@@ -20994,7 +21171,8 @@ body[data-ui-tone="dark"]{
             const ortho=(cpt==='ortho'||cpt==='hybrid');
             const initA=Math.round(state.simV96.alignment||0);
             const show=ortho&&initA>=80;
-            return `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`+
+            return `<div class="cfAxisDesc">歯の重なり、捻転、位置、歯間スペースを調整します（明瞭な空隙がある場合のみ空隙を補正）。</div>`+
+              `<div class="simShadeHint"><span>static</span><span></span><span>dynamic</span></div>`+
               `<div id="cfExtractBadge" class="cfExtractBadge" style="display:${show?'flex':'none'}">抜歯矯正モード</div>`;
           })()
         : (key==='toothShape')
@@ -21054,6 +21232,27 @@ body[data-ui-tone="dark"]{
     if(mc) mc.addEventListener('change',()=>{ state.simMinimalChange=!!mc.checked; });
     const cs=$id('cfCorrectionScope');
     if(cs) cs.addEventListener('change',()=>{ state.simCorrectionScope=cs.value; });
+    // Simulation-target chips — clinician can select / deselect / add / remove. These are
+    // hints that steer the generation prompt; AI findings are never fixed as final.
+    const chipWrap=$id('cfTgtChips');
+    if(chipWrap){
+      chipWrap.addEventListener('click',(e)=>{
+        const btn=e.target.closest('.cfTgtChip'); if(!btn) return;
+        if(btn.id==='cfTgtAddBtn'){ const inp=$id('cfTgtAddInput'); if(inp){ inp.style.display='block'; inp.focus(); } return; }
+        if(btn.classList.contains('cfTgtCustom')){ const i=+btn.getAttribute('data-cust'); if(Array.isArray(state.simTargetsCustom)){ state.simTargetsCustom.splice(i,1); buildEditGrid(); } return; }
+        const k=btn.getAttribute('data-tgt'); if(!k) return;
+        const set=new Set(Array.isArray(state.simTargets)?state.simTargets:[]);
+        if(set.has(k)) set.delete(k); else set.add(k);
+        state.simTargets=Array.from(set);
+        const on=set.has(k); btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',String(on));
+      });
+    }
+    const addInp=$id('cfTgtAddInput');
+    if(addInp){
+      addInp.addEventListener('keydown',(e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); const v=addInp.value.trim(); if(v){ state.simTargetsCustom=Array.isArray(state.simTargetsCustom)?state.simTargetsCustom:[]; if(state.simTargetsCustom.length<6){ state.simTargetsCustom.push(v.slice(0,24)); } addInp.value=''; buildEditGrid(); } }
+      });
+    }
   }
   function cfRenderRefThumbs(){
     const wrap=$id('simV96RefThumbs'); if(!wrap) return;
@@ -30741,20 +30940,9 @@ body.is-pwa, body.is-standalone{ overscroll-behavior:none; }
               if(el && document.querySelector('#result.active')) el.scrollIntoView({ behavior:'smooth', block:'start' });
             }catch(e){}
           }, 450);
-          // prosthetic-related concepts: surface the form gallery once per result
-          setTimeout(function(){
-            try{
-              var c = ((state.simV82||{}).concept)||'ortho';
-              var ttNow = window.cfTeethTypeCurrent ? window.cfTeethTypeCurrent() : null;
-              var alreadyChosen = ttNow && ttNow.id && ttNow.id!=='auto';
-              // Only surface the post-generation popup when the clinician has NOT already
-              // picked a form on the upload page — otherwise it would nag them twice.
-              if((c==='prosthetic'||c==='hybrid') && !alreadyChosen && !rec.__cfTtPrompted && !window.__cfBatchGenerating && !document.querySelector('.cfTtOverlay.open')){
-                rec.__cfTtPrompted = true;
-                window.cfOpenTeethTypeGallery();
-              }
-            }catch(e){}
-          }, 1400);
+          // NOTE: the post-generation tooth-form popup was removed per clinician request —
+          // the Teeth Design gallery stays available on demand (its button on the result
+          // card + the upload-page concept trigger), but no longer auto-opens after a result.
           setTimeout(function(){ try{ if(window.cfMountFeedbackInline) cfMountFeedbackInline(rec, { studio_module:'visual_simulation', artifact_type:'image' }); }catch(e){} }, 600);
         }
       }catch(e){}
