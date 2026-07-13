@@ -18488,6 +18488,17 @@ body[data-ui-tone="dark"]{
 #result #simV96EditGrid .simV96Findings ul{margin:6px 0 4px;padding-left:18px}
 #result #simV96EditGrid .simV96Findings li{font-size:11.5px;font-weight:700;line-height:1.5;color:var(--cfUiText,#201b35)}
 #result #simV96EditGrid .simV96Findings small{display:block;font-size:9.5px;font-weight:600;color:var(--cfUiSub,rgba(32,27,53,.55));line-height:1.45}
+#result #simV96EditGrid .simV96Review{margin:6px 0 7px;padding:9px 11px;border-radius:12px;background:color-mix(in srgb, var(--c1) 8%, rgba(255,255,255,.05));border-left:3px solid color-mix(in srgb, var(--c1) 55%, transparent)}
+#result #simV96EditGrid .simV96Review b{display:block;font-size:10px;font-weight:900;letter-spacing:.02em;color:color-mix(in srgb, var(--c1) 70%, var(--cfUiText,#201b35));margin-bottom:3px}
+#result #simV96EditGrid .simV96Review p{margin:0;font-size:11px;line-height:1.6;font-weight:600;color:var(--cfUiText,#201b35)}
+#result #simV96EditGrid .simV96RefRow{margin-top:9px}
+#result #simV96EditGrid .simV96RefBtn{display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:11px;border:1.5px dashed var(--cfUiBorder,rgba(32,27,53,.22));background:var(--cfUiPanelStrong,rgba(255,255,255,.85));color:var(--cfUiText,#201b35);font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
+#result #simV96EditGrid .simV96RefBtn:active{transform:scale(.98)}
+#result #simV96EditGrid .simV96RefThumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+#result #simV96EditGrid .simV96RefThumb{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16))}
+#result #simV96EditGrid .simV96RefThumb img{width:100%;height:100%;object-fit:cover;display:block}
+#result #simV96EditGrid .simV96RefThumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(12,10,22,.66);color:#fff;font-size:13px;line-height:1;cursor:pointer;display:grid;place-items:center}
+#result #simV96EditGrid .simV96RefNote{margin-top:6px;font-size:9.5px;font-weight:600;line-height:1.5;color:var(--cfUiSub,rgba(32,27,53,.55))}
 /* Generated-image gallery — a compact horizontal strip ABOVE the compare card so the
    preview keeps its full width (a left rail shrank the preview). */
 #result .simResultStage{display:block}
@@ -19564,8 +19575,11 @@ body[data-ui-tone="dark"]{
       'CLASSIFICATION RULES (critical): anterior crossbite, reverse overjet, excessive overjet, crowding, spacing, rotation, axial problems, midline discrepancy and arch asymmetry are orthodonticPriority — NEVER treat them as purely restorative. '+
       'Missing teeth, peg laterals, tooth-size discrepancy, discoloration, fracture, wear and restoration mismatch are restorativePriority — NEVER treat them as purely orthodontic. The same issue may appear in more than one list when clinically appropriate.\n'+
       'Image types you may receive: frontal_smile, frontal_rest, profile, intraoral_retracted_frontal, intraoral_occlusal, contrastor_anterior_closeup — weight your evaluation to what that view can reliably show.\n\n'+
+      'RISK REVIEW (review field): in addition, write a CONCISE clinical RISK REVIEW — how you interpret the risks/significance of the visible findings, in 2–3 short sentences of natural Japanese (ja) and English (en). '+
+      'State the main esthetic/functional risks the findings imply, note their approximate certainty, and remind that this is an automated screening for visual communication — NOT a diagnosis. '+
+      'Keep it neutral and professional; do NOT name specific tooth numbers you are unsure of, and do NOT overstate.\n\n'+
       'FINAL OUTPUT — ONE raw JSON object only, no markdown, no code fences, no explanation:\n'+
-      '{"findings":[{"en":"...","ja":"..."}], "structured":{ ...layers as specified above... }}'
+      '{"findings":[{"en":"...","ja":"..."}], "review":{"ja":"<簡潔なリスクレビュー>","en":"<concise risk review>"}, "structured":{ ...layers as specified above... }}'
     );
   }
   window.cfBuildScreeningPrompt = buildClinicalScreeningPrompt;
@@ -19582,6 +19596,7 @@ body[data-ui-tone="dark"]{
     const filtered=arr.filter(f=>!isSpace(f));
     if(filtered.length===arr.length) return arr;
     if(arr.__structured){ try{ Object.defineProperty(filtered,'__structured',{value:arr.__structured,enumerable:false}); }catch(e){ filtered.__structured=arr.__structured; } }
+    if(arr.__review){ try{ Object.defineProperty(filtered,'__review',{value:arr.__review,enumerable:false}); }catch(e){ filtered.__review=arr.__review; } }
     return filtered;
   }
 
@@ -19612,13 +19627,25 @@ body[data-ui-tone="dark"]{
                 try{ Object.defineProperty(out,'__structured',{value:j.structured,enumerable:false}); }
                 catch(e){ out.__structured=j.structured; }
               }
+              // concise clinical risk review (ja/en) — how the risks are interpreted
+              if(j&&j.review){
+                var _rv=(typeof j.review==='object')?(j.review.ja||j.review.en||''):String(j.review);
+                if(_rv){ try{ Object.defineProperty(out,'__review',{value:String(_rv).slice(0,400),enumerable:false}); }catch(e){ out.__review=String(_rv).slice(0,400); } }
+              }
               return dedupeCrowdingSpacing(out);
             }
           }
         }catch(e){ /* no /screen endpoint or timeout → fall through */ }
       }
       // Tier 2: Enhanced pixel heuristic (offline / no endpoint)
-      return dedupeCrowdingSpacing(await buildProblemListPixel(dataUrl));
+      var px = dedupeCrowdingSpacing(await buildProblemListPixel(dataUrl));
+      if(px && px.length && !px.__review){
+        var jas = px.map(function(f){ return (f&&f.ja)||f; }).filter(Boolean).slice(0,3).join('・');
+        var rv = jas ? ('自動スクリーニングでは主に「'+jas+'」等の所見が示唆されます。審美・機能面への影響の可能性を含め、確定診断ではなく参考情報としてご確認ください。')
+                     : '明らかな所見は検出されませんでした。自動スクリーニングは確定診断ではありません。';
+        try{ Object.defineProperty(px,'__review',{value:rv,enumerable:false}); }catch(e){ px.__review=rv; }
+      }
+      return px;
     }catch(e){ return []; }
   }
   window.caseflowProblemList = buildProblemList;
@@ -20203,6 +20230,11 @@ body[data-ui-tone="dark"]{
       :(isFacialSrc?'frontal_smile':'anterior_closeup');
     if(source&&source.structuredFindings) payload.structured_findings=source.structuredFindings;
     if(typeof window.cfTeethTypeMeta==='function') payload.teeth_type=window.cfTeethTypeMeta();
+    // Clinician-attached reference images (from the 追加指示 box) — sent for backends that
+    // consume them as generation references. Never a patient-image store; capped at 3.
+    if(Array.isArray(state.simRefImages) && state.simRefImages.length){
+      payload.reference_images=state.simRefImages.slice(0,3).map(x=>(x&&x.dataUrl)||x).filter(Boolean);
+    }
     return payload;
   }
   window.buildSimulationPayload=buildSimulationPayload;
@@ -20790,6 +20822,12 @@ body[data-ui-tone="dark"]{
     const aiRow=`<div class="simV96AiRow">
         <div class="simV96AiHead"><b>追加指示 / 主訴メモ</b><span id="simV96CpCount">${cpVal.length}/500</span></div>
         <textarea id="simV96CustomPrompt" maxlength="500" rows="3" placeholder="例：正中離開だけ閉じたい。矮小歯は残す。歯列は少し野暮ったさを残す。右上1番の変色を改善。（500字以内・自由記述）" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--cfUiBorder,rgba(32,27,53,.16));background:var(--cfUiPanelStrong,rgba(255,255,255,.9));color:var(--cfUiText,#201b35);font:inherit;font-size:12px;padding:10px;resize:vertical;line-height:1.5">${cpEsc}</textarea>
+        <div class="simV96RefRow">
+          <input type="file" id="simV96RefInput" accept="image/*" multiple style="display:none">
+          <button type="button" id="simV96RefBtn" class="simV96RefBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>参考画像を追加 / Add reference image</button>
+          <div class="simV96RefThumbs" id="simV96RefThumbs"></div>
+          <div class="simV96RefNote">診断ではなく、生成AIへの参考資料として添付されます（対応バックエンド接続時に反映）。最大3枚。</div>
+        </div>
       </div>`;
     // v9.7 intent controls — 反映モード / 最小変更 / 補正範囲
     state.simIntentMode=state.simIntentMode||'balanced';
@@ -20810,8 +20848,12 @@ body[data-ui-tone="dark"]{
     // Automated pre-generation problem list (shown read-only; also folded into the prompt).
     const src0 = state._simSource || pickSource();
     const pl0 = (src0 && Array.isArray(src0.problemList)) ? src0.problemList : [];
+    const _escR = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const rev0 = (pl0 && pl0.__review) ? String(pl0.__review) : '';
     const findRow = pl0.length
-      ? `<div class="simV96Findings"><b>自動所見 / Auto findings</b><ul>${pl0.map(f=>`<li>${(f&&f.ja)||f}</li>`).join('')}</ul><small>※ 画像からの自動スクリーニングです（確定診断ではありません）。主訴カード・治療オプションと併せて画像生成に反映されます。</small></div>`
+      ? `<div class="simV96Findings"><b>自動所見 / Auto findings</b><ul>${pl0.map(f=>`<li>${(f&&f.ja)||f}</li>`).join('')}</ul>`
+        + (rev0 ? `<div class="simV96Review"><b>リスクレビュー / Risk review</b><p>${_escR(rev0)}</p></div>` : '')
+        + `<small>※ 画像からの自動スクリーニングです（確定診断ではありません）。主訴カード・治療オプションと併せて画像生成に反映されます。</small></div>`
       : '';
     // NOTE: the shot-type (リップの有無・コントラスター) selection now lives in the Micro/Focus
     // upload card, so it is intentionally NOT shown here — it is fixed at upload time and the
@@ -20891,6 +20933,10 @@ body[data-ui-tone="dark"]{
       // Store the text, but do not auto-generate (wait for the 再生成 / Again button).
       cp.addEventListener('change',()=>{ state.simCustomPrompt=cp.value.slice(0,500); });
     }
+    // Reference-image attachments for the additional-instructions box. Stored (downscaled)
+    // in state.simRefImages and sent as reference_images in the payload for backends that
+    // consume them. Purely a reference aid — never a diagnosis, never a patient-image store.
+    bindRefImages();
     // v9.7 intent control bindings（生成は再生成ボタン待ち — sliders と同じ挙動）
     document.querySelectorAll('#cfIntentModeBtns [data-cfim]').forEach(b=>{
       b.addEventListener('click',()=>{ state.simIntentMode=b.getAttribute('data-cfim'); buildEditGrid(); });
@@ -20899,6 +20945,33 @@ body[data-ui-tone="dark"]{
     if(mc) mc.addEventListener('change',()=>{ state.simMinimalChange=!!mc.checked; });
     const cs=$id('cfCorrectionScope');
     if(cs) cs.addEventListener('change',()=>{ state.simCorrectionScope=cs.value; });
+  }
+  function cfRenderRefThumbs(){
+    const wrap=$id('simV96RefThumbs'); if(!wrap) return;
+    const arr=Array.isArray(state.simRefImages)?state.simRefImages:[];
+    wrap.innerHTML=arr.map((im,i)=>`<div class="simV96RefThumb"><img src="${(im&&im.dataUrl)||im}" alt="reference ${i+1}"><button type="button" data-refdel="${i}" aria-label="削除 / Remove">×</button></div>`).join('');
+    wrap.querySelectorAll('[data-refdel]').forEach(b=>b.addEventListener('click',()=>{ const idx=+b.getAttribute('data-refdel'); if(Array.isArray(state.simRefImages)) state.simRefImages.splice(idx,1); cfRenderRefThumbs(); }));
+  }
+  async function bindRefImages(){
+    state.simRefImages=Array.isArray(state.simRefImages)?state.simRefImages:[];
+    const btn=$id('simV96RefBtn'), inp=$id('simV96RefInput');
+    cfRenderRefThumbs();
+    if(!btn || !inp) return;
+    btn.addEventListener('click',()=>inp.click());
+    inp.addEventListener('change',async()=>{
+      const files=Array.from(inp.files||[]);
+      for(const f of files){
+        if(state.simRefImages.length>=3){ if(typeof toastFn==='function') toastFn('参考画像は最大3枚です'); break; }
+        if(!/^image\//.test(f.type||'')) continue;
+        try{
+          const raw=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+          const small=(typeof cfDownscale==='function')?await cfDownscale(raw,768,0.82):raw;
+          state.simRefImages.push({ dataUrl:small, name:String(f.name||'ref').slice(0,60) });
+        }catch(e){ console.error('[CF Ref] read failed',e); }
+      }
+      inp.value='';
+      cfRenderRefThumbs();
+    });
   }
   window.buildSimV96EditGrid = buildEditGrid;
 
