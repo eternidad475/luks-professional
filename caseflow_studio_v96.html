@@ -19035,10 +19035,15 @@ body[data-ui-tone="dark"]{
           if(a.incisal_irregularity) f.push('uneven incisal edges');
           if(a.midline) f.push('midline deviation');
           if(a.crossbite) f.push('anterior crossbite');
+          const _cpt=(state.simV82||{}).concept||'ortho';
           parts.push('OBSERVED ALIGNMENT FEATURES ('+(a.region||'anterior').replace(/_/g,' ')+'): '+(f.join(', ')||'irregular arrangement')+'. '
             +'Express these as tooth POSITION / axis / rotation corrections. '
             +(a.visible_spacing
-                ? 'A clearly OPEN interdental space IS present — close ONLY that visible space.'
+                ? ('TOP PRIORITY — CLOSE THE VISIBLE SPACE / MIDLINE DIASTEMA (正中離開・空隙): a clearly OPEN interdental space IS present and MUST be COMPLETELY CLOSED so the adjacent teeth meet at a real contact point and NO gap remains. '
+                   + (_cpt==='prosthetic'
+                        ? 'This is a PROSTHETIC case — close the space by RESTORING mesio-distal crown WIDTH and rebuilding the proximal contacts at the existing tooth positions (do not move teeth bodily). '
+                        : 'Close the space by bringing the teeth together and/or restoring proximal width until the contacts touch. ')
+                   + 'CRITICAL EXCEPTION to the central-incisor size cap: closing a genuine diastema legitimately requires ADDING mesio-distal width to the central (and if needed lateral) incisors — so FOR THE PURPOSE OF CLOSING THIS REAL GAP you MAY widen those teeth as much as needed to establish contacts. The "do not widen the centrals" / +0%/−3% cap only prevents oversizing teeth on an ALREADY-CLOSED arch; it must NOT block closing this visible space. After closing, keep the final crown widths in harmonious golden proportion and bilaterally symmetric about the midline. Leaving the diastema open is an INCORRECT result.')
                 : 'NO clearly open interdental space is present — do NOT create, widen, invent or "close" spaces that are not clearly visible in the input; dark areas between overlapped or rotated teeth are depth SHADOWS, not gaps.'));
         }
         const tg=Array.isArray(state.simTargets)?state.simTargets:[];
