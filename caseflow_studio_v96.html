@@ -18187,6 +18187,7 @@ body[data-ui-tone="dark"]{
 }
 #simulator .simConceptCard,
 #simulator .simTargetCard{
+  position:relative;
   border:0;
   border-radius:22px;
   padding:14px 15px;
@@ -18195,6 +18196,19 @@ body[data-ui-tone="dark"]{
   color:var(--cfUiText,#201b35);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.30),0 10px 24px rgba(20,16,46,.06);
   transition:background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+/* Tap-order priority badge (① = highest priority). */
+#simulator .simTargetCard .simTargetRank{
+  position:absolute;top:10px;right:10px;
+  width:24px;height:24px;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:12px;font-weight:950;line-height:1;
+  background:rgba(255,255,255,.92);color:var(--c1,#6a3de8);
+  box-shadow:0 2px 8px rgba(20,16,46,.18);
+}
+#simulator .simTargetHint{
+  margin:-2px 0 10px;font-size:11px;font-weight:750;line-height:1.5;
+  color:var(--cfUiSub,rgba(32,27,53,.6));
 }
 #simulator .simConceptCard b,
 #simulator .simTargetCard b{
@@ -18325,7 +18339,16 @@ body[data-ui-tone="dark"]{
 
   window.caseflowToggleSimTargetV95 = function(key){
     state.simV82.targets = Object.assign({shade:false,space:false,scallop:false,incisal:false,missing:false,harmony:false}, state.simV82.targets || {});
-    state.simV82.targets[key] = !state.simV82.targets[key];
+    // Track the TAP ORDER = clinician-assigned priority. Turning a card ON appends it to
+    // the ordered list (lower index = higher priority); turning it OFF removes it and the
+    // remaining ranks shift up. This order feeds the generation-prompt priority.
+    const order = Array.isArray(state.simV82.targetOrder) ? state.simV82.targetOrder.slice() : [];
+    const nowOn = !state.simV82.targets[key];
+    state.simV82.targets[key] = nowOn;
+    const idx = order.indexOf(key);
+    if(nowOn){ if(idx<0) order.push(key); }
+    else if(idx>=0){ order.splice(idx,1); }
+    state.simV82.targetOrder = order;
     rebuildSimulationStudioV95();
   };
 
@@ -18338,16 +18361,26 @@ body[data-ui-tone="dark"]{
     const t = Object.assign({shade:false,space:false,scallop:false,incisal:false,missing:false,harmony:false}, s.targets || {});
     state.simV82.targets = t;
     const concept = s.concept || 'ortho';
+    // Reconcile the tap-order priority list with the current selections (drop de-selected,
+    // append any selected-but-unordered — e.g. legacy state saved before ordering existed).
+    let tOrder = (Array.isArray(s.targetOrder)?s.targetOrder:[]).filter(k=>t[k]);
+    Object.keys(t).forEach(k=>{ if(t[k] && tOrder.indexOf(k)<0) tOrder.push(k); });
+    state.simV82.targetOrder = tOrder;
 
     const conceptBtn = (key,en,ja,desc)=>`
       <button type="button" class="simConceptCard ${concept===key?'on':''}" onclick="caseflowSetSimConceptV95('${key}')">
         <b>${en}<br>${ja}</b><span>${desc}</span>
       </button>`;
 
-    const targetBtn = (key,en,ja,desc)=>`
+    const targetBtn = (key,en,ja,desc)=>{
+      const rank = tOrder.indexOf(key);
+      const badge = (t[key] && rank>=0)
+        ? `<span class="simTargetRank" aria-label="優先度 ${rank+1}">${rank+1}</span>` : '';
+      return `
       <button type="button" class="simTargetCard ${t[key]?'on':''}" onclick="caseflowToggleSimTargetV95('${key}')">
-        <b>${en}<br>${ja}</b><span>${desc}</span>
+        ${badge}<b>${en}<br>${ja}</b><span>${desc}</span>
       </button>`;
+    };
 
     panel.innerHTML = `
       <div class="simFinishHead">
@@ -18367,6 +18400,7 @@ body[data-ui-tone="dark"]{
       ${(typeof window.cfPatientCtxFieldHTML==='function') ? window.cfPatientCtxFieldHTML() : ''}
 
       <div class="simV95SectionLabel">Chief complaint cards / 主訴カード</div>
+      <div class="simTargetHint">タップした順番が優先度になります（①が最優先）。生成時に上位の主訴ほど強く反映されます。</div>
       <div class="simTargetGrid">
         ${targetBtn('shade','Shade','色調','歯の明度と色調を整える')}
         ${targetBtn('space','Space','空隙・叢生','空隙や叢生の印象を軽く補正')}
@@ -19056,6 +19090,13 @@ body[data-ui-tone="dark"]{
         const refs=Array.isArray(state.simRefImages)?state.simRefImages:[];
         if(refs.length){
           parts.push('REFERENCE IMAGES ATTACHED ('+refs.length+'): the clinician has attached reference image(s) as a DESIGN target. Read the UPPER ANTERIOR CROWN FORM characteristics from them — crown OUTLINE/shape family (square / ovoid / triangular), width-to-height proportion, incisal-edge form, surface texture and the central:lateral:canine width progression — and reflect those crown-form characteristics into THIS patient\'s upper anterior teeth. Use the references ONLY for tooth crown FORM/character; NEVER copy the reference patient\'s face, identity, lips or skin, and keep this patient\'s own facial identity unchanged.');
+        }
+        // Chief-complaint TAP ORDER = clinician-assigned priority (highest first).
+        const cOrder=Array.isArray((state.simV82||{}).targetOrder)?state.simV82.targetOrder:[];
+        if(cOrder.length){
+          const cmap={shade:'shade / tooth colour (色調)',space:'spacing & crowding correction (空隙・叢生の補正)',scallop:'gingival line (歯肉ライン)',incisal:'incisal-edge line & length (切縁)',missing:'missing-tooth / prosthetic restoration (欠損補綴)',harmony:'overall smile harmony (全体調和)'};
+          const ranked=cOrder.map((k,i)=>(i+1)+') '+(cmap[k]||k));
+          parts.push('CHIEF-COMPLAINT PRIORITY (the clinician selected these complaints in this TAP ORDER = priority, HIGHEST first): '+ranked.join(', ')+'. Give the top-ranked complaint the STRONGEST, most clearly visible correction and address it FIRST; treat lower-ranked complaints as progressively more secondary. When two changes conflict or compete for emphasis, the higher-ranked complaint ALWAYS wins.');
         }
       }catch(e){}
       const custom=String(state.simCustomPrompt||'').trim();
