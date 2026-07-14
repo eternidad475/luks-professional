@@ -18209,9 +18209,11 @@ body[data-ui-tone="dark"]{
   background:rgba(28,22,50,.80);color:#ffffff;
   box-shadow:0 2px 8px rgba(20,16,46,.38),inset 0 0 0 1.5px rgba(255,255,255,.30);
 }
+/* Match the patient-context helper text (.cfTtCtxHint): same explicit dark ink,
+   size, weight and line-height — the var(--cfUiSub) tone rendered too light here. */
 #simulator .simTargetHint{
-  margin:-2px 0 10px;font-size:11px;font-weight:750;line-height:1.5;
-  color:var(--cfUiSub,rgba(32,27,53,.6));
+  margin:-2px 2px 10px;font-size:10px;line-height:1.65;font-weight:700;
+  color:rgba(28,23,46,.74);
 }
 #simulator .simConceptCard b,
 #simulator .simTargetCard b{
@@ -19100,6 +19102,19 @@ body[data-ui-tone="dark"]{
           const cmap={shade:'shade / tooth colour (色調)',space:'spacing & crowding correction (空隙・叢生の補正)',scallop:'gingival line (歯肉ライン)',incisal:'incisal-edge line & length (切縁)',missing:'missing-tooth / prosthetic restoration (欠損補綴)',harmony:'overall smile harmony (全体調和)'};
           const ranked=cOrder.map((k,i)=>(i+1)+') '+(cmap[k]||k));
           parts.push('CHIEF-COMPLAINT PRIORITY (the clinician selected these complaints in this TAP ORDER = priority, HIGHEST first): '+ranked.join(', ')+'. Give the top-ranked complaint the STRONGEST, most clearly visible correction and address it FIRST; treat lower-ranked complaints as progressively more secondary. When two changes conflict or compete for emphasis, the higher-ranked complaint ALWAYS wins.');
+          // Concrete "must be resolved" definition per complaint. The #1 complaint is a
+          // NON-NEGOTIABLE MINIMUM OUTCOME — it must be fully resolved even if the automated
+          // findings did not flag it (the clinician's explicit selection is authoritative).
+          const cReq={
+            space:'FULLY CLOSE every visible interdental space and any midline diastema (正中離開・空隙) so adjacent teeth meet at real contact points and NO gap remains anywhere in the anterior segment, and resolve visible crowding. For a PROSTHETIC case, close the spaces by RESTORING mesio-distal crown WIDTH and rebuilding the proximal contacts at the existing tooth positions; for ORTHO/HYBRID, bring the teeth together and/or restore proximal width until the contacts touch. CRITICAL: the central-incisor size cap must NOT prevent this — for the purpose of closing a genuine space you MAY widen the central and lateral incisors as much as needed to establish contacts, then keep the final crown widths in harmonious golden proportion and bilaterally symmetric about the midline. Any remaining visible gap is an INCORRECT result.',
+            shade:'deliver a clearly visible shade improvement toward a natural, healthy, brighter enamel (never flat opaque white).',
+            scallop:'visibly harmonise the gingival line, zeniths and interdental papillae.',
+            incisal:'clearly level and refine the incisal-edge line and tooth lengths into a consonant smile arc.',
+            missing:'clearly restore the missing-tooth area / show the prosthetic replacement in the gap.',
+            harmony:'clearly improve the overall smile harmony, symmetry and balance.'
+          };
+          const top=cOrder[0];
+          if(cReq[top]) parts.push('TOP-PRIORITY COMPLAINT — NON-NEGOTIABLE MINIMUM OUTCOME: the #1 chief complaint ('+(cmap[top]||top)+') MUST be clearly and COMPLETELY resolved in the result — this is the MINIMUM acceptable outcome, not an optional refinement. Specifically: '+cReq[top]+' A result that does NOT clearly resolve this #1 complaint is INCORRECT and unacceptable, regardless of any other change.');
         }
       }catch(e){}
       const custom=String(state.simCustomPrompt||'').trim();
