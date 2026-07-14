@@ -18197,14 +18197,17 @@ body[data-ui-tone="dark"]{
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.30),0 10px 24px rgba(20,16,46,.06);
   transition:background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
 }
-/* Tap-order priority badge (① = highest priority). */
+/* Tap-order priority badge (① = highest priority). The card background is the variable
+   brand gradient (--c1→--c2), so the badge uses a TRANSLUCENT deep-ink disc that darkens
+   whatever colour sits behind it, with a white numeral — guaranteed legible on any theme
+   colour (a solid or accent-coloured badge blended into the light-pink end of the gradient). */
 #simulator .simTargetCard .simTargetRank{
   position:absolute;top:10px;right:10px;
-  width:24px;height:24px;border-radius:50%;
+  width:25px;height:25px;border-radius:50%;
   display:grid;place-items:center;
-  font-size:12px;font-weight:950;line-height:1;
-  background:rgba(255,255,255,.92);color:var(--c1,#6a3de8);
-  box-shadow:0 2px 8px rgba(20,16,46,.18);
+  font-size:12.5px;font-weight:950;line-height:1;
+  background:rgba(28,22,50,.80);color:#ffffff;
+  box-shadow:0 2px 8px rgba(20,16,46,.38),inset 0 0 0 1.5px rgba(255,255,255,.30);
 }
 #simulator .simTargetHint{
   margin:-2px 0 10px;font-size:11px;font-weight:750;line-height:1.5;
