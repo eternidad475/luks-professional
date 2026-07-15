@@ -25,7 +25,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>/* hide consent gate before first paint if already agreed (prevents flash) */
 try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentElement.classList.add('cf-consented'); }catch(e){}
-window.CASEFLOW_GPU_ENDPOINT='https://eternidad475--caseflow-morph-web.modal.run';</script>
+window.CASEFLOW_GPU_ENDPOINT='https://eternidad475--caseflow-morph-web.modal.run';
+/* Production host check — used to lock down the beta gate and the AI endpoint so they
+   cannot be bypassed / repointed from the browser in production. */
+window.cfIsProdHost=function(){var h=location.hostname;return h==='caseflow-studio.com'||h==='www.caseflow-studio.com'||h==='caseflow-studio.vercel.app';};</script>
 <style>
 :root{
   --c1:#7c5cff; --c2:#ff9fd6; --ink:#201b35; --muted:rgba(32,27,53,.58);
@@ -19009,8 +19012,18 @@ body[data-ui-tone="dark"]{
 
   /* ---- optional AI backend (img2img) for photoreal, concept-driven after-images ---- */
   var CASEFLOW_DEFAULT_AI_ENDPOINT='https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
-  function aiEndpoint(){ try{ return window.CASEFLOW_AI_ENDPOINT || localStorage.getItem('caseflow_ai_endpoint') || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; }catch(e){ return window.CASEFLOW_AI_ENDPOINT || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; } }
-  window.caseflowSetAIEndpoint=function(url){ try{ localStorage.setItem('caseflow_ai_endpoint', url||''); }catch(e){} window.CASEFLOW_AI_ENDPOINT=url||''; toastFn(url?'AI endpoint を設定しました':'AI endpoint を解除しました'); };
+  function aiEndpoint(){
+    // Production: the AI endpoint is FIXED to the built-in default and is NOT settable from
+    // the browser (no window / localStorage override). Prevents repointing patient images.
+    try{ if(window.cfIsProdHost && window.cfIsProdHost()) return CASEFLOW_DEFAULT_AI_ENDPOINT || ''; }catch(e){}
+    try{ return window.CASEFLOW_AI_ENDPOINT || localStorage.getItem('caseflow_ai_endpoint') || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; }catch(e){ return window.CASEFLOW_AI_ENDPOINT || CASEFLOW_DEFAULT_AI_ENDPOINT || ''; }
+  }
+  window.caseflowSetAIEndpoint=function(url){
+    // Disabled in production — the endpoint cannot be changed from the browser.
+    try{ if(window.cfIsProdHost && window.cfIsProdHost()) return; }catch(e){}
+    try{ localStorage.setItem('caseflow_ai_endpoint', url||''); }catch(e){} window.CASEFLOW_AI_ENDPOINT=url||''; toastFn(url?'AI endpoint を設定しました':'AI endpoint を解除しました');
+  };
+  window.cfAiEndpoint=aiEndpoint; // read-only accessor (resolved endpoint; public default)
   // ===== v9.7 Intent-first prompt refinement ==================================
   // 優先順位: (1)ユーザー明示指示 (2)視認できる所見 (3)顔貌/口唇/歯列/歯肉の調和
   // (4)自然な審美 (5)理想比率は参考値。矯正的問題と補綴的問題を明確に分離し、
@@ -20490,13 +20503,19 @@ body[data-ui-tone="dark"]{
 
   async function generateViaAI(source){
     const epRaw=aiEndpoint(); if(!epRaw) return null;
+    // FAIL CLOSED (P0): generation requires the authenticated, server-backed token function.
+    // If it is absent — e.g. the auth/beta gate did not initialise — REFUSE to generate.
+    // Never fall open: a missing token function must not grant free, unauthenticated generation.
+    if(typeof window.cfConsumeToken!=='function'){
+      const _e=new Error('生成を実行できません（サインインが必要です）'); _e.cfNoTokens=true; throw _e;
+    }
     // Token gate: 1回作成 = 2 tokens。失敗時は refund_generation_tokens で返却。
     let _ledgerId=null;
-    if(typeof window.cfConsumeToken==='function'){
+    {
       const _tk = await window.cfConsumeToken('generation');
-      if(_tk && _tk.ok===false){
-        if(_tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function'){ window.cfShowTokenEmpty(); }
-        const _e=new Error(_tk.reason==='insufficient'?'トークンが不足しています':'トークンの確認に失敗しました');
+      if(!_tk || _tk.ok!==true){
+        if(_tk && _tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function'){ window.cfShowTokenEmpty(); }
+        const _e=new Error((_tk&&_tk.reason==='insufficient')?'トークンが不足しています':'トークンの確認に失敗しました');
         _e.cfNoTokens=true; throw _e;
       }
       _ledgerId=(_tk&&_tk.ledgerId)||null;
@@ -25090,11 +25109,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
 
   function getAiEndpoint(){
+    var DEF='https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
+    // Production: fixed endpoint, no browser override (matches aiEndpoint()).
+    try{ if(window.cfIsProdHost && window.cfIsProdHost()) return DEF; }catch(e){}
     try{
       return window.CASEFLOW_AI_ENDPOINT ||
-             localStorage.getItem('caseflow_ai_endpoint') ||
-             'https://tttgabuu--5ad034766c0c11f1bb4e1607ee4eb77e.web.val.run';
-    }catch(e){ return window.CASEFLOW_AI_ENDPOINT || ''; }
+             localStorage.getItem('caseflow_ai_endpoint') || DEF;
+    }catch(e){ return window.CASEFLOW_AI_ENDPOINT || DEF; }
   }
 
   async function fetchWithRetry(ep, body, maxAttempts){
@@ -25245,12 +25266,16 @@ body.cfPresent .cfPresentExit{display:flex!important}
   async function generateRefinedViaAI(imageDataUrl, imageType){
     var epRaw = getAiEndpoint();
     if(!epRaw){ throw new Error('AI バックエンドが設定されていません'); }
+    // FAIL CLOSED (P0): refuse refinement if the authenticated token function is absent.
+    if(typeof window.cfConsumeToken!=='function'){
+      var _e0 = new Error('生成を実行できません（サインインが必要です）'); _e0.cfNoTokens = true; throw _e0;
+    }
     var _refineLedgerId=null;
-    if(typeof window.cfConsumeToken==='function'){
+    {
       var tk = await window.cfConsumeToken('generation');
-      if(tk && tk.ok===false){
-        if(tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
-        var err = new Error(tk.reason==='insufficient' ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
+      if(!tk || tk.ok!==true){
+        if(tk && tk.reason==='insufficient' && typeof window.cfShowTokenEmpty==='function') window.cfShowTokenEmpty();
+        var err = new Error((tk&&tk.reason==='insufficient') ? 'トークンが不足しています' : 'トークンの確認に失敗しました');
         err.cfNoTokens = true; throw err;
       }
       _refineLedgerId=(tk&&tk.ledgerId)||null;
@@ -26371,10 +26396,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
   function lsGet(k){ try{ var v=localStorage.getItem(k); return v!==null?v:(memStore[k]||null); }catch(e){ return memStore[k]||null; } }
 
   function gateEnabled(){
+    // P0: in PRODUCTION the auth/beta gate is a security boundary and CANNOT be disabled
+    // from the client. ?beta_gate=off and any localStorage override are IGNORED in prod
+    // (they remain available only on dev / preview hosts for local testing).
+    try{ if(window.cfIsProdHost && window.cfIsProdHost()) return true; }catch(e){}
     try{
       var q=new URLSearchParams(location.search).get('beta_gate');
       if(q==='on') lsSet(GATE_KEY,'on');
-      else if(q==='off') lsSet(GATE_KEY,'off');       /* 明示OFF（デフォルトtrue後の緊急脱出用） */
+      else if(q==='off') lsSet(GATE_KEY,'off');       /* 明示OFF（dev/preview のみ） */
       else if(q==='default') lsSet(GATE_KEY,null);
     }catch(e){ console.error('[CF Gate] query parse failed',e); }
     var v=lsGet(GATE_KEY);
