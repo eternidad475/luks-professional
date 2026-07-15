@@ -10,10 +10,18 @@
 <meta name="apple-mobile-web-app-title" content="CaseFlow Studio">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icons/icon-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/icon-180.png?v=6746">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=6746">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=6746">
 <title>CaseFlow Studio v9.6</title>
+<!-- Share / link-preview icon (app share sheets & pasted-link previews) -->
+<meta property="og:title" content="CaseFlow Studio">
+<meta property="og:description" content="Clinical visual design studio for dental case simulation and morphing.">
+<meta property="og:image" content="https://caseflow-studio.com/icons/og-share-1200x630.png?v=6746">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://caseflow-studio.com/icons/og-share-1200x630.png?v=6746">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>/* hide consent gate before first paint if already agreed (prevents flash) */
 try{ if(localStorage.getItem('caseflow_consent_v96')==='1') document.documentElement.classList.add('cf-consented'); }catch(e){}
