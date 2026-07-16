@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CaseFlow Dev Console Simple</title>
+  <style>
+    :root{--bg:#050713;--panel:#10152f;--line:rgba(210,214,255,.2);--text:#f3f4ff;--muted:#aeb5dc;--gold:#f3d48b;--cyan:#80e5ff;--danger:#ff7892;--ok:#83f5bd}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:radial-gradient(circle at 20% 0,rgba(140,105,255,.25),transparent 35%),linear-gradient(145deg,#050713,#0b1028);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+    main{width:min(760px,calc(100% - 24px));margin:0 auto;padding:22px 0 40px}
+    .hero,.card{border:1px solid var(--line);background:rgba(16,21,47,.88);border-radius:24px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+    .hero{padding:20px;margin-bottom:14px}.kicker{color:var(--gold);font-size:12px;letter-spacing:.18em;text-transform:uppercase}h1{font-size:32px;line-height:1;margin:8px 0 8px;letter-spacing:-.04em}.lead{color:var(--muted);font-size:14px;line-height:1.7;margin:0}
+    .card{padding:16px;margin:14px 0}label{display:block;color:var(--muted);font-size:13px;margin:0 0 12px}input,textarea,select{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:14px;background:rgba(0,0,0,.25);color:var(--text);padding:13px;font-size:16px;outline:none}textarea{min-height:140px;line-height:1.6;resize:vertical}
+    button{width:100%;min-height:56px;border:0;border-radius:16px;margin:8px 0;padding:14px 16px;background:linear-gradient(135deg,#9b7cff,#5f7cff);color:#fff;font-size:16px;font-weight:800;touch-action:manipulation;cursor:pointer}button.secondary{background:rgba(255,255,255,.09);border:1px solid var(--line)}button:active{transform:translateY(1px)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row button{margin:0}.status{border:1px solid var(--line);border-radius:16px;padding:14px;background:rgba(0,0,0,.22);white-space:pre-wrap;line-height:1.6;font-size:13px;color:var(--muted);min-height:70px}.ok{color:var(--ok)}.bad{color:var(--danger)}pre{overflow:auto;max-height:420px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:16px;padding:14px;color:#dfe3ff;font-size:12px;line-height:1.55}.small{font-size:12px;color:var(--muted);line-height:1.7}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--cyan)}
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="kicker">CASEFLOW STUDIO™ / SIMPLE MODE</div>
+    <h1>Dev Console Simple</h1>
+    <p class="lead">Healthボタンが押しにくい場合の簡易版です。まずHealthで接続確認し、その後Dry-runでチャットします。</p>
+  </section>
+
+  <section class="card">
+    <label>Admin key / 管理者キー<input id="adminKey" type="password" autocomplete="off" placeholder="CASEFLOW_DEV_CONSOLE_KEY" /></label>
+    <label>API endpoint<input id="endpoint" value="/api/dev-agent" /></label>
+    <label>Repository<input id="repo" value="eternidad475/luks-professional" /></label>
+    <label>Base branch<input id="baseBranch" value="claude/image-morphing-video-3kujgb" /></label>
+    <label>Working branch<input id="branch" value="chatgpt/dev-console-work" /></label>
+    <label>File path / 読むファイル<input id="path" value="caseflow_studio_v96.html" /></label>
+    <label>Mode<select id="applyMode"><option value="false">Dry-run only / 提案のみ</option><option value="true">Apply + Draft PR / 適用してDraft PR作成</option></select></label>
+    <button id="healthBtn" type="button">Health / 接続確認</button>
+    <div class="row"><button id="readBtn" class="secondary" type="button">Read file</button><button id="compareBtn" class="secondary" type="button">Compare</button></div>
+    <p class="small">Healthが成功すると、GitHub token・Gemini/OpenAI/Anthropic・Dry-run lockの状態が表示されます。</p>
+  </section>
+
+  <section class="card">
+    <label>Request / 依頼内容<textarea id="prompt" placeholder="例：Visual Simulation Studioで保存後に戻るとMorphing Studioへ移動してしまう原因を調査してください。まずコードは変更せず、原因候補と修正方針だけ出してください。"></textarea></label>
+    <button id="sendBtn" type="button">Send to Agent / チャット送信</button>
+    <button id="clearBtn" class="secondary" type="button">Clear / クリア</button>
+  </section>
+
+  <section class="card">
+    <div id="status" class="status">Ready / 準備完了
+1. Admin keyを入力
+2. Healthを押す
+3. 成功したら依頼内容を送信</div>
+    <pre id="raw" hidden></pre>
+  </section>
+</main>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const status = $("status");
+  const raw = $("raw");
+  const messages = [];
+  function setStatus(text, ok){status.className = "status " + (ok===true?"ok":ok===false?"bad":""); status.textContent = text;}
+  function cfg(){return {endpoint:$("endpoint").value.trim()||"/api/dev-agent",adminKey:$("adminKey").value,repo:$("repo").value.trim(),baseBranch:$("baseBranch").value.trim(),branch:$("branch").value.trim(),path:$("path").value.trim(),apply:$("applyMode").value==="true"};}
+  async function call(payload){
+    const c = cfg();
+    if(!c.adminKey){setStatus("Admin keyが未入力です。VercelのCASEFLOW_DEV_CONSOLE_KEYを入力してください。", false); throw new Error("Admin key is missing");}
+    setStatus("Working... / 実行中", null);
+    const res = await fetch(c.endpoint,{method:"POST",headers:{"content-type":"application/json","x-caseflow-dev-key":c.adminKey},body:JSON.stringify({repo:c.repo,baseBranch:c.baseBranch,branch:c.branch,paths:c.path?[c.path]:[],...payload})});
+    const data = await res.json().catch(()=>({ok:false,error:"Invalid JSON response"}));
+    raw.hidden = false; raw.textContent = JSON.stringify(data,null,2);
+    if(!res.ok || !data.ok){setStatus("Error / エラー\n" + (data.error || "Request failed"), false); throw new Error(data.error || "Request failed");}
+    return data;
+  }
+  function brief(data){
+    if(data.action === "health" || data.env){
+      return "Health OK / 接続確認OK\n"+
+        "GitHub token: "+(data.env?.githubToken?"Configured":"Missing")+"\n"+
+        "AI provider: "+(data.env?.gemini?"Gemini: "+data.env.geminiModel:data.env?.anthropic?"Anthropic":data.env?.openai?"OpenAI":"Missing")+"\n"+
+        "Provider mode: "+(data.provider||"auto")+"\n"+
+        "Dry-run lock: "+(data.dryRunOnly?"Locked":"Optional");
+    }
+    const r = data.modelResult || data;
+    const parts = [];
+    if(data.provider || data.model) parts.push("Provider / Model: "+(data.provider||"auto")+" / "+(data.model||"unknown"));
+    if(r.summary_ja) parts.push(r.summary_ja);
+    if(Array.isArray(r.plan_ja)) parts.push("方針:\n"+r.plan_ja.map((x,i)=>(i+1)+". "+x).join("\n"));
+    if(Array.isArray(data.actions)&&data.actions.length) parts.push("提案操作:\n"+data.actions.map(a=>"- "+a.type+": "+a.path).join("\n"));
+    if(data.pullRequest?.url) parts.push("Draft PR:\n"+data.pullRequest.url);
+    return parts.join("\n\n") || "OK / 完了しました。Raw responseを確認してください。";
+  }
+  $("healthBtn").addEventListener("click", async()=>{try{const d=await call({action:"health"}); setStatus(brief(d), true);}catch(e){}});
+  $("readBtn").addEventListener("click", async()=>{try{const c=cfg(); const d=await call({action:"read_file",path:c.path}); setStatus("Read file OK\n"+d.path+"\nsha: "+d.sha+"\nsize: "+d.size, true);}catch(e){}});
+  $("compareBtn").addEventListener("click", async()=>{try{const d=await call({action:"compare"}); setStatus("Compare OK\nstatus: "+d.status+"\nahead: "+d.ahead_by+" / behind: "+d.behind_by+"\n"+(d.files||[]).map(f=>"- "+f.status+": "+f.filename).join("\n"), true);}catch(e){}});
+  $("sendBtn").addEventListener("click", async()=>{try{const c=cfg(); const text=$("prompt").value.trim(); if(!text){setStatus("依頼内容を入力してください。", false); return;} if(c.apply && !confirm("Applyモードで作業ブランチへコミットします。続行しますか？")) return; messages.push({role:"user",content:text}); const d=await call({action:"chat",messages,apply:c.apply}); const b=brief(d); messages.push({role:"assistant",content:b}); setStatus(b, true);}catch(e){}});
+  $("clearBtn").addEventListener("click",()=>{messages.length=0; raw.hidden=true; raw.textContent=""; $("prompt").value=""; setStatus("Cleared / クリアしました", null);});
+  window.addEventListener("DOMContentLoaded",()=>{const saved=sessionStorage.getItem("caseflow_dev_key"); if(saved) $("adminKey").value=saved; $("adminKey").addEventListener("input",()=>sessionStorage.setItem("caseflow_dev_key",$("adminKey").value));});
+})();
+</script>
+</body>
+</html>
