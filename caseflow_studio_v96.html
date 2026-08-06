@@ -20159,9 +20159,10 @@ body[data-ui-tone="dark"]{
         _e.cfNoTokens=true; throw _e;
       }
       _ledgerId=(_tk&&_tk.ledgerId)||null;
-      cfCheckPrimaryRun(runCtx);
     }
     try{
+      // Once a token has been consumed, cancellation must flow through this
+      // refunding catch so a late token success cannot charge an unused run.
       cfCheckPrimaryRun(runCtx);
       let ep=epRaw.replace(/\/+$/,''); if(!/\/simulate$/.test(ep)) ep+='/simulate';
       cfCheckPrimaryRun(runCtx);
@@ -20691,9 +20692,16 @@ body[data-ui-tone="dark"]{
     const started=performance.now(),run={id:'primary_'+Date.now()+'_'+Math.random().toString(36).slice(2),primary:true,cancelled:false};
     let progressTimer=null,deadlineTimer=null;window.__cfPrimaryGenerationActive=true;window.__cfPrimaryRun=run;window.__caseflowQuickPreviewUsed=false;
     try{sessionStorage.setItem('cf_primary_generation_guard_v4',JSON.stringify({startedAt:Date.now(),id:run.id}));}catch(e){}
-    if(typeof src.intraoral!=='boolean')src.intraoral=((src.category||'').toLowerCase()==='intraoral');
+    const primaryCategory=String(src.category||'').toLowerCase();
+    // Legacy/imported Focus records can carry only category metadata. Give only
+    // those unclassified records the bounded intraoral/contraster analysis path
+    // before defaults are stamped; modern uploads keep their cached booleans.
+    if(primaryCategory==='focus'&&typeof src.intraoral!=='boolean'){
+      try{await ensureIntraoralFlag(src);}catch(e){}
+    }
+    if(typeof src.intraoral!=='boolean')src.intraoral=(primaryCategory==='intraoral');
     if(typeof src.intraoralDark!=='boolean')src.intraoralDark=false;
-    if(typeof src.lips!=='boolean')src.lips=(((src.category||'').toLowerCase()==='facial')&&!src.intraoral);
+    if(typeof src.lips!=='boolean')src.lips=(primaryCategory==='facial'&&!src.intraoral);
     try{if(window.cfWait)cfWait.show('AIシミュレーション中',0);}catch(e){}
     // Reuse only findings that are already available. Do not launch a new heavy
     // screening task on the first-result critical path; this preserves prompt quality
@@ -20705,7 +20713,8 @@ body[data-ui-tone="dark"]{
     try{
       if(aiOn){
         const aiTask=generateViaAI(src,run).then(url=>({kind:'ai',url})).catch(err=>({kind:'error',err}));
-        const deadlineTask=new Promise(resolve=>{deadlineTimer=setTimeout(()=>resolve({kind:'deadline'}),CF_PRIMARY_RESULT_DEADLINE_MS);});
+        const remaining=Math.max(2500,CF_PRIMARY_RESULT_DEADLINE_MS-(performance.now()-started));
+        const deadlineTask=new Promise(resolve=>{deadlineTimer=setTimeout(()=>resolve({kind:'deadline'}),remaining);});
         const result=await Promise.race([aiTask,deadlineTask]);
         if(result&&result.kind==='ai'&&result.url){window.__caseflowPrimaryResultMode='ai';return result.url;}
         if(result&&result.kind==='error'&&result.err&&result.err.cfNoTokens)throw result.err;
