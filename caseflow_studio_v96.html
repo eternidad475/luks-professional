@@ -4658,6 +4658,7 @@ button[id="localMLDetectButton"]{
     tabSignup.addEventListener('click',function(){ setMode('signup'); });
 
     async function submitAuth(){
+      if(el('cfG2Submit').disabled) return;
       var email=(emailI.value||'').trim(), pass=(passI.value||'');
       if(!email || !pass){ showMsg('メールアドレスとパスワードを入力してください。','err'); return; }
       submit.disabled=true; var label=submit.textContent; submit.textContent='処理中…'; clearMsg();
@@ -26876,6 +26877,27 @@ body.cfPresent .cfPresentExit{display:flex!important}
     var message=el('cfG2UnavailableMsg');
     if(message) message.textContent=accessFailureMessage(kind);
   }
+  // A public health probe never carries credentials or grants app access.
+  async function checkAuthService(){
+    var controller=new AbortController(), deadline=setTimeout(function(){controller.abort();},10000);
+    try{
+      var response=await fetch(SUPA_URL+'/auth/v1/health',{
+        headers:{ apikey:SUPA_ANON }, credentials:'omit', cache:'no-store', signal:controller.signal
+      });
+      if(!response.ok) return response.status===402 ? 'quota' : 'connection';
+      return null;
+    }catch(error){ return 'connection'; }
+    finally{ clearTimeout(deadline); }
+  }
+  function showAuthFailure(result, messageId){
+    var error=result&&result.error||result||{};
+    var status=Number(result&&result.status||error.status||0);
+    if(accessFailureKind(result)==='quota'){ showAccessFailure('quota'); return; }
+    if(status>=500 || error.name==='AuthRetryableFetchError' || error.name==='TypeError'){
+      showAccessFailure('connection'); return;
+    }
+    msgBox(messageId,translateAuthErr(error.message||'通信エラーが発生しました。'),'err');
+  }
   function missingAccessTable(result){
     var code=result&&result.error&&result.error.code;
     return code==='42P01'||code==='PGRST205';
@@ -27026,7 +27048,13 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var result=await sb.auth.getSession();
       if(sequence!==sessionSequence) return;
       if(result.error) showAccessFailure(accessFailureKind(result));
-      else await evaluateSession(result&&result.data?result.data.session:null);
+      else if(result&&result.data&&result.data.session) await evaluateSession(result.data.session);
+      else {
+        var failure=await checkAuthService();
+        if(sequence!==sessionSequence) return;
+        if(failure) showAccessFailure(failure);
+        else await evaluateSession(null);
+      }
     }catch(error){ if(sequence===sessionSequence) showAccessFailure(accessFailureKind(error)); }
     finally{ retryAccessPending=false; if(btn){btn.disabled=false;btn.textContent='接続を再確認';} }
   }
@@ -27063,6 +27091,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
     window.cfSupabase=sb;
 
     async function submitAuth(){
+      if(el('cfG2Submit').disabled) return;
       var email=(el('cfG2Email').value||'').trim(), pass=el('cfG2Pass').value||'';
       if(!email||!pass){ msgBox('cfG2AuthMsg','メールアドレスとパスワードを入力してください。','err'); return; }
       var btn=el('cfG2Submit'); btn.disabled=true; var label=btn.textContent; btn.textContent='処理中…'; msgBox('cfG2AuthMsg','');
@@ -27083,15 +27112,15 @@ body.cfPresent .cfPresentExit{display:flex!important}
       try{
         if(mode==='signup'){
           var r=await sb.auth.signUp({ email:email, password:pass });
-          if(r.error) msgBox('cfG2AuthMsg',translateAuthErr(r.error.message),'err');
+          if(r.error) showAuthFailure(r,'cfG2AuthMsg');
           else if(r.data&&r.data.session) await evaluateSession(r.data.session);
           else { msgBox('cfG2AuthMsg','確認メールを送信しました。メール内のリンクを開いてからログインしてください。','ok'); setMode('login'); }
         } else {
           var r2=await sb.auth.signInWithPassword({ email:email, password:pass });
-          if(r2.error) msgBox('cfG2AuthMsg',translateAuthErr(r2.error.message),'err');
+          if(r2.error) showAuthFailure(r2,'cfG2AuthMsg');
           else await evaluateSession(r2.data.session);
         }
-      }catch(e){ console.error('[CF Gate] auth failed',e); msgBox('cfG2AuthMsg','通信エラーが発生しました。もう一度お試しください。','err'); }
+      }catch(e){ showAuthFailure(e,'cfG2AuthMsg'); }
       btn.disabled=false; btn.textContent=label;
     }
     el('cfG2Submit').addEventListener('click',submitAuth);
@@ -27103,7 +27132,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var btn=el('cfG2ResetSend'); btn.disabled=true; msgBox('cfG2ResetMsg','送信中…','info');
       try{
         var r=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.origin+location.pathname+'?beta_gate=on' });
-        if(r.error){ console.error('[CF Gate] reset email failed',r.error); msgBox('cfG2ResetMsg',translateAuthErr(r.error.message),'err'); }
+        if(r.error) showAuthFailure(r,'cfG2ResetMsg');
         else msgBox('cfG2ResetMsg','再設定リンクを送信しました。メールをご確認ください。','ok');
       }catch(e){ console.error('[CF Gate] reset exception',e); msgBox('cfG2ResetMsg','通信エラーが発生しました。','err'); }
       btn.disabled=false;

@@ -19,7 +19,7 @@ const denied = { data: { role: 'user', beta_access: false }, error: null };
 const empty = { data: [], error: null };
 const error = (status, code = 'restricted', message = 'request failed') => ({ status, error: { code, message } });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-function harness(responses = {}, authResult = { data: { session: session('owner') } }) {
+function harness(responses = {}, authResult = { data: { session: session('owner') } }, health = async () => ({ ok:true, status:200 })) {
   const calls = [], nodes = new Map(), deadlines = new Map();
   let timerId = 0;
   let unlocks = 0, authCalls = 0, writes = 0, reloads = 0;
@@ -28,7 +28,8 @@ function harness(responses = {}, authResult = { data: { session: session('owner'
     return nodes.get(id);
   };
   const ctx = vm.createContext({
-    console, Date, AbortController,
+    console, Date, AbortController, SUPA_URL:'https://example.invalid', SUPA_ANON:'public-test-key',
+    fetch: health, msgBox: (id,text) => { node(id).textContent=text; }, translateAuthErr: message => message,
     setTimeout(fn, ms) { const id = ++timerId; deadlines.set(id, { fn, ms }); return id; },
     clearTimeout(id) { deadlines.delete(id); },
     window: {}, curProfile: null, curSession: null, subActive: false,
@@ -148,6 +149,45 @@ await test('late retry session response cannot undo sign-out', async () => {
   const pending = h.retry(); await h.evaluate(null);
   d.resolve({ data: { session: session('owner') } }); await pending;
   assert.equal(h.view, 'Auth'); assert.equal(h.unlocks, 0); assert.equal(h.ctx.curSession, null);
+});
+await test('authentication 402 and server failures use recovery view', () => {
+  for (const status of [402, 500, 503]) {
+    const h=harness(); h.ctx.showAuthFailure(error(status),'cfG2AuthMsg');
+    assert.equal(h.view,'Unavailable'); assert.equal(h.unlocks,0);
+  }
+});
+await test('credential failure remains on login and does not claim quota', () => {
+  const h=harness(); h.ctx.showGate('auth');
+  h.ctx.showAuthFailure(error(400,'invalid_credentials','Invalid login credentials'),'cfG2AuthMsg');
+  assert.equal(h.view,'Auth'); assert.match(h.node('cfG2AuthMsg').textContent,/Invalid login/);
+});
+await test('retry without session stays unavailable while quota persists', async () => {
+  const h=harness({}, {data:{session:null}}, async (url,opts) => {
+    assert.equal(url,'https://example.invalid/auth/v1/health');
+    assert.equal(opts.credentials,'omit'); assert.equal(opts.cache,'no-store');
+    assert.deepEqual(Object.keys(opts.headers),['apikey']);
+    return {ok:false,status:402};
+  });
+  await h.retry(); assert.equal(h.view,'Unavailable'); assert.equal(h.unlocks,0); assert.equal(h.writes,0);
+});
+await test('healthy auth service returns to login without granting access', async () => {
+  const h=harness({}, {data:{session:null}}); await h.retry();
+  assert.equal(h.view,'Auth'); assert.equal(h.unlocks,0); assert.equal(h.calls.length,0);
+});
+await test('health timeout releases retry control', async () => {
+  const h=harness({}, {data:{session:null}}, (url,opts) => new Promise((resolve,reject) => {
+    opts.signal.addEventListener('abort', () => reject(new Error('aborted')));
+  }));
+  const pending=h.retry(); await new Promise(resolve => setImmediate(resolve));
+  const d=[...h.deadlines.values()].find(x=>x.ms===10000); assert.ok(d); d.fn(); await pending;
+  assert.equal(h.view,'Unavailable'); assert.equal(h.node('cfG2Retry').disabled,false);
+});
+await test('late health response cannot overwrite another authenticated session', async () => {
+  const d=deferred(), h=harness({profiles:allowed},{data:{session:null}},()=>d.promise);
+  const pending=h.retry(); await new Promise(resolve => setImmediate(resolve));
+  await h.evaluate(session('new')); d.resolve({ok:false,status:402}); await pending;
+  assert.equal(h.unlocks,1); assert.equal(h.ctx.curSession.user.id,'new');
+  assert.notEqual(h.view,'Unavailable');
 });
 await test('all inline classic scripts parse', () => {
   let count = 0;
