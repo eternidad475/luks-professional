@@ -26578,6 +26578,12 @@ body.cfPresent .cfPresentExit{display:flex!important}
       '<div class="cfG2Sub">Clinical beauty, visualized.</div>'+
       '<div class="cfG2Invited">Currently available to invited dental professionals only.<br>招待された歯科医療関係者のみご利用いただけます。</div>'+
       /* --- view: auth --- */
+      '<div id="cfG2UnavailableView" style="display:none" role="alert" aria-live="polite">'+
+        '<h2 style="font-size:18px;margin:0 0 12px">接続を確認できません</h2>'+
+        '<p id="cfG2UnavailableMsg" style="font-size:13px;line-height:1.8"></p>'+
+        '<p style="font-size:12px;line-height:1.8">この画面から再確認できます。ページの再読み込みやブラウザーの保存データ削除は不要です。</p>'+
+        '<button type="button" class="cfG2Btn" id="cfG2Retry">接続を再確認</button>'+
+      '</div>'+
       '<div id="cfG2AuthView">'+
         '<div class="cfG2Tabs">'+
           '<button type="button" class="cfG2Tab on" id="cfG2TabLogin">ログイン</button>'+
@@ -26722,6 +26728,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
   }
   function translateAuthErr(m){
     m=String(m||'');
+    if(/exceed_egress_quota|exceed_storage_size_quota|Service for this project is restricted/i.test(m)) return accessFailureMessage('quota');
     if(/Invalid login credentials/i.test(m)) return 'メールアドレスまたはパスワードが正しくありません。';
     if(/Email not confirmed/i.test(m)) return 'メールの確認が完了していません。確認メールのリンクを開いてください。';
     if(/User already registered/i.test(m)) return 'このメールアドレスは既に登録されています。「ログイン」からお進みください。';
@@ -26852,53 +26859,63 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   /* ---------------- can_use_app ---------------- */
   var curBilling=null;
-  var curWorkspace=null; /* the caller's active personal/clinic workspace (type/tokens/name) */
-  async function loadWorkspace(uid){
-    curWorkspace=null;
-    if(!sb) return;
-    try{
-      var w=await sb.from('workspaces')
-        .select('id,type,name,tokens_remaining,owner_user_id,deleted_at')
-        .eq('owner_user_id',uid).is('deleted_at',null)
-        .order('created_at',{ascending:true}).limit(1);
-      if(!w.error && w.data && w.data.length) curWorkspace=w.data[0];
-    }catch(e){ /* workspaces table may not be reachable in some envs — non-fatal */ }
+  var curWorkspace=null;
+  var accessFailure=null, accessSequence=0, sessionSequence=0;
+  function accessFailureKind(result){
+    var error=result&&result.error||result||{};
+    var status=Number(result&&result.status||error.status||0);
+    return status===402 || /exceed_egress_quota|exceed_storage_size_quota|Service for this project is restricted/i.test(String(error.message||'')) ? 'quota' : 'connection';
   }
-  async function loadBilling(){
-    curBilling=null;
-    if(!sb||!curSession) return;
-    try{
-      var b=await sb.from('billing_subscriptions')
-        .select('plan,status,price_id,current_period_end,cancel_at_period_end')
-        .eq('user_id',curSession.user.id)
-        .in('status',['active','trialing','past_due'])
-        .order('updated_at',{ascending:false}).limit(1);
-      if(b.error){ if(!/does not exist|schema cache/i.test(String(b.error.message||''))) console.error('[CF Billing] load failed',b.error); }
-      else if(b.data&&b.data.length) curBilling=b.data[0];
-    }catch(e){ console.error('[CF Billing] exception',e); }
+  function accessFailureMessage(kind){
+    return kind==='quota'
+      ? 'CaseFlowの接続先がサービス利用制限中のため、現在はログインや保存を利用できません。運営側での復旧が必要です。'
+      : 'サーバーとの通信を確認できず、利用資格を判定できませんでした。接続状況を確認して、時間をおいて再確認してください。';
   }
+  function showAccessFailure(kind){
+    showGate('unavailable');
+    var message=el('cfG2UnavailableMsg');
+    if(message) message.textContent=accessFailureMessage(kind);
+  }
+  function missingAccessTable(result){
+    var code=result&&result.error&&result.error.code;
+    return code==='42P01'||code==='PGRST205';
+  }
+  /* One access snapshot per evaluation. Errors are not empty membership records. */
   async function loadAccess(uid){
-    curProfile=null; subActive=false;
+    var sequence=++accessSequence;
+    curProfile=null; subActive=false; curBilling=null; curWorkspace=null; accessFailure=null;
+    var profile=null, subscription=false, billing=null, workspace=null, failure=null;
+    var controller=new AbortController(), deadline=setTimeout(function(){controller.abort();},20000);
     try{
-      var p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type,display_name,trial_tokens_granted').eq('id',uid).single();
-      if(p.error){
-        /* 新列未適用の環境向けフォールバック */
-        var p2=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type').eq('id',uid).single();
-        if(p2.error) console.error('[CF Gate] profile load failed',p2.error);
-        else curProfile=p2.data||null;
+      var p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type,display_name,trial_tokens_granted').eq('id',uid).abortSignal(controller.signal).single();
+      if(p.error && (p.error.code==='42703'||p.error.code==='PGRST204')){
+        p=await sb.from('profiles').select('role,beta_access,tokens_remaining,clinic_name,professional_type').eq('id',uid).abortSignal(controller.signal).single();
       }
-      else curProfile=p.data||null;
-    }catch(e){ console.error('[CF Gate] profile load exception',e); }
-    try{
+      if(p.error) throw p;
+      profile=p.data||null;
       var s=await sb.from('subscriptions').select('status,current_period_end').eq('user_id',uid)
-        .in('status',['active','trialing']).order('updated_at',{ascending:false}).limit(1);
+        .in('status',['active','trialing']).order('updated_at',{ascending:false}).limit(1).abortSignal(controller.signal);
+      if(s.error && !missingAccessTable(s)) throw s;
       if(!s.error && s.data && s.data.length){
         var row=s.data[0];
-        subActive=!row.current_period_end || (new Date(row.current_period_end).getTime()>Date.now());
+        subscription=!row.current_period_end || (new Date(row.current_period_end).getTime()>Date.now());
       }
-    }catch(e){ console.error('[CF Gate] subscription check exception',e); }
-    await loadBilling();
-    await loadWorkspace(uid);
+      var b=await sb.from('billing_subscriptions').select('plan,status,price_id,current_period_end,cancel_at_period_end')
+        .eq('user_id',uid).in('status',['active','trialing','past_due']).order('updated_at',{ascending:false}).limit(1).abortSignal(controller.signal);
+      if(b.error && !missingAccessTable(b)) throw b;
+      if(!b.error && b.data && b.data.length) billing=b.data[0];
+      var w=await sb.from('workspaces').select('id,type,name,tokens_remaining,owner_user_id,deleted_at')
+        .eq('owner_user_id',uid).is('deleted_at',null).order('created_at',{ascending:true}).limit(1).abortSignal(controller.signal);
+      if(w.error && accessFailureKind(w)==='quota') throw w;
+      if(!w.error && w.data && w.data.length) workspace=w.data[0];
+    }catch(error){ failure=accessFailureKind(error); }
+    finally{ clearTimeout(deadline); }
+    // A previous request must not overwrite a newer session or sign-out.
+    if(sequence!==accessSequence || !curSession || curSession.user.id!==uid) return false;
+    accessFailure=failure;
+    if(failure) return false;
+    curProfile=profile; subActive=subscription; curBilling=billing; curWorkspace=workspace;
+    return true;
   }
   function canUseApp(){
     if(!curProfile) return false;
@@ -26915,10 +26932,10 @@ body.cfPresent .cfPresentExit{display:flex!important}
   /* ---------------- gate open/close ---------------- */
   function showGate(view){
     wrap.classList.add('open');
-    ['cfG2AuthView','cfG2InviteView','cfG2ResetView','cfG2NewPassView'].forEach(function(id){
+    ['cfG2AuthView','cfG2InviteView','cfG2ResetView','cfG2NewPassView','cfG2UnavailableView'].forEach(function(id){
       var v=el(id); if(v) v.style.display='none';
     });
-    var map={ auth:'cfG2AuthView', invite:'cfG2InviteView', reset:'cfG2ResetView', newpass:'cfG2NewPassView' };
+    var map={ auth:'cfG2AuthView', invite:'cfG2InviteView', reset:'cfG2ResetView', newpass:'cfG2NewPassView', unavailable:'cfG2UnavailableView' };
     var t=el(map[view]||'cfG2AuthView'); if(t) t.style.display='block';
     if(logoutBtn) logoutBtn.style.display='none';
     if(badge) badge.style.display='none';
@@ -26986,11 +27003,32 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
   /* ---------------- main flow ---------------- */
   async function evaluateSession(session){
+    var sequence=++sessionSequence;
     curSession=session||null;
-    if(!session){ _signinLogged=false; showGate('auth'); return; }
-    await loadAccess(session.user.id);
+    if(!session){
+      accessSequence++; curProfile=null; subActive=false; curBilling=null; curWorkspace=null; accessFailure=null;
+      _signinLogged=false; showGate('auth'); return;
+    }
+    var loaded=await loadAccess(session.user.id);
+    if(sequence!==sessionSequence) return;
+    if(!loaded){ showAccessFailure(accessFailure); return; }
     if(canUseApp()) unlockApp();
     else showGate('invite');
+  }
+  var retryAccessPending=false;
+  async function retryAccess(){
+    if(retryAccessPending||!sb) return;
+    var sequence=sessionSequence;
+    retryAccessPending=true;
+    var btn=el('cfG2Retry');
+    if(btn){ btn.disabled=true; btn.textContent='接続を確認中…'; }
+    try{
+      var result=await sb.auth.getSession();
+      if(sequence!==sessionSequence) return;
+      if(result.error) showAccessFailure(accessFailureKind(result));
+      else await evaluateSession(result&&result.data?result.data.session:null);
+    }catch(error){ if(sequence===sessionSequence) showAccessFailure(accessFailureKind(error)); }
+    finally{ retryAccessPending=false; if(btn){btn.disabled=false;btn.textContent='接続を再確認';} }
   }
 
   function start(){
@@ -27006,6 +27044,7 @@ body.cfPresent .cfPresentExit{display:flex!important}
       var pt=el('cfG2ProfTypeRow'); if(pt) pt.style.display=(m==='signup')?'block':'none';
       var fg=el('cfG2ForgotRow'); if(fg) fg.style.display=(m==='login')?'block':'none';
     }
+    el('cfG2Retry').addEventListener('click',retryAccess);
     el('cfG2TabLogin').addEventListener('click',function(){ setMode('login'); });
     el('cfG2TabSignup').addEventListener('click',function(){ setMode('signup'); });
     el('cfG2Forgot').addEventListener('click',function(){
@@ -28180,12 +28219,14 @@ body.cfPresent .cfPresentExit{display:flex!important}
 
     /* --- session bootstrap --- */
     sb.auth.onAuthStateChange(function(evt,session){
-      if(evt==='PASSWORD_RECOVERY'){ curSession=session||null; msgBox('cfG2NewPassMsg',''); showGate('newpass'); return; }
-      evaluateSession(session).catch(function(e){ console.error('[CF Gate] evaluate failed',e); showGate('auth'); });
+      if(evt==='PASSWORD_RECOVERY'){ sessionSequence++; accessSequence++; curSession=session||null; msgBox('cfG2NewPassMsg',''); showGate('newpass'); return; }
+      // Run after the auth callback releases its session lock.
+      setTimeout(function(){ evaluateSession(session).catch(function(){ showAccessFailure('connection'); }); },0);
     });
     sb.auth.getSession().then(function(res){
+      if(res.error){ showAccessFailure(accessFailureKind(res)); return; }
       return evaluateSession(res&&res.data?res.data.session:null);
-    }).catch(function(e){ console.error('[CF Gate] getSession failed',e); showGate('auth'); });
+    }).catch(function(){ showAccessFailure('connection'); });
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
