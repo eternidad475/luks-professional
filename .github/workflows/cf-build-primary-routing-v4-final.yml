@@ -1,0 +1,88 @@
+name: Assemble primary routing v4 final
+
+on:
+  push:
+    branches:
+      - chatgpt/primary-routing-v4-final
+
+permissions:
+  contents: write
+
+concurrency:
+  group: primary-routing-v4-final-assembly
+  cancel-in-progress: true
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/primary-routing-v4-final
+          fetch-depth: 0
+      - name: Fetch current production and candidate payload
+        run: |
+          git fetch origin claude/image-morphing-video-3kujgb
+          git fetch origin chatgpt/primary-routing-v4-payload
+      - name: Extract only primary-routing changes
+        run: python3 scripts/cf_filter_primary_routing_v4_patch.py
+      - name: Rebuild candidate from current production
+        run: |
+          git checkout -f -B chatgpt/primary-routing-v4-payload origin/claude/image-morphing-video-3kujgb
+          git apply --index /tmp/cf-primary-routing-v4-filtered.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('sw.js')
+          s=p.read_text(encoding='utf-8')
+          old="var VERSION = 'cfsw-v4-chrome-tooth-icons';"
+          new="var VERSION = 'cfsw-v5-primary-routing-chrome-tooth';"
+          if old not in s:
+              raise SystemExit('current chrome-tooth service-worker version not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          git add sw.js
+      - name: Validate no current feature was rolled back
+        run: |
+          python3 - <<'PY'
+          import re, subprocess
+          from pathlib import Path
+          html=Path('caseflow_studio_v96.html').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
+          required=[
+            'CF_PRIMARY_ROUTING_ISOLATION_V4',
+            'const CF_PRIMARY_RESULT_DEADLINE_MS=16000',
+            'cfScheduleTempSimSave',
+            'requestAnimationFrame(()=>requestAnimationFrame(ensureResult))',
+            'Finalizing clinical preview',
+            'cf-primary-routing-isolation-v4',
+            '/icons/icon-180-v2.png',
+            '/icons/icon-192-v2.png',
+            '/icons/favicon-32-v2.png',
+            "nonbinary:'Non-binary / ノンバイナリー'",
+            "one soft crown-form criterion",
+          ]
+          for token in required:
+              assert token in html, token
+          assert 'Preparing morphing sequence' not in html
+          assert 'モーフィングシークエンスを準備中' not in html
+          assert 'cfCheckPrimaryRun(runCtx);\n            const arr=Array.isArray(j)' not in html
+          assert "cfsw-v5-primary-routing-chrome-tooth" in sw
+          for asset in ('/icons/icon-192-v2.png','/icons/icon-512-v2.png','/icons/maskable-512-v2.png','/icons/icon-180-v2.png'):
+              assert asset in sw, asset
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',html,re.I)
+          for i,block in enumerate(blocks):
+              path=Path('/tmp')/f'cf_inline_{i}.js'
+              path.write_text(block,encoding='utf-8')
+              subprocess.run(['node','--check',str(path)],check=True,stdout=subprocess.DEVNULL)
+          subprocess.run(['node','--check','sw.js'],check=True)
+          print('validated inline scripts:',len(blocks))
+          PY
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = "caseflow_studio_v96.html docs/primary-routing-v4-smoke.js sw.js "
+          git diff --cached --stat
+      - name: Commit corrected production candidate
+        run: |
+          git config user.name "caseflow-studio-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "fix(simulation): isolate primary generation without feature rollback"
+      - name: Update pull request branch
+        run: git push --force origin HEAD:chatgpt/primary-routing-v4-payload
