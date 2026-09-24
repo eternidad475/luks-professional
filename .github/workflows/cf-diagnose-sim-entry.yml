@@ -1,0 +1,110 @@
+name: Assemble Visual Simulation result-first fix
+
+on:
+  pull_request:
+    branches:
+      - claude/image-morphing-video-3kujgb
+
+permissions:
+  contents: write
+
+concurrency:
+  group: visual-result-first-assembly-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Preserve patch and test tools
+        run: |
+          cp tools/apply-result-first-paint.js /tmp/apply-result-first-paint.js
+          cp tools/remove-result-caption-sync.js /tmp/remove-result-caption-sync.js
+          cp tools/replace-result-painter-v7.js /tmp/replace-result-painter-v7.js
+          cp tools/replace-final-result-route-v8.js /tmp/replace-final-result-route-v8.js
+          cp tools/install-fast-result-shell-v9.js /tmp/install-fast-result-shell-v9.js
+          cp tools/result-first-smoke-v4.js /tmp/result-first-smoke.js
+      - name: Rebuild from current Production base
+        run: |
+          git fetch origin claude/image-morphing-video-3kujgb
+          git checkout -B chatgpt/visual-result-first-payload origin/claude/image-morphing-video-3kujgb
+          node /tmp/apply-result-first-paint.js
+          node /tmp/remove-result-caption-sync.js
+          node /tmp/replace-result-painter-v7.js
+          node /tmp/replace-final-result-route-v8.js
+          node /tmp/install-fast-result-shell-v9.js
+          mkdir -p docs
+          cp /tmp/result-first-smoke.js docs/visual-result-first-smoke.js
+      - name: Syntax and deterministic safety audit
+        run: |
+          python3 - <<'PY'
+          import re, subprocess
+          from pathlib import Path
+          p=Path('caseflow_studio_v96.html')
+          s=p.read_text(encoding='utf-8')
+          blocks=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
+          failures=[]
+          for i,b in enumerate(blocks):
+              f=Path('/tmp')/f'cf_inline_{i}.js'; f.write_text(b,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(f)],text=True,capture_output=True)
+              if r.returncode: failures.append((i,r.stderr[-1200:]))
+          print('inline scripts',len(blocks),'failures',len(failures))
+          for i,msg in failures: print('BLOCK',i,msg)
+          if failures: raise SystemExit(1)
+          required=['cfScheduleTempSimSave','cf-fast-result-shell-v9','cfFastResultShell','__cfFastResultV9','cfsw-v7-fast-result-shell']
+          combined=s+Path('sw.js').read_text(encoding='utf-8')
+          for token in required:
+              if token not in combined: raise SystemExit('missing '+token)
+          forbidden=[
+            "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60)",
+            "setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220)",
+            "if(id==='result')renderResult()"
+          ]
+          for token in forbidden:
+              if token in s: raise SystemExit('old critical-path pattern remains: '+token)
+          PY
+          node --check sw.js
+      - name: Install Chromium test runtime outside repository
+        run: |
+          npm install --prefix /tmp/cfnode --no-save playwright@1.54.1
+          /tmp/cfnode/node_modules/.bin/playwright install --with-deps chromium
+      - name: Run real-app result-first smoke test
+        id: smoke
+        env:
+          NODE_PATH: /tmp/cfnode/node_modules
+        run: |
+          python3 -m http.server 4173 >/tmp/cf-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          set +e
+          node docs/visual-result-first-smoke.js > /tmp/result-first-output.txt 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/result-first-output.txt
+          exit $STATUS
+      - name: Upload result-first diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-result-first-diagnostics
+          path: |
+            /tmp/result-first-output.txt
+            /tmp/cf-http.log
+            caseflow_studio_v96.html
+            sw.js
+            docs/visual-result-first-smoke.js
+          if-no-files-found: warn
+      - name: Commit clean production payload
+        run: |
+          git config user.name "CaseFlow CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add caseflow_studio_v96.html sw.js docs/visual-result-first-smoke.js
+          git commit -m "fix(simulation): route primary result through lightweight shell"
+          git push --force origin HEAD:chatgpt/visual-result-first-payload
