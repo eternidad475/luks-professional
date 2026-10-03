@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#be7ed6">
 <meta name="robots" content="noindex, nofollow">
-<meta name="caseflow-build" content="2026-10-03-spacing.1">
+<meta name="caseflow-build" content="2026-10-03-spacing.2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CaseFlow Studio">
@@ -19691,55 +19691,79 @@ body[data-ui-tone="dark"]{
     return fb;
   }
 
-  // Restorative spacing needs a real ALPHA mask, including the original gap. An RGB
-  // grayscale mask with alpha=255 cannot protect anything under destination-in.
-  // This path copies model-produced enamel, never synthesizes/fills/warps a tooth locally.
-  // Geometry is permitted only in narrow, vertically sustained dark corridors bracketed
-  // by original enamel on BOTH sides; red tissue and beyond-incisal background stay locked.
+  // Restorative spacing copies only model-produced enamel inside original crowns or
+  // narrow coronal corridors. A dark core may have warm, shadowed enamel shoulders;
+  // it need not be a uniformly black, rectangular strip. Tissue stays alpha=0.
   function cfSpacingMaskPixels(original, generated, w, h){
-    const n=w*h, enamel=new Float32Array(n), candidates=new Uint8Array(n), allowed=new Uint8Array(n);
+    const n=w*h, enamel=new Float32Array(n), candidates=new Uint8Array(n), cores=new Uint8Array(n), allowed=new Uint8Array(n);
     const score=(d,i)=>{
       const r=d[i],g=d[i+1],b=d[i+2], l=(r+g+b)/3;
-      // Conservative colour evidence: require an enamel-like yellow/warm gradient
-      // or near-white highlight. Reject blue/neutral mid-value metal and pink tissue.
       const rg=r-g, gb=g-b, sat=Math.max(r,g,b)-Math.min(r,g,b);
       if(b>r+3 || b>g+3 || rg>gb*1.2+8 || !(gb>=4 || (l>=225 && sat<18))) return 0;
-      return clamp(smoothstep(72,140,l)*smoothstep(120,55,Math.max(r,g,b)-Math.min(r,g,b))*smoothstep(70,30,r-(g+b)/2),0,1);
+      return clamp(smoothstep(72,140,l)*smoothstep(120,55,sat)*smoothstep(70,30,r-(g+b)/2),0,1);
+    };
+    const modelEnamel=(at)=>{
+      const i=at*4,r=generated[i],g=generated[i+1],b=generated[i+2],l=(r+g+b)/3;
+      // Once the ORIGINAL geometry establishes the permitted corridor, retain
+      // naturally warm/darker model enamel too; the anchor score is deliberately
+      // stricter and must not punch the original gap back through a valid result.
+      return score(generated,i)>=.5 || (l>=90 && b<=g+3 && b<=r+3 && g-b>=5 && r-g<=(g-b)*1.35+10 && r-(g+b)/2<=80 && Math.max(r,g,b)-Math.min(r,g,b)<=130);
+    };
+    const dark=(at)=>{
+      const i=at*4,r=original[i],g=original[i+1],b=original[i+2];
+      // Deep oral shadow can carry reflected red light. It is evidence only when
+      // independently bracketed by two substantial original enamel anchors.
+      return (r+g+b)/3<=75 && r<=115 && b<=r+8 && b<=g+12;
+    };
+    const shoulder=(at)=>{
+      const i=at*4,r=original[i],g=original[i+1],b=original[i+2],l=(r+g+b)/3;
+      // Warm enamel under proximal shadow, never a bright pink papilla or metal.
+      return l>=55 && b<=g+3 && b<=r+3 && g-b>=8 && r-g<=(g-b)*1.5+12 && r-(g+b)/2<=85;
     };
     const x0=Math.ceil(w*.08), x1=Math.floor(w*.92), y0=Math.ceil(h*.08), y1=Math.floor(h*.90);
     for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) enamel[y*w+x]=score(original,(y*w+x)*4);
-    const minAnchor=Math.max(3,Math.round(w*.007)), maxGap=Math.max(3,Math.round(w*.045));
+    const minAnchor=Math.max(3,Math.round(w*.007)), maxGap=Math.max(3,Math.round(w*.045)), maxShoulder=Math.max(1,Math.round(w*.02));
+    // Count reliable anchor support across small optical interruptions (highlight,
+    // texture) without letting a dark gap or pink tissue become a tooth anchor.
+    const anchorWidth=(y,x,step)=>{
+      let width=0, holes=0;
+      while(x>=x0 && x<x1){
+        const at=y*w+x;
+        if(enamel[at]>=.5){width++;holes=0;}
+        else if(!dark(at) && (shoulder(at) || (original[at*4]>=original[at*4+2] && original[at*4+1]>=original[at*4+2] && original[at*4]-original[at*4+2]<=45)) && ++holes<=Math.max(1,Math.round(w*.006))) width++;
+        else break;
+        x+=step;
+      }
+      return width;
+    };
     for(let y=y0;y<y1;y++){
       let x=x0;
       while(x<x1){
-        if(enamel[y*w+x]<.5){ x++; continue; }
-        const leftStart=x;
-        while(x<x1 && enamel[y*w+x]>=.5) x++;
-        const start=x, leftWidth=start-leftStart;
-        while(x<x1 && enamel[y*w+x]<.5 && x-start<=maxGap) x++;
-        const end=x, gap=end-start;
-        if(gap<1 || gap>maxGap || leftWidth<minAnchor || x>=x1) continue;
-        let rightEnd=x;
-        while(rightEnd<x1 && enamel[y*w+rightEnd]>=.5) rightEnd++;
-        const rightWidth=rightEnd-end;
-        if(rightWidth<minAnchor || gap>Math.min(leftWidth,rightWidth)*.65) continue;
-        let dark=true;
-        for(let gx=start;gx<end;gx++){
-          const i=(y*w+gx)*4,r=original[i],g=original[i+1],b=original[i+2];
-          if((r+g+b)/3>100 || r-(g+b)/2>25){ dark=false; break; }
-        }
-        if(dark) for(let gx=start;gx<end;gx++) candidates[y*w+gx]=1;
+        if(!dark(y*w+x)){x++;continue;}
+        const coreStart=x;
+        while(x<x1 && dark(y*w+x)) x++;
+        const coreEnd=x;
+        if(coreEnd-coreStart>maxGap) continue;
+        let start=coreStart,end=coreEnd;
+        while(start>x0 && enamel[y*w+start-1]<.5 && coreStart-start<maxShoulder && shoulder(y*w+start-1)) start--;
+        while(end<x1 && enamel[y*w+end]<.5 && end-coreEnd<maxShoulder && shoulder(y*w+end)) end++;
+        if(start<=x0 || end>=x1 || enamel[y*w+start-1]<.5 || enamel[y*w+end]<.5) continue;
+        const gap=end-start,leftWidth=anchorWidth(y,start-1,-1),rightWidth=anchorWidth(y,end,1);
+        if(leftWidth<minAnchor || rightWidth<minAnchor || gap>Math.min(leftWidth,rightWidth)*.65) continue;
+        for(let gx=start;gx<end;gx++) candidates[y*w+gx]=1;
+        for(let gx=coreStart;gx<coreEnd;gx++) cores[y*w+gx]=1;
       }
     }
-    // Vertical support excludes isolated shadows and the broad horizontal bite opening.
-    // Stable corridor width also rejects tapered gingival/occlusal triangular embrasures.
+    // Require vertical support and a sustained dark core, rather than measuring
+    // the variable shadow shoulders. Isolated shadows, triangular embrasures and
+    // horizontal bite openings do not satisfy this coronal-corridor geometry.
     const seen=new Uint8Array(n), minHeight=Math.max(8,Math.round(h*.035));
     for(let seed=0;seed<n;seed++){
       if(!candidates[seed] || seen[seed]) continue;
       const queue=[seed], rows=new Map(); seen[seed]=1;
       for(let q=0;q<queue.length;q++){
         const at=queue[q],x=at%w,y=Math.floor(at/w);
-        rows.set(y,(rows.get(y)||0)+1);
+        rows.set(y,(rows.get(y)||0)+cores[at]);
         for(const next of [x>0?at-1:-1,x<w-1?at+1:-1,y>0?at-w:-1,y<h-1?at+w:-1]){
           if(next>=0 && candidates[next] && !seen[next]){seen[next]=1;queue.push(next);}
         }
@@ -19747,20 +19771,66 @@ body[data-ui-tone="dark"]{
       const widths=Array.from(rows.values()).sort((a,b)=>a-b), height=rows.size;
       const median=widths[Math.floor(widths.length/2)]||0;
       const narrow=widths[Math.floor(widths.length*.15)]||0, wide=widths[Math.floor(widths.length*.85)]||0;
-      if(height<minHeight || height<median*2 || narrow<wide*.65) continue;
-      // Require the model to have supplied enamel across most of this corridor. An
-      // unchanged AI output stays unchanged; no local paint can manufacture a success.
-      let changed=0;
-      for(const at of queue) if(score(generated,at*4)>=.5) changed++;
-      if(changed<queue.length*.7) continue;
-      for(const at of queue) if(score(generated,at*4)>=.5) allowed[at]=1;
+      if(height<minHeight || height<median*2 || narrow<wide*.5) continue;
+      // A cervical notch opens directly into gingiva at one end and closes back
+      // inside a continuous crown at the other. It is not a coronal spacing
+      // corridor, even if its dark red core is narrow and vertically sustained.
+      const ys=Array.from(rows.keys()),top=Math.min(...ys),bottom=Math.max(...ys);
+      const endpoint=(row,step)=>{
+        const xs=queue.filter(at=>Math.floor(at/w)===row && cores[at]).map(at=>at%w);
+        let tissue=false,closed=false;
+        for(let dy=1;dy<=Math.max(1,Math.round(h*.008));dy++){
+          const y=row+dy*step;if(y<y0 || y>=y1 || !xs.length) continue;
+          let soft=0,tooth=0;
+          for(const x of xs){
+            const at=y*w+x,i=at*4,r=original[i],g=original[i+1],b=original[i+2];
+            if((r+g+b)/3>60 && r-(g+b)/2>25 && r-g>(g-b)*1.35+12) soft++;
+            if(enamel[at]>=.5) tooth++;
+          }
+          if(soft>=xs.length*.7) tissue=true;
+          if(tooth>=xs.length*.7) closed=true;
+        }
+        return {tissue,closed};
+      };
+      const above=endpoint(top,-1),below=endpoint(bottom,1);
+      if((above.tissue && below.closed) || (below.tissue && above.closed)){
+        // Opposing-arch enamel may lie immediately beyond a genuine full coronal
+        // gap. Reject only a short notch relative to the original neighbouring
+        // crowns; do not interpret every enamel endpoint as a single crown.
+        const mid=Math.floor((top+bottom)/2),xs=queue.filter(at=>Math.floor(at/w)===mid).map(at=>at%w);
+        const inset=Math.max(minAnchor,Math.round(w*.015));
+        const crownSpan=(x)=>{
+          if(x<x0 || x>=x1 || enamel[mid*w+x]<.5) return 0;
+          let span=1;
+          for(const step of [-1,1]){
+            let holes=0;
+            for(let y=mid+step;y>=y0 && y<y1;y+=step){
+              if(enamel[y*w+x]>=.5){span++;holes=0;}
+              else if(shoulder(y*w+x) && ++holes<=Math.max(1,Math.round(h*.008))) span++;
+              else break;
+            }
+          }
+          return span;
+        };
+        const neighbourHeight=Math.max(crownSpan(Math.min(...xs)-inset),crownSpan(Math.max(...xs)+inset));
+        if(!neighbourHeight || height<neighbourHeight*.6) continue;
+      }
+      // The model must actually restore the existing corridor. No local paint,
+      // expansion, extrapolation or warping is used to manufacture a closure.
+      let changed=0,coreCount=0,restoredCore=0;
+      for(const at of queue){
+        if(cores[at]) coreCount++;
+        if(modelEnamel(at)){changed++;if(cores[at]) restoredCore++;}
+      }
+      if(changed<queue.length*.7 || restoredCore<coreCount*.7) continue;
+      for(const at of queue) if(modelEnamel(at)) allowed[at]=1;
     }
     const rgba=new Uint8ClampedArray(n*4);
     for(let at=0;at<n;at++){
       const i=at*4; rgba[i]=rgba[i+1]=rgba[i+2]=255;
-      // No outward blur: excluded tissue remains alpha=0. Fractional original-enamel
-      // weights already soften the edge inward without leaking into gum/background.
-      rgba[i+3]=allowed[at]?255:Math.round(enamel[at]*255);
+      // No outward blur: excluded tissue remains alpha=0. Keep original crowns
+      // if a model tries to carve a new dark seam or duplicate an incisal edge.
+      rgba[i+3]=allowed[at]?255:(score(generated,i)>0?Math.round(enamel[at]*255):0);
     }
     return rgba;
   }
@@ -20398,6 +20468,9 @@ body[data-ui-tone="dark"]{
 
     const facial=(kind==='Facial');
     const protectSpacing=!!(opts && opts.intraoral && cfSpacingRequested() && (state.simV82||{}).concept==='prosthetic');
+    // Final-layer copies are 1:1: preserve original protected pixels exactly.
+    // AI resizing above still uses high-quality interpolation.
+    if(protectSpacing) ctx.imageSmoothingEnabled=false;
     // Finish the editable layer BEFORE clipping, so the legacy Bio-Blend cannot repaint
     // tissue that this request's final alpha mask deliberately protects.
     if(protectSpacing){

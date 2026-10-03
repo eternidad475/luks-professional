@@ -1,6 +1,14 @@
 # Intraoral prosthetic spacing correction
 
-Build: `2026-10-03-spacing.1`
+Build: `2026-10-03-spacing.2`
+
+## Follow-up: retain model-produced coronal contacts
+
+The former mask required the entire strip between confident enamel anchors to be dark and neutral. Warm shaded enamel shoulders and reflected color could therefore make an otherwise valid interproximal closure disappear during composition.
+
+The repaired mask separates the dark core from its supported enamel shoulders. It retains bounded coronal geometry, generated-enamel evidence, cervical-notch exclusions, mirrored-arch handling and scale checks. It does not locally paint teeth, indiscriminately fill cervical tissue, or expand to the whole mouth. Final protected-canvas copies now disable resampling at 1:1; high-quality AI-layer resizing remains enabled.
+
+Additional checks: `node scripts/verify-spacing-mask-repair.mjs` runs 50 wholly synthetic regressions. The native Canvas suite adds noisy protected tissue, complete excluded-pixel comparisons before JPEG, and a 2x-resolution mocked AI response. No patient image or patient-derived image fixture is stored in this repository.
 
 ## Defect and bounded repair
 
