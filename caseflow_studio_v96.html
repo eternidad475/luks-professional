@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#be7ed6">
 <meta name="robots" content="noindex, nofollow">
+<meta name="caseflow-build" content="2026-10-03-spacing.1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CaseFlow Studio">
@@ -19052,6 +19053,30 @@ body[data-ui-tone="dark"]{
     });
     return {ortho,restor,uncertain:[]};
   }
+  // Active cards are authoritative; tap order only ranks them. Older saved cases have
+  // targets but no targetOrder, and deselected/stale order entries must never add an edit.
+  function cfActiveComplaintOrder(){
+    const v=state.simV82||{}, t=v.targets||{};
+    const order=Array.isArray(v.targetOrder)?v.targetOrder:[];
+    return [...new Set(order.concat(Object.keys(t)))].filter(k=>!!t[k]);
+  }
+  function cfSpacingRequested(){
+    const scope=state.simCorrectionScope||'combined';
+    const concept=(state.simV82||{}).concept||'ortho';
+    return !!((state.simV82||{}).targets||{}).space
+      && !['shade','gingiva','preserve'].includes(scope)
+      && !(concept==='prosthetic' && scope==='alignment')
+      && !(concept==='ortho' && scope==='shape');
+  }
+  function cfSpacingPrompt(concept){
+    if(!cfSpacingRequested()) return '';
+    const method=concept==='prosthetic'
+      ? 'Restore only the necessary mesio-distal proximal crown width and contact contours at the existing tooth positions. Do NOT move, tip or rotate teeth. Proximal outlines MAY expand into the visible gaps; an enamel-surface-only or original-width lock does not apply to this requested restoration.'
+      : concept==='hybrid'
+        ? 'Close the visible gaps through the requested orthodontic alignment and, where needed, bounded proximal crown restoration.'
+        : 'Close the visible gaps by bringing the existing teeth into contact through orthodontic alignment; preserve each individual crown form and do not add restorative material.';
+    return 'SELECTED SPACING COMPLAINT — applies at EVERY priority rank: inspect the actual visible anterior interdental gaps, including the upper midline diastema, and close each clearly open CORONAL space to a natural proximal contact. '+method+' Preserve original crown height/incisal level, tooth count, separate tooth boundaries, gingiva and papillae. Natural incisal embrasures and gingival black triangles are not full-height diastemas: do not fill them indiscriminately, fuse teeth, paint white strips or invent missing teeth. Ideal ratios are soft references; do not narrow a neighbouring tooth and reopen a space, or enlarge a crown beyond the amount needed for a plausible contact. Preserve all anatomy outside the requested tooth edit. Before returning the image, check that the requested visible gaps are closed, not merely whitened, and that tooth boundaries and surrounding tissues remain intact. This is an illustrative reference, not a prediction or guarantee of a clinical result.';
+  }
   function cfComposeIntentBlock(srcP,isFacial,isIntraoral,isIntraoralDark){
     try{
       const mode=state.simIntentMode||'balanced';
@@ -19070,7 +19095,7 @@ body[data-ui-tone="dark"]{
       parts.push('PRIORITY ORDER for this simulation: (1) the clinician\'s explicit request and slider settings, (2) clinically VISIBLE findings, (3) harmony of the face, lips, dentition and gingiva, (4) natural esthetic balance. Ideal ratios such as the golden proportion are SOFT reference values only — never rigid rules, and deviation alone is not an indication for correction.');
       const role=cfImageRole(srcP,isFacial,isIntraoral,isIntraoralDark);
       parts.push('IMAGE ROLE ('+role.replace(/_/g,' ')+'): weight the evaluation and the edit toward '+CF_ROLE_FOCUS[role]+'.');
-      if(cls.ortho.length) parts.push('ORTHODONTIC-PRIORITY findings ['+cls.ortho.slice(0,6).join('; ')+']: these must be expressed as tooth POSITION / axis / arch-relationship corrections. Do NOT mask or "solve" them with whitening, crown re-shaping or a veneer-like disguise alone.');
+      if(cls.ortho.length) parts.push('ORTHODONTIC-PRIORITY findings ['+cls.ortho.slice(0,6).join('; ')+']: '+(((state.simV82||{}).concept==='prosthetic')?'Do not simulate orthodontic tooth movement in this prosthetic concept. Address only the explicitly requested restorative contours/contacts; retain unresolved position/axis findings.':'When requested, express these as tooth POSITION / axis / arch-relationship corrections; whitening alone is not alignment.'));
       if(cls.restor.length) parts.push('RESTORATIVE-PRIORITY findings ['+cls.restor.slice(0,6).join('; ')+']: these must be expressed as crown FORM / SIZE / SHADE / restoration corrections. Do NOT present them as if solved purely by tooth movement.');
       if(cls.uncertain.length) parts.push('LOW-VISIBILITY / UNCERTAIN items ['+cls.uncertain.slice(0,5).join('; ')+']: do NOT invent details or aggressively correct areas that are hidden by lips, shadow or low resolution — use a conservative strategy there.');
       else parts.push('For any area hidden by the lips or unclear in this photo, use a conservative strategy — do not aggressively invent or correct what cannot be seen.');
@@ -19098,14 +19123,16 @@ body[data-ui-tone="dark"]{
           if(a.crossbite) f.push('anterior crossbite');
           const _cpt=(state.simV82||{}).concept||'ortho';
           parts.push('OBSERVED ALIGNMENT FEATURES ('+(a.region||'anterior').replace(/_/g,' ')+'): '+(f.join(', ')||'irregular arrangement')+'. '
-            +'Express these as tooth POSITION / axis / rotation corrections. '
-            +(a.visible_spacing
+            +(_cpt==='prosthetic'?'Preserve tooth positions and axes; only requested restorative contours/contacts may change. ':'Express requested alignment changes as tooth POSITION / axis / rotation corrections. ')
+            +(a.visible_spacing && cfSpacingRequested()
                 ? ('TOP PRIORITY — CLOSE THE VISIBLE SPACE / MIDLINE DIASTEMA (正中離開・空隙): a clearly OPEN interdental space IS present and MUST be COMPLETELY CLOSED so the adjacent teeth meet at a real contact point and NO gap remains. '
                    + (_cpt==='prosthetic'
                         ? 'This is a PROSTHETIC case — close the space by RESTORING mesio-distal crown WIDTH and rebuilding the proximal contacts at the existing tooth positions (do not move teeth bodily). '
                         : 'Close the space by bringing the teeth together and/or restoring proximal width until the contacts touch. ')
                    + 'CRITICAL EXCEPTION to the central-incisor size cap: closing a genuine diastema legitimately requires ADDING mesio-distal width to the central (and if needed lateral) incisors — so FOR THE PURPOSE OF CLOSING THIS REAL GAP you MAY widen those teeth as much as needed to establish contacts. The "do not widen the centrals" / +0%/−3% cap only prevents oversizing teeth on an ALREADY-CLOSED arch; it must NOT block closing this visible space. After closing, keep the final crown widths in harmonious golden proportion and bilaterally symmetric about the midline. Leaving the diastema open is an INCORRECT result.')
-                : 'NO clearly open interdental space is present — do NOT create, widen, invent or "close" spaces that are not clearly visible in the input; dark areas between overlapped or rotated teeth are depth SHADOWS, not gaps.'));
+                : cfSpacingRequested()
+                  ? 'Screening did not confirm a gap; inspect the actual photograph for the clinician-selected spacing complaint. Do not let uncertain automated classification override the explicit request, and never treat an overlap shadow as a space.'
+                  : 'Preserve current spacing unless correction is explicitly requested within the selected scope; never treat dark overlap shadows as proven gaps.'));
         }
         const tg=Array.isArray(state.simTargets)?state.simTargets:[];
         const tgc=Array.isArray(state.simTargetsCustom)?state.simTargetsCustom:[];
@@ -19119,7 +19146,7 @@ body[data-ui-tone="dark"]{
           parts.push('REFERENCE IMAGES ATTACHED ('+refs.length+'): the clinician has attached reference image(s) as a DESIGN target. Read the UPPER ANTERIOR CROWN FORM characteristics from them — crown OUTLINE/shape family (square / ovoid / triangular), width-to-height proportion, incisal-edge form, surface texture and the central:lateral:canine width progression — and reflect those crown-form characteristics into THIS patient\'s upper anterior teeth. Use the references ONLY for tooth crown FORM/character; NEVER copy the reference patient\'s face, identity, lips or skin, and keep this patient\'s own facial identity unchanged.');
         }
         // Chief-complaint TAP ORDER = clinician-assigned priority (highest first).
-        const cOrder=Array.isArray((state.simV82||{}).targetOrder)?state.simV82.targetOrder:[];
+        const cOrder=cfActiveComplaintOrder();
         if(cOrder.length){
           const cmap={shade:'shade / tooth colour (色調)',space:'spacing & crowding correction (空隙・叢生の補正)',scallop:'gingival line (歯肉ライン)',incisal:'incisal-edge line & length (切縁)',missing:'missing-tooth / prosthetic restoration (欠損補綴)',harmony:'overall smile harmony (全体調和)'};
           const ranked=cOrder.map((k,i)=>(i+1)+') '+(cmap[k]||k));
@@ -19128,7 +19155,7 @@ body[data-ui-tone="dark"]{
           // NON-NEGOTIABLE MINIMUM OUTCOME — it must be fully resolved even if the automated
           // findings did not flag it (the clinician's explicit selection is authoritative).
           const cReq={
-            space:'FULLY CLOSE every visible interdental space and any midline diastema (正中離開・空隙) so adjacent teeth meet at real contact points and NO gap remains anywhere in the anterior segment, and resolve visible crowding. For a PROSTHETIC case, close the spaces by RESTORING mesio-distal crown WIDTH and rebuilding the proximal contacts at the existing tooth positions; for ORTHO/HYBRID, bring the teeth together and/or restore proximal width until the contacts touch. CRITICAL: the central-incisor size cap must NOT prevent this — for the purpose of closing a genuine space you MAY widen the central and lateral incisors as much as needed to establish contacts, then keep the final crown widths in harmonious golden proportion and bilaterally symmetric about the midline. Any remaining visible gap is an INCORRECT result.',
+            space:cfSpacingPrompt((state.simV82||{}).concept||'ortho'),
             shade:'deliver a clearly visible shade improvement toward a natural, healthy, brighter enamel (never flat opaque white).',
             scallop:'visibly harmonise the gingival line, zeniths and interdental papillae.',
             incisal:'clearly level and refine the incisal-edge line and tooth lengths into a consonant smile arc.',
@@ -19139,6 +19166,8 @@ body[data-ui-tone="dark"]{
           if(cReq[top]) parts.push('TOP-PRIORITY COMPLAINT — NON-NEGOTIABLE MINIMUM OUTCOME: the #1 chief complaint ('+(cmap[top]||top)+') MUST be clearly and COMPLETELY resolved in the result — this is the MINIMUM acceptable outcome, not an optional refinement. Specifically: '+cReq[top]+' A result that does NOT clearly resolve this #1 complaint is INCORRECT and unacceptable, regardless of any other change.');
         }
       }catch(e){}
+      const spacingRequest=cfSpacingPrompt((state.simV82||{}).concept||'ortho');
+      if(spacingRequest) parts.push(spacingRequest);
       const custom=String(state.simCustomPrompt||'').trim();
       if(mode==='user-first'){
         parts.push('USER-FIRST MODE: the clinician\'s written request'+(custom?' ("'+custom.slice(0,180)+'")':'')+' and slider settings define the ONLY intended changes. Apply automated findings ONLY where they directly support that request. Add NO corrections beyond it — items the clinician chose to keep (e.g. a peg lateral to preserve, residual character to retain, brackets to keep) must be kept exactly.');
@@ -19173,6 +19202,7 @@ body[data-ui-tone="dark"]{
     const kind=(typeof sourceKind==='function') ? sourceKind(srcP) : 'Image';
     const isFacial = (kind==='Facial');
     const isIntraoral = !!(srcP && srcP.intraoral);
+    const spaceRequested=cfSpacingRequested();
     const isIntraoralDark = !!(srcP && srcP.intraoralDark);   // black-contraster subtype
     // Whether lips / perioral soft tissue are present in the photo. Drives whether the model
     // is allowed to render/arrange lips at all. Default: only a facial portrait has lips.
@@ -19202,6 +19232,10 @@ body[data-ui-tone="dark"]{
       ip.push('The photo is a close-up INTRAORAL view taken with cheek retractors. It is NOT a smiling face — do NOT turn it into a smile, do NOT add lips, do NOT add a face or skin, do NOT add new teeth, '+(extraction?'':'do NOT remove teeth, ')+'and do NOT change the framing, magnification, background or gingiva.');
       if(orthoGoal && !isIntraoralDark){
         ip.push('TOP PRIORITY — alignment is allowed: you MAY reposition, de-rotate, tip and level the existing teeth to align the arches, but NEVER make any individual tooth unnaturally long and NEVER paint new tooth structure below the lowest existing incisal edges into the background. Keep realistic crown proportions; '+countRule+'.');
+      } else if(spaceRequested && concept==='prosthetic'){
+        ip.push('Preserve the vertical incisal level and crown height. For the selected spacing correction, proximal crown contours may extend HORIZONTALLY into a visible coronal gap to establish contact; do not extend teeth below their original incisal boundary, alter gingiva or move tooth axes.');
+      } else if(spaceRequested){
+        ip.push('For the selected spacing correction, horizontal tooth alignment is allowed within the existing visible arch. Preserve crown height, the vertical incisal limit, the original gingiva and black background; no opposing teeth or new anatomy.');
       } else {
         // TOP PRIORITY incisal trim applies to EVERY other intraoral close-up, including dark contraster.
         ip.push('TOP PRIORITY — incisal trim (ABSOLUTE, NON-NEGOTIABLE RULE for this shot type): every incisal edge must remain FIXED at its EXACT current pixel position — do NOT move, shift, raise, lower, retract, lengthen or extend any incisal edge in ANY direction by even one pixel. The area below/beyond the incisal edges must remain IDENTICAL to the original photo. This constraint overrides ALL other instructions including any treatment concept, alignment goal or refinement request. Violating this rule is an incorrect result.');
@@ -19212,6 +19246,8 @@ body[data-ui-tone="dark"]{
       }
       if(orthoGoal && !isIntraoralDark){
         ip.push('Keep each tooth\'s individual character, but you MUST change tooth POSITION, angulation and rotation as needed to align the arch — this re-positioning is the PRIMARY edit and takes priority over surface/colour changes ('+countRule+'). The after image must look meaningfully straighter than the input.');
+      } else if(spaceRequested){
+        ip.push(cfSpacingPrompt(concept));
       } else {
         ip.push('Keep every tooth\'s own outline, size and position; change ONLY the visible enamel surface (its colour and texture) of the existing teeth.');
       }
@@ -19222,7 +19258,7 @@ body[data-ui-tone="dark"]{
       const tsS=(s.toothShape==null?50:s.toothShape)-50, tsM=Math.round(Math.abs(tsS)*2);
       if(tsM>=15 && tsS<0) rq.push('reshape the crown OUTLINE toward an OVOID/curved form within the OVOID↔SQUARE range (strength '+tsM+'%): PRIORITY = the incisal edge gently curved/rounded with rounded corners; proximal outlines softened to gentle curves as secondary; keep the gingival line FIXED (do not move the gum); keep crown length within the golden proportion (≈75–85% width-to-height), not shorter/longer — make it clearly visible');
       else if(tsM>=15 && tsS>0) rq.push('reshape the crown OUTLINE toward a SQUARE/edged form within the OVOID↔SQUARE range (strength '+tsM+'%): PRIORITY = a flat near-horizontal incisal edge with sharp defined corners; proximal outlines more vertical as secondary; keep the gingival line FIXED (do not move the gum); keep crown length within the golden proportion (≈75–85% width-to-height), not shorter/longer — make it clearly visible');
-      if(lvl(s.alignment) && !isIntraoralDark){
+      if(orthoGoal && lvl(s.alignment) && !isIntraoralDark){
         // Alignment repositioning is FORBIDDEN for dark contraster shots (incisal trim rule is absolute).
         const a=Math.round(s.alignment);
         let ag;
@@ -19235,7 +19271,7 @@ body[data-ui-tone="dark"]{
       }
       { const tf=(typeof window.cfTeethTypePromptFragment==='function')?window.cfTeethTypePromptFragment(true):''; if(tf){ ip.push(tf); if(!rq.length) rq.push('apply the UPPER ANTERIOR TOOTH FORM direction stated above'); } }
       if(rq.length) ip.push('Refinements to the existing teeth only: '+rq.join('; ')+'.');
-      else ip.push('Return the teeth essentially unchanged — only very slightly cleaned up.');
+      else if(!spaceRequested) ip.push('Return the teeth essentially unchanged — only very slightly cleaned up.');
       if(orthoGoal && !isIntraoralDark){
         const hybridExtra = concept==='hybrid'
           ? ' In addition, as part of the PROSTHETIC component: also refine the crown forms — reshape incisal edges and proximal contours to ideal proportions (width-to-height ~78–82% for centrals, golden/RED proportion step-down central→lateral→canine), even contact points, and natural scalloped gingival contours. The combined hybrid result must show GREATER visible change than an orthodontic-only result — both arch alignment AND crown form improvement must be clearly apparent.'
@@ -19247,7 +19283,7 @@ body[data-ui-tone="dark"]{
       else if(bioSigned<0 && bioMag>=10) ip.push('Bio-Blend smooth ('+bioMag+'%): MINIMISE surface texture and anatomy — reduce perikymata and mammellons, soften micro-morphology and emphasise a smooth, even, gently glossy enamel surface. Natural, not plastic; do NOT add cracks, craze lines or aging.');
       const plI=(srcP && Array.isArray(srcP.problemList))?srcP.problemList:[];
       if(plI.length) ip.push('Automated screening of THIS photo noted: '+plI.map(f=>f.en||f).join('; ')+'. '+
-        (isIntraoralDark
+        (isIntraoralDark && !spaceRequested
           ? 'Address ONLY shade, colour and surface texture findings. DO NOT address any alignment, position or crowding findings — the incisal trim rule is absolute for this dark contraster shot.'
           : 'Address only the findings that are consistent with the requested refinements and the treatment concept ('+(conceptMap[concept]||conceptMap.ortho)+'); do not over-treat or invent problems.'));
       const customI=String(state.simCustomPrompt||'').trim();
@@ -19255,6 +19291,8 @@ body[data-ui-tone="dark"]{
       { const ib=cfComposeIntentBlock(srcP,false,true,isIntraoralDark); if(ib) ip.push(ib); }
       if(orthoGoal && !isIntraoralDark){
         ip.push('Output: the SAME photograph with the teeth re-aligned as specified (positions/axes may change for the alignment, enamel adjusted) — photorealistic, identical crop, resolution, lighting and white balance. No new smile, no added lips/face/gingiva, no text or watermark.');
+      } else if(spaceRequested){
+        ip.push('Output: the SAME photograph with the selected visible coronal spaces closed through the specified treatment concept, preserving separate natural crowns, original incisal height, gingiva, retractors and background. Identical crop, resolution and lighting. No added lips, face, teeth, text or watermark.');
       } else {
         ip.push('Output: the SAME photograph with ONLY the tooth enamel adjusted — photorealistic, identical crop, resolution, lighting and white balance. No new smile, no added lips/face/gingiva, no text or watermark.');
       }
@@ -19506,6 +19544,7 @@ body[data-ui-tone="dark"]{
       ' (13) CLINICAL DISCLAIMER — this simulation is for chairside patient education; it does NOT guarantee a treatment outcome. The image must look natural, credible and achievable — not like a dental advertisement.'
     );
     parts.push('Output: a photorealistic clinical photograph that looks like a real after-treatment photo of the SAME patient — natural enamel texture, translucency and surface gloss, healthy gingiva, soft realistic lighting matching the original exposure and white balance. Return the FULL image at the same crop, framing, resolution and head position as the input so it overlays the before image exactly. No text, no watermark, no grid, no cartoon or 3D-render look, no plastic/over-smoothed skin.');
+    if(spaceRequested) parts.push(cfSpacingPrompt(concept));
     return parts.join(' ');
   }
   window.caseflowBuildSimPrompt=buildClinicalPrompt;
@@ -19618,6 +19657,7 @@ body[data-ui-tone="dark"]{
     const shadeMag=Math.abs((s.shade==null?50:s.shade)-50)*2;
     const tsMag=Math.abs((s.toothShape==null?50:s.toothShape)-50)*2;
     const m=Math.max(shadeMag, tsMag, s.alignment||0, s.scallop||0, s.smileFrame||0);
+    if(cfSpacingRequested()) return 0.40;    // explicit card remains active at neutral sliders
     if(m<=0) return 0;                       // no axis active => return the original (before)
     return 0.40;
   }
@@ -19649,6 +19689,87 @@ body[data-ui-tone="dark"]{
     // not from an aggressive erosion (which over-shrank the mask and degraded the edit).
     fx.filter='blur('+Math.max(1,Math.round(Math.min(w,h)*0.006))+'px)'; fx.drawImage(mc,0,0); fx.filter='none';
     return fb;
+  }
+
+  // Restorative spacing needs a real ALPHA mask, including the original gap. An RGB
+  // grayscale mask with alpha=255 cannot protect anything under destination-in.
+  // This path copies model-produced enamel, never synthesizes/fills/warps a tooth locally.
+  // Geometry is permitted only in narrow, vertically sustained dark corridors bracketed
+  // by original enamel on BOTH sides; red tissue and beyond-incisal background stay locked.
+  function cfSpacingMaskPixels(original, generated, w, h){
+    const n=w*h, enamel=new Float32Array(n), candidates=new Uint8Array(n), allowed=new Uint8Array(n);
+    const score=(d,i)=>{
+      const r=d[i],g=d[i+1],b=d[i+2], l=(r+g+b)/3;
+      // Conservative colour evidence: require an enamel-like yellow/warm gradient
+      // or near-white highlight. Reject blue/neutral mid-value metal and pink tissue.
+      const rg=r-g, gb=g-b, sat=Math.max(r,g,b)-Math.min(r,g,b);
+      if(b>r+3 || b>g+3 || rg>gb*1.2+8 || !(gb>=4 || (l>=225 && sat<18))) return 0;
+      return clamp(smoothstep(72,140,l)*smoothstep(120,55,Math.max(r,g,b)-Math.min(r,g,b))*smoothstep(70,30,r-(g+b)/2),0,1);
+    };
+    const x0=Math.ceil(w*.08), x1=Math.floor(w*.92), y0=Math.ceil(h*.08), y1=Math.floor(h*.90);
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) enamel[y*w+x]=score(original,(y*w+x)*4);
+    const minAnchor=Math.max(3,Math.round(w*.007)), maxGap=Math.max(3,Math.round(w*.045));
+    for(let y=y0;y<y1;y++){
+      let x=x0;
+      while(x<x1){
+        if(enamel[y*w+x]<.5){ x++; continue; }
+        const leftStart=x;
+        while(x<x1 && enamel[y*w+x]>=.5) x++;
+        const start=x, leftWidth=start-leftStart;
+        while(x<x1 && enamel[y*w+x]<.5 && x-start<=maxGap) x++;
+        const end=x, gap=end-start;
+        if(gap<1 || gap>maxGap || leftWidth<minAnchor || x>=x1) continue;
+        let rightEnd=x;
+        while(rightEnd<x1 && enamel[y*w+rightEnd]>=.5) rightEnd++;
+        const rightWidth=rightEnd-end;
+        if(rightWidth<minAnchor || gap>Math.min(leftWidth,rightWidth)*.65) continue;
+        let dark=true;
+        for(let gx=start;gx<end;gx++){
+          const i=(y*w+gx)*4,r=original[i],g=original[i+1],b=original[i+2];
+          if((r+g+b)/3>100 || r-(g+b)/2>25){ dark=false; break; }
+        }
+        if(dark) for(let gx=start;gx<end;gx++) candidates[y*w+gx]=1;
+      }
+    }
+    // Vertical support excludes isolated shadows and the broad horizontal bite opening.
+    // Stable corridor width also rejects tapered gingival/occlusal triangular embrasures.
+    const seen=new Uint8Array(n), minHeight=Math.max(8,Math.round(h*.035));
+    for(let seed=0;seed<n;seed++){
+      if(!candidates[seed] || seen[seed]) continue;
+      const queue=[seed], rows=new Map(); seen[seed]=1;
+      for(let q=0;q<queue.length;q++){
+        const at=queue[q],x=at%w,y=Math.floor(at/w);
+        rows.set(y,(rows.get(y)||0)+1);
+        for(const next of [x>0?at-1:-1,x<w-1?at+1:-1,y>0?at-w:-1,y<h-1?at+w:-1]){
+          if(next>=0 && candidates[next] && !seen[next]){seen[next]=1;queue.push(next);}
+        }
+      }
+      const widths=Array.from(rows.values()).sort((a,b)=>a-b), height=rows.size;
+      const median=widths[Math.floor(widths.length/2)]||0;
+      const narrow=widths[Math.floor(widths.length*.15)]||0, wide=widths[Math.floor(widths.length*.85)]||0;
+      if(height<minHeight || height<median*2 || narrow<wide*.65) continue;
+      // Require the model to have supplied enamel across most of this corridor. An
+      // unchanged AI output stays unchanged; no local paint can manufacture a success.
+      let changed=0;
+      for(const at of queue) if(score(generated,at*4)>=.5) changed++;
+      if(changed<queue.length*.7) continue;
+      for(const at of queue) if(score(generated,at*4)>=.5) allowed[at]=1;
+    }
+    const rgba=new Uint8ClampedArray(n*4);
+    for(let at=0;at<n;at++){
+      const i=at*4; rgba[i]=rgba[i+1]=rgba[i+2]=255;
+      // No outward blur: excluded tissue remains alpha=0. Fractional original-enamel
+      // weights already soften the edge inward without leaking into gum/background.
+      rgba[i+3]=allowed[at]?255:Math.round(enamel[at]*255);
+    }
+    return rgba;
+  }
+  function spacingEnamelMaskCanvas(ox,aix,w,h){
+    const mc=document.createElement('canvas'); mc.width=w; mc.height=h;
+    const mx=mc.getContext('2d',{willReadFrequently:true}), im=mx.createImageData(w,h);
+    im.data.set(cfSpacingMaskPixels(ox.getImageData(0,0,w,h).data,aix.getImageData(0,0,w,h).data,w,h));
+    mx.putImageData(im,0,0);
+    return mc;
   }
 
   // ===== Automated pre-generation PROBLEM LIST — v3 (4-step clinical pipeline) =====
@@ -20276,6 +20397,13 @@ body[data-ui-tone="dark"]{
     toneMatchToOriginal(aix, ox, w, h, 0.85);
 
     const facial=(kind==='Facial');
+    const protectSpacing=!!(opts && opts.intraoral && cfSpacingRequested() && (state.simV82||{}).concept==='prosthetic');
+    // Finish the editable layer BEFORE clipping, so the legacy Bio-Blend cannot repaint
+    // tissue that this request's final alpha mask deliberately protects.
+    if(protectSpacing){
+      const bb=(clamp(((state.simV96||{}).bioBlend ?? 50),0,100)-50)/50;
+      applyIntraoralBioBlend(aix,ox,w,h,bb);
+    }
     if(facial){
       // ── FACIAL: show the AI's identity-preserving full-frame edit (natural, seamless). ──
       // A post-hoc mouth-region patch guaranteed identity but read as an unnatural pasted
@@ -20297,7 +20425,10 @@ body[data-ui-tone="dark"]{
       ctx.drawImage(oc,0,0);
       const sF=requestedStrength();
       if(sF>0.001){
-        let mask = (opts && opts.intraoral) ? enamelMaskCanvas(ox,w,h) : null;
+        let mask = (opts && opts.intraoral)
+          ? (cfSpacingRequested() && (state.simV82||{}).concept==='prosthetic'
+            ? spacingEnamelMaskCanvas(ox,aix,w,h) : enamelMaskCanvas(ox,w,h))
+          : null;
         // Concept + card config applies to focus paths
         const _v82foc=state.simV82||{};
         const roiScalesFoc=cfSimROIConfig(_v82foc.concept||'ortho', _v82foc.targets||{});
@@ -20332,7 +20463,7 @@ body[data-ui-tone="dark"]{
       }
     }
     // Intraoral Bio-Blend pass — naturalization (右) or realistic aging (左)
-    if(opts && opts.intraoral){
+    if(opts && opts.intraoral && !protectSpacing){
       const bb = (clamp(((state.simV96||{}).bioBlend ?? 50), 0, 100) - 50) / 50;
       applyIntraoralBioBlend(ctx, ox, w, h, bb);
     }
@@ -20530,7 +20661,10 @@ body[data-ui-tone="dark"]{
       if(!out) throw new Error('画像が返りませんでした (no image in response)');
       const kind=(typeof sourceKind==='function') ? sourceKind(source) : 'Image';
       try{ return await finalizeAIImage(source.dataUrl, out, kind, {intraoral:!!(source&&source.intraoral), lips:!!(source&&source.lips)}); }
-      catch(e){ console.warn('finalize failed, using raw AI image', e); return out; }
+      catch(e){
+        if(source && source.intraoral && cfSpacingRequested()) throw e;
+        console.warn('finalize failed, using raw AI image', e); return out;
+      }
     }catch(genErr){
       // 生成失敗 → トークン返却（失敗生成は原則消費なし）
       if(_ledgerId!=null && typeof window.cfRefundGeneration==='function'){
@@ -21039,6 +21173,10 @@ body[data-ui-tone="dark"]{
           console.warn(e); window.__caseflowLastAIError=String((e&&e.message)||e); toastFn('AI生成に失敗: '+((e&&e.message)||e));
         }
       }
+      if(src && src.intraoral && cfSpacingRequested()){
+        const err=new Error('空隙閉鎖のAI生成を完了できませんでした。元の写真と既存の結果は保持しています。');
+        err.cfSpacingUnavailable=true; throw err;
+      }
       return await createSimulationImageV96(src, state.simV96);
     } finally {
       clearInterval(_progressTimer);
@@ -21067,7 +21205,7 @@ body[data-ui-tone="dark"]{
       renderResultImages();
       // Persist the new result immediately so a reload won't lose it
       try{ if(window.cfPersist) cfPersist.schedule(1000); }catch(e){}
-    }catch(e){ console.error(e); toastFn('再生成に失敗しました'); }
+    }catch(e){ console.error(e); toastFn(e&&e.cfSpacingUnavailable?e.message:'再生成に失敗しました'); }
     regenBusy=false; setBusy(false);
     if(regenQueued){ regenQueued=false; regenerate(); }
   }
@@ -21420,7 +21558,7 @@ body[data-ui-tone="dark"]{
       // be identical to the before. Seed a sensible baseline (mild whitening + naturalization).
       const sv=state.simV96;
       const _bioOK=((state.simV82||{}).concept==='prosthetic'||(state.simV82||{}).concept==='hybrid');
-      if(Math.abs((sv.shade||50)-50)<8 && Math.abs((sv.toothShape||50)-50)<8){
+      if(!cfSpacingRequested() && Math.abs((sv.shade||50)-50)<8 && Math.abs((sv.toothShape||50)-50)<8){
         sv.shade=62; if(_bioOK) sv.bioBlend=Math.max(sv.bioBlend||50,60);
       }
       if(!_bioOK) sv.bioBlend=50;
@@ -21468,7 +21606,7 @@ body[data-ui-tone="dark"]{
       if(_ortho){ state.simV96.alignment=50; window._cfExtractWarned=false; }
       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 60);
       setTimeout(()=>{ renderResultImages(); buildEditGrid(); }, 220);
-    }catch(e){ console.error(e); toastFn('画像の作成に失敗しました'); }
+    }catch(e){ console.error(e); toastFn(e&&e.cfSpacingUnavailable?e.message:'画像の作成に失敗しました'); }
   };
 
   /* ---- keep the result edit grid in sync whenever the result page renders ---- */
